@@ -30,7 +30,7 @@
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase text-zinc-500">
-                    <tr><th class="px-4 py-3">Ormaric</th><th>Projekat</th><th>ODF</th><th>Kapacitet</th><th>Zauzeto</th><th>Status</th></tr>
+                    <tr><th class="px-4 py-3">Ormaric</th><th>Projekat</th><th>ODF</th><th>Kapacitet</th><th>Zauzeto</th><th>Status</th><th>Akcije</th></tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100">
                     @forelse($cabinets as $cabinet)
@@ -46,9 +46,16 @@
                                 </div>
                             </td>
                             <td><span class="rounded-md px-2 py-1 text-xs font-semibold {{ $cabinet->utilization >= 100 ? 'bg-red-100 text-red-800' : ($cabinet->utilization >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800') }}">{{ $cabinet->utilization >= 100 ? 'Popunjen' : $cabinet->utilization.'%' }}</span></td>
+                            <td>
+                                <form method="POST" action="{{ route('cabinets.delete', $cabinet->id) }}" style="display:inline;" onsubmit="return confirm('Sigurno obrisati?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline">Obriši</button>
+                                </form>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td class="px-4 py-8 text-center text-zinc-500" colspan="6">Nema ormarica. Dodaj prvi ormaric kroz formu lijevo.</td></tr>
+                        <tr><td class="px-4 py-8 text-center text-zinc-500" colspan="7">Nema ormarica. Dodaj prvi ormaric kroz formu lijevo.</td></tr>
                     @endforelse
                 </tbody>
             </table>

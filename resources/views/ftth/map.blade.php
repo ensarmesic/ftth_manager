@@ -8,68 +8,194 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
+    #map-workspace {
+        --panel-bg: rgba(255, 255, 255, .96);
+        min-height: 0;
+    }
+    .map-shell {
+        background:
+            linear-gradient(135deg, rgba(8,145,178,.10), transparent 34%),
+            linear-gradient(315deg, rgba(16,185,129,.12), transparent 36%),
+            #f8fafc;
+    }
+    .control-panel {
+        background: var(--panel-bg);
+        border: 1px solid rgba(15, 23, 42, .10);
+        box-shadow: 0 18px 45px rgba(15, 23, 42, .08);
+        backdrop-filter: blur(14px);
+    }
+    .metric-card {
+        border: 1px solid rgba(15, 23, 42, .08);
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+    }
+    .tool-btn, .action-btn {
+        transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .tool-btn:hover, .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .10);
+    }
     .ftth-label { border: 0; background: transparent; }
-    .ftth-tag { box-shadow: 0 1px 5px rgba(0,0,0,.35); border: 1.5px solid #fff; color: #fff; font: 700 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
+    .ftth-tag { box-shadow: 0 7px 20px rgba(0,0,0,.35); border: 1.5px solid #fff; color: #fff; font: 700 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
     .ftth-tag.odf { min-width: 30px; height: 18px; border-radius: 999px; background: #0891b2; }
     .ftth-tag.cabinet { min-width: 38px; height: 18px; border-radius: 5px; background: #059669; }
     .ftth-tag.house { width: 10px; height: 10px; border-radius: 999px; background: #7c3aed; font-size: 0; }
     .ftth-tag.suggest { min-width: 46px; height: 20px; border-radius: 5px; background: #f59e0b; color: #111827; }
+    .route-label {
+        border: 0;
+        background: transparent;
+        pointer-events: none;
+    }
+    .route-label span {
+        display: block;
+        border: 1px solid rgba(255, 255, 255, .75);
+        border-radius: 4px;
+        background: rgba(15, 23, 42, .76);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, .2);
+        color: #fff;
+        font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0;
+        padding: 3px 5px;
+        white-space: nowrap;
+    }
+    .cad-status {
+        border-top: 1px solid rgba(15, 23, 42, .12);
+        background: #0f172a;
+        color: #e2e8f0;
+        font: 600 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .cad-chip {
+        border: 1px solid rgba(148, 163, 184, .35);
+        background: rgba(15, 23, 42, .8);
+    }
+    #network-map { min-height: 620px; }
+    @media (min-width: 1280px) {
+        #network-map { min-height: 0; }
+    }
 </style>
 
-<section id="map-workspace" class="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3">
-    <aside class="grid shrink-0 gap-3 xl:grid-cols-[1.15fr_1fr_1fr_auto]">
-        <div class="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+<section id="map-workspace" class="grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div class="map-shell flex min-h-0 flex-col overflow-hidden rounded-md border border-zinc-200 shadow-sm">
+        <div class="shrink-0 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="font-semibold">Projektantske komande</h2>
-                <div class="grid grid-cols-3 gap-2 text-sm">
-                    <div class="rounded-md bg-amber-50 px-3 py-2"><span class="text-zinc-500">Trasa</span> <strong id="draw-length" class="text-amber-800">0 m</strong></div>
-                    <div class="rounded-md bg-violet-50 px-3 py-2"><span class="text-zinc-500">Kuce</span> <strong id="house-count" class="text-violet-800">0</strong></div>
-                    <div class="rounded-md bg-emerald-50 px-3 py-2"><span class="text-zinc-500">Ormarici</span> <strong id="cabinet-count" class="text-emerald-800">0</strong></div>
+                <div>
+                    <h2 class="text-base font-semibold">Radna karta</h2>
+                    <p class="text-xs text-zinc-500">Satelit, trase, ODF, FTTH ormarići i kuće na jednom platnu.</p>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-xs">
+                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">Trasa</span><strong id="draw-length" class="text-sm text-amber-700">0 m</strong></div>
+                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">Kuce</span><strong id="house-count" class="text-sm text-violet-700">0</strong></div>
+                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">FTTH</span><strong id="cabinet-count" class="text-sm text-emerald-700">0</strong></div>
                 </div>
             </div>
-            <div class="mt-2 flex flex-wrap gap-2">
-                <button type="button" id="finish-branch" class="rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950">Zavrsi krak</button>
-                <button type="button" id="undo-draw" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold">Undo tacka</button>
-                <button type="button" id="undo-branch" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold">Undo krak</button>
-                <button type="button" id="clear-draw" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold">Ocisti trase</button>
-                <button type="button" id="undo-element" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold">Undo element</button>
-                <button type="button" id="undo-house" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold">Undo kuca</button>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+                <button type="button" id="mode-pan" class="tool-btn rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white">Pomjeraj</button>
+                <button type="button" id="mode-odf" class="tool-btn rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800">ODF</button>
+                <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
+                <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuce</button>
+                <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
+                <span class="mx-1 hidden h-8 w-px bg-zinc-200 sm:block"></span>
+                <button type="button" id="finish-branch" class="action-btn rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950">Zavrsi krak</button>
+                <button type="button" id="undo-draw" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo tacka</button>
+                <button type="button" id="undo-branch" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo krak</button>
+                <button type="button" id="undo-element" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo element</button>
+                <button type="button" id="undo-house" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo kuca</button>
+                <button type="button" id="clear-draw" class="action-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Ocisti trase</button>
+                <button type="button" id="expand-map" class="action-btn ml-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
             </div>
         </div>
+        <div id="network-map" class="min-h-0 flex-1 w-full"></div>
+        <div class="cad-status grid gap-2 px-3 py-2 md:grid-cols-[1fr_auto_auto]">
+            <div id="cad-command">PAN: pomjeraj mapu. Izaberi ODF, FTTH, Kuce ili Trasa.</div>
+            <div id="cad-coordinates" class="cad-chip rounded px-2 py-1">LAT -, LNG -</div>
+            <div class="cad-chip rounded px-2 py-1">ESC prekid · ENTER zavrsi · CTRL+Z undo</div>
+        </div>
+    </div>
 
-        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="rounded-md border border-emerald-200 bg-emerald-50 p-3 shadow-sm">
+    <aside class="grid min-h-0 gap-2 xl:max-h-full xl:overflow-y-auto">
+        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="control-panel rounded-md p-4">
             @csrf
-            <div class="flex items-center justify-between gap-3">
-                <h2 class="font-semibold text-emerald-950">Plan projekta</h2>
-                <span id="bulk-plan-summary" class="text-sm text-emerald-900">Draft: 0 ODF, 0 FTTH, 0 kuca, 0 trasa.</span>
+            <div class="grid gap-1">
+                <h2 class="font-semibold text-zinc-950">Plan projekta</h2>
+                <span id="bulk-plan-summary" class="text-sm text-emerald-700">Draft: 0 ODF, 0 FTTH, 0 kuca, 0 trasa.</span>
             </div>
-            <div class="mt-2 grid gap-2 lg:grid-cols-[1fr_auto_auto]">
-                <select id="active-project-id" name="project_id" class="rounded-md border border-emerald-300 px-3 py-2 text-sm" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
+            <div class="mt-3 grid gap-2">
+                <select id="active-project-id" name="project_id" class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
+                <div class="grid gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
+                        <button type="button" data-guide-mode="odf" class="guide-step rounded bg-cyan-100 px-2 py-2 text-cyan-800">1 ODF</button>
+                        <button type="button" data-guide-mode="draw" class="guide-step rounded bg-amber-100 px-2 py-2 text-amber-800">2 Trasa</button>
+                        <button type="button" data-guide-mode="house" class="guide-step rounded bg-violet-100 px-2 py-2 text-violet-800">3 Kuce</button>
+                        <button type="button" id="guide-suggest" class="guide-step rounded bg-emerald-100 px-2 py-2 text-emerald-800">4 FTTH</button>
+                    </div>
+                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">5 Snimi kompletan plan</button>
+                </div>
+                <div class="rounded-md border border-cyan-100 bg-cyan-50 p-3">
+                    <label class="grid gap-1 text-xs font-semibold text-cyan-900">
+                        Aktivni ODF za nove ormarice
+                        <select id="active-odf-index" class="rounded-md border border-cyan-200 bg-white px-3 py-2 text-sm font-normal text-zinc-800">
+                            <option value="">Prvo postavi ODF</option>
+                        </select>
+                    </label>
+                    <div id="odf-link-status" class="mt-2 text-xs text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
+                </div>
+                <div class="grid grid-cols-4 gap-1 rounded-md border border-zinc-200 bg-zinc-50 p-2 text-center text-[11px] font-semibold text-zinc-600">
+                    <span class="rounded bg-cyan-100 px-2 py-1 text-cyan-800">1 ODF</span>
+                    <span class="rounded bg-emerald-100 px-2 py-1 text-emerald-800">2 FTTH</span>
+                    <span class="rounded bg-amber-100 px-2 py-1 text-amber-800">3 Trasa</span>
+                    <span class="rounded bg-violet-100 px-2 py-1 text-violet-800">4 Kuce</span>
+                </div>
+                <div class="rounded-md border border-amber-100 bg-amber-50 p-3">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                        <h3 class="text-sm font-semibold text-amber-950">Aktivni krak trase</h3>
+                        <span id="route-branch-count" class="text-xs font-semibold text-amber-700">0 krakova</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="grid gap-1 text-xs text-amber-900">Tip
+                            <select id="route-draw-type" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800">
+                                <option value="feeder">Primarni</option>
+                                <option value="distribution">Sekundarni</option>
+                                <option value="drop">Drop</option>
+                            </select>
+                        </label>
+                        <label class="grid gap-1 text-xs text-amber-900">Mikrocijevi
+                            <input id="route-draw-microducts" type="number" min="1" value="1" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800">
+                        </label>
+                    </div>
+                    <label class="mt-2 grid gap-1 text-xs text-amber-900">Oznaka
+                        <input id="route-draw-name" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800" placeholder="npr. P-01 ili S-01">
+                    </label>
+                    <div id="route-odf-status" class="mt-2 rounded bg-white/70 px-2 py-2 text-xs font-semibold text-amber-900">Krak nije vezan na ODF.</div>
+                    <div id="route-branch-list" class="mt-3 grid max-h-32 gap-1 overflow-y-auto text-xs text-amber-950"></div>
+                </div>
                 <input id="bulk-plan-json" type="hidden" name="plan">
-                <button type="button" id="save-draft" class="rounded-md border border-emerald-400 bg-white px-4 py-2 text-sm font-semibold text-emerald-900">Sacuvaj nacrt</button>
-                <button class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">Snimi sve</button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">Sacuvaj nacrt</button>
+                    <button class="action-btn rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Snimi sve</button>
+                </div>
             </div>
-            <div id="bulk-plan-status" class="mt-1 text-sm font-semibold text-emerald-950"></div>
+            <div id="bulk-plan-status" class="mt-2 text-sm font-semibold text-emerald-800"></div>
         </form>
 
-        <div class="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+        <div class="control-panel rounded-md p-4">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="font-semibold">Automatski raspored</h2>
-                <button type="button" id="suggest-cabinets" class="rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Predlozi FTTH</button>
+                <button type="button" id="suggest-cabinets" class="action-btn rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Predlozi FTTH</button>
             </div>
             <div class="mt-2 grid grid-cols-4 gap-2">
                 <label class="grid gap-1 text-xs text-zinc-600">Min<input id="planner-min" type="number" min="1" max="12" value="8" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
                 <label class="grid gap-1 text-xs text-zinc-600">Max<input id="planner-max" type="number" min="1" max="12" value="12" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
-                <label class="grid gap-1 text-xs text-zinc-600">Drop<input id="planner-drop" type="number" min="0" value="1" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
-                <button type="button" id="clear-suggestions" class="mt-5 rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold">Ocisti</button>
+                <label class="grid gap-1 text-xs text-zinc-600">Max m<input id="planner-max-drop" type="number" min="20" value="90" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
+                <button type="button" id="clear-suggestions" class="action-btn mt-5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Ocisti</button>
             </div>
-            <div id="suggestion-output" class="mt-2 max-h-16 overflow-auto rounded-md bg-zinc-50 p-2 text-sm text-zinc-700">Nacrtaj trasu i oznaci kuce.</div>
+            <div id="suggestion-output" class="mt-3 max-h-56 overflow-auto rounded-md border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-700">Nacrtaj trasu i oznaci kuce.</div>
+            <button type="button" id="save-suggestions" class="action-btn mt-3 hidden w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Snimi samo FTTH ormarice</button>
         </div>
 
-        <details class="rounded-md border border-zinc-200 bg-white shadow-sm">
+        <details class="control-panel rounded-md" open>
             <summary class="cursor-pointer list-none px-4 py-3 font-semibold">Snimanje elemenata</summary>
-            <div class="grid gap-4 border-t border-zinc-100 p-5 xl:absolute xl:right-8 xl:z-[1000] xl:mt-2 xl:w-[390px] xl:bg-white xl:shadow-xl">
-                <form method="POST" action="{{ route('odfs.store') }}" id="odf-form" class="grid gap-3 rounded-md bg-cyan-50 p-4">
+            <div class="grid gap-3 border-t border-zinc-100 p-4">
+                <form method="POST" action="{{ route('odfs.store') }}" id="odf-form" class="grid gap-3 rounded-md border border-cyan-100 bg-cyan-50 p-3">
                     @csrf
                     <h3 class="font-semibold text-cyan-900">Sacuvaj ODF</h3>
                     <select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
@@ -79,7 +205,7 @@
                     <div class="grid grid-cols-2 gap-2"><input id="odf-lat" name="latitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lat" required><input id="odf-lng" name="longitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lng" required></div>
                     <button class="rounded-md bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj ODF</button>
                 </form>
-                <form method="POST" action="{{ route('cabinets.store') }}" id="cabinet-form" class="grid gap-3 rounded-md bg-emerald-50 p-4">
+                <form method="POST" action="{{ route('cabinets.store') }}" id="cabinet-form" class="grid gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-3">
                     @csrf
                     <h3 class="font-semibold text-emerald-900">Sacuvaj FTTH ormaric</h3>
                     <select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
@@ -101,27 +227,14 @@
                     <input id="house-lat" name="latitude">
                     <input id="house-lng" name="longitude">
                 </form>
+                <div id="material-specs-output" class="hidden grid gap-3 rounded-md border border-sky-100 bg-sky-50 p-3">
+                    <h3 class="font-semibold text-sky-900">Materijalne specifikacije</h3>
+                    <div id="material-items" class="grid gap-2 max-h-48 overflow-y-auto text-sm"><!-- dynamic content --></div>
+                    <button type="button" id="save-all-materials" class="rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">Snimi sve materijale</button>
+                </div>
             </div>
         </details>
     </aside>
-
-    <div class="flex min-h-0 flex-col overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
-        <div class="shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-2">
-            <div>
-                <h2 class="font-semibold">Radna karta</h2>
-                <p class="text-sm text-zinc-500">Satelit, vise krakova trase i brzo redanje kuca.</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                <button type="button" id="mode-pan" class="tool-btn rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white">Pomjeraj</button>
-                <button type="button" id="mode-odf" class="tool-btn rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800">ODF</button>
-                <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
-                <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuce</button>
-                <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
-                <button type="button" id="expand-map" class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
-            </div>
-        </div>
-        <div id="network-map" class="min-h-0 flex-1 w-full"></div>
-    </div>
 </section>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -133,11 +246,15 @@ let mode = 'pan';
 let activeBranch = [];
 let activeBranchMarkers = [];
 let activeBranchLine = null;
+let previewBranchLine = null;
 let branches = [];
 let branchLines = [];
+let branchMeta = [];
+let branchLabels = [];
 let trenchLines = [];
 let housePoints = [];
 let houseMarkers = [];
+let houseMarkerByKey = {};
 let suggestionLayers = [];
 let draftOdfCount = 0;
 let draftCabinetCount = 0;
@@ -146,6 +263,14 @@ let draftOdfs = [];
 let draftCabinets = [];
 let suggestedCabinets = [];
 let expandedMap = false;
+let activeDraftOdfIndex = null;
+let cadContext = null;
+const deleteUrls = {
+    odf: id => `{{ url('/odf') }}/${id}`,
+    cabinet: id => `{{ url('/ormarici') }}/${id}`,
+    house: id => `{{ url('/kuce') }}/${id}`,
+    route: id => `{{ url('/trase') }}/${id}`,
+};
 
 const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxNativeZoom: 18,
@@ -156,14 +281,26 @@ const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/service
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap' });
 L.control.layers({ 'Satelit': imagery, 'OpenStreetMap': osm }, {}, { position: 'bottomleft' }).addTo(map);
 
-function icon(type, text = '') {
+const cabinetPalette = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2'];
+
+function icon(type, text = '', color = null) {
     const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : 'house';
     const anchors = { odf: [15, 9], cabinet: [19, 9], suggest: [23, 10], house: [5, 5] };
-    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}">${text}</div>`, iconAnchor: anchors[cls] });
+    const style = color ? ` style="background:${color}"` : '';
+    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconAnchor: anchors[cls] });
 }
 
 const bounds = [];
-data.routes.forEach(route => { L.polyline(route.path, { color: '#10b981', weight: 4 }).bindPopup(`<b>${route.name}</b><br>${route.duct_length_m} m`).addTo(map); route.path.forEach(p => bounds.push(p)); });
+data.routes.forEach(route => {
+    if (!route.path?.length) return;
+    const points = route.path.map(point => L.latLng(point[0], point[1]));
+    const line = L.polyline(points, { color: routeColor(route.type), weight: 4, opacity: .9 })
+        .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m`)
+        .addTo(map);
+    const labels = addRouteLabel(points, route.name, false);
+    registerSavedContext([line, ...labels], route.name, deleteUrls.route(route.id));
+    points.forEach(p => bounds.push([p.lat, p.lng]));
+});
 data.odfs.forEach(odf => {
     const p = L.latLng(odf.lat, odf.lng);
     const connectedCabinets = data.cabinets.filter(c => c.odf === odf.name).length;
@@ -177,6 +314,7 @@ data.odfs.forEach(odf => {
             addDrawPoint(event.latlng);
         }
     });
+    registerSavedContext(marker, `ODF: ${odf.name}`, deleteUrls.odf(odf.id));
     bounds.push([odf.lat, odf.lng]);
 });
 data.cabinets.forEach(c => {
@@ -191,9 +329,20 @@ data.cabinets.forEach(c => {
             addDrawPoint(event.latlng);
         }
     });
+    registerSavedContext(marker, c.name, deleteUrls.cabinet(c.id));
     bounds.push([c.lat, c.lng]);
 });
-data.houses.forEach(h => { const p = L.latLng(h.lat, h.lng); L.marker(p, { icon: icon('house') }).bindPopup(`<b>${h.label}</b>`).addTo(map); housePoints.push(p); bounds.push([h.lat, h.lng]); });
+const savedHouseKeys = new Set();
+function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).toFixed(7)}`; }
+data.houses.forEach(h => {
+    const p = L.latLng(h.lat, h.lng);
+    savedHouseKeys.add(pointKey(h.lat, h.lng));
+    const marker = L.marker(p, { icon: icon('house') }).bindPopup(`<b>${h.label}</b>`).addTo(map);
+    registerSavedContext(marker, h.label, deleteUrls.house(h.id));
+    houseMarkerByKey[pointKey(h.lat, h.lng)] = marker;
+    housePoints.push(p);
+    bounds.push([h.lat, h.lng]);
+});
 const savedHouseCount = housePoints.length;
 if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 }); else map.setView(defaultCenter, 17);
 
@@ -201,19 +350,214 @@ function setMode(next) {
     mode = next;
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-zinc-900'));
     document.getElementById(`mode-${next}`).classList.add('ring-2', 'ring-zinc-900');
+    const labels = {
+        pan: 'PAN: pomjeraj mapu. Izaberi alat za crtanje.',
+        odf: 'ODF: klikni lokaciju centrale/cvora. Novi ODF postaje aktivan.',
+        cabinet: 'FTTH: klikni lokacije zelenih ormarica. Vezuju se na aktivni ODF.',
+        house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
+        draw: 'TRASA: klik po klik crtaj trasu. ENTER ili desni klik zavrsava krak, ESC prekida.',
+    };
+    document.getElementById('cad-command').textContent = labels[next];
 }
 ['pan','odf','cabinet','house','draw'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
 
 function distance(points) { return Math.round(points.slice(1).reduce((sum, p, i) => sum + map.distance(points[i], p), 0)); }
 function allNetworkPoints() { return [...branches, activeBranch].filter(b => b.length > 1); }
 function allDistance() { return allNetworkPoints().reduce((sum, b) => sum + distance(b), 0); }
+function routeTypeLabel(type) {
+    return type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
+}
+function routeColor(type) {
+    return type === 'feeder' ? '#0ea5e9' : type === 'drop' ? '#7c3aed' : '#f59e0b';
+}
+function nextRouteName(type) {
+    const prefix = type === 'feeder' ? 'P' : type === 'drop' ? 'D' : 'S';
+    const count = branchMeta.filter(meta => meta.route_type === type).length + 1;
+    return `${prefix}-${String(count).padStart(2, '0')}`;
+}
+function currentRouteDraftMeta() {
+    const type = document.getElementById('route-draw-type').value;
+    const manualName = document.getElementById('route-draw-name').value.trim();
+    return {
+        name: manualName || nextRouteName(type),
+        route_type: type,
+        microduct_count: Math.max(1, Number(document.getElementById('route-draw-microducts').value || 1)),
+        odf_index: activeDraftOdfIndex,
+    };
+}
+function renderBranchList() {
+    document.getElementById('route-branch-count').textContent = `${branchMeta.length} krakova`;
+    document.getElementById('route-branch-list').innerHTML = branchMeta.length
+        ? branchMeta.map(meta => {
+            const odfLabel = meta.odf_index === null || meta.odf_index === undefined ? 'bez ODF' : `ODF-${String(meta.odf_index + 1).padStart(2, '0')}`;
+            return `<div class="flex items-center justify-between rounded bg-white/80 px-2 py-1"><span>${meta.name} · ${routeTypeLabel(meta.route_type)} · ${odfLabel}</span><strong>${meta.duct_length_m} m</strong></div>`;
+        }).join('')
+        : '<div class="rounded bg-white/70 px-2 py-2 text-amber-800">Nema nacrtanih krakova.</div>';
+}
+function refreshRouteOdfStatus() {
+    const status = document.getElementById('route-odf-status');
+    status.textContent = activeDraftOdfIndex === null
+        ? 'Krak nije vezan na ODF. Odaberi/postavi aktivni ODF prije crtanja.'
+        : `Novi krakovi se vežu na ODF-${String(activeDraftOdfIndex + 1).padStart(2, '0')}.`;
+}
+function routeLabelPoint(points, position = .5) {
+    if (!points.length) return null;
+    if (points.length === 1) return points[0];
+    const total = distance(points);
+    const target = total * position;
+    let walked = 0;
+    for (let i = 1; i < points.length; i++) {
+        const segment = map.distance(points[i - 1], points[i]);
+        if (walked + segment >= target) {
+            const ratio = segment ? (target - walked) / segment : 0;
+            return L.latLng(
+                points[i - 1].lat + (points[i].lat - points[i - 1].lat) * ratio,
+                points[i - 1].lng + (points[i].lng - points[i - 1].lng) * ratio
+            );
+        }
+        walked += segment;
+    }
+    return points[Math.floor(points.length / 2)];
+}
+function addRouteLabel(points, name, track = true) {
+    const markers = [];
+    [.08, .5, .92].forEach(position => {
+        const labelPoint = routeLabelPoint(points, position);
+        if (!labelPoint) return;
+        const marker = L.marker(labelPoint, {
+            interactive: false,
+            keyboard: false,
+            icon: L.divIcon({
+                className: 'route-label',
+                html: `<span>${name}</span>`,
+                iconAnchor: [16, 8],
+        }),
+    }).addTo(map);
+        if (track) branchLabels.push(marker);
+        markers.push(marker);
+    });
+    return markers;
+}
+function showCadContext(latlng, title, actions) {
+    cadContext = actions;
+    const buttons = actions.map((action, index) => `<button type="button" data-cad-action="${index}" class="block w-full rounded px-3 py-2 text-left text-sm font-semibold hover:bg-zinc-100">${action.label}</button>`).join('');
+    L.popup()
+        .setLatLng(latlng)
+        .setContent(`<div class="min-w-[150px]"><div class="border-b border-zinc-200 px-3 py-2 text-sm font-semibold">${title}</div><div class="p-1">${buttons}</div></div>`)
+        .openOn(map);
+}
+map.on('popupopen', event => {
+    event.popup.getElement()?.querySelectorAll('[data-cad-action]').forEach(button => {
+        button.addEventListener('click', () => {
+            const action = cadContext?.[Number(button.dataset.cadAction)];
+            if (action) action.run();
+            map.closePopup();
+        });
+    });
+});
+function removeDraftElement(marker) {
+    const item = draftElements.find(entry => entry.marker === marker);
+    if (!item) return;
+    map.removeLayer(marker);
+    draftElements = draftElements.filter(entry => entry.marker !== marker);
+    if (item.type === 'odf') {
+        const removedIndex = draftOdfs.findIndex(entry => entry.marker === marker);
+        draftOdfs = draftOdfs.filter(entry => entry.marker !== marker);
+        draftCabinets.forEach(cabinet => {
+            if (cabinet.odf_index === removedIndex) cabinet.odf_index = null;
+            if (cabinet.odf_index > removedIndex) cabinet.odf_index--;
+        });
+        activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
+    }
+    if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== marker);
+    refreshDraftTooltips();
+    refreshPlanSummary();
+}
+function registerDraftContext(marker, title) {
+    marker.on('contextmenu', event => {
+        L.DomEvent.stop(event);
+        showCadContext(event.latlng, title, [
+            { label: 'Obrisi', run: () => removeDraftElement(marker) },
+            { label: 'Premjesti: povuci marker misem', run: () => marker.dragging?.enable() },
+        ]);
+    });
+}
+function removeDraftHouse(marker) {
+    const index = houseMarkers.indexOf(marker);
+    if (index < 0) return;
+    map.removeLayer(marker);
+    houseMarkers.splice(index, 1);
+    housePoints.splice(savedHouseCount + index, 1);
+    refreshStats();
+}
+function registerHouseContext(marker) {
+    marker.on('contextmenu', event => {
+        L.DomEvent.stop(event);
+        showCadContext(event.latlng, 'Kuca', [
+            { label: 'Obrisi', run: () => removeDraftHouse(marker) },
+            { label: 'Premjesti: povuci marker misem', run: () => marker.dragging?.enable() },
+        ]);
+    });
+}
+function removeBranchAt(index) {
+    const line = branchLines[index];
+    if (line) map.removeLayer(line);
+    branchLines.splice(index, 1);
+    branches.splice(index, 1);
+    branchMeta.splice(index, 1);
+    for (let i = 0; i < 3; i++) {
+        const label = branchLabels.splice(index * 3, 1)[0];
+        if (label) map.removeLayer(label);
+    }
+    renderBranchList();
+    refreshStats();
+}
+function registerBranchContext(line) {
+    line.on('contextmenu', event => {
+        L.DomEvent.stop(event);
+        const index = branchLines.indexOf(line);
+        if (index < 0) return;
+        showCadContext(event.latlng, branchMeta[index]?.name || 'Krak trase', [
+            { label: 'Obrisi krak', run: () => removeBranchAt(index) },
+        ]);
+    });
+}
+async function deleteSavedElement(url, layer) {
+    if (!confirm('Sigurno obrisati?')) return;
+    const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    if (!response.ok) {
+        alert(await response.text() || 'Brisanje nije uspjelo.');
+        return;
+    }
+
+    (Array.isArray(layer) ? layer : [layer]).filter(Boolean).forEach(item => map.removeLayer(item));
+    document.getElementById('cad-command').textContent = 'Element je obrisan.';
+}
+function registerSavedContext(layer, title, url) {
+    const triggerLayer = Array.isArray(layer) ? layer[0] : layer;
+    triggerLayer.on('contextmenu', event => {
+        L.DomEvent.stop(event);
+        showCadContext(event.latlng, title, [
+            { label: 'Obrisi', run: () => deleteSavedElement(url, layer) },
+            { label: 'Premjesti: uskoro za snimljene elemente', run: () => {} },
+        ]);
+    });
+}
 function refreshStats() {
     const d = allDistance();
     document.getElementById('draw-length').textContent = `${d} m`;
     document.getElementById('route-duct').value = d;
     document.getElementById('route-fiber').value = d;
     document.getElementById('route-path').value = JSON.stringify(allNetworkPoints()[0]?.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]) || []);
-    document.getElementById('house-count').textContent = housePoints.length;
+    document.getElementById('house-count').textContent = Math.max(housePoints.length - savedHouseCount, 0);
     refreshPlanSummary();
 }
 function syncRoutePathInput() {
@@ -229,6 +573,17 @@ function redrawActiveBranch() {
     refreshStats();
     syncRoutePathInput();
 }
+function redrawPreviewBranch(latlng = null) {
+    if (previewBranchLine) map.removeLayer(previewBranchLine);
+    previewBranchLine = null;
+    if (mode !== 'draw' || !latlng || !activeBranch.length) return;
+    previewBranchLine = L.polyline([activeBranch[activeBranch.length - 1], latlng], {
+        color: '#f59e0b',
+        weight: 3,
+        opacity: .65,
+        dashArray: '4 8',
+    }).addTo(map);
+}
 function addDrawPoint(latlng) {
     activeBranch.push(latlng);
     const index = activeBranch.length - 1;
@@ -239,22 +594,45 @@ function addDrawPoint(latlng) {
     });
     activeBranchMarkers.push(marker);
     redrawActiveBranch();
+    document.getElementById('cad-command').textContent = `TRASA: tacka ${activeBranch.length}. Sljedeci klik nastavlja, ENTER/desni klik zavrsava krak.`;
 }
 function finishBranch() {
     if (activeBranch.length > 1) {
+        const meta = currentRouteDraftMeta();
+        const meters = distance(activeBranch);
         branches.push([...activeBranch]);
-        branchLines.push(L.polyline(activeBranch, { color: '#f59e0b', weight: 4 }).addTo(map));
+        branchMeta.push({
+            ...meta,
+            duct_length_m: meters,
+            fiber_length_m: meters,
+            path: activeBranch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
+        });
+        const odfLabel = meta.odf_index === null || meta.odf_index === undefined ? 'bez ODF' : `ODF-${String(meta.odf_index + 1).padStart(2, '0')}`;
+        const line = L.polyline(activeBranch, { color: routeColor(meta.route_type), weight: 4 }).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map);
+        branchLines.push(line);
+        registerBranchContext(line);
+        addRouteLabel(activeBranch, meta.name);
+        document.getElementById('route-draw-name').value = '';
+        renderBranchList();
+        document.getElementById('cad-command').textContent = `TRASA: ${meta.name} zavrsena (${meters} m). Nastavi novi krak ili promijeni alat.`;
     }
     activeBranchMarkers.forEach(m => map.removeLayer(m));
     if (activeBranchLine) map.removeLayer(activeBranchLine);
-    activeBranch = []; activeBranchMarkers = []; activeBranchLine = null; refreshStats();
+    if (previewBranchLine) map.removeLayer(previewBranchLine);
+    activeBranch = []; activeBranchMarkers = []; activeBranchLine = null; previewBranchLine = null; refreshStats();
 }
-function clearDraw() { [...branchLines, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); branches=[]; branchLines=[]; activeBranch=[]; activeBranchMarkers=[]; activeBranchLine=null; refreshStats(); }
+function clearDraw() { [...branchLines, ...branchLabels, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); if (previewBranchLine) map.removeLayer(previewBranchLine); branches=[]; branchLines=[]; branchLabels=[]; branchMeta=[]; activeBranch=[]; activeBranchMarkers=[]; activeBranchLine=null; previewBranchLine=null; renderBranchList(); refreshStats(); }
 function undoDraw() { const m = activeBranchMarkers.pop(); if (m) map.removeLayer(m); activeBranch.pop(); redrawActiveBranch(); }
 function undoBranch() {
     const line = branchLines.pop();
     if (line) map.removeLayer(line);
+    for (let i = 0; i < 3; i++) {
+        const label = branchLabels.pop();
+        if (label) map.removeLayer(label);
+    }
     branches.pop();
+    branchMeta.pop();
+    renderBranchList();
     refreshStats();
     syncRoutePathInput();
 }
@@ -277,13 +655,36 @@ function nearestOnNetwork(point) {
     }
     return { point: best, chain };
 }
+
+function networkPathBetween(aPoint, bPoint) {
+    const a = nearestOnNetwork(aPoint);
+    const b = nearestOnNetwork(bPoint);
+    if (!a.point || !b.point) return [aPoint, bPoint];
+    return a.chain <= b.chain
+        ? [aPoint, a.point, b.point, bPoint]
+        : [aPoint, a.point, b.point, bPoint];
+}
+
+function networkDropDistance(cabinetPoint, housePoint) {
+    const a = nearestOnNetwork(cabinetPoint);
+    const b = nearestOnNetwork(housePoint);
+    if (!a.point || !b.point) return map.distance(cabinetPoint, housePoint);
+    return map.distance(cabinetPoint, a.point)
+        + Math.abs(a.chain - b.chain)
+        + map.distance(b.point, housePoint);
+}
 function nearestOdf(point) {
     return data.odfs.map(o => ({...o, distance: Math.round(map.distance(point, L.latLng(o.lat, o.lng)))})).sort((a,b) => a.distance-b.distance)[0] || null;
+}
+function suggestionOdfLabel(draftOdf, odf) {
+    if (draftOdf) return `ODF-${String(draftOdf.index + 1).padStart(2, '0')} (draft)`;
+    if (odf) return `${odf.name} (${odf.distance} m)`;
+    return 'nema';
 }
 function optimize(points) {
     const min = Math.max(1, Math.min(12, Number(document.getElementById('planner-min').value || 8)));
     const max = Math.max(min, Math.min(12, Number(document.getElementById('planner-max').value || 12)));
-    const drop = Math.max(0, Number(document.getElementById('planner-drop').value || 1));
+    const drop = 1;
     const houses = points.map(p => ({ point: p, chain: nearestOnNetwork(p).chain })).sort((a,b) => a.chain-b.chain);
     const dp = Array(houses.length + 1).fill(Infinity), prev = Array(houses.length + 1).fill(null); dp[0]=0;
     for (let i=0;i<houses.length;i++) for (let s=1;s<=max && i+s<=houses.length;s++) {
@@ -295,37 +696,190 @@ function optimize(points) {
     }
     const groups=[]; for(let c=houses.length;c>0 && prev[c];c=prev[c].i) groups.unshift(prev[c]); return groups;
 }
-function clearSuggestions() { suggestionLayers.forEach(l => map.removeLayer(l)); suggestionLayers=[]; suggestedCabinets=[]; document.getElementById('cabinet-count').textContent='0'; document.getElementById('suggestion-output').innerHTML='Nacrtaj trasu i oznaci kuce.'; refreshPlanSummary(); }
+
+function assignHousesToNearestCabinets(groups, points) {
+    const max = Math.max(1, Math.min(12, Number(document.getElementById('planner-max').value || 12)));
+    const maxDrop = Math.max(20, Number(document.getElementById('planner-max-drop').value || 90));
+    const cabinets = groups.map(group => ({
+        ...group,
+        group: [],
+        totalDrop: 0,
+        generated: false,
+    }));
+
+    const houses = points.map((point, index) => ({ point, index }));
+    const pairs = [];
+    houses.forEach(house => {
+        cabinets.forEach((cabinet, cabinetIndex) => {
+            pairs.push({
+                house,
+                cabinetIndex,
+                distance: networkDropDistance(cabinet.pos, house.point),
+            });
+        });
+    });
+    pairs.sort((a, b) => a.distance - b.distance);
+
+    const assignedHouses = new Set();
+    pairs.forEach(pair => {
+        if (assignedHouses.has(pair.house.index)) return;
+        if (pair.distance > maxDrop) return;
+        const cabinet = cabinets[pair.cabinetIndex];
+        if (cabinet.group.length >= max) return;
+        cabinet.group.push(pair.house);
+        cabinet.totalDrop += pair.distance;
+        assignedHouses.add(pair.house.index);
+    });
+
+    let unassigned = houses.filter(house => !assignedHouses.has(house.index));
+    while (unassigned.length) {
+        const seed = unassigned[0];
+        const seedNetworkPoint = nearestOnNetwork(seed.point).point || seed.point;
+        const localCabinet = {
+            i: 0,
+            pos: seedNetworkPoint,
+            group: [],
+            totalDrop: 0,
+            generated: true,
+        };
+
+        unassigned
+            .map(house => ({ house, distance: networkDropDistance(seedNetworkPoint, house.point) }))
+            .filter(item => item.distance <= maxDrop)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, max)
+            .forEach(item => {
+                localCabinet.group.push(item.house);
+                localCabinet.totalDrop += item.distance;
+                assignedHouses.add(item.house.index);
+            });
+
+        cabinets.push(localCabinet);
+        unassigned = houses.filter(house => !assignedHouses.has(house.index));
+    }
+
+    return cabinets
+        .filter(cabinet => cabinet.group.length)
+        .map(cabinet => {
+            const count = cabinet.group.length;
+            const splitters = Math.ceil(count / 4);
+            return {
+                ...cabinet,
+                s: count,
+                splitters,
+                waste: splitters * 4 - count,
+            };
+        });
+}
+function clearSuggestions() {
+    suggestionLayers.forEach(l => map.removeLayer(l));
+    Object.values(houseMarkerByKey).forEach(marker => marker.setIcon(icon('house')));
+    suggestionLayers=[];
+    suggestedCabinets=[];
+    document.getElementById('cabinet-count').textContent='0';
+    document.getElementById('suggestion-output').innerHTML='Nacrtaj trasu i oznaci kuce.';
+    document.getElementById('save-suggestions').classList.add('hidden');
+    document.getElementById('material-specs-output').classList.add('hidden');
+    refreshPlanSummary();
+}
+
+function calculateMaterialSpecs() {
+    const specs = {};
+
+    // Spliters i ormarici
+    const splitterTotal = suggestedCabinets.reduce((sum, c) => sum + c.splitter_count, 0);
+    const cabinetCount = suggestedCabinets.length;
+
+    specs['Spliteri 1:4'] = { quantity: splitterTotal, unit: 'kom', price: 160 };
+    specs['Zeleni ormarici (FTTH)'] = { quantity: cabinetCount, unit: 'kom', price: 900 };
+
+    // Mikrocijevi i kabl
+    const totalDuct = allDistance();
+    const microductCount = allNetworkPoints().length;
+    const totalMicroduct = totalDuct * microductCount;
+    const reserveMicroduct = Math.ceil(totalMicroduct * 1.1);
+
+    specs['Mikrocijevi 14/10 (m)'] = { quantity: Math.ceil(reserveMicroduct / 1000), unit: '1km', price: 15000 };
+    specs['Opticki kabl SM (m)'] = { quantity: Math.ceil(totalDuct * 1.1), unit: 'm', price: 12 };
+
+    // Konektori i spajanja
+    const spliceCount = splitterTotal + (housePoints.length - savedHouseCount);
+    specs['Splice kasetne (kom)'] = { quantity: Math.ceil(spliceCount / 12), unit: 'kom', price: 450 };
+    specs['Spojnice SC/APC'] = { quantity: housePoints.length - savedHouseCount, unit: 'kom', price: 8 };
+
+    // Korisnički priključci
+    specs['Opticki prikljucak ONT'] = { quantity: housePoints.length - savedHouseCount, unit: 'kom', price: 45 };
+
+    return specs;
+}
+
+function displayMaterialSpecs() {
+    const specs = calculateMaterialSpecs();
+    const container = document.getElementById('material-items');
+
+    let html = '';
+    let totalPrice = 0;
+
+    Object.entries(specs).forEach(([name, data]) => {
+        const price = data.quantity * data.price;
+        totalPrice += price;
+        html += `<div class="rounded-md bg-white p-2 grid grid-cols-4 gap-2 text-xs"><span class="font-semibold">${name}</span><span>${data.quantity} ${data.unit}</span><span class="text-right">${Number(data.price).toFixed(2)} KM</span><span class="font-semibold text-right">${Number(price).toFixed(2)} KM</span></div>`;
+    });
+
+    html += `<div class="rounded-md bg-sky-100 p-2 grid grid-cols-4 gap-2 font-semibold text-xs"><span colspan="3">UKUPNO:</span><span class="text-right">${Number(totalPrice).toFixed(2)} KM</span></div>`;
+
+    container.innerHTML = html;
+
+    // Store specs for saving
+    window.currentMaterialSpecs = specs;
+}
 function suggest() {
     clearSuggestions();
     suggestedCabinets = [];
     if (!allNetworkPoints().length) { document.getElementById('suggestion-output').innerHTML='<b class="text-red-700">Prvo nacrtaj bar jedan krak trase.</b>'; return; }
     if (!housePoints.length) { document.getElementById('suggestion-output').innerHTML='<b class="text-red-700">Prvo oznaci kuce.</b>'; return; }
-    const groups = optimize(housePoints), summary = {};
+    const groups = assignHousesToNearestCabinets(optimize(housePoints), housePoints), summary = {};
     const html = groups.map((g,i) => {
+        const groupColor = cabinetPalette[i % cabinetPalette.length];
         const odf = nearestOdf(g.pos); if (odf) { summary[odf.name] ??= {c:0,h:0,s:0}; summary[odf.name].c++; summary[odf.name].h += g.s; summary[odf.name].s += g.splitters; }
-        const draftOdf = nearestDraftOdf(g.pos);
+        const draftOdf = activeDraftOdfIndex !== null && draftOdfs[activeDraftOdfIndex]
+            ? { index: activeDraftOdfIndex, distance: Math.round(map.distance(g.pos, draftOdfs[activeDraftOdfIndex].marker.getLatLng())) }
+            : nearestDraftOdf(g.pos);
+        const odfLabel = suggestionOdfLabel(draftOdf, odf);
         const assignedDraftOdfIndex = draftOdf ? draftOdf.index : null;
         const assignedExistingOdfId = !draftOdf && odf ? odf.id : null;
-        suggestedCabinets.push({
+        const suggestedCabinet = {
             name: `FTTH-${String(i+1).padStart(3,'0')}`,
             lat: Number(g.pos.lat.toFixed(7)),
             lng: Number(g.pos.lng.toFixed(7)),
             splitter_count: g.splitters,
             odf_index: assignedDraftOdfIndex,
             odf_id: assignedExistingOdfId,
-        });
-        const marker = L.marker(g.pos, { icon: icon('suggest', `FTTH-${String(i+1).padStart(2,'0')}`) })
+            houseKeys: g.group.map(h => pointKey(h.point.lat, h.point.lng)),
+        };
+        const marker = L.marker(g.pos, { icon: icon('suggest', `FTTH-${String(i+1).padStart(2,'0')}`, groupColor) })
             .bindTooltip(`${g.s}/12`, { direction: 'top', offset: [0, -10] })
-            .bindPopup(`<b>FTTH-${i+1}</b><br>${g.s}/12 kuca<br>${g.splitters} splittera<br>${g.waste} praznih portova<br>ODF: ${draftOdf ? 'Draft ODF '+(draftOdf.index + 1) : (odf ? odf.name : '-')}`)
+            .bindPopup(`<b>FTTH-${i+1}</b><br>${g.s}/12 kuca<br>${g.splitters} splittera<br>${g.waste} praznih portova<br>ODF: ${odfLabel}`)
             .addTo(map);
-        const drops = g.group.map(h => L.polyline([g.pos, h.point], { color:'#7c3aed', weight:1, opacity:.35 }).addTo(map));
+        const drops = g.group.map(h => {
+            const houseMarker = houseMarkerByKey[pointKey(h.point.lat, h.point.lng)];
+            if (houseMarker) houseMarker.setIcon(icon('house', '', groupColor));
+            return L.polyline(networkPathBetween(g.pos, h.point), { color: groupColor, weight: 1.5, opacity: .55 }).addTo(map);
+        });
+        suggestedCabinet.marker = marker;
+        suggestedCabinet.dropLines = drops;
+        suggestedCabinets.push(suggestedCabinet);
         suggestionLayers.push(marker, ...drops);
-        return `<div class="border-b border-zinc-200 py-2"><b>FTTH-${String(i+1).padStart(2,'0')}</b><br>${g.s}/12 kuca, ${g.splitters} splittera, ${g.waste} praznih portova<br>ODF: ${odf ? odf.name + ' (' + odf.distance + ' m)' : 'nema'}<br>${g.pos.lat.toFixed(7)}, ${g.pos.lng.toFixed(7)}</div>`;
+        return `<div class="border-b border-zinc-200 py-2"><b>FTTH-${String(i+1).padStart(2,'0')}</b><br>${g.s}/12 kuca, ${g.splitters} splittera, ${g.waste} praznih portova<br>ODF: ${odfLabel}<br>${g.pos.lat.toFixed(7)}, ${g.pos.lng.toFixed(7)}</div>`;
     }).join('');
     const sum = Object.entries(summary).map(([n,v]) => `<div class="rounded-md bg-white p-2"><b>${n}</b><br>${v.c} FTTH · ${v.h} kuca · ${v.s} splittera</div>`).join('');
+    const draftOdfNote = '<div class="mb-2 rounded-md bg-emerald-50 p-2 text-xs font-semibold text-emerald-800">Pregled je spreman. Za cuvanje ODF-a, trasa, kuca i FTTH ormarica koristi "5 Snimi kompletan plan".</div>';
     document.getElementById('cabinet-count').textContent = groups.length;
-    document.getElementById('suggestion-output').innerHTML = `${sum ? `<div class="mb-3 grid gap-2">${sum}</div>` : ''}${html}`;
+    document.getElementById('suggestion-output').innerHTML = `${draftOdfNote}${sum ? `<div class="mb-3 grid gap-2">${sum}</div>` : ''}${html}`;
+    document.getElementById('save-suggestions').classList.add('hidden');
+    document.getElementById('material-specs-output').classList.remove('hidden');
+    displayMaterialSpecs();
+    refreshRouteOdfStatus();
     refreshDraftTooltips();
     refreshPlanSummary();
 }
@@ -341,13 +895,37 @@ function draftOdfCabinetCount(index) {
     return [...draftCabinets, ...suggestedCabinets].filter(cabinet => cabinet.odf_index === index).length;
 }
 
+function setActiveDraftOdf(index) {
+    activeDraftOdfIndex = index === '' || index === null ? null : Number(index);
+    document.getElementById('active-odf-index').value = activeDraftOdfIndex ?? '';
+    document.getElementById('odf-link-status').textContent = activeDraftOdfIndex === null
+        ? 'Postavi ODF ili odaberi postojeći draft ODF prije redanja FTTH ormarića.'
+        : `Novi FTTH ormarići se vežu na ODF-${String(activeDraftOdfIndex + 1).padStart(2,'0')}.`;
+    refreshDraftTooltips();
+}
+
+function renderDraftOdfPicker() {
+    const select = document.getElementById('active-odf-index');
+    select.innerHTML = draftOdfs.length
+        ? draftOdfs.map((item, index) => `<option value="${index}">ODF-${String(index + 1).padStart(2,'0')} (${draftOdfCabinetCount(index)} FTTH)</option>`).join('')
+        : '<option value="">Prvo postavi ODF</option>';
+    if (draftOdfs.length && (activeDraftOdfIndex === null || !draftOdfs[activeDraftOdfIndex])) activeDraftOdfIndex = draftOdfs.length - 1;
+    select.value = activeDraftOdfIndex ?? '';
+    document.getElementById('odf-link-status').textContent = activeDraftOdfIndex === null
+        ? 'Postavi ODF, zatim postavljaj FTTH ormariće.'
+        : `Novi FTTH ormarići se vežu na ODF-${String(activeDraftOdfIndex + 1).padStart(2,'0')}.`;
+    refreshRouteOdfStatus();
+}
+
 function refreshDraftTooltips() {
     draftOdfs.forEach((item, index) => {
         item.marker.bindTooltip(`ODF · ${draftOdfCabinetCount(index)} FTTH`, { direction: 'top', offset: [0, -10] });
     });
     draftCabinets.forEach(item => {
-        item.marker.bindTooltip('0/12', { direction: 'top', offset: [0, -10] });
+        const label = item.odf_index === null || item.odf_index === undefined ? 'bez ODF' : `ODF-${String(item.odf_index + 1).padStart(2,'0')}`;
+        item.marker.bindTooltip(`0/12 - ${label}`, { direction: 'top', offset: [0, -10] });
     });
+    renderDraftOdfPicker();
 }
 
 function planPayload() {
@@ -357,15 +935,42 @@ function planPayload() {
     });
     const manualCabinets = draftCabinets.map((item, index) => {
         const p = item.marker.getLatLng();
-        const nearest = nearestDraftOdf(p);
-        return { name: `FTTH-M-${String(index+1).padStart(3,'0')}`, lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: 3, odf_index: nearest ? nearest.index : null };
+        return { name: `FTTH-M-${String(index+1).padStart(3,'0')}`, lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: 3, odf_index: item.odf_index ?? null };
     });
-    const cabinets = [...manualCabinets, ...suggestedCabinets];
-    const houses = housePoints.slice(savedHouseCount).map((p, index) => ({ label: `K-${String(index+1).padStart(3,'0')}`, lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)) }));
-    const routes = allNetworkPoints().map((branch, index) => {
+    const suggestedCabinetPayload = suggestedCabinets.map(cabinet => ({
+        name: cabinet.name,
+        lat: cabinet.lat,
+        lng: cabinet.lng,
+        splitter_count: cabinet.splitter_count,
+        odf_index: cabinet.odf_index ?? null,
+        odf_id: cabinet.odf_id ?? null,
+        houseKeys: cabinet.houseKeys || [],
+    }));
+    const cabinets = [...manualCabinets, ...suggestedCabinetPayload];
+    const houses = housePoints.slice(savedHouseCount).map((p, index) => {
+        const key = pointKey(p.lat, p.lng);
+        const cabinetIndex = cabinets.findIndex(cabinet => (cabinet.houseKeys || []).includes(key));
+        return {
+            label: `K-${String(index+1).padStart(3,'0')}`,
+            lat: Number(p.lat.toFixed(7)),
+            lng: Number(p.lng.toFixed(7)),
+            cabinet_index: cabinetIndex >= 0 ? cabinetIndex : null,
+        };
+    });
+    const drawnRoutes = branches.map((branch, index) => {
         const meters = distance(branch);
-        return { name: `Trasa ${index+1}`, duct_length_m: meters, fiber_length_m: meters, microduct_count: 1, path: branch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]) };
+        const meta = branchMeta[index] || {};
+        return {
+            name: meta.name || `Trasa ${index+1}`,
+            route_type: meta.route_type || 'distribution',
+            odf_index: meta.odf_index ?? null,
+            duct_length_m: meters,
+            fiber_length_m: meters,
+            microduct_count: meta.microduct_count || 1,
+            path: branch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
+        };
     });
+    const routes = drawnRoutes;
     return { odfs, cabinets, houses, routes };
 }
 
@@ -383,11 +988,22 @@ function draftPayload() {
         }),
         cabinets: draftCabinets.map(item => {
             const p = item.marker.getLatLng();
-            return [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))];
+            return { lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), odf_index: item.odf_index ?? null };
         }),
         houses: housePoints.slice(savedHouseCount).map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
-        branches: allNetworkPoints().map(branch => branch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))])),
-        suggestedCabinets,
+        branches: branches.map((branch, index) => ({
+            path: branch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
+            meta: branchMeta[index] || {},
+        })),
+        suggestedCabinets: suggestedCabinets.map(cabinet => ({
+            name: cabinet.name,
+            lat: cabinet.lat,
+            lng: cabinet.lng,
+            splitter_count: cabinet.splitter_count,
+            odf_index: cabinet.odf_index ?? null,
+            odf_id: cabinet.odf_id ?? null,
+            houseKeys: cabinet.houseKeys || [],
+        })),
     };
 }
 
@@ -401,18 +1017,48 @@ function restoreDraft(payload) {
     draftElements = [];
     draftOdfs = [];
     draftCabinets = [];
+    activeDraftOdfIndex = null;
     clearSuggestions();
 
-    (payload.branches || []).forEach(branch => {
-        branches.push(branch.map(point => L.latLng(point[0], point[1])));
-        branchLines.push(L.polyline(branches[branches.length - 1], { color: '#f59e0b', weight: 4 }).addTo(map));
+    (payload.branches || []).forEach((branch, index) => {
+        const path = Array.isArray(branch) ? branch : (branch.path || []);
+        const meta = Array.isArray(branch) ? { name: `Trasa ${index + 1}`, route_type: 'distribution', microduct_count: 1 } : (branch.meta || {});
+        const points = path.map(point => L.latLng(point[0], point[1]));
+        const meters = distance(points);
+        const normalizedMeta = {
+            name: meta.name || `Trasa ${index + 1}`,
+            route_type: meta.route_type || 'distribution',
+            microduct_count: meta.microduct_count || 1,
+            odf_index: meta.odf_index ?? null,
+            duct_length_m: meters,
+            fiber_length_m: meters,
+            path,
+        };
+        branches.push(points);
+        branchMeta.push(normalizedMeta);
+        const odfLabel = normalizedMeta.odf_index === null || normalizedMeta.odf_index === undefined ? 'bez ODF' : `ODF-${String(normalizedMeta.odf_index + 1).padStart(2, '0')}`;
+        const line = L.polyline(points, { color: routeColor(normalizedMeta.route_type), weight: 4 }).bindPopup(`<b>${normalizedMeta.name}</b><br>${routeTypeLabel(normalizedMeta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map);
+        branchLines.push(line);
+        registerBranchContext(line);
+        addRouteLabel(points, normalizedMeta.name);
     });
+    renderBranchList();
 
-    (payload.houses || []).forEach((point, index) => {
+    let restoredHouseIndex = 0;
+    (payload.houses || []).forEach((point) => {
+        if (savedHouseKeys.has(pointKey(point[0], point[1]))) return;
         const latLng = L.latLng(point[0], point[1]);
+        const houseIndex = restoredHouseIndex++;
         housePoints.push(latLng);
-        const marker = L.marker(latLng, { icon: icon('house'), draggable: true }).bindPopup(`Kuca ${index + 1}`).addTo(map);
-        marker.on('drag', event => { housePoints[index] = event.target.getLatLng(); refreshStats(); });
+        const marker = L.marker(latLng, { icon: icon('house'), draggable: true }).bindPopup(`Kuca ${houseIndex + 1}`).addTo(map);
+        houseMarkerByKey[pointKey(latLng.lat, latLng.lng)] = marker;
+        marker.on('drag', event => {
+            const next = event.target.getLatLng();
+            housePoints[savedHouseCount + houseIndex] = next;
+            houseMarkerByKey[pointKey(next.lat, next.lng)] = marker;
+            refreshStats();
+        });
+        registerHouseContext(marker);
         houseMarkers.push(marker);
     });
 
@@ -420,21 +1066,24 @@ function restoreDraft(payload) {
         const latLng = L.latLng(point[0], point[1]);
         const marker = L.marker(latLng, { icon: icon('odf', 'ODF'), draggable: true }).bindTooltip('ODF · 0 FTTH', { direction: 'top', offset: [0, -10] }).addTo(map);
         marker.on('drag', () => { refreshDraftTooltips(); refreshPlanSummary(); });
+        marker.on('click', () => setActiveDraftOdf(index));
+        registerDraftContext(marker, `ODF-${String(index + 1).padStart(2, '0')}`);
         draftOdfs.push({ marker });
         draftElements.push({ type: 'odf', marker });
         draftOdfCount = Math.max(draftOdfCount, index + 1);
     });
 
     (payload.cabinets || []).forEach((point, index) => {
-        const latLng = L.latLng(point[0], point[1]);
+        const lat = Array.isArray(point) ? point[0] : point.lat;
+        const lng = Array.isArray(point) ? point[1] : point.lng;
+        const latLng = L.latLng(lat, lng);
         const marker = L.marker(latLng, { icon: icon('cabinet', `FTTH-${index + 1}`), draggable: true }).bindTooltip('0/12', { direction: 'top', offset: [0, -10] }).addTo(map);
         marker.on('drag', () => {
-            const item = draftCabinets.find(entry => entry.marker === marker);
-            if (item) item.odf_index = nearestDraftOdf(marker.getLatLng())?.index ?? null;
             refreshDraftTooltips();
             refreshPlanSummary();
         });
-        draftCabinets.push({ marker, odf_index: nearestDraftOdf(latLng)?.index ?? null });
+        registerDraftContext(marker, `FTTH-${index + 1}`);
+        draftCabinets.push({ marker, odf_index: Array.isArray(point) ? (nearestDraftOdf(latLng)?.index ?? null) : (point.odf_index ?? null) });
         draftElements.push({ type: 'cabinet', marker });
         draftCabinetCount = Math.max(draftCabinetCount, index + 1);
     });
@@ -487,31 +1136,167 @@ document.getElementById('finish-branch').addEventListener('click', finishBranch)
 document.getElementById('undo-draw').addEventListener('click', undoDraw);
 document.getElementById('undo-branch').addEventListener('click', undoBranch);
 document.getElementById('clear-draw').addEventListener('click', clearDraw);
+document.getElementById('route-draw-type').addEventListener('change', event => {
+    document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName(event.target.value)}`;
+    document.getElementById('cad-command').textContent = `TRASA: aktivan tip ${routeTypeLabel(event.target.value)}. Klikni tacke na mapi.`;
+});
 document.getElementById('undo-house').addEventListener('click', () => { const m = houseMarkers.pop(); if(m) map.removeLayer(m); housePoints.pop(); refreshStats(); });
 document.getElementById('undo-element').addEventListener('click', () => {
     const item = draftElements.pop();
     if (!item) return;
     map.removeLayer(item.marker);
-    if (item.type === 'odf') draftOdfs = draftOdfs.filter(entry => entry.marker !== item.marker);
+    if (item.type === 'odf') {
+        const removedIndex = draftOdfs.findIndex(entry => entry.marker === item.marker);
+        draftOdfs = draftOdfs.filter(entry => entry.marker !== item.marker);
+        draftCabinets.forEach(cabinet => {
+            if (cabinet.odf_index === removedIndex) cabinet.odf_index = null;
+            if (cabinet.odf_index > removedIndex) cabinet.odf_index--;
+        });
+        activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
+    }
     if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== item.marker);
+    refreshDraftTooltips();
     refreshPlanSummary();
 });
 document.getElementById('suggest-cabinets').addEventListener('click', suggest);
 document.getElementById('clear-suggestions').addEventListener('click', clearSuggestions);
-document.getElementById('save-draft').addEventListener('click', saveDraft);
-document.getElementById('active-project-id').addEventListener('change', event => {
-    const draft = data.drafts.find(item => String(item.project_id) === String(event.target.value));
-    if (draft) {
-        restoreDraft(draft.payload);
-        document.getElementById('bulk-plan-status').textContent = `Ucitani nacrt projekta (${draft.updated_at}).`;
-    }
+document.getElementById('active-odf-index').addEventListener('change', event => setActiveDraftOdf(event.target.value));
+document.querySelectorAll('[data-guide-mode]').forEach(button => {
+    button.addEventListener('click', () => setMode(button.dataset.guideMode));
 });
+document.getElementById('guide-suggest').addEventListener('click', suggest);
+
+async function saveSuggestions() {
+    const projectId = document.getElementById('active-project-id').value;
+    if (!projectId) {
+        alert('Odaberi projekat prije nego što snimis sugestije.');
+        return;
+    }
+    if (!suggestedCabinets.length) {
+        alert('Nema sugestija za snimanje.');
+        return;
+    }
+
+    const btn = document.getElementById('save-suggestions');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Snimam...';
+
+    try {
+        const response = await fetch('{{ route('map.suggestions.store') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                project_id: parseInt(projectId),
+                cabinets: suggestedCabinets.map(c => ({
+                    name: c.name,
+                    latitude: c.lat,
+                    longitude: c.lng,
+                    splitter_count: c.splitter_count,
+                    odf_id: c.odf_id,
+                })),
+            }),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            alert('Greška pri snimanju: ' + error);
+            return;
+        }
+
+        const result = await response.json();
+        alert(result.message);
+        keepSavedSuggestionsOnMap();
+    } catch (error) {
+        alert('Greška: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+function keepSavedSuggestionsOnMap() {
+    suggestedCabinets.forEach((cabinet, index) => {
+        cabinet.dropLines?.forEach(line => map.removeLayer(line));
+        cabinet.marker
+            ?.setIcon(icon('cabinet', cabinet.name))
+            .bindTooltip(`0/${cabinet.splitter_count * 4}`, { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>${cabinet.name}</b><br>Snimljen FTTH ormaric<br>${cabinet.splitter_count} splittera`);
+    });
+
+    suggestionLayers = suggestionLayers.filter(layer => !suggestedCabinets.some(cabinet => cabinet.dropLines?.includes(layer)));
+    suggestedCabinets = [];
+    document.getElementById('save-suggestions').classList.add('hidden');
+    document.getElementById('suggestion-output').innerHTML = '<b class="text-emerald-700">FTTH ormarici su snimljeni i ostaju prikazani na shemi.</b>';
+    refreshPlanSummary();
+}
+
+document.getElementById('save-suggestions').addEventListener('click', saveSuggestions);
+
+async function saveMaterials() {
+    const projectId = document.getElementById('active-project-id').value;
+    if (!projectId || !window.currentMaterialSpecs) {
+        alert('Obračunaj materijale prije nego što pokušaš da ih snimis.');
+        return;
+    }
+
+    const btn = document.getElementById('save-all-materials');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Snimam...';
+
+    const materialsToSave = Object.entries(window.currentMaterialSpecs).map(([name, data]) => ({
+        project_id: parseInt(projectId),
+        name: name,
+        unit: data.unit,
+        planned_quantity: data.quantity,
+        used_quantity: 0,
+        unit_price: data.price,
+    }));
+
+    try {
+        const promises = materialsToSave.map(material =>
+            fetch('{{ route('materials.store') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+                body: new URLSearchParams(material),
+            })
+        );
+
+        const results = await Promise.all(promises);
+        const allSuccess = results.every(r => r.ok);
+
+        if (allSuccess) {
+            alert(`Snimljeno ${materialsToSave.length} stavki materijala.`);
+            clearSuggestions();
+        } else {
+            alert('Greška pri snimanju nekih materijala.');
+        }
+    } catch (error) {
+        alert('Greška: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+document.getElementById('save-all-materials').addEventListener('click', saveMaterials);
+document.getElementById('save-draft').addEventListener('click', saveDraft);
+renderBranchList();
+document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName(document.getElementById('route-draw-type').value)}`;
 document.getElementById('bulk-plan-form').addEventListener('submit', async event => {
     event.preventDefault();
-    refreshPlanSummary();
-    await saveDraft();
     const form = event.currentTarget;
     const status = document.getElementById('bulk-plan-status');
+    refreshPlanSummary();
+    await saveDraft();
     status.textContent = 'Snimam plan...';
 
     try {
@@ -530,9 +1315,11 @@ document.getElementById('bulk-plan-form').addEventListener('submit', async event
         }
 
         const result = await response.json();
+        delete draftsByProject[form.elements.project_id.value];
+        keepSavedSuggestionsOnMap();
         commitTrenchLines();
         clearDraw();
-        status.textContent = `${result.message} Crna linija ostaje kao trag rova.`;
+        status.textContent = `${result.message} FTTH ormarici ostaju na shemi.`;
     } catch (error) {
         status.textContent = error.message;
     }
@@ -540,18 +1327,59 @@ document.getElementById('bulk-plan-form').addEventListener('submit', async event
 document.getElementById('expand-map').addEventListener('click', () => {
     expandedMap = !expandedMap;
     const workspace = document.getElementById('map-workspace');
-    const mapEl = document.getElementById('network-map');
+    const sidebar = workspace.querySelector('aside');
     const btn = document.getElementById('expand-map');
     if (expandedMap) {
-        workspace.className = 'grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2';
-        mapEl.className = 'min-h-0 flex-1 w-full';
-        btn.textContent = 'Manja mapa';
+        workspace.className = 'grid flex-1 gap-2';
+        sidebar.classList.add('hidden');
+        btn.textContent = 'Prikazi panele';
     } else {
-        workspace.className = 'grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3';
-        mapEl.className = 'min-h-0 flex-1 w-full';
+        workspace.className = 'grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_360px]';
+        sidebar.classList.remove('hidden');
         btn.textContent = 'Velika mapa';
     }
     setTimeout(() => map.invalidateSize(), 100);
+});
+
+map.on('mousemove', e => {
+    document.getElementById('cad-coordinates').textContent = `LAT ${e.latlng.lat.toFixed(7)}, LNG ${e.latlng.lng.toFixed(7)}`;
+    redrawPreviewBranch(e.latlng);
+});
+
+map.on('contextmenu', e => {
+    if (mode !== 'draw') return;
+    e.originalEvent.preventDefault();
+    finishBranch();
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+        if (mode === 'draw') {
+            activeBranchMarkers.forEach(marker => map.removeLayer(marker));
+            if (activeBranchLine) map.removeLayer(activeBranchLine);
+            if (previewBranchLine) map.removeLayer(previewBranchLine);
+            activeBranch = [];
+            activeBranchMarkers = [];
+            activeBranchLine = null;
+            previewBranchLine = null;
+            refreshStats();
+        }
+        setMode('pan');
+        return;
+    }
+
+    if (event.key === 'Enter' && mode === 'draw') {
+        event.preventDefault();
+        finishBranch();
+        return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (mode === 'draw') undoDraw();
+        else if (mode === 'house') document.getElementById('undo-house').click();
+        else document.getElementById('undo-element').click();
+    }
 });
 
 map.on('click', e => {
@@ -561,7 +1389,14 @@ map.on('click', e => {
         housePoints.push(e.latlng);
         const index = housePoints.length - 1;
         const marker = L.marker(e.latlng, { icon: icon('house'), draggable: true }).bindPopup(`Kuca ${housePoints.length}`).addTo(map);
-        marker.on('drag', event => { housePoints[index] = event.target.getLatLng(); refreshStats(); });
+        houseMarkerByKey[pointKey(e.latlng.lat, e.latlng.lng)] = marker;
+        marker.on('drag', event => {
+            const next = event.target.getLatLng();
+            housePoints[index] = next;
+            houseMarkerByKey[pointKey(next.lat, next.lng)] = marker;
+            refreshStats();
+        });
+        registerHouseContext(marker);
         houseMarkers.push(marker);
         document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); return;
     }
@@ -574,13 +1409,14 @@ map.on('click', e => {
             .openPopup();
         marker.on('dragend', event => { const p = event.target.getLatLng(); document.getElementById('odf-lat').value=p.lat.toFixed(7); document.getElementById('odf-lng').value=p.lng.toFixed(7); });
         marker.on('drag', () => {
-            const item = draftCabinets.find(entry => entry.marker === marker);
-            if (item) item.odf_index = nearestDraftOdf(marker.getLatLng())?.index ?? null;
             refreshDraftTooltips();
             refreshPlanSummary();
         });
         draftElements.push({ type: 'odf', marker });
         draftOdfs.push({ marker });
+        marker.on('click', () => setActiveDraftOdf(draftOdfs.indexOf(draftOdfs.find(item => item.marker === marker))));
+        registerDraftContext(marker, `ODF-${String(draftOdfs.length).padStart(2, '0')}`);
+        setActiveDraftOdf(draftOdfs.length - 1);
         refreshDraftTooltips();
         document.getElementById('odf-lat').value=lat; document.getElementById('odf-lng').value=lng; return;
     }
@@ -592,13 +1428,58 @@ map.on('click', e => {
             .bindPopup(`FTTH draft ${draftCabinetCount}`)
             .openPopup();
         marker.on('dragend', event => { const p = event.target.getLatLng(); document.getElementById('cabinet-lat').value=p.lat.toFixed(7); document.getElementById('cabinet-lng').value=p.lng.toFixed(7); });
-        marker.on('drag', refreshPlanSummary);
+        marker.on('drag', () => {
+            refreshPlanSummary();
+        });
         draftElements.push({ type: 'cabinet', marker });
-        draftCabinets.push({ marker, odf_index: nearestDraftOdf(e.latlng)?.index ?? null });
+        draftCabinets.push({ marker, odf_index: activeDraftOdfIndex ?? nearestDraftOdf(e.latlng)?.index ?? null });
+        registerDraftContext(marker, `FTTH-${draftCabinetCount}`);
         refreshDraftTooltips();
         document.getElementById('cabinet-lat').value=lat; document.getElementById('cabinet-lng').value=lng;
     }
 });
 setMode('pan'); refreshStats();
+
+// Auto-load draft when project is selected
+const draftsByProject = {};
+data.drafts.forEach(draft => {
+    draftsByProject[draft.project_id] = draft.payload;
+});
+
+document.getElementById('active-project-id').addEventListener('change', (e) => {
+    const projectId = e.target.value;
+    if (!projectId) return;
+    const draft = draftsByProject[projectId];
+    if (draft) {
+        restoreDraft(draft);
+    } else {
+        clearDraw();
+        houseMarkers.forEach(m => map.removeLayer(m));
+        houseMarkers = [];
+        housePoints = data.houses.map(h => L.latLng(h.lat, h.lng));
+        draftElements.forEach(item => map.removeLayer(item.marker));
+        draftElements = [];
+        draftOdfs = [];
+        draftCabinets = [];
+        activeDraftOdfIndex = null;
+        clearSuggestions();
+        refreshStats();
+    }
+});
+
+// Load first project's draft on page load
+if (document.querySelectorAll('#active-project-id option:not([value=""])').length > 0) {
+    const firstProject = document.querySelector('#active-project-id option:not([value=""])');
+    if (firstProject) {
+        const projectId = firstProject.value;
+        document.getElementById('active-project-id').value = projectId;
+        setTimeout(() => {
+            const draft = draftsByProject[projectId];
+            if (draft) {
+                restoreDraft(draft);
+            }
+        }, 500);
+    }
+}
 </script>
 @endsection

@@ -21,6 +21,6 @@
         </div>
     </form>
 
-    @include('ftth.partials.table', ['rows' => $odfs, 'columns' => ['name' => 'Naziv', 'project.name' => 'Projekat', 'address' => 'Adresa', 'fiber_capacity' => 'Vlakna']])
+    @include('ftth.partials.table', ['rows' => $odfs, 'columns' => ['name' => 'Naziv', 'project.name' => 'Projekat', 'address' => 'Adresa', 'fiber_capacity' => 'Vlakna'], 'deleteRoute' => fn($id) => route('odfs.delete', $id)])
 </section>
 @endsection

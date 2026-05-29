@@ -22,6 +22,6 @@
         </div>
     </form>
 
-    @include('ftth.partials.table', ['rows' => $projects, 'columns' => ['name' => 'Naziv', 'code' => 'Sifra', 'location' => 'Lokacija', 'status' => 'Status']])
+    @include('ftth.partials.table', ['rows' => $projects, 'columns' => ['name' => 'Naziv', 'code' => 'Sifra', 'location' => 'Lokacija', 'status' => 'Status'], 'deleteRoute' => fn($id) => route('projects.delete', $id)])
 </section>
 @endsection

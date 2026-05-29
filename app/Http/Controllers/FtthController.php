@@ -42,6 +42,12 @@ class FtthController extends Controller
         return view('ftth.projects', ['projects' => Project::latest()->paginate(12)]);
     }
 
+    public function deleteProject($id)
+    {
+        Project::findOrFail($id)->delete();
+        return back()->with('success', 'Projekat je obrisan.');
+    }
+
     public function map(): View
     {
         $odfs = Odf::with('project')
@@ -188,6 +194,12 @@ class FtthController extends Controller
         return back()->with('success', 'ODF lokacija je evidentirana.');
     }
 
+    public function deleteOdf($id)
+    {
+        Odf::findOrFail($id)->delete();
+        return back()->with('success', 'ODF lokacija je obrisana.');
+    }
+
     public function cabinets(): View
     {
         return view('ftth.cabinets', [
@@ -213,6 +225,12 @@ class FtthController extends Controller
         return back()->with('success', 'Ormaric je dodat.');
     }
 
+    public function deleteCabinet($id)
+    {
+        Cabinet::findOrFail($id)->delete();
+        return back()->with('success', 'Ormaric je obrisan.');
+    }
+
     public function storeHouse(Request $request): RedirectResponse
     {
         House::create($request->validate([
@@ -226,6 +244,12 @@ class FtthController extends Controller
         ]));
 
         return back()->with('success', 'Kuca/prikljucak je evidentiran.');
+    }
+
+    public function deleteHouse($id)
+    {
+        House::findOrFail($id)->delete();
+        return back()->with('success', 'Kuca je obrisana.');
     }
 
     public function storePlan(Request $request)
@@ -298,6 +322,8 @@ class FtthController extends Controller
             ]);
         }
 
+        MapDraft::where('project_id', $projectId)->delete();
+
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'Cijeli plan sa mape je sacuvan.',
@@ -366,6 +392,12 @@ class FtthController extends Controller
         return back()->with('success', 'Korisnik je evidentiran.');
     }
 
+    public function deleteSubscriber($id)
+    {
+        Subscriber::findOrFail($id)->delete();
+        return back()->with('success', 'Korisnik je obrisan.');
+    }
+
     public function routes(): View
     {
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->latest()->paginate(12);
@@ -414,6 +446,12 @@ class FtthController extends Controller
         return back()->with('success', 'Trasa je evidentirana.');
     }
 
+    public function deleteRoute($id)
+    {
+        NetworkRoute::findOrFail($id)->delete();
+        return back()->with('success', 'Trasa je obrisana.');
+    }
+
     public function materials(): View
     {
         return view('ftth.materials', [
@@ -434,5 +472,46 @@ class FtthController extends Controller
         ]));
 
         return back()->with('success', 'Materijal je dodat.');
+    }
+
+    public function deleteMaterial($id)
+    {
+        Material::findOrFail($id)->delete();
+        return back()->with('success', 'Materijal je obrisan.');
+    }
+
+    public function storeSuggestedCabinets(Request $request)
+    {
+        $data = $request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+            'cabinets' => ['required', 'array', 'min:1'],
+            'cabinets.*.name' => ['required', 'max:255'],
+            'cabinets.*.latitude' => ['required', 'numeric'],
+            'cabinets.*.longitude' => ['required', 'numeric'],
+            'cabinets.*.splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
+            'cabinets.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
+        ]);
+
+        $projectId = $data['project_id'];
+        $createdCount = 0;
+
+        foreach ($data['cabinets'] as $cabinet) {
+            Cabinet::create([
+                'project_id' => $projectId,
+                'odf_id' => $cabinet['odf_id'] ?? null,
+                'name' => $cabinet['name'],
+                'address' => 'Sa mape - ' . $cabinet['latitude'] . ',' . $cabinet['longitude'],
+                'splitter_count' => $cabinet['splitter_count'],
+                'ports_per_splitter' => 4,
+                'latitude' => $cabinet['latitude'],
+                'longitude' => $cabinet['longitude'],
+            ]);
+            $createdCount++;
+        }
+
+        return response()->json([
+            'message' => "Kreirano {$createdCount} ormarića.",
+            'created' => $createdCount,
+        ]);
     }
 }

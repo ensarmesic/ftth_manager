@@ -31,6 +31,6 @@
         </div>
     </form>
 
-    @include('ftth.partials.table', ['rows' => $routes, 'columns' => ['name' => 'Trasa', 'project.name' => 'Projekat', 'odf.name' => 'ODF', 'cabinet.name' => 'Ormaric', 'route_type' => 'Tip', 'duct_length_m' => 'Mikrocijev m', 'fiber_length_m' => 'Kabl m', 'status' => 'Status']])
+    @include('ftth.partials.table', ['rows' => $routes, 'columns' => ['name' => 'Trasa', 'project.name' => 'Projekat', 'odf.name' => 'ODF', 'cabinet.name' => 'Ormaric', 'route_type' => 'Tip', 'duct_length_m' => 'Mikrocijev m', 'fiber_length_m' => 'Kabl m', 'status' => 'Status'], 'deleteRoute' => fn($id) => route('routes.delete', $id)])
 </section>
 @endsection

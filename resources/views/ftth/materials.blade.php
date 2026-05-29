@@ -21,6 +21,6 @@
         </div>
     </form>
 
-    @include('ftth.partials.table', ['rows' => $materials, 'columns' => ['name' => 'Materijal', 'project.name' => 'Projekat', 'planned_quantity' => 'Plan', 'used_quantity' => 'Utroseno', 'unit' => 'Jed.', 'unit_price' => 'KM']])
+    @include('ftth.partials.table', ['rows' => $materials, 'columns' => ['name' => 'Materijal', 'project.name' => 'Projekat', 'planned_quantity' => 'Plan', 'used_quantity' => 'Utroseno', 'unit' => 'Jed.', 'unit_price' => 'KM'], 'deleteRoute' => fn($id) => route('materials.delete', $id)])
 </section>
 @endsection
