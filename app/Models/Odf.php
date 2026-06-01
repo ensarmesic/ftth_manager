@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Odf extends Model
 {
-    protected $fillable = ['project_id', 'name', 'address', 'fiber_capacity', 'latitude', 'longitude'];
+    protected $fillable = ['project_id', 'name', 'address', 'fiber_capacity', 'port_count', 'latitude', 'longitude', 'notes'];
 
     public function project(): BelongsTo { return $this->belongsTo(Project::class); }
     public function cabinets(): HasMany { return $this->hasMany(Cabinet::class); }

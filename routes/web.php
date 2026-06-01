@@ -16,13 +16,16 @@ Route::delete('/projekti/{id}', [FtthController::class, 'deleteProject'])->name(
 
 Route::get('/odf', [FtthController::class, 'odfs'])->name('odfs.index');
 Route::post('/odf', [FtthController::class, 'storeOdf'])->name('odfs.store');
+Route::patch('/odf/{id}/pozicija', [FtthController::class, 'updateOdfPosition'])->name('odfs.position.update');
 Route::delete('/odf/{id}', [FtthController::class, 'deleteOdf'])->name('odfs.delete');
 
 Route::get('/ormarici', [FtthController::class, 'cabinets'])->name('cabinets.index');
 Route::post('/ormarici', [FtthController::class, 'storeCabinet'])->name('cabinets.store');
+Route::patch('/ormarici/{id}/pozicija', [FtthController::class, 'updateCabinetPosition'])->name('cabinets.position.update');
 Route::delete('/ormarici/{id}', [FtthController::class, 'deleteCabinet'])->name('cabinets.delete');
 
 Route::post('/kuce', [FtthController::class, 'storeHouse'])->name('houses.store');
+Route::patch('/kuce/{id}/pozicija', [FtthController::class, 'updateHousePosition'])->name('houses.position.update');
 Route::delete('/kuce/{id}', [FtthController::class, 'deleteHouse'])->name('houses.delete');
 
 Route::get('/korisnici', [FtthController::class, 'subscribers'])->name('subscribers.index');
@@ -31,8 +34,10 @@ Route::delete('/korisnici/{id}', [FtthController::class, 'deleteSubscriber'])->n
 
 Route::get('/trase', [FtthController::class, 'routes'])->name('routes.index');
 Route::post('/trase', [FtthController::class, 'storeRoute'])->name('routes.store');
+Route::post('/trase/dxf', [FtthController::class, 'importDxf'])->name('routes.dxf.import');
 Route::delete('/trase/{id}', [FtthController::class, 'deleteRoute'])->name('routes.delete');
 
 Route::get('/materijali', [FtthController::class, 'materials'])->name('materials.index');
 Route::post('/materijali', [FtthController::class, 'storeMaterial'])->name('materials.store');
+Route::post('/materijali/obracun/{project}', [FtthController::class, 'calculateMaterials'])->name('materials.calculate');
 Route::delete('/materijali/{id}', [FtthController::class, 'deleteMaterial'])->name('materials.delete');

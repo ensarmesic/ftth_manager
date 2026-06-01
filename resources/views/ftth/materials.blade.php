@@ -4,6 +4,15 @@
 @section('subtitle', 'Planirane i utrosene kolicine materijala po projektu.')
 
 @section('content')
+<section class="mb-6 rounded-md border border-emerald-200 bg-emerald-50 p-4">
+    <h2 class="font-semibold text-emerald-950">Automatski obracun</h2>
+    <p class="mt-1 text-sm text-emerald-800">Generise mikrocijevi 14/10 i 10/8, opticke kablove po broju niti, ODF, ODO i splittere.</p>
+    <div class="mt-3 flex flex-wrap gap-2">
+        @foreach($projects as $project)
+            <form method="POST" action="{{ route('materials.calculate', $project) }}">@csrf<button class="rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white">{{ $project->name }}</button></form>
+        @endforeach
+    </div>
+</section>
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
     <form method="POST" action="{{ route('materials.store') }}" class="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
         @csrf

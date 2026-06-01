@@ -15,13 +15,13 @@
 <body class="{{ $isWide ? 'h-screen overflow-hidden' : 'min-h-screen' }} bg-zinc-100 text-zinc-950 antialiased">
     <div class="{{ $isWide ? 'flex h-screen flex-col overflow-hidden' : 'min-h-screen' }}">
         <header class="shrink-0 border-b border-zinc-800 bg-zinc-950 px-4 py-3 text-white sm:px-6 lg:px-8">
-            <div class="mx-auto flex {{ $isWide ? 'max-w-none' : 'max-w-7xl' }} flex-wrap items-center gap-4">
-                <a href="{{ route('dashboard') }}" class="mr-2 shrink-0">
+            <div class="mx-auto grid {{ $isWide ? 'max-w-none' : 'max-w-7xl' }} items-center gap-3 xl:grid-cols-[220px_minmax(0,1fr)_220px]">
+                <a href="{{ route('dashboard') }}" class="shrink-0">
                     <span class="block text-lg font-semibold">FTTH Manager</span>
                     <span class="block text-xs text-emerald-200">Planiranje opticke mreze</span>
                 </a>
 
-                <nav class="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-sm">
+                <nav class="flex min-w-0 flex-wrap items-center justify-center gap-1 text-sm">
                     @foreach ([
                         'dashboard' => 'Dashboard',
                         'map.index' => 'Mapa mreze',
@@ -37,7 +37,7 @@
                     @endforeach
                 </nav>
 
-                <div class="hidden rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300 xl:block">
+                <div class="hidden justify-self-end rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300 xl:block">
                     <span class="font-semibold text-white">Kapacitet:</span> 1 ormaric = 12 korisnika
                 </div>
             </div>

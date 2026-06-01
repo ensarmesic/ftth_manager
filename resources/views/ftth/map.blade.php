@@ -36,10 +36,10 @@
         box-shadow: 0 10px 24px rgba(15, 23, 42, .10);
     }
     .ftth-label { border: 0; background: transparent; }
-    .ftth-tag { box-shadow: 0 7px 20px rgba(0,0,0,.35); border: 1.5px solid #fff; color: #fff; font: 700 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
+    .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); box-shadow: 0 7px 20px rgba(0,0,0,.35); border: 1.5px solid #fff; color: #fff; font: 700 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
     .ftth-tag.odf { min-width: 30px; height: 18px; border-radius: 999px; background: #0891b2; }
     .ftth-tag.cabinet { min-width: 38px; height: 18px; border-radius: 5px; background: #059669; }
-    .ftth-tag.house { width: 10px; height: 10px; border-radius: 999px; background: #7c3aed; font-size: 0; }
+    .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #7c3aed; font-size: 0; }
     .ftth-tag.suggest { min-width: 46px; height: 20px; border-radius: 5px; background: #f59e0b; color: #111827; }
     .route-label {
         border: 0;
@@ -74,7 +74,7 @@
     }
 </style>
 
-<section id="map-workspace" class="grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_360px]">
+<section id="map-workspace" class="grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_330px]">
     <div class="map-shell flex min-h-0 flex-col overflow-hidden rounded-md border border-zinc-200 shadow-sm">
         <div class="shrink-0 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur">
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -101,8 +101,10 @@
                 <button type="button" id="undo-element" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo element</button>
                 <button type="button" id="undo-house" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo kuca</button>
                 <button type="button" id="clear-draw" class="action-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Ocisti trase</button>
+                <button type="button" id="quick-save-draft" class="action-btn rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sacuvaj nacrt</button>
                 <button type="button" id="expand-map" class="action-btn ml-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
             </div>
+            <p class="mt-2 text-xs text-zinc-500">Nacrt se cuva automatski. Desni klik na element: obrisi ili premjesti.</p>
         </div>
         <div id="network-map" class="min-h-0 flex-1 w-full"></div>
         <div class="cad-status grid gap-2 px-3 py-2 md:grid-cols-[1fr_auto_auto]">
@@ -113,7 +115,25 @@
     </div>
 
     <aside class="grid min-h-0 gap-2 xl:max-h-full xl:overflow-y-auto">
-        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="control-panel rounded-md p-4">
+        <details class="control-panel rounded-md" open>
+            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Novi projekat</summary>
+            <form id="quick-project-form" class="grid gap-2 border-t border-zinc-100 p-3">
+                <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv projekta" required>
+                <input type="hidden" name="quick_create" value="1">
+                <button class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white">Kreiraj i odaberi</button>
+                <div id="quick-project-status" class="text-xs font-semibold text-emerald-700"></div>
+            </form>
+        </details>
+        <div id="element-editor" class="control-panel hidden rounded-md border-2 border-emerald-300 p-3">
+            <div class="flex items-center justify-between gap-2">
+                <div><h2 class="font-semibold">Odabrani element</h2><p id="element-editor-type" class="text-xs text-zinc-500"></p></div>
+                <button type="button" id="close-element-editor" class="rounded px-2 py-1 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Zatvori</button>
+            </div>
+            <input id="element-editor-name" class="mt-3 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv elementa">
+            <button type="button" id="save-element-name" class="mt-2 w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj naziv</button>
+            <div id="element-editor-status" class="mt-2 text-xs font-semibold text-emerald-700"></div>
+        </div>
+        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="control-panel rounded-md p-3">
             @csrf
             <div class="grid gap-1">
                 <h2 class="font-semibold text-zinc-950">Plan projekta</h2>
@@ -121,14 +141,14 @@
             </div>
             <div class="mt-3 grid gap-2">
                 <select id="active-project-id" name="project_id" class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
-                <div class="grid gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                <div class="grid gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2">
                     <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
                         <button type="button" data-guide-mode="odf" class="guide-step rounded bg-cyan-100 px-2 py-2 text-cyan-800">1 ODF</button>
                         <button type="button" data-guide-mode="draw" class="guide-step rounded bg-amber-100 px-2 py-2 text-amber-800">2 Trasa</button>
                         <button type="button" data-guide-mode="house" class="guide-step rounded bg-violet-100 px-2 py-2 text-violet-800">3 Kuce</button>
                         <button type="button" id="guide-suggest" class="guide-step rounded bg-emerald-100 px-2 py-2 text-emerald-800">4 FTTH</button>
                     </div>
-                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">5 Snimi kompletan plan</button>
+                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">5 Sacuvaj na mapi</button>
                 </div>
                 <div class="rounded-md border border-cyan-100 bg-cyan-50 p-3">
                     <label class="grid gap-1 text-xs font-semibold text-cyan-900">
@@ -139,13 +159,9 @@
                     </label>
                     <div id="odf-link-status" class="mt-2 text-xs text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
                 </div>
-                <div class="grid grid-cols-4 gap-1 rounded-md border border-zinc-200 bg-zinc-50 p-2 text-center text-[11px] font-semibold text-zinc-600">
-                    <span class="rounded bg-cyan-100 px-2 py-1 text-cyan-800">1 ODF</span>
-                    <span class="rounded bg-emerald-100 px-2 py-1 text-emerald-800">2 FTTH</span>
-                    <span class="rounded bg-amber-100 px-2 py-1 text-amber-800">3 Trasa</span>
-                    <span class="rounded bg-violet-100 px-2 py-1 text-violet-800">4 Kuce</span>
-                </div>
-                <div class="rounded-md border border-amber-100 bg-amber-50 p-3">
+                <details class="rounded-md border border-amber-100 bg-amber-50">
+                    <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-amber-950">Postavke trase</summary>
+                <div class="border-t border-amber-100 p-3">
                     <div class="mb-2 flex items-center justify-between gap-2">
                         <h3 class="text-sm font-semibold text-amber-950">Aktivni krak trase</h3>
                         <span id="route-branch-count" class="text-xs font-semibold text-amber-700">0 krakova</span>
@@ -162,22 +178,36 @@
                             <input id="route-draw-microducts" type="number" min="1" value="1" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800">
                         </label>
                     </div>
+                    <div class="mt-2 grid grid-cols-3 gap-2">
+                        <label class="grid gap-1 text-xs text-amber-900">Polaganje
+                            <select id="route-draw-installation" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="underground">Podzemna</option><option value="aerial">Zracna</option></select>
+                        </label>
+                        <label class="grid gap-1 text-xs text-amber-900">Mikrocijev
+                            <select id="route-draw-microduct-type" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="14/10">14/10</option><option value="10/8">10/8</option></select>
+                        </label>
+                        <label class="grid gap-1 text-xs text-amber-900">Niti
+                            <select id="route-draw-fiber-count" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="4">4</option><option value="12" selected>12</option><option value="24">24</option><option value="48">48</option></select>
+                        </label>
+                    </div>
                     <label class="mt-2 grid gap-1 text-xs text-amber-900">Oznaka
                         <input id="route-draw-name" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800" placeholder="npr. P-01 ili S-01">
                     </label>
                     <div id="route-odf-status" class="mt-2 rounded bg-white/70 px-2 py-2 text-xs font-semibold text-amber-900">Krak nije vezan na ODF.</div>
                     <div id="route-branch-list" class="mt-3 grid max-h-32 gap-1 overflow-y-auto text-xs text-amber-950"></div>
                 </div>
+                </details>
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">Sacuvaj nacrt</button>
-                    <button class="action-btn rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Snimi sve</button>
+                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">Sacuvaj radnu verziju</button>
+                    <button class="action-btn rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sacuvaj na mapi</button>
                 </div>
             </div>
             <div id="bulk-plan-status" class="mt-2 text-sm font-semibold text-emerald-800"></div>
         </form>
 
-        <div class="control-panel rounded-md p-4">
+        <details class="control-panel rounded-md">
+            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Automatski raspored FTTH</summary>
+        <div class="border-t border-zinc-100 p-3">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="font-semibold">Automatski raspored</h2>
                 <button type="button" id="suggest-cabinets" class="action-btn rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Predlozi FTTH</button>
@@ -191,10 +221,11 @@
             <div id="suggestion-output" class="mt-3 max-h-56 overflow-auto rounded-md border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-700">Nacrtaj trasu i oznaci kuce.</div>
             <button type="button" id="save-suggestions" class="action-btn mt-3 hidden w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Snimi samo FTTH ormarice</button>
         </div>
+        </details>
 
-        <details class="control-panel rounded-md" open>
-            <summary class="cursor-pointer list-none px-4 py-3 font-semibold">Snimanje elemenata</summary>
-            <div class="grid gap-3 border-t border-zinc-100 p-4">
+        <details class="control-panel rounded-md">
+            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Napredne forme za pojedinacno snimanje</summary>
+            <div class="grid gap-3 border-t border-zinc-100 p-3">
                 <form method="POST" action="{{ route('odfs.store') }}" id="odf-form" class="grid gap-3 rounded-md border border-cyan-100 bg-cyan-50 p-3">
                     @csrf
                     <h3 class="font-semibold text-cyan-900">Sacuvaj ODF</h3>
@@ -202,6 +233,7 @@
                     <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv ODF-a" required>
                     <input name="address" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Adresa" required>
                     <input type="number" name="fiber_capacity" value="144" min="1" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required>
+                    <input type="number" name="port_count" value="48" min="1" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required>
                     <div class="grid grid-cols-2 gap-2"><input id="odf-lat" name="latitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lat" required><input id="odf-lng" name="longitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lng" required></div>
                     <button class="rounded-md bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj ODF</button>
                 </form>
@@ -265,12 +297,37 @@ let suggestedCabinets = [];
 let expandedMap = false;
 let activeDraftOdfIndex = null;
 let cadContext = null;
+let autosaveTimer = null;
+let autosaveReady = false;
+let restoringDraft = false;
+let selectedDraftElement = null;
+let keepCurrentDraftOnProjectChange = false;
+const draftsByProject = {};
 const deleteUrls = {
     odf: id => `{{ url('/odf') }}/${id}`,
     cabinet: id => `{{ url('/ormarici') }}/${id}`,
     house: id => `{{ url('/kuce') }}/${id}`,
     route: id => `{{ url('/trase') }}/${id}`,
 };
+const positionUrls = {
+    odf: id => `{{ url('/odf') }}/${id}/pozicija`,
+    cabinet: id => `{{ url('/ormarici') }}/${id}/pozicija`,
+    house: id => `{{ url('/kuce') }}/${id}/pozicija`,
+};
+async function readJsonResponse(response, fallbackMessage) {
+    const text = await response.text();
+    let payload = null;
+    try {
+        payload = text ? JSON.parse(text) : {};
+    } catch {
+        throw new Error(response.ok ? fallbackMessage : `${fallbackMessage} Server je vratio neispravan odgovor.`);
+    }
+    if (!response.ok) {
+        const validationMessage = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+        throw new Error(validationMessage || payload.message || fallbackMessage);
+    }
+    return payload;
+}
 
 const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxNativeZoom: 18,
@@ -282,19 +339,26 @@ const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
 L.control.layers({ 'Satelit': imagery, 'OpenStreetMap': osm }, {}, { position: 'bottomleft' }).addTo(map);
 
 const cabinetPalette = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2'];
+function cabinetColor(id) { return cabinetPalette[(Math.max(Number(id) || 1, 1) - 1) % cabinetPalette.length]; }
+const cabinetLegend = L.control({ position: 'bottomright' });
+cabinetLegend.onAdd = () => {
+    const box = L.DomUtil.create('div', 'rounded-md bg-white/95 p-2 text-xs shadow');
+    box.innerHTML = `<b>ODO boje</b>${data.cabinets.map(c => `<div class="mt-1 flex items-center gap-1"><span style="width:10px;height:10px;border-radius:3px;background:${cabinetColor(c.id)}"></span>${c.name}</div>`).join('') || '<div class="mt-1 text-zinc-500">Nema spremljenih ODO</div>'}`;
+    return box;
+};
+cabinetLegend.addTo(map);
 
 function icon(type, text = '', color = null) {
     const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : 'house';
-    const anchors = { odf: [15, 9], cabinet: [19, 9], suggest: [23, 10], house: [5, 5] };
     const style = color ? ` style="background:${color}"` : '';
-    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconAnchor: anchors[cls] });
+    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
 
 const bounds = [];
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
-    const line = L.polyline(points, { color: routeColor(route.type), weight: 4, opacity: .9 })
+    const line = L.polyline(points, { color: route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type), weight: 4, opacity: .9 })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m`)
         .addTo(map);
     const labels = addRouteLabel(points, route.name, false);
@@ -304,8 +368,8 @@ data.routes.forEach(route => {
 data.odfs.forEach(odf => {
     const p = L.latLng(odf.lat, odf.lng);
     const connectedCabinets = data.cabinets.filter(c => c.odf === odf.name).length;
-    const marker = L.marker(p, { icon: icon('odf', 'ODF') })
-        .bindTooltip(`ODF · ${connectedCabinets} FTTH`, { direction: 'top', offset: [0, -10] })
+    const marker = L.marker(p, { icon: icon('odf', 'ODF'), draggable: false })
+        .bindTooltip(`${odf.name} · ${connectedCabinets} FTTH`, { direction: 'top', offset: [0, -10] })
         .bindPopup(`<b>ODF: ${odf.name}</b><br>${odf.address}<br>FTTH ormarica: ${connectedCabinets}`)
         .addTo(map);
     marker.on('click', event => {
@@ -314,12 +378,13 @@ data.odfs.forEach(odf => {
             addDrawPoint(event.latlng);
         }
     });
-    registerSavedContext(marker, `ODF: ${odf.name}`, deleteUrls.odf(odf.id));
+    registerSavedContext(marker, `ODF: ${odf.name}`, deleteUrls.odf(odf.id), positionUrls.odf(odf.id));
     bounds.push([odf.lat, odf.lng]);
 });
 data.cabinets.forEach(c => {
     const p = L.latLng(c.lat, c.lng);
-    const marker = L.marker(p, { icon: icon('cabinet', c.name?.startsWith('FTTH') ? c.name : `FTTH ${c.id}`) })
+    const color = cabinetColor(c.id);
+    const marker = L.marker(p, { icon: icon('cabinet', c.name?.startsWith('FTTH') ? c.name : `FTTH ${c.id}`, color), draggable: false })
         .bindTooltip(`${c.used_ports}/${c.capacity}`, { direction: 'top', offset: [0, -10] })
         .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova<br>ODF: ${c.odf}`)
         .addTo(map);
@@ -329,17 +394,21 @@ data.cabinets.forEach(c => {
             addDrawPoint(event.latlng);
         }
     });
-    registerSavedContext(marker, c.name, deleteUrls.cabinet(c.id));
+    registerSavedContext(marker, c.name, deleteUrls.cabinet(c.id), positionUrls.cabinet(c.id));
     bounds.push([c.lat, c.lng]);
 });
-const savedHouseKeys = new Set();
+    const savedHouseKeys = new Set();
+    const savedHouseColorByKey = {};
 function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).toFixed(7)}`; }
-data.houses.forEach(h => {
-    const p = L.latLng(h.lat, h.lng);
-    savedHouseKeys.add(pointKey(h.lat, h.lng));
-    const marker = L.marker(p, { icon: icon('house') }).bindPopup(`<b>${h.label}</b>`).addTo(map);
-    registerSavedContext(marker, h.label, deleteUrls.house(h.id));
-    houseMarkerByKey[pointKey(h.lat, h.lng)] = marker;
+    data.houses.forEach(h => {
+        const p = L.latLng(h.lat, h.lng);
+        const key = pointKey(h.lat, h.lng);
+        const color = h.cabinet_id ? cabinetColor(h.cabinet_id) : null;
+        savedHouseKeys.add(key);
+        savedHouseColorByKey[key] = color;
+        const marker = L.marker(p, { icon: icon('house', '', color), draggable: false }).bindPopup(`<b>${h.label}</b><br>ODO: ${h.cabinet}`).addTo(map);
+        registerSavedContext(marker, h.label, deleteUrls.house(h.id), positionUrls.house(h.id));
+        houseMarkerByKey[key] = marker;
     housePoints.push(p);
     bounds.push([h.lat, h.lng]);
 });
@@ -381,6 +450,9 @@ function currentRouteDraftMeta() {
     return {
         name: manualName || nextRouteName(type),
         route_type: type,
+        installation_type: document.getElementById('route-draw-installation').value,
+        microduct_type: document.getElementById('route-draw-microduct-type').value,
+        fiber_count: Number(document.getElementById('route-draw-fiber-count').value || 12),
         microduct_count: Math.max(1, Number(document.getElementById('route-draw-microducts').value || 1)),
         odf_index: activeDraftOdfIndex,
     };
@@ -458,6 +530,7 @@ map.on('popupopen', event => {
 function removeDraftElement(marker) {
     const item = draftElements.find(entry => entry.marker === marker);
     if (!item) return;
+    if (selectedDraftElement?.item.marker === marker) closeDraftElementEditor();
     map.removeLayer(marker);
     draftElements = draftElements.filter(entry => entry.marker !== marker);
     if (item.type === 'odf') {
@@ -541,13 +614,46 @@ async function deleteSavedElement(url, layer) {
     (Array.isArray(layer) ? layer : [layer]).filter(Boolean).forEach(item => map.removeLayer(item));
     document.getElementById('cad-command').textContent = 'Element je obrisan.';
 }
-function registerSavedContext(layer, title, url) {
+async function saveSavedPosition(marker, url) {
+    const position = marker.getLatLng();
+    const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ latitude: position.lat, longitude: position.lng }),
+    });
+
+    if (!response.ok) throw new Error(await response.text() || 'Pomjeranje nije sacuvano.');
+    marker.dragging?.disable();
+    document.getElementById('cad-command').textContent = 'Nova pozicija je sacuvana.';
+}
+function registerSavedContext(layer, title, url, positionUrl = null) {
     const triggerLayer = Array.isArray(layer) ? layer[0] : layer;
+    let savedPosition = triggerLayer.getLatLng?.();
+    if (positionUrl) {
+        triggerLayer.on('dragend', async () => {
+            try {
+                await saveSavedPosition(triggerLayer, positionUrl);
+                savedPosition = triggerLayer.getLatLng();
+            } catch (error) {
+                if (savedPosition) triggerLayer.setLatLng(savedPosition);
+                triggerLayer.dragging?.disable();
+                alert(error.message);
+            }
+        });
+    }
     triggerLayer.on('contextmenu', event => {
         L.DomEvent.stop(event);
-        showCadContext(event.latlng, title, [
+        const actions = [
             { label: 'Obrisi', run: () => deleteSavedElement(url, layer) },
-            { label: 'Premjesti: uskoro za snimljene elemente', run: () => {} },
+        ];
+        if (positionUrl) actions.push({ label: 'Premjesti: povuci marker misem', run: () => triggerLayer.dragging?.enable() });
+        showCadContext(event.latlng, title, [
+            ...actions,
         ]);
     });
 }
@@ -569,22 +675,26 @@ function syncRoutePathInput() {
 }
 function redrawActiveBranch() {
     if (activeBranchLine) map.removeLayer(activeBranchLine);
-    if (activeBranch.length > 1) activeBranchLine = L.polyline(activeBranch, { color: '#f59e0b', weight: 5, dashArray: '8 8' }).addTo(map);
+    if (activeBranch.length > 1) activeBranchLine = L.polyline(activeBranch, { color: '#f59e0b', weight: 5, opacity: .9 }).addTo(map);
     refreshStats();
     syncRoutePathInput();
 }
 function redrawPreviewBranch(latlng = null) {
-    if (previewBranchLine) map.removeLayer(previewBranchLine);
-    previewBranchLine = null;
-    if (mode !== 'draw' || !latlng || !activeBranch.length) return;
-    previewBranchLine = L.polyline([activeBranch[activeBranch.length - 1], latlng], {
-        color: '#f59e0b',
-        weight: 3,
-        opacity: .65,
-        dashArray: '4 8',
-    }).addTo(map);
+    if (mode !== 'draw' || !latlng || !activeBranch.length) {
+        if (previewBranchLine) map.removeLayer(previewBranchLine);
+        previewBranchLine = null;
+        return;
+    }
+    const points = [activeBranch[activeBranch.length - 1], latlng];
+    if (previewBranchLine) {
+        previewBranchLine.setLatLngs(points);
+        return;
+    }
+    previewBranchLine = L.polyline(points, { color: '#f59e0b', weight: 3, opacity: .65, dashArray: '4 8' }).addTo(map);
 }
 function addDrawPoint(latlng) {
+    if (previewBranchLine) map.removeLayer(previewBranchLine);
+    previewBranchLine = null;
     activeBranch.push(latlng);
     const index = activeBranch.length - 1;
     const marker = L.marker(latlng, { draggable: true, icon: L.divIcon({ className: 'ftth-label', html: '<div style="width:12px;height:12px;border-radius:999px;background:#f59e0b;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)"></div>', iconAnchor: [6, 6] }) }).addTo(map);
@@ -773,7 +883,7 @@ function assignHousesToNearestCabinets(groups, points) {
 }
 function clearSuggestions() {
     suggestionLayers.forEach(l => map.removeLayer(l));
-    Object.values(houseMarkerByKey).forEach(marker => marker.setIcon(icon('house')));
+        Object.entries(houseMarkerByKey).forEach(([key, marker]) => marker.setIcon(icon('house', '', savedHouseColorByKey[key] || null)));
     suggestionLayers=[];
     suggestedCabinets=[];
     document.getElementById('cabinet-count').textContent='0';
@@ -873,7 +983,7 @@ function suggest() {
         return `<div class="border-b border-zinc-200 py-2"><b>FTTH-${String(i+1).padStart(2,'0')}</b><br>${g.s}/12 kuca, ${g.splitters} splittera, ${g.waste} praznih portova<br>ODF: ${odfLabel}<br>${g.pos.lat.toFixed(7)}, ${g.pos.lng.toFixed(7)}</div>`;
     }).join('');
     const sum = Object.entries(summary).map(([n,v]) => `<div class="rounded-md bg-white p-2"><b>${n}</b><br>${v.c} FTTH · ${v.h} kuca · ${v.s} splittera</div>`).join('');
-    const draftOdfNote = '<div class="mb-2 rounded-md bg-emerald-50 p-2 text-xs font-semibold text-emerald-800">Pregled je spreman. Za cuvanje ODF-a, trasa, kuca i FTTH ormarica koristi "5 Snimi kompletan plan".</div>';
+    const draftOdfNote = '<div class="mb-2 rounded-md bg-emerald-50 p-2 text-xs font-semibold text-emerald-800">Pregled je spreman. Klikni "5 Sacuvaj na mapi" da elementi ostanu trajno prikazani.</div>';
     document.getElementById('cabinet-count').textContent = groups.length;
     document.getElementById('suggestion-output').innerHTML = `${draftOdfNote}${sum ? `<div class="mb-3 grid gap-2">${sum}</div>` : ''}${html}`;
     document.getElementById('save-suggestions').classList.add('hidden');
@@ -895,6 +1005,59 @@ function draftOdfCabinetCount(index) {
     return [...draftCabinets, ...suggestedCabinets].filter(cabinet => cabinet.odf_index === index).length;
 }
 
+function defaultDraftName(type, index) {
+    return type === 'odf' ? `ODF-${String(index + 1).padStart(2, '0')}` : `FTTH-M-${String(index + 1).padStart(3, '0')}`;
+}
+function selectDraftElement(type, item) {
+    selectedDraftElement = { type, item };
+    document.getElementById('element-editor').classList.remove('hidden');
+    document.getElementById('element-editor-type').textContent = type === 'odf' ? 'ODF lokacija' : 'Draft FTTH ormaric';
+    document.getElementById('element-editor-name').value = item.pending ? '' : item.name;
+    document.getElementById('element-editor-status').textContent = item.pending
+        ? 'Unos naziva je obavezan da bi ODF bio dodat.'
+        : 'Upisi naziv i klikni Sacuvaj naziv.';
+    document.getElementById('element-editor-name').focus();
+}
+function closeDraftElementEditor() {
+    if (selectedDraftElement?.item.pending) map.removeLayer(selectedDraftElement.item.marker);
+    selectedDraftElement = null;
+    document.getElementById('element-editor').classList.add('hidden');
+}
+function saveSelectedDraftElementName() {
+    if (!selectedDraftElement) return;
+    const name = document.getElementById('element-editor-name').value.trim();
+    if (!name) {
+        document.getElementById('element-editor-status').textContent = 'Naziv je obavezan.';
+        return;
+    }
+    selectedDraftElement.item.name = name;
+    const wasPendingOdf = selectedDraftElement.item.pending && selectedDraftElement.type === 'odf';
+    if (wasPendingOdf) {
+        const item = selectedDraftElement.item;
+        item.pending = false;
+        item.marker.closePopup().bindPopup(`<b>ODF: ${name}</b>`);
+        draftOdfCount++;
+        draftElements.push({ type: 'odf', marker: item.marker });
+        draftOdfs.push(item);
+        item.marker.on('drag', () => { refreshDraftTooltips(); refreshPlanSummary(); });
+        item.marker.on('click', () => { setActiveDraftOdf(draftOdfs.indexOf(item)); selectDraftElement('odf', item); });
+        registerDraftContext(item.marker, item.name);
+        setActiveDraftOdf(draftOdfs.length - 1);
+    }
+    if (selectedDraftElement.type === 'cabinet') selectedDraftElement.item.marker.setIcon(icon('cabinet', name));
+    refreshDraftTooltips();
+    refreshPlanSummary();
+    document.getElementById('element-editor-status').textContent = selectedDraftElement.type === 'odf'
+        ? `ODF "${name}" je sacuvan.`
+        : `Naziv "${name}" je sacuvan.`;
+    if (wasPendingOdf) {
+        const savedItem = selectedDraftElement.item;
+        setTimeout(() => {
+            if (selectedDraftElement?.item === savedItem) closeDraftElementEditor();
+        }, 450);
+    }
+}
+
 function setActiveDraftOdf(index) {
     activeDraftOdfIndex = index === '' || index === null ? null : Number(index);
     document.getElementById('active-odf-index').value = activeDraftOdfIndex ?? '';
@@ -907,7 +1070,7 @@ function setActiveDraftOdf(index) {
 function renderDraftOdfPicker() {
     const select = document.getElementById('active-odf-index');
     select.innerHTML = draftOdfs.length
-        ? draftOdfs.map((item, index) => `<option value="${index}">ODF-${String(index + 1).padStart(2,'0')} (${draftOdfCabinetCount(index)} FTTH)</option>`).join('')
+        ? draftOdfs.map((item, index) => `<option value="${index}">${item.name || defaultDraftName('odf', index)} (${draftOdfCabinetCount(index)} FTTH)</option>`).join('')
         : '<option value="">Prvo postavi ODF</option>';
     if (draftOdfs.length && (activeDraftOdfIndex === null || !draftOdfs[activeDraftOdfIndex])) activeDraftOdfIndex = draftOdfs.length - 1;
     select.value = activeDraftOdfIndex ?? '';
@@ -919,7 +1082,7 @@ function renderDraftOdfPicker() {
 
 function refreshDraftTooltips() {
     draftOdfs.forEach((item, index) => {
-        item.marker.bindTooltip(`ODF · ${draftOdfCabinetCount(index)} FTTH`, { direction: 'top', offset: [0, -10] });
+        item.marker.bindTooltip(`${item.name} · ${draftOdfCabinetCount(index)} FTTH`, { direction: 'top', offset: [0, -10] });
     });
     draftCabinets.forEach(item => {
         const label = item.odf_index === null || item.odf_index === undefined ? 'bez ODF' : `ODF-${String(item.odf_index + 1).padStart(2,'0')}`;
@@ -931,11 +1094,11 @@ function refreshDraftTooltips() {
 function planPayload() {
     const odfs = draftOdfs.map((item, index) => {
         const p = item.marker.getLatLng();
-        return { name: `ODF-${String(index+1).padStart(2,'0')}`, lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), fiber_capacity: 144 };
+        return { name: item.name || defaultDraftName('odf', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), fiber_capacity: 144 };
     });
     const manualCabinets = draftCabinets.map((item, index) => {
         const p = item.marker.getLatLng();
-        return { name: `FTTH-M-${String(index+1).padStart(3,'0')}`, lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: 3, odf_index: item.odf_index ?? null };
+        return { name: item.name || defaultDraftName('cabinet', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: 3, odf_index: item.odf_index ?? null };
     });
     const suggestedCabinetPayload = suggestedCabinets.map(cabinet => ({
         name: cabinet.name,
@@ -963,6 +1126,9 @@ function planPayload() {
         return {
             name: meta.name || `Trasa ${index+1}`,
             route_type: meta.route_type || 'distribution',
+            installation_type: meta.installation_type || 'underground',
+            microduct_type: meta.microduct_type || '14/10',
+            fiber_count: meta.fiber_count || 12,
             odf_index: meta.odf_index ?? null,
             duct_length_m: meters,
             fiber_length_m: meters,
@@ -978,17 +1144,18 @@ function refreshPlanSummary() {
     const payload = planPayload();
     document.getElementById('bulk-plan-json').value = JSON.stringify(payload);
     document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa.`;
+    scheduleDraftAutosave();
 }
 
 function draftPayload() {
     return {
-        odfs: draftOdfs.map(item => {
+        odfs: draftOdfs.map((item, index) => {
             const p = item.marker.getLatLng();
-            return [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))];
+            return { name: item.name || defaultDraftName('odf', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)) };
         }),
-        cabinets: draftCabinets.map(item => {
+        cabinets: draftCabinets.map((item, index) => {
             const p = item.marker.getLatLng();
-            return { lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), odf_index: item.odf_index ?? null };
+            return { name: item.name || defaultDraftName('cabinet', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), odf_index: item.odf_index ?? null };
         }),
         houses: housePoints.slice(savedHouseCount).map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
         branches: branches.map((branch, index) => ({
@@ -1009,6 +1176,7 @@ function draftPayload() {
 
 function restoreDraft(payload) {
     if (!payload) return;
+    restoringDraft = true;
     clearDraw();
     houseMarkers.forEach(marker => map.removeLayer(marker));
     houseMarkers = [];
@@ -1047,7 +1215,8 @@ function restoreDraft(payload) {
     let restoredHouseIndex = 0;
     (payload.houses || []).forEach((point) => {
         if (savedHouseKeys.has(pointKey(point[0], point[1]))) return;
-        const latLng = L.latLng(point[0], point[1]);
+        const latLng = L.latLng(Array.isArray(point) ? point[0] : point.lat, Array.isArray(point) ? point[1] : point.lng);
+        const item = { marker: null, name: Array.isArray(point) ? defaultDraftName('odf', index) : (point.name || defaultDraftName('odf', index)) };
         const houseIndex = restoredHouseIndex++;
         housePoints.push(latLng);
         const marker = L.marker(latLng, { icon: icon('house'), draggable: true }).bindPopup(`Kuca ${houseIndex + 1}`).addTo(map);
@@ -1065,10 +1234,11 @@ function restoreDraft(payload) {
     (payload.odfs || []).forEach((point, index) => {
         const latLng = L.latLng(point[0], point[1]);
         const marker = L.marker(latLng, { icon: icon('odf', 'ODF'), draggable: true }).bindTooltip('ODF · 0 FTTH', { direction: 'top', offset: [0, -10] }).addTo(map);
+        item.marker = marker;
         marker.on('drag', () => { refreshDraftTooltips(); refreshPlanSummary(); });
-        marker.on('click', () => setActiveDraftOdf(index));
+        marker.on('click', () => { setActiveDraftOdf(index); selectDraftElement('odf', item); });
         registerDraftContext(marker, `ODF-${String(index + 1).padStart(2, '0')}`);
-        draftOdfs.push({ marker });
+        draftOdfs.push(item);
         draftElements.push({ type: 'odf', marker });
         draftOdfCount = Math.max(draftOdfCount, index + 1);
     });
@@ -1077,22 +1247,36 @@ function restoreDraft(payload) {
         const lat = Array.isArray(point) ? point[0] : point.lat;
         const lng = Array.isArray(point) ? point[1] : point.lng;
         const latLng = L.latLng(lat, lng);
-        const marker = L.marker(latLng, { icon: icon('cabinet', `FTTH-${index + 1}`), draggable: true }).bindTooltip('0/12', { direction: 'top', offset: [0, -10] }).addTo(map);
+        const item = { marker: null, name: Array.isArray(point) ? defaultDraftName('cabinet', index) : (point.name || defaultDraftName('cabinet', index)), odf_index: Array.isArray(point) ? (nearestDraftOdf(latLng)?.index ?? null) : (point.odf_index ?? null) };
+        const marker = L.marker(latLng, { icon: icon('cabinet', item.name), draggable: true }).bindTooltip('0/12', { direction: 'top', offset: [0, -10] }).addTo(map);
+        item.marker = marker;
         marker.on('drag', () => {
             refreshDraftTooltips();
             refreshPlanSummary();
         });
-        registerDraftContext(marker, `FTTH-${index + 1}`);
-        draftCabinets.push({ marker, odf_index: Array.isArray(point) ? (nearestDraftOdf(latLng)?.index ?? null) : (point.odf_index ?? null) });
+        marker.on('click', () => selectDraftElement('cabinet', item));
+        registerDraftContext(marker, item.name);
+        draftCabinets.push(item);
         draftElements.push({ type: 'cabinet', marker });
         draftCabinetCount = Math.max(draftCabinetCount, index + 1);
     });
 
     refreshDraftTooltips();
     refreshStats();
+    restoringDraft = false;
 }
 
-async function saveDraft() {
+function scheduleDraftAutosave() {
+    if (!autosaveReady || restoringDraft || !document.getElementById('active-project-id').value) return;
+    clearTimeout(autosaveTimer);
+    const status = document.getElementById('bulk-plan-status');
+    status.textContent = 'Izmjena spremna za automatsko cuvanje...';
+    autosaveTimer = setTimeout(() => saveDraft({ quiet: true }).catch(error => {
+        status.textContent = error.message;
+    }), 700);
+}
+
+async function saveDraft({ quiet = false } = {}) {
     const projectId = document.getElementById('active-project-id').value;
     const status = document.getElementById('bulk-plan-status');
     if (!projectId) {
@@ -1104,7 +1288,7 @@ async function saveDraft() {
     body.append('_token', document.querySelector('#bulk-plan-form input[name="_token"]').value);
     body.append('project_id', projectId);
     body.append('draft', JSON.stringify(draftPayload()));
-    status.textContent = 'Cuvam nacrt...';
+    status.textContent = quiet ? 'Automatski cuvam nacrt...' : 'Cuvam nacrt...';
 
     const response = await fetch('{{ route('map.draft.store') }}', {
         method: 'POST',
@@ -1117,8 +1301,9 @@ async function saveDraft() {
         return;
     }
 
-    const result = await response.json();
-    status.textContent = `${result.message} (${result.updated_at})`;
+    const result = await readJsonResponse(response, 'Nacrt nije sacuvan.');
+    draftsByProject[projectId] = draftPayload();
+    status.textContent = quiet ? `Nacrt automatski sacuvan (${result.updated_at})` : `${result.message} (${result.updated_at})`;
 }
 
 function commitTrenchLines() {
@@ -1144,6 +1329,7 @@ document.getElementById('undo-house').addEventListener('click', () => { const m 
 document.getElementById('undo-element').addEventListener('click', () => {
     const item = draftElements.pop();
     if (!item) return;
+    if (selectedDraftElement?.item.marker === item.marker) closeDraftElementEditor();
     map.removeLayer(item.marker);
     if (item.type === 'odf') {
         const removedIndex = draftOdfs.findIndex(entry => entry.marker === item.marker);
@@ -1208,7 +1394,7 @@ async function saveSuggestions() {
             return;
         }
 
-        const result = await response.json();
+        const result = await readJsonResponse(response, 'FTTH ormarici nisu snimljeni.');
         alert(result.message);
         keepSavedSuggestionsOnMap();
     } catch (error) {
@@ -1288,18 +1474,60 @@ async function saveMaterials() {
 }
 
 document.getElementById('save-all-materials').addEventListener('click', saveMaterials);
-document.getElementById('save-draft').addEventListener('click', saveDraft);
+document.getElementById('quick-project-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const status = document.getElementById('quick-project-status');
+    status.textContent = 'Kreiram projekat...';
+    try {
+        const response = await fetch('{{ route('projects.store') }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: new FormData(form),
+        });
+        const result = await readJsonResponse(response, 'Projekat nije kreiran. Provjeri podatke.');
+        const select = document.getElementById('active-project-id');
+        keepCurrentDraftOnProjectChange = true;
+        select.add(new Option(result.project.name, result.project.id, true, true));
+        select.dispatchEvent(new Event('change'));
+        draftsByProject[result.project.id] = draftPayload();
+        await saveDraft();
+        form.reset();
+        status.textContent = `${result.project.name} je kreiran, odabran i nacrt je sacuvan.`;
+    } catch (error) {
+        status.textContent = error.message;
+    }
+});
+document.getElementById('save-draft').addEventListener('click', () => saveDraft().catch(error => {
+    document.getElementById('bulk-plan-status').textContent = error.message;
+}));
+document.getElementById('quick-save-draft').addEventListener('click', () => saveDraft().catch(error => {
+    document.getElementById('bulk-plan-status').textContent = error.message;
+}));
+document.getElementById('save-element-name').addEventListener('click', saveSelectedDraftElementName);
+document.getElementById('close-element-editor').addEventListener('click', closeDraftElementEditor);
+document.getElementById('element-editor-name').addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        saveSelectedDraftElementName();
+    }
+});
+document.getElementById('element-editor-name').addEventListener('blur', saveSelectedDraftElementName);
 renderBranchList();
 document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName(document.getElementById('route-draw-type').value)}`;
 document.getElementById('bulk-plan-form').addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
     const status = document.getElementById('bulk-plan-status');
+    if (activeBranch.length > 1) finishBranch();
     refreshPlanSummary();
-    await saveDraft();
-    status.textContent = 'Snimam plan...';
-
     try {
+        await saveDraft();
+        status.textContent = 'Snimam plan...';
         const response = await fetch(form.action, {
             method: 'POST',
             headers: {
@@ -1314,12 +1542,10 @@ document.getElementById('bulk-plan-form').addEventListener('submit', async event
             throw new Error(errorText || 'Plan nije snimljen. Provjeri podatke.');
         }
 
-        const result = await response.json();
+        const result = await readJsonResponse(response, 'Plan nije snimljen. Provjeri podatke.');
         delete draftsByProject[form.elements.project_id.value];
-        keepSavedSuggestionsOnMap();
-        commitTrenchLines();
-        clearDraw();
-        status.textContent = `${result.message} FTTH ormarici ostaju na shemi.`;
+        status.textContent = `${result.message} Osvjezavam trajno spremljenu mapu...`;
+        window.location.reload();
     } catch (error) {
         status.textContent = error.message;
     }
@@ -1334,7 +1560,7 @@ document.getElementById('expand-map').addEventListener('click', () => {
         sidebar.classList.add('hidden');
         btn.textContent = 'Prikazi panele';
     } else {
-        workspace.className = 'grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_360px]';
+        workspace.className = 'grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_330px]';
         sidebar.classList.remove('hidden');
         btn.textContent = 'Velika mapa';
     }
@@ -1401,54 +1627,56 @@ map.on('click', e => {
         document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); return;
     }
     if (mode === 'odf') {
-        draftOdfCount++;
+        if (selectedDraftElement?.item.pending) closeDraftElementEditor();
+        const item = { marker: null, name: '', pending: true };
         const marker = L.marker(e.latlng, { icon: icon('odf','ODF'), draggable: true })
             .addTo(map)
             .bindTooltip('ODF · 0 FTTH', { direction: 'top', offset: [0, -10] })
-            .bindPopup(`ODF draft ${draftOdfCount}`)
+            .bindPopup('Unesi naziv ODF-a')
             .openPopup();
+        item.marker = marker;
         marker.on('dragend', event => { const p = event.target.getLatLng(); document.getElementById('odf-lat').value=p.lat.toFixed(7); document.getElementById('odf-lng').value=p.lng.toFixed(7); });
-        marker.on('drag', () => {
-            refreshDraftTooltips();
-            refreshPlanSummary();
-        });
-        draftElements.push({ type: 'odf', marker });
-        draftOdfs.push({ marker });
-        marker.on('click', () => setActiveDraftOdf(draftOdfs.indexOf(draftOdfs.find(item => item.marker === marker))));
-        registerDraftContext(marker, `ODF-${String(draftOdfs.length).padStart(2, '0')}`);
-        setActiveDraftOdf(draftOdfs.length - 1);
-        refreshDraftTooltips();
+        selectDraftElement('odf', item);
         document.getElementById('odf-lat').value=lat; document.getElementById('odf-lng').value=lng; return;
     }
     if (mode === 'cabinet') {
         draftCabinetCount++;
-        const marker = L.marker(e.latlng, { icon: icon('cabinet', `FTTH-${draftCabinetCount}`), draggable: true })
+        const item = { marker: null, name: defaultDraftName('cabinet', draftCabinetCount - 1), odf_index: activeDraftOdfIndex ?? nearestDraftOdf(e.latlng)?.index ?? null };
+        const marker = L.marker(e.latlng, { icon: icon('cabinet', item.name), draggable: true })
             .addTo(map)
             .bindTooltip('0/12', { direction: 'top', offset: [0, -10] })
             .bindPopup(`FTTH draft ${draftCabinetCount}`)
             .openPopup();
+        item.marker = marker;
         marker.on('dragend', event => { const p = event.target.getLatLng(); document.getElementById('cabinet-lat').value=p.lat.toFixed(7); document.getElementById('cabinet-lng').value=p.lng.toFixed(7); });
         marker.on('drag', () => {
             refreshPlanSummary();
         });
         draftElements.push({ type: 'cabinet', marker });
-        draftCabinets.push({ marker, odf_index: activeDraftOdfIndex ?? nearestDraftOdf(e.latlng)?.index ?? null });
+        draftCabinets.push(item);
+        marker.on('click', () => selectDraftElement('cabinet', item));
         registerDraftContext(marker, `FTTH-${draftCabinetCount}`);
         refreshDraftTooltips();
+        selectDraftElement('cabinet', item);
         document.getElementById('cabinet-lat').value=lat; document.getElementById('cabinet-lng').value=lng;
     }
 });
 setMode('pan'); refreshStats();
 
 // Auto-load draft when project is selected
-const draftsByProject = {};
 data.drafts.forEach(draft => {
     draftsByProject[draft.project_id] = draft.payload;
 });
+autosaveReady = true;
 
 document.getElementById('active-project-id').addEventListener('change', (e) => {
     const projectId = e.target.value;
     if (!projectId) return;
+    if (keepCurrentDraftOnProjectChange) {
+        keepCurrentDraftOnProjectChange = false;
+        refreshPlanSummary();
+        return;
+    }
     const draft = draftsByProject[projectId];
     if (draft) {
         restoreDraft(draft);
