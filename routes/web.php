@@ -4,7 +4,8 @@ use App\Http\Controllers\FtthController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [FtthController::class, 'dashboard'])->name('dashboard');
-Route::get('/mapa', [FtthController::class, 'map'])->name('map.index');
+Route::get('/mapa', [FtthController::class, 'dashboard'])->name('map.dashboard');
+Route::get('/mapa/editor', [FtthController::class, 'map'])->name('map.index');
 Route::post('/mapa/plan', [FtthController::class, 'storePlan'])->name('map.plan.store');
 Route::post('/mapa/draft', [FtthController::class, 'storeDraft'])->name('map.draft.store');
 Route::post('/mapa/sugestije', [FtthController::class, 'storeSuggestedCabinets'])->name('map.suggestions.store');
@@ -34,6 +35,8 @@ Route::delete('/korisnici/{id}', [FtthController::class, 'deleteSubscriber'])->n
 
 Route::get('/trase', [FtthController::class, 'routes'])->name('routes.index');
 Route::post('/trase', [FtthController::class, 'storeRoute'])->name('routes.store');
+Route::patch('/trase/{id}', [FtthController::class, 'updateRoute'])->name('routes.update');
+Route::patch('/trase/{id}/geometrija', [FtthController::class, 'updateRouteGeometry'])->name('routes.geometry.update');
 Route::post('/trase/dxf', [FtthController::class, 'importDxf'])->name('routes.dxf.import');
 Route::delete('/trase/{id}', [FtthController::class, 'deleteRoute'])->name('routes.delete');
 

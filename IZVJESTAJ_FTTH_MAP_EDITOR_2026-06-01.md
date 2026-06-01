@@ -1,0 +1,61 @@
+# FTTH Manager - izvjestaj rada (2026-06-01)
+
+## Zavrseno
+
+- Ociscena baza podataka (`php artisan migrate:fresh --force`): uklonjeni su testni i demo podaci.
+- Uklonjeni hardkodirani demo redovi iz dashboard tabela.
+- Dashboard prikazuje samo stvarne podatke iz baze i nule kada podataka nema.
+- Satelitska Esri podloga je podrazumijevana; OSM je dostupan kao opcija.
+- Mapa je organizovana u slojeve: ODF, ODO, kuce, trase, outline trase, cvorovi, crtanje, mjerenje i snap.
+- Dodan `MapEditor` objekat u `public/js/ftth-map.js`.
+- Aktivni alat mijenja stil, cursor i statusnu poruku.
+- Dodani alati: select, dodaj ODF, dodaj ODO, dodaj kucu, nacrtaj trasu, mjerenje, uredi trasu, obrisi tacku i obrisi element.
+- Dodan status bar sa aktivnim alatom, brojem tacaka, duzinom i snap stanjem.
+- Crtanje trase radi tacku po tacku, uz privremeni isprekidani segment do kursora.
+- `Double click` zavrsava crtanje; `ESC` prekida operaciju; `Backspace` uklanja zadnju tacku.
+- Backend racuna stvarnu duzinu trase iz koordinata pri prvom snimanju.
+- Nova trasa se odmah prikazuje na mapi, u tabeli i statistikama bez reload-a.
+- Mjerenje radi nezavisno od baze i ne snima podatke.
+- Edit geometrije trase prikazuje draggable cvorove.
+- Klik na segment trase u edit modu dodaje novu lomnu tacku.
+- Brisanje tacke ne dozvoljava da trasa ostane sa manje od dvije tacke.
+- Izmjene geometrije se snimaju tek klikom na `Sacuvaj izmjene`.
+- Dodan PATCH endpoint `routes.geometry.update`; backend ponovo racuna duzinu nakon editovanja.
+- Brisanje trase trazi potvrdu i podrzava JSON odgovor.
+- Dodan osnovni snap radijusa 12 px na ODF, ODO, kuce i postojece cvorove trase.
+- Dodani toast prikazi za uspjeh i server greske.
+- Dodano upozorenje prije napustanja stranice kada postoje nespremljene izmjene.
+- Popravljen nestanak Leaflet mape: promjena alata vise ne brise obaveznu `leaflet-container` klasu.
+- Dodan modal za kreiranje trase sa nazivom, tipom, ODF/ODO vezom, mikrocijevi, kablom, brojem tacaka i automatskom duzinom.
+- Isti modal radi u edit rezimu za podatke postojece trase.
+- Dodan property panel za odabranu trasu: `Uredi podatke`, `Uredi geometriju`, `Obrisi`.
+- Dodan property panel za ODF/ODO/kucu: `Pomjeri`.
+- Dodano sigurno pomjeranje markera: marker je draggable tek nakon akcije, a nova pozicija ide serveru tek klikom na `Sacuvaj poziciju`; `Ponisti` vraca staru poziciju.
+- `ESC` zatvara modal i prekida crtanje, mjerenje, editovanje ili pomjeranje.
+
+## Dodana ruta
+
+```text
+PATCH /trase/{id}/geometrija
+PATCH /trase/{id}
+```
+
+Naziv rute: `routes.geometry.update`.
+
+## Provjere
+
+- `node --check public/js/ftth-map.js` - proslo
+- `php artisan view:cache` - proslo
+- `npm run build` - proslo
+- `php artisan test` - proslo: 9 testova, 27 assertions
+- `php artisan route:list --path=trase` - PATCH endpoint je registrovan
+
+## Sutra
+
+- Rucno proci sve CAD alate u browseru i ispeglati UX detalje.
+- Dodati brisanje ODF/ODO/kuce iz property panela uz potvrdu.
+- Dodati napomenu trase u bazu i modal ako bude potrebna u izvjestajima.
+- Doraditi select/highlight stil odabranih markera i trase.
+- Osvjeziti tabelu/statistiku i nakon brisanja ili editovanja trase bez reload-a.
+- Prosiriti browser testiranje za snap na svim tipovima elemenata.
+- Rucno provjeriti sve alate u browseru nakon `Ctrl+F5`; terminalske provjere ne mogu zamijeniti interakciju misem.

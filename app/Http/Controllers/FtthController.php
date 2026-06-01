@@ -22,11 +22,42 @@ class FtthController extends Controller
     public function dashboard(): View
     {
         $projects = Project::withCount(['odfs', 'cabinets', 'subscribers', 'houses', 'routes'])->latest()->get();
-        $cabinets = Cabinet::with('project')->withCount('subscribers')->orderBy('name')->get();
+        $activeProject = $projects->first();
+        $projectQuery = fn ($query) => $activeProject ? $query->where('project_id', $activeProject->id) : $query->whereRaw('1 = 0');
+        $odfs = $projectQuery(Odf::query())->withCount('cabinets')->get();
+        $cabinets = $projectQuery(Cabinet::query())->with(['project', 'odf'])->withCount(['subscribers', 'houses'])->orderBy('name')->get();
+        $houses = $projectQuery(House::query())->with('cabinet')->get();
+        $subscribers = $projectQuery(Subscriber::query())->with('cabinet')->latest()->take(5)->get();
+        $routes = $projectQuery(NetworkRoute::query())->with(['odf', 'cabinet'])->latest()->get();
+        $issues = collect();
+
+        $houses->whereNull('cabinet_id')->each(fn (House $house) => $issues->push(['level' => 'warning', 'message' => "{$house->label} nema dodijeljen ODO ormarić."]));
+        $cabinets->whereNull('odf_id')->each(fn (Cabinet $cabinet) => $issues->push(['level' => 'warning', 'message' => "{$cabinet->name} nema povezani ODF."]));
+        $cabinets->filter(fn (Cabinet $cabinet) => $cabinet->houses_count > 12)->each(fn (Cabinet $cabinet) => $issues->push(['level' => 'error', 'message' => "{$cabinet->name} ima više od 12 kuća."]));
+        $routes->filter(fn (NetworkRoute $route) => ! $route->duct_length_m)->each(fn (NetworkRoute $route) => $issues->push(['level' => 'warning', 'message' => "{$route->name} nema evidentiranu dužinu."]));
+
+        $cabinets->filter(fn (Cabinet $cabinet) => $cabinet->houses_count > $cabinet->splitter_count * 4)
+            ->each(fn (Cabinet $cabinet) => $issues->push(['level' => 'error', 'message' => "{$cabinet->name} nema dovoljno splittera."]));
+        $routes->filter(fn (NetworkRoute $route) => ! $route->microduct_type)
+            ->each(fn (NetworkRoute $route) => $issues->push(['level' => 'warning', 'message' => "{$route->name} nema mikrocijev."]));
+        $routes->filter(fn (NetworkRoute $route) => ! $route->fiber_count)
+            ->each(fn (NetworkRoute $route) => $issues->push(['level' => 'warning', 'message' => "{$route->name} nema opticki kabal."]));
 
         return view('ftth.dashboard', [
             'projects' => $projects,
+            'activeProject' => $activeProject,
+            'odfs' => $odfs,
             'cabinets' => $cabinets,
+            'houses' => $houses,
+            'subscribers' => $subscribers,
+            'routes' => $routes,
+            'issues' => $issues,
+            'mapData' => [
+                'odfs' => $odfs->map(fn (Odf $odf) => ['id' => $odf->id, 'name' => $odf->name, 'address' => $odf->address, 'ports' => $odf->port_count, 'fibers' => $odf->fiber_capacity, 'cabinets' => $odf->cabinets_count, 'lat' => (float) $odf->latitude, 'lng' => (float) $odf->longitude]),
+                'cabinets' => $cabinets->map(fn (Cabinet $cabinet) => ['id' => $cabinet->id, 'name' => $cabinet->name, 'address' => $cabinet->address, 'odf' => $cabinet->odf->name ?? 'Nije povezano', 'used' => $cabinet->houses_count, 'capacity' => 12, 'splitters' => $cabinet->splitter_count, 'lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude]),
+                'houses' => $houses->map(fn (House $house) => ['id' => $house->id, 'name' => $house->label, 'address' => $house->address, 'cabinet' => $house->cabinet->name ?? 'Nije povezano', 'status' => $house->status, 'lat' => (float) $house->latitude, 'lng' => (float) $house->longitude]),
+                'routes' => $routes->map(fn (NetworkRoute $route) => ['id' => $route->id, 'name' => $route->name, 'from' => $route->odf->name ?? '-', 'to' => $route->cabinet->name ?? '-', 'type' => $route->route_type, 'length' => $route->duct_length_m, 'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'path' => $route->path ?: ($route->odf && $route->cabinet ? [[(float) $route->odf->latitude, (float) $route->odf->longitude], [(float) $route->cabinet->latitude, (float) $route->cabinet->longitude]] : [])]),
+            ],
             'stats' => [
                 'projects' => Project::count(),
                 'odfs' => Odf::count(),
@@ -36,6 +67,12 @@ class FtthController extends Controller
                 'duct_m' => NetworkRoute::sum('duct_length_m'),
                 'fiber_m' => NetworkRoute::sum('fiber_length_m'),
                 'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,
+                'splitters' => $cabinets->sum('splitter_count'),
+                'routes_m' => $routes->sum('duct_length_m'),
+                'microduct_14_10' => $routes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
+                'microduct_10_8' => $routes->where('microduct_type', '10/8')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
+                'fiber_4' => $routes->where('fiber_count', 4)->sum('fiber_length_m'),
+                'fiber_12' => $routes->where('fiber_count', 12)->sum('fiber_length_m'),
             ],
         ]);
     }
@@ -228,9 +265,9 @@ class FtthController extends Controller
         ]);
     }
 
-    public function storeOdf(Request $request): RedirectResponse
+    public function storeOdf(Request $request)
     {
-        Odf::create($request->validate([
+        $odf = Odf::create($request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'name' => ['required', 'max:255'],
             'address' => ['required', 'max:255'],
@@ -240,6 +277,13 @@ class FtthController extends Controller
             'longitude' => ['nullable', 'numeric'],
             'notes' => ['nullable', 'max:2000'],
         ]));
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'ODF lokacija je evidentirana.', 'odf' => [
+                'id' => $odf->id, 'name' => $odf->name, 'address' => $odf->address, 'ports' => $odf->port_count,
+                'fibers' => $odf->fiber_capacity, 'cabinets' => 0, 'lat' => (float) $odf->latitude, 'lng' => (float) $odf->longitude,
+            ]], 201);
+        }
 
         return back()->with('success', 'ODF lokacija je evidentirana.');
     }
@@ -264,9 +308,9 @@ class FtthController extends Controller
         ]);
     }
 
-    public function storeCabinet(Request $request): RedirectResponse
+    public function storeCabinet(Request $request)
     {
-        Cabinet::create($request->validate([
+        $cabinet = Cabinet::create($request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'name' => ['required', 'max:255'],
@@ -276,6 +320,14 @@ class FtthController extends Controller
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
         ]));
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Ormaric je dodat.', 'cabinet' => [
+                'id' => $cabinet->id, 'name' => $cabinet->name, 'address' => $cabinet->address,
+                'odf' => $cabinet->odf?->name ?? 'Nije povezano', 'used' => 0, 'capacity' => $cabinet->capacity,
+                'splitters' => $cabinet->splitter_count, 'lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude,
+            ]], 201);
+        }
 
         return back()->with('success', 'Ormaric je dodat.');
     }
@@ -291,9 +343,9 @@ class FtthController extends Controller
         return $this->updatePosition($request, Cabinet::findOrFail($id));
     }
 
-    public function storeHouse(Request $request): RedirectResponse
+    public function storeHouse(Request $request)
     {
-        House::create($request->validate([
+        $house = House::create($request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'label' => ['required', 'max:255'],
@@ -302,6 +354,14 @@ class FtthController extends Controller
             'longitude' => ['required', 'numeric'],
             'status' => ['required', 'in:planned,connected,cancelled'],
         ]));
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Kuca/prikljucak je evidentiran.', 'house' => [
+                'id' => $house->id, 'name' => $house->label, 'address' => $house->address,
+                'cabinet' => $house->cabinet?->name ?? 'Nije povezano', 'status' => $house->status,
+                'lat' => (float) $house->latitude, 'lng' => (float) $house->longitude,
+            ]], 201);
+        }
 
         return back()->with('success', 'Kuca/prikljucak je evidentiran.');
     }
@@ -509,7 +569,7 @@ class FtthController extends Controller
         ]);
     }
 
-    public function storeRoute(Request $request): RedirectResponse
+    public function storeRoute(Request $request)
     {
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
@@ -529,9 +589,28 @@ class FtthController extends Controller
 
         if (! empty($data['path'])) {
             $data['path'] = json_decode($data['path'], true);
+            $data['duct_length_m'] = $this->polylineLength($data['path']);
+            $data['fiber_length_m'] = $data['duct_length_m'];
         }
 
-        NetworkRoute::create($data);
+        $route = NetworkRoute::create($data);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Trasa je evidentirana.',
+                'route' => [
+                    'id' => $route->id,
+                    'name' => $route->name,
+                    'from' => $route->odf?->name ?? '-',
+                    'to' => $route->cabinet?->name ?? '-',
+                    'type' => $route->route_type,
+                    'length' => $route->duct_length_m,
+                    'microduct' => $route->microduct_type,
+                    'fibers' => $route->fiber_count,
+                    'path' => $route->path,
+                ],
+            ], 201);
+        }
 
         return back()->with('success', 'Trasa je evidentirana.');
     }
@@ -539,7 +618,60 @@ class FtthController extends Controller
     public function deleteRoute($id)
     {
         NetworkRoute::findOrFail($id)->delete();
+        if (request()->expectsJson()) {
+            return response()->json(['message' => 'Trasa je obrisana.']);
+        }
         return back()->with('success', 'Trasa je obrisana.');
+    }
+
+    public function updateRoute(Request $request, $id)
+    {
+        $route = NetworkRoute::findOrFail($id);
+        $data = $request->validate([
+            'name' => ['required', 'max:255'],
+            'route_type' => ['required', 'in:feeder,distribution,drop'],
+            'odf_id' => ['nullable', 'exists:odfs,id'],
+            'cabinet_id' => ['nullable', 'exists:cabinets,id'],
+            'microduct_type' => ['required', 'in:14/10,10/8'],
+            'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
+        ]);
+        $route->update($data);
+        $route->load(['odf', 'cabinet']);
+
+        return response()->json([
+            'message' => 'Podaci trase su sacuvani.',
+            'route' => [
+                'id' => $route->id, 'name' => $route->name, 'from' => $route->odf?->name ?? '-',
+                'to' => $route->cabinet?->name ?? '-', 'type' => $route->route_type, 'length' => $route->duct_length_m,
+                'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'path' => $route->path,
+            ],
+        ]);
+    }
+
+    public function updateRouteGeometry(Request $request, $id)
+    {
+        $data = $request->validate([
+            'path' => ['required', 'array', 'min:2'],
+            'path.*' => ['required', 'array', 'size:2'],
+            'path.*.*' => ['required', 'numeric'],
+        ]);
+
+        $route = NetworkRoute::findOrFail($id);
+        $length = $this->polylineLength($data['path']);
+        $route->update([
+            'path' => $data['path'],
+            'duct_length_m' => $length,
+            'fiber_length_m' => $length,
+        ]);
+
+        return response()->json([
+            'message' => 'Geometrija trase je sacuvana.',
+            'route' => [
+                'id' => $route->id,
+                'path' => $route->path,
+                'length' => $route->duct_length_m,
+            ],
+        ]);
     }
 
     public function importDxf(Request $request): RedirectResponse
@@ -720,13 +852,18 @@ class FtthController extends Controller
             'cabinets.*.longitude' => ['required', 'numeric'],
             'cabinets.*.splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
             'cabinets.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
+            'cabinets.*.houses' => ['nullable', 'array'],
+            'cabinets.*.houses.*.latitude' => ['required', 'numeric'],
+            'cabinets.*.houses.*.longitude' => ['required', 'numeric'],
         ]);
 
         $projectId = $data['project_id'];
         $createdCount = 0;
+        $linkedHouseCount = 0;
+        $createdRouteCount = 0;
 
         foreach ($data['cabinets'] as $cabinet) {
-            Cabinet::create([
+            $createdCabinet = Cabinet::create([
                 'project_id' => $projectId,
                 'odf_id' => $cabinet['odf_id'] ?? null,
                 'name' => $cabinet['name'],
@@ -737,11 +874,42 @@ class FtthController extends Controller
                 'longitude' => $cabinet['longitude'],
             ]);
             $createdCount++;
+
+            foreach ($cabinet['houses'] ?? [] as $index => $point) {
+                $house = House::query()
+                    ->where('project_id', $projectId)
+                    ->where('latitude', $point['latitude'])
+                    ->where('longitude', $point['longitude'])
+                    ->first();
+                if (! $house) continue;
+
+                $house->update(['cabinet_id' => $createdCabinet->id]);
+                $path = [[(float) $createdCabinet->latitude, (float) $createdCabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
+                $length = $this->polylineLength($path);
+                NetworkRoute::create([
+                    'project_id' => $projectId,
+                    'cabinet_id' => $createdCabinet->id,
+                    'name' => "Drop {$createdCabinet->name}-".($index + 1),
+                    'route_type' => 'drop',
+                    'installation_type' => 'underground',
+                    'duct_length_m' => $length,
+                    'fiber_length_m' => $length,
+                    'fiber_count' => 4,
+                    'microduct_count' => 1,
+                    'microduct_type' => '10/8',
+                    'status' => 'planned',
+                    'path' => $path,
+                ]);
+                $linkedHouseCount++;
+                $createdRouteCount++;
+            }
         }
 
         return response()->json([
             'message' => "Kreirano {$createdCount} ormarića.",
             'created' => $createdCount,
+            'linked_houses' => $linkedHouseCount,
+            'created_routes' => $createdRouteCount,
         ]);
     }
 }

@@ -219,7 +219,7 @@
                 <button type="button" id="clear-suggestions" class="action-btn mt-5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Ocisti</button>
             </div>
             <div id="suggestion-output" class="mt-3 max-h-56 overflow-auto rounded-md border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-700">Nacrtaj trasu i oznaci kuce.</div>
-            <button type="button" id="save-suggestions" class="action-btn mt-3 hidden w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Snimi samo FTTH ormarice</button>
+            <button type="button" id="save-suggestions" class="action-btn mt-3 hidden w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Potvrdi raspored</button>
         </div>
         </details>
 
@@ -783,6 +783,10 @@ function networkDropDistance(cabinetPoint, housePoint) {
         + Math.abs(a.chain - b.chain)
         + map.distance(b.point, housePoint);
 }
+function snapCabinetToRoute(point) {
+    const snapped = nearestOnNetwork(point);
+    return snapped.point || point;
+}
 function nearestOdf(point) {
     return data.odfs.map(o => ({...o, distance: Math.round(map.distance(point, L.latLng(o.lat, o.lng)))})).sort((a,b) => a.distance-b.distance)[0] || null;
 }
@@ -951,42 +955,43 @@ function suggest() {
     const groups = assignHousesToNearestCabinets(optimize(housePoints), housePoints), summary = {};
     const html = groups.map((g,i) => {
         const groupColor = cabinetPalette[i % cabinetPalette.length];
-        const odf = nearestOdf(g.pos); if (odf) { summary[odf.name] ??= {c:0,h:0,s:0}; summary[odf.name].c++; summary[odf.name].h += g.s; summary[odf.name].s += g.splitters; }
+        const cabinetPos = snapCabinetToRoute(g.pos);
+        const odf = nearestOdf(cabinetPos); if (odf) { summary[odf.name] ??= {c:0,h:0,s:0}; summary[odf.name].c++; summary[odf.name].h += g.s; summary[odf.name].s += g.splitters; }
         const draftOdf = activeDraftOdfIndex !== null && draftOdfs[activeDraftOdfIndex]
-            ? { index: activeDraftOdfIndex, distance: Math.round(map.distance(g.pos, draftOdfs[activeDraftOdfIndex].marker.getLatLng())) }
-            : nearestDraftOdf(g.pos);
+            ? { index: activeDraftOdfIndex, distance: Math.round(map.distance(cabinetPos, draftOdfs[activeDraftOdfIndex].marker.getLatLng())) }
+            : nearestDraftOdf(cabinetPos);
         const odfLabel = suggestionOdfLabel(draftOdf, odf);
         const assignedDraftOdfIndex = draftOdf ? draftOdf.index : null;
         const assignedExistingOdfId = !draftOdf && odf ? odf.id : null;
         const suggestedCabinet = {
             name: `FTTH-${String(i+1).padStart(3,'0')}`,
-            lat: Number(g.pos.lat.toFixed(7)),
-            lng: Number(g.pos.lng.toFixed(7)),
+            lat: Number(cabinetPos.lat.toFixed(7)),
+            lng: Number(cabinetPos.lng.toFixed(7)),
             splitter_count: g.splitters,
             odf_index: assignedDraftOdfIndex,
             odf_id: assignedExistingOdfId,
             houseKeys: g.group.map(h => pointKey(h.point.lat, h.point.lng)),
         };
-        const marker = L.marker(g.pos, { icon: icon('suggest', `FTTH-${String(i+1).padStart(2,'0')}`, groupColor) })
+        const marker = L.marker(cabinetPos, { icon: icon('suggest', `FTTH-${String(i+1).padStart(2,'0')}`, groupColor) })
             .bindTooltip(`${g.s}/12`, { direction: 'top', offset: [0, -10] })
             .bindPopup(`<b>FTTH-${i+1}</b><br>${g.s}/12 kuca<br>${g.splitters} splittera<br>${g.waste} praznih portova<br>ODF: ${odfLabel}`)
             .addTo(map);
         const drops = g.group.map(h => {
             const houseMarker = houseMarkerByKey[pointKey(h.point.lat, h.point.lng)];
             if (houseMarker) houseMarker.setIcon(icon('house', '', groupColor));
-            return L.polyline(networkPathBetween(g.pos, h.point), { color: groupColor, weight: 1.5, opacity: .55 }).addTo(map);
+            return L.polyline(networkPathBetween(cabinetPos, h.point), { color: groupColor, weight: 1.5, opacity: .55 }).addTo(map);
         });
         suggestedCabinet.marker = marker;
         suggestedCabinet.dropLines = drops;
         suggestedCabinets.push(suggestedCabinet);
         suggestionLayers.push(marker, ...drops);
-        return `<div class="border-b border-zinc-200 py-2"><b>FTTH-${String(i+1).padStart(2,'0')}</b><br>${g.s}/12 kuca, ${g.splitters} splittera, ${g.waste} praznih portova<br>ODF: ${odfLabel}<br>${g.pos.lat.toFixed(7)}, ${g.pos.lng.toFixed(7)}</div>`;
+        return `<div class="border-b border-zinc-200 py-2"><b>FTTH-${String(i+1).padStart(2,'0')}</b><br>${g.s}/12 kuca, ${g.splitters} splittera, ${g.waste} praznih portova<br>ODF: ${odfLabel}<br>${cabinetPos.lat.toFixed(7)}, ${cabinetPos.lng.toFixed(7)}</div>`;
     }).join('');
     const sum = Object.entries(summary).map(([n,v]) => `<div class="rounded-md bg-white p-2"><b>${n}</b><br>${v.c} FTTH · ${v.h} kuca · ${v.s} splittera</div>`).join('');
     const draftOdfNote = '<div class="mb-2 rounded-md bg-emerald-50 p-2 text-xs font-semibold text-emerald-800">Pregled je spreman. Klikni "5 Sacuvaj na mapi" da elementi ostanu trajno prikazani.</div>';
     document.getElementById('cabinet-count').textContent = groups.length;
     document.getElementById('suggestion-output').innerHTML = `${draftOdfNote}${sum ? `<div class="mb-3 grid gap-2">${sum}</div>` : ''}${html}`;
-    document.getElementById('save-suggestions').classList.add('hidden');
+    document.getElementById('save-suggestions').classList.remove('hidden');
     document.getElementById('material-specs-output').classList.remove('hidden');
     displayMaterialSpecs();
     refreshRouteOdfStatus();
@@ -1354,12 +1359,13 @@ document.getElementById('guide-suggest').addEventListener('click', suggest);
 
 async function saveSuggestions() {
     const projectId = document.getElementById('active-project-id').value;
+    const output = document.getElementById('suggestion-output');
     if (!projectId) {
-        alert('Odaberi projekat prije nego što snimis sugestije.');
+        output.innerHTML = '<b class="text-red-700">Odaberi projekat prije potvrde rasporeda.</b>';
         return;
     }
     if (!suggestedCabinets.length) {
-        alert('Nema sugestija za snimanje.');
+        output.innerHTML = '<b class="text-red-700">Nema sugestija za potvrdu.</b>';
         return;
     }
 
@@ -1384,21 +1390,25 @@ async function saveSuggestions() {
                     longitude: c.lng,
                     splitter_count: c.splitter_count,
                     odf_id: c.odf_id,
+                    houses: (c.houseKeys || []).map(key => {
+                        const [latitude, longitude] = key.split(',').map(Number);
+                        return { latitude, longitude };
+                    }),
                 })),
             }),
         });
 
         if (!response.ok) {
             const error = await response.text();
-            alert('Greška pri snimanju: ' + error);
+            output.innerHTML = `<b class="text-red-700">Greška pri snimanju: ${error}</b>`;
             return;
         }
 
         const result = await readJsonResponse(response, 'FTTH ormarici nisu snimljeni.');
-        alert(result.message);
+        output.innerHTML = `<b class="text-emerald-700">${result.message}</b>`;
         keepSavedSuggestionsOnMap();
     } catch (error) {
-        alert('Greška: ' + error.message);
+        output.innerHTML = `<b class="text-red-700">Greška: ${error.message}</b>`;
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;
@@ -1425,8 +1435,9 @@ document.getElementById('save-suggestions').addEventListener('click', saveSugges
 
 async function saveMaterials() {
     const projectId = document.getElementById('active-project-id').value;
+    const output = document.getElementById('material-items');
     if (!projectId || !window.currentMaterialSpecs) {
-        alert('Obračunaj materijale prije nego što pokušaš da ih snimis.');
+        output.innerHTML = '<div class="text-xs font-semibold text-red-700">Obračunaj materijale prije snimanja.</div>';
         return;
     }
 
@@ -1460,13 +1471,13 @@ async function saveMaterials() {
         const allSuccess = results.every(r => r.ok);
 
         if (allSuccess) {
-            alert(`Snimljeno ${materialsToSave.length} stavki materijala.`);
+            output.innerHTML = `<div class="text-xs font-semibold text-emerald-700">Snimljeno ${materialsToSave.length} stavki materijala.</div>`;
             clearSuggestions();
         } else {
-            alert('Greška pri snimanju nekih materijala.');
+            output.innerHTML = '<div class="text-xs font-semibold text-red-700">Greška pri snimanju nekih materijala.</div>';
         }
     } catch (error) {
-        alert('Greška: ' + error.message);
+        output.innerHTML = `<div class="text-xs font-semibold text-red-700">Greška: ${error.message}</div>`;
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;

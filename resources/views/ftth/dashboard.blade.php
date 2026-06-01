@@ -1,91 +1,76 @@
 @extends('ftth.layout')
-
 @section('title', 'Pregled mreze')
-@section('subtitle', 'Kapaciteti, status projekata i upozorenja za popunjene ormarice.')
-
+@section('subtitle', $activeProject ? $activeProject->name : 'FTTH Kalesija Centar')
+@section('wide', '1')
 @section('content')
-    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        @foreach ([
-            ['label' => 'Projekti', 'value' => $stats['projects'], 'tone' => 'border-emerald-200'],
-            ['label' => 'ODF lokacije', 'value' => $stats['odfs'], 'tone' => 'border-cyan-200'],
-            ['label' => 'Zeleni ormarici', 'value' => $stats['cabinets'], 'tone' => 'border-lime-200'],
-            ['label' => 'Kuce / prikljucci', 'value' => $stats['houses'], 'tone' => 'border-violet-200'],
-            ['label' => 'Korisnici', 'value' => $stats['subscribers'], 'tone' => 'border-amber-200'],
-            ['label' => 'Mikrocijevi', 'value' => number_format($stats['duct_m']).' m', 'tone' => 'border-sky-200'],
-            ['label' => 'Opticki kabl', 'value' => number_format($stats['fiber_m']).' m', 'tone' => 'border-indigo-200'],
-            ['label' => 'Procjena materijala', 'value' => number_format($stats['materials_cost'], 2).' KM', 'tone' => 'border-rose-200'],
-        ] as $card)
-            <article class="rounded-md border {{ $card['tone'] }} bg-white p-4 shadow-sm">
-                <div class="text-sm font-medium text-zinc-500">{{ $card['label'] }}</div>
-                <div class="mt-2 text-2xl font-semibold">{{ $card['value'] }}</div>
-            </article>
-        @endforeach
-    </section>
-
-    <section class="mt-6 grid gap-6 xl:grid-cols-[1.15fr_.85fr]">
-        <div class="overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
-            <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
-                <h2 class="font-semibold">Projekti</h2>
-                <a href="{{ route('projects.index') }}" class="text-sm font-medium text-emerald-700">Dodaj projekat</a>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-zinc-50 text-xs font-semibold uppercase text-zinc-500">
-                        <tr><th class="px-4 py-3">Projekat</th><th>Lokacija</th><th>Status</th><th>ODF</th><th>Ormarici</th><th>Kuce</th><th>Korisnici</th></tr>
-                    </thead>
-                    <tbody class="divide-y divide-zinc-100">
-                        @forelse ($projects as $project)
-                            <tr class="hover:bg-zinc-50">
-                                <td class="px-4 py-3">
-                                    <div class="font-medium">{{ $project->name }}</div>
-                                    <div class="text-xs text-zinc-500">{{ $project->code }}</div>
-                                </td>
-                                <td>{{ $project->location }}</td>
-                                <td><span class="rounded-md bg-zinc-100 px-2 py-1 text-xs font-medium">{{ $project->status }}</span></td>
-                                <td>{{ $project->odfs_count }}</td>
-                                <td>{{ $project->cabinets_count }}</td>
-                                <td>{{ $project->houses_count }}</td>
-                                <td>{{ $project->subscribers_count }}</td>
-                            </tr>
-                        @empty
-                            <tr><td class="px-4 py-8 text-center text-zinc-500" colspan="7">Nema projekata. Kreni od stranice Projekti.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
-            <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
-                <h2 class="font-semibold">Iskoristenost ormarica</h2>
-                <a href="{{ route('cabinets.index') }}" class="text-sm font-medium text-emerald-700">Svi ormarici</a>
-            </div>
-            <div class="divide-y divide-zinc-100">
-                @forelse ($cabinets as $cabinet)
-                    <div class="p-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <div class="font-medium">{{ $cabinet->name }}</div>
-                                <div class="text-sm text-zinc-500">{{ $cabinet->project->name ?? 'Bez projekta' }}</div>
-                            </div>
-                            <span class="rounded-md px-2 py-1 text-sm font-semibold {{ $cabinet->utilization >= 100 ? 'bg-red-100 text-red-800' : ($cabinet->utilization >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800') }}">
-                                {{ $cabinet->used_ports }}/{{ $cabinet->capacity }}
-                            </span>
-                        </div>
-                        <div class="mt-3 h-2 rounded bg-zinc-100">
-                            <div class="h-2 rounded {{ $cabinet->utilization >= 100 ? 'bg-red-600' : ($cabinet->utilization >= 80 ? 'bg-amber-500' : 'bg-emerald-600') }}" style="width: {{ min($cabinet->utilization, 100) }}%"></div>
-                        </div>
-                        <div class="mt-2 flex justify-between text-xs text-zinc-500">
-                            <span>{{ $cabinet->utilization }}% zauzeto</span>
-                            @if ($cabinet->utilization >= 100)
-                                <span class="font-medium text-red-700">Planirati novi ormaric</span>
-                            @endif
-                        </div>
-                    </div>
-                @empty
-                    <div class="p-6 text-center text-sm text-zinc-500">Nema ormarica za prikaz.</div>
-                @endforelse
-            </div>
-        </div>
-    </section>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="{{ asset('css/ftth-dashboard.css') }}">
+@php($selectedCabinet = $cabinets->first())
+<div class="dashboard-root grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_270px]">
+ <div class="dashboard-grid grid min-h-0 gap-2">
+  <nav class="panel flex overflow-x-auto">
+   <a class="tool active text-blue-700" data-tool="select" href="#">Odaberi</a>
+   <a class="tool" data-tool="add_odf" href="#">Dodaj ODF</a>
+   <a class="tool" data-tool="add_odo" href="#">Dodaj ODO</a>
+   <a class="tool" data-tool="add_customer" href="#">Dodaj korisnika</a>
+   <a class="tool" data-tool="draw_route" href="#">Nacrtaj trasu</a>
+   <a class="tool" data-tool="measure" href="#">Mjerenje</a>
+   <a class="tool" data-tool="edit_route" href="#">Uredi trasu</a>
+   <a class="tool" data-tool="delete_node" href="#">Obrisi tacku</a>
+   <a class="tool text-red-600" data-tool="delete_element" href="#">Obrisi element</a>
+  </nav>
+  <section class="panel relative min-h-0 overflow-hidden"><div id="dashboard-map"></div>
+   <div id="map-status" class="map-status">Alat: Odaberi | Odaberi element na mapi.</div>
+   <div id="map-edit-actions" class="map-edit-actions hidden"><button type="button" data-action="save-edit">Sacuvaj izmjene</button><button type="button" data-action="cancel-edit">Ponisti</button></div>
+   <div id="map-move-actions" class="map-edit-actions hidden"><button type="button" data-action="save-position">Sacuvaj poziciju</button><button type="button" data-action="cancel-position">Ponisti</button></div>
+   <div id="map-toast" class="map-toast hidden"></div>
+   <div class="map-legend"><h6>LEGENDA</h6><div><span class="legend-symbol text-blue-600">ODF</span></div><div><span class="legend-symbol text-green-600">ODO</span></div><div><span class="legend-symbol text-orange-500">K</span></div><div><span class="legend-line main"></span>Glavna trasa</div><div><span class="legend-line secondary"></span>Sekundarna trasa</div><div><span class="legend-line drop"></span>Drop trasa</div></div>
+  </section>
+  <div class="bottom-grid grid min-h-0 gap-2 md:grid-cols-2 xl:grid-cols-[1.16fr_.82fr_160px]">
+   <section class="panel bottom-card overflow-hidden"><div class="border-b px-4 py-3 text-xs font-bold">TRASE</div><div class="table-scroll overflow-auto"><table class="data-table w-full text-left tiny"><thead><tr class="text-slate-600"><th class="px-4 py-2">#</th><th>Od</th><th>Do</th><th>Tip</th><th>Duzina</th><th>MC</th><th>Kabl</th><th>Akcije</th></tr></thead><tbody id="dashboard-routes-body">@forelse($routes->take(5) as $route)<tr class="border-t"><td class="px-4 py-2">{{ $loop->iteration }}</td><td>{{ $route->odf->name ?? '-' }}</td><td>{{ $route->cabinet->name ?? '-' }}</td><td>{{ $route->route_type }}</td><td>{{ number_format($route->duct_length_m) }} m</td><td>{{ $route->microduct_type }}</td><td>{{ $route->fiber_count }} niti</td><td class="text-blue-600">...</td></tr>@empty<tr data-empty-row class="border-t"><td colspan="8" class="px-4 py-6 text-center text-slate-400">Nema trasa.</td></tr>@endforelse</tbody></table></div><div class="p-3 text-center"><a href="{{ route('routes.index') }}" class="inline-block rounded border px-10 py-2 tiny font-semibold text-blue-600">Prikazi sve trase</a></div></section>
+   <section class="panel bottom-card overflow-hidden"><div class="border-b px-4 py-3 text-xs font-bold">KORISNICI (ZADNJI DODANI)</div><div class="table-scroll overflow-auto"><table class="user-table w-full text-left tiny"><thead><tr><th class="px-4 py-2">#</th><th>Naziv</th><th>ODO</th><th>Adresa</th><th>Status</th></tr></thead><tbody>@forelse($subscribers as $subscriber)<tr class="border-t"><td class="px-4 py-2">{{ $loop->iteration }}</td><td>{{ $subscriber->name }}</td><td>{{ $subscriber->cabinet->name ?? '-' }}</td><td>{{ $subscriber->address }}</td><td class="text-green-600">{{ $subscriber->service_status }}</td></tr>@empty<tr class="border-t"><td colspan="5" class="px-4 py-6 text-center text-slate-400">Nema korisnika.</td></tr>@endforelse</tbody></table></div><div class="p-3 text-center"><a href="{{ route('subscribers.index') }}" class="inline-block rounded border px-10 py-2 tiny font-semibold text-blue-600">Svi korisnici</a></div></section>
+   <section class="panel p-3 md:col-span-2 xl:col-span-1"><h2 class="mb-3 text-[11px] font-bold">BRZA AKCIJA</h2><div class="grid gap-2 text-[11px] font-semibold sm:grid-cols-2 xl:grid-cols-1"><a href="{{ route('map.index') }}" class="rounded bg-blue-600 px-3 py-2.5 text-white">Dodaj ODF</a><a href="{{ route('map.index') }}" class="rounded bg-green-600 px-3 py-2.5 text-white">Dodaj ODO ormaric</a><a href="{{ route('subscribers.index') }}" class="rounded bg-orange-500 px-3 py-2.5 text-white">Dodaj korisnika</a><a href="{{ route('map.index') }}" class="rounded bg-violet-600 px-3 py-2.5 text-white">Nacrtaj trasu</a><a href="{{ route('reports.index') }}" class="rounded border px-3 py-2.5 text-blue-600">Provjeri projekat</a></div></section>
+  </div>
+ </div>
+ <aside class="detail-column grid min-h-0 gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-1 xl:overflow-auto">
+  <section id="detail-panel" class="panel overflow-hidden"><div id="detail-heading" class="flex items-center justify-between p-3"><div class="flex items-center gap-3"><span class="rounded bg-green-100 p-2 text-sm font-bold text-green-700">ODO</span><b>{{ $selectedCabinet->name ?? 'Nema ODO ormarica' }}</b></div>@if($selectedCabinet)<span class="rounded bg-green-100 px-2 py-1 text-[10px] font-bold text-green-700">Aktivan</span>@endif</div>
+   <div id="detail-body">
+            @if($selectedCabinet)<dl class="grid grid-cols-[90px_1fr] gap-y-1.5 px-3 tiny"><dt>Naziv:</dt><dd>{{ $selectedCabinet->name }}</dd><dt>Kod:</dt><dd>{{ $selectedCabinet->name }}</dd><dt>Povezan na:</dt><dd>{{ $selectedCabinet->odf->name ?? '-' }}</dd><dt>Lokacija:</dt><dd>{{ $activeProject->location ?? '-' }}</dd><dt>Korisnici:</dt><dd>{{ $selectedCabinet->houses_count }} / 12</dd><dt>Koriscenje:</dt><dd class="flex items-center gap-2"><div class="h-2 flex-1 rounded bg-slate-100"><div class="h-2 rounded bg-green-500" style="width:{{ min($selectedCabinet->houses_count / 12 * 100,100) }}%"></div></div><b>{{ round($selectedCabinet->houses_count / 12 * 100) }}%</b></dd><dt>Splitteri:</dt><dd>{{ $selectedCabinet->splitter_count }} (1:4)</dd></dl>@else<p class="px-3 tiny text-slate-400">Dodaj ODO ormaric na mapu da se ovdje prikazu detalji.</p>@endif
+   @if($selectedCabinet)<div class="mt-3 flex border-y tiny font-bold text-blue-600"><span class="border-b-2 border-blue-600 px-7 py-2">SPLITTERI</span><span class="px-5 py-2 text-slate-500">KORISNICI</span></div>@endif</div>
+  </section>
+   <section class="panel overflow-hidden p-3"><h2 class="mb-1 text-[11px] font-bold">STATISTIKA PROJEKTA</h2>@foreach([['routes_m','Ukupna duzina trasa',$stats['routes_m']],['microduct_14_10','Mikrocijev 14/10',$stats['microduct_14_10']],['microduct_10_8','Mikrocijev 10/8',$stats['microduct_10_8']],['fiber_4','Opticki kabal 4 niti',$stats['fiber_4']],['fiber_12','Opticki kabal 12 niti',$stats['fiber_12']]] as $item)<div class="grid grid-cols-[1fr_auto] items-center border-b py-1.5 tiny"><span>{{ $item[1] }}</span><b data-stat="{{ $item[0] }}" data-value="{{ $item[2] }}">{{ number_format($item[2]/1000, 2) }} km</b></div>@endforeach @foreach([['Splitteri (1:4)',$stats['splitters']],['ODO ormarici',$cabinets->count()],['Korisnici',$stats['subscribers']]] as $item)<div class="grid grid-cols-[1fr_auto] items-center border-b py-1.5 tiny"><span>{{ $item[0] }}</span><b>{{ $item[1] }}</b></div>@endforeach<a href="{{ route('reports.index') }}" class="mx-auto mt-3 block w-3/4 rounded border px-3 py-2 text-center tiny font-semibold text-blue-600">Detaljan izvjestaj</a></section>
+ </aside>
+</div>
+<div id="route-modal" class="route-modal hidden">
+ <form id="route-form" class="route-modal-card">
+  <div class="flex items-center justify-between"><h3 class="text-sm font-bold">Podaci trase</h3><button type="button" data-action="close-route-modal">X</button></div>
+  <input type="hidden" name="route_id">
+  <label>Naziv trase<input required name="name"></label>
+  <label>Tip trase<select required name="route_type"><option value="feeder">Glavna</option><option value="distribution">Distribuciona</option><option value="drop">Drop</option></select></label>
+  <label>Od<select name="odf_id"><option value="">Nije odabrano</option>@foreach($odfs as $odf)<option value="{{ $odf->id }}">{{ $odf->name }}</option>@endforeach</select></label>
+  <label>Do<select name="cabinet_id"><option value="">Nije odabrano</option>@foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}">{{ $cabinet->name }}</option>@endforeach</select></label>
+  <label>Mikrocijev<select required name="microduct_type"><option value="14/10">14/10</option><option value="10/8">10/8</option></select></label>
+  <label>Kabal<select required name="fiber_count"><option value="4">4 niti</option><option value="12">12 niti</option><option value="24">24 niti</option><option value="48">48 niti</option></select></label>
+  <div class="route-modal-summary"><span id="route-modal-points">Tacke: 0</span><span id="route-modal-length">Duzina: 0 m</span></div>
+  <div class="flex justify-end gap-2"><button type="button" class="secondary" data-action="close-route-modal">Odustani</button><button type="submit">Sacuvaj trasu</button></div>
+ </form>
+</div>
+<script>
+window.ftthData = @json($mapData);
+window.ftthConfig = {
+    projectId: {{ $activeProject?->id ?? 'null' }},
+    csrf: @json(csrf_token()),
+    suggestionUrl: @json(route('map.suggestions.store')),
+    odfUrl: @json(route('odfs.store')),
+    cabinetUrl: @json(route('cabinets.store')),
+    houseUrl: @json(route('houses.store')),
+    routeUrl: @json(route('routes.store')),
+    routeGeometryUrl: @json(url('/trase/__ID__/geometrija')),
+    routeUpdateUrl: @json(url('/trase/__ID__')),
+    routeDeleteUrl: @json(url('/trase/__ID__')),
+    positionUrls: { odf: @json(url('/odf/__ID__/pozicija')), odo: @json(url('/ormarici/__ID__/pozicija')), house: @json(url('/kuce/__ID__/pozicija')) },
+};
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ asset('js/ftth-map.js') }}"></script>
 @endsection

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Cabinet;
+use App\Models\House;
 use App\Models\Material;
 use App\Models\NetworkRoute;
 use App\Models\Project;
@@ -44,5 +45,79 @@ class MediaskyWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'S-01', 'duct_length_m' => 42]);
         $this->get(route('map.index'))->assertOk()->assertSee('S-01');
+    }
+
+    public function test_confirmed_cabinet_suggestion_links_house_and_creates_drop_route(): void
+    {
+        $project = Project::create(['name' => 'Auto plan', 'code' => 'AUTO', 'location' => 'Test', 'status' => 'planning']);
+        $house = House::create(['project_id' => $project->id, 'label' => 'K-001', 'latitude' => 44.4493, 'longitude' => 18.6498, 'status' => 'planned']);
+
+        $this->postJson(route('map.suggestions.store'), [
+            'project_id' => $project->id,
+            'cabinets' => [[
+                'name' => 'ODO-001',
+                'latitude' => 44.4495,
+                'longitude' => 18.6500,
+                'splitter_count' => 1,
+                'houses' => [['latitude' => 44.4493, 'longitude' => 18.6498]],
+            ]],
+        ])->assertOk()->assertJson(['created' => 1, 'linked_houses' => 1, 'created_routes' => 1]);
+
+        $this->assertNotNull($house->fresh()->cabinet_id);
+        $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'route_type' => 'drop', 'fiber_count' => 4, 'microduct_type' => '10/8']);
+    }
+
+    public function test_route_drawn_on_map_is_measured_by_server_and_returned_as_json(): void
+    {
+        $project = Project::create(['name' => 'Crtanje', 'code' => 'CRTANJE', 'location' => 'Test', 'status' => 'planning']);
+        $path = [[44.4493, 18.6498], [44.4503, 18.6508]];
+
+        $response = $this->postJson(route('routes.store'), [
+            'project_id' => $project->id,
+            'name' => 'Trasa sa mape',
+            'route_type' => 'distribution',
+            'installation_type' => 'underground',
+            'duct_length_m' => 1,
+            'fiber_length_m' => 1,
+            'fiber_count' => 12,
+            'microduct_count' => 1,
+            'microduct_type' => '14/10',
+            'status' => 'planned',
+            'path' => json_encode($path),
+        ]);
+
+        $response->assertCreated()->assertJsonPath('route.name', 'Trasa sa mape');
+        $this->assertGreaterThan(100, $response->json('route.length'));
+        $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'Trasa sa mape', 'fiber_count' => 12]);
+    }
+
+    public function test_route_geometry_edit_recalculates_length(): void
+    {
+        $project = Project::create(['name' => 'Edit', 'code' => 'EDIT', 'location' => 'Test', 'status' => 'planning']);
+        $route = NetworkRoute::create(['project_id' => $project->id, 'name' => 'T1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 1, 'fiber_length_m' => 1, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.4493, 18.6498], [44.4494, 18.6499]]]);
+
+        $response = $this->patchJson(route('routes.geometry.update', $route), [
+            'path' => [[44.4493, 18.6498], [44.4503, 18.6508]],
+        ]);
+
+        $response->assertOk()->assertJsonPath('route.id', $route->id);
+        $this->assertGreaterThan(100, $route->fresh()->duct_length_m);
+        $this->assertSame($route->fresh()->duct_length_m, $route->fresh()->fiber_length_m);
+    }
+
+    public function test_route_metadata_can_be_updated_without_changing_geometry(): void
+    {
+        $project = Project::create(['name' => 'Meta', 'code' => 'META', 'location' => 'Test', 'status' => 'planning']);
+        $route = NetworkRoute::create(['project_id' => $project->id, 'name' => 'Stari naziv', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 25, 'fiber_length_m' => 25, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.4493, 18.6498], [44.4494, 18.6499]]]);
+
+        $this->patchJson(route('routes.update', $route), [
+            'name' => 'Novi naziv',
+            'route_type' => 'drop',
+            'microduct_type' => '10/8',
+            'fiber_count' => 4,
+        ])->assertOk()->assertJsonPath('route.name', 'Novi naziv');
+
+        $this->assertDatabaseHas('routes', ['id' => $route->id, 'name' => 'Novi naziv', 'route_type' => 'drop', 'fiber_count' => 4]);
+        $this->assertSame([[44.4493, 18.6498], [44.4494, 18.6499]], $route->fresh()->path);
     }
 }
