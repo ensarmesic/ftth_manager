@@ -4,11 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\Material;
 use App\Models\NetworkRoute;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class MediaskyWorkflowTest extends TestCase
@@ -140,5 +140,47 @@ class MediaskyWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('routes', ['id' => $route->id, 'name' => 'Novi naziv', 'route_type' => 'drop', 'fiber_count' => 4]);
         $this->assertSame([[44.4493, 18.6498], [44.4494, 18.6499]], $route->fresh()->path);
+    }
+
+    public function test_route_cannot_link_assets_from_another_project(): void
+    {
+        $project = Project::create(['name' => 'Prvi', 'code' => 'PRVI', 'location' => 'Test', 'status' => 'planning']);
+        $otherProject = Project::create(['name' => 'Drugi', 'code' => 'DRUGI', 'location' => 'Test', 'status' => 'planning']);
+        $otherOdfId = DB::table('odfs')->insertGetId(['project_id' => $otherProject->id, 'name' => 'ODF-2', 'address' => 'Test', 'fiber_capacity' => 144, 'port_count' => 48]);
+
+        $response = $this->postJson(route('routes.store'), [
+            'project_id' => $project->id,
+            'odf_id' => $otherOdfId,
+            'name' => 'Pogresna veza',
+            'route_type' => 'distribution',
+            'installation_type' => 'underground',
+            'duct_length_m' => 10,
+            'fiber_length_m' => 10,
+            'fiber_count' => 12,
+            'microduct_count' => 1,
+            'microduct_type' => '14/10',
+            'status' => 'planned',
+        ]);
+
+        $response->assertUnprocessable();
+
+        $this->assertDatabaseMissing('routes', ['name' => 'Pogresna veza']);
+    }
+
+    public function test_plan_save_rolls_back_when_an_item_is_invalid(): void
+    {
+        $project = Project::create(['name' => 'Rollback', 'code' => 'ROLLBACK', 'location' => 'Test', 'status' => 'planning']);
+        $plan = [
+            'odfs' => [['name' => 'ODF-1', 'lat' => 44.4493, 'lng' => 18.6498]],
+            'cabinets' => [['name' => 'ODO-1', 'lat' => 44.4495]],
+        ];
+
+        try {
+            $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)]);
+        } catch (\Throwable) {
+            // The malformed payload must not leave the preceding ODF insert behind.
+        }
+
+        $this->assertDatabaseMissing('odfs', ['project_id' => $project->id, 'name' => 'ODF-1']);
     }
 }

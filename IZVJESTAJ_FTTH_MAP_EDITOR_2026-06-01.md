@@ -50,12 +50,17 @@ Naziv rute: `routes.geometry.update`.
 - `php artisan test` - proslo: 9 testova, 27 assertions
 - `php artisan route:list --path=trase` - PATCH endpoint je registrovan
 
-## Sutra
+## Preostalo nakon 2026-06-01
 
 - Rucno proci sve CAD alate u browseru i ispeglati UX detalje.
-- Dodati brisanje ODF/ODO/kuce iz property panela uz potvrdu.
-- Dodati napomenu trase u bazu i modal ako bude potrebna u izvjestajima.
-- Doraditi select/highlight stil odabranih markera i trase.
-- Osvjeziti tabelu/statistiku i nakon brisanja ili editovanja trase bez reload-a.
 - Prosiriti browser testiranje za snap na svim tipovima elemenata.
 - Rucno provjeriti sve alate u browseru nakon `Ctrl+F5`; terminalske provjere ne mogu zamijeniti interakciju misem.
+
+## Naknadno zavrseno
+
+- Dodano brisanje ODF/ODO/kuce iz property panela uz potvrdu.
+- Dodana napomena trase u bazu, API i modal.
+- Doradjen select/highlight stil odabranih markera i trase.
+- Osvjezavanje tabele i statistike nakon brisanja ili editovanja trase radi bez reload-a.
+
+Detalji naknadnog pregleda i sigurnosnih popravki nalaze se u `IZVJESTAJ_FTTH_MANAGER_2026-06-02.md`.

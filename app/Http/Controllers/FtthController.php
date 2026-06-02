@@ -10,9 +10,9 @@ use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\Subscriber;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -85,6 +85,7 @@ class FtthController extends Controller
     public function deleteProject($id)
     {
         Project::findOrFail($id)->delete();
+
         return back()->with('success', 'Projekat je obrisan.');
     }
 
@@ -329,6 +330,7 @@ class FtthController extends Controller
         if (request()->expectsJson()) {
             return response()->json(['message' => 'ODF lokacija je obrisana.']);
         }
+
         return back()->with('success', 'ODF lokacija je obrisana.');
     }
 
@@ -348,7 +350,7 @@ class FtthController extends Controller
 
     public function storeCabinet(Request $request)
     {
-        $cabinet = Cabinet::create($request->validate([
+        $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'name' => ['required', 'max:255'],
@@ -357,7 +359,9 @@ class FtthController extends Controller
             'ports_per_splitter' => ['required', 'integer', 'min:1', 'max:4'],
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
-        ]));
+        ]);
+        $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
+        $cabinet = Cabinet::create($data);
 
         if ($request->expectsJson()) {
             return response()->json(['message' => 'Ormaric je dodat.', 'cabinet' => [
@@ -382,6 +386,7 @@ class FtthController extends Controller
         if (request()->expectsJson()) {
             return response()->json(['message' => 'Ormaric i njegove drop trase su obrisani.']);
         }
+
         return back()->with('success', 'Ormaric je obrisan.');
     }
 
@@ -392,7 +397,7 @@ class FtthController extends Controller
 
     public function storeHouse(Request $request)
     {
-        $house = House::create($request->validate([
+        $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'label' => ['required', 'max:255'],
@@ -400,7 +405,9 @@ class FtthController extends Controller
             'latitude' => ['required', 'numeric'],
             'longitude' => ['required', 'numeric'],
             'status' => ['required', 'in:planned,connected,cancelled'],
-        ]));
+        ]);
+        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
+        $house = House::create($data);
 
         if ($request->expectsJson()) {
             return response()->json(['message' => 'Kuca/prikljucak je evidentiran.', 'house' => [
@@ -419,6 +426,7 @@ class FtthController extends Controller
         if (request()->expectsJson()) {
             return response()->json(['message' => 'Kuca je obrisana.']);
         }
+
         return back()->with('success', 'Kuca je obrisana.');
     }
 
@@ -455,69 +463,74 @@ class FtthController extends Controller
         $createdOdfs = [];
         $createdCabinets = [];
 
-        foreach (($plan['odfs'] ?? []) as $index => $odf) {
-            $createdOdfs[$index] = Odf::create([
-                'project_id' => $projectId,
-                'name' => $odf['name'] ?? 'ODF-'.str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
-                'address' => $odf['address'] ?? 'Sa mape',
-                'fiber_capacity' => $odf['fiber_capacity'] ?? 144,
-                'port_count' => $odf['port_count'] ?? 48,
-                'latitude' => $odf['lat'],
-                'longitude' => $odf['lng'],
-            ]);
-        }
-
-        foreach (($plan['cabinets'] ?? []) as $index => $cabinet) {
-            $odfId = null;
-            if (isset($cabinet['odf_index'], $createdOdfs[$cabinet['odf_index']])) {
-                $odfId = $createdOdfs[$cabinet['odf_index']]->id;
-            } elseif (! empty($cabinet['odf_id'])) {
-                $odfId = $cabinet['odf_id'];
+        DB::transaction(function () use ($plan, $projectId, &$createdOdfs, &$createdCabinets): void {
+            foreach (($plan['odfs'] ?? []) as $index => $odf) {
+                $createdOdfs[$index] = Odf::create([
+                    'project_id' => $projectId,
+                    'name' => $odf['name'] ?? 'ODF-'.str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+                    'address' => $odf['address'] ?? 'Sa mape',
+                    'fiber_capacity' => $odf['fiber_capacity'] ?? 144,
+                    'port_count' => $odf['port_count'] ?? 48,
+                    'latitude' => $odf['lat'],
+                    'longitude' => $odf['lng'],
+                ]);
             }
 
-            $createdCabinets[$index] = Cabinet::create([
-                'project_id' => $projectId,
-                'odf_id' => $odfId,
-                'name' => $cabinet['name'] ?? 'FTTH-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
-                'address' => $cabinet['address'] ?? 'Sa mape',
-                'splitter_count' => $cabinet['splitter_count'] ?? 3,
-                'ports_per_splitter' => 4,
-                'latitude' => $cabinet['lat'],
-                'longitude' => $cabinet['lng'],
-            ]);
-        }
+            foreach (($plan['cabinets'] ?? []) as $index => $cabinet) {
+                $odfId = null;
+                if (isset($cabinet['odf_index'], $createdOdfs[$cabinet['odf_index']])) {
+                    $odfId = $createdOdfs[$cabinet['odf_index']]->id;
+                } elseif (! empty($cabinet['odf_id'])) {
+                    $odfId = Odf::query()
+                        ->where('project_id', $projectId)
+                        ->findOrFail($cabinet['odf_id'])
+                        ->id;
+                }
 
-        foreach (($plan['houses'] ?? []) as $index => $house) {
-            House::create([
-                'project_id' => $projectId,
-                'cabinet_id' => isset($house['cabinet_index'], $createdCabinets[$house['cabinet_index']]) ? $createdCabinets[$house['cabinet_index']]->id : null,
-                'label' => $house['label'] ?? 'K-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
-                'address' => $house['address'] ?? null,
-                'latitude' => $house['lat'],
-                'longitude' => $house['lng'],
-                'status' => 'planned',
-            ]);
-        }
+                $createdCabinets[$index] = Cabinet::create([
+                    'project_id' => $projectId,
+                    'odf_id' => $odfId,
+                    'name' => $cabinet['name'] ?? 'FTTH-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
+                    'address' => $cabinet['address'] ?? 'Sa mape',
+                    'splitter_count' => $cabinet['splitter_count'] ?? 3,
+                    'ports_per_splitter' => 4,
+                    'latitude' => $cabinet['lat'],
+                    'longitude' => $cabinet['lng'],
+                ]);
+            }
 
-        foreach (($plan['routes'] ?? []) as $index => $route) {
-            NetworkRoute::create([
-                'project_id' => $projectId,
-                'odf_id' => isset($route['odf_index'], $createdOdfs[$route['odf_index']]) ? $createdOdfs[$route['odf_index']]->id : null,
-                'cabinet_id' => isset($route['cabinet_index'], $createdCabinets[$route['cabinet_index']]) ? $createdCabinets[$route['cabinet_index']]->id : null,
-                'name' => $route['name'] ?? 'Trasa '.($index + 1),
-                'route_type' => $route['route_type'] ?? 'distribution',
-                'installation_type' => $route['installation_type'] ?? 'underground',
-                'duct_length_m' => $route['duct_length_m'] ?? 0,
-                'fiber_length_m' => $route['fiber_length_m'] ?? 0,
-                'fiber_count' => $route['fiber_count'] ?? 12,
-                'microduct_count' => $route['microduct_count'] ?? 1,
-                'microduct_type' => $route['microduct_type'] ?? '14/10',
-                'status' => 'planned',
-                'path' => $route['path'] ?? null,
-            ]);
-        }
+            foreach (($plan['houses'] ?? []) as $index => $house) {
+                House::create([
+                    'project_id' => $projectId,
+                    'cabinet_id' => isset($house['cabinet_index'], $createdCabinets[$house['cabinet_index']]) ? $createdCabinets[$house['cabinet_index']]->id : null,
+                    'label' => $house['label'] ?? 'K-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
+                    'address' => $house['address'] ?? null,
+                    'latitude' => $house['lat'],
+                    'longitude' => $house['lng'],
+                    'status' => 'planned',
+                ]);
+            }
 
-        MapDraft::where('project_id', $projectId)->delete();
+            foreach (($plan['routes'] ?? []) as $index => $route) {
+                NetworkRoute::create([
+                    'project_id' => $projectId,
+                    'odf_id' => isset($route['odf_index'], $createdOdfs[$route['odf_index']]) ? $createdOdfs[$route['odf_index']]->id : null,
+                    'cabinet_id' => isset($route['cabinet_index'], $createdCabinets[$route['cabinet_index']]) ? $createdCabinets[$route['cabinet_index']]->id : null,
+                    'name' => $route['name'] ?? 'Trasa '.($index + 1),
+                    'route_type' => $route['route_type'] ?? 'distribution',
+                    'installation_type' => $route['installation_type'] ?? 'underground',
+                    'duct_length_m' => $route['duct_length_m'] ?? 0,
+                    'fiber_length_m' => $route['fiber_length_m'] ?? 0,
+                    'fiber_count' => $route['fiber_count'] ?? 12,
+                    'microduct_count' => $route['microduct_count'] ?? 1,
+                    'microduct_type' => $route['microduct_type'] ?? '14/10',
+                    'status' => 'planned',
+                    'path' => $route['path'] ?? null,
+                ]);
+            }
+
+            MapDraft::where('project_id', $projectId)->delete();
+        });
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -576,6 +589,7 @@ class FtthController extends Controller
             'port_no' => ['nullable', 'integer', 'min:1', 'max:4'],
             'connected_at' => ['nullable', 'date'],
         ]);
+        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
 
         if (! empty($data['cabinet_id'])) {
             $cabinet = Cabinet::withCount('subscribers')->findOrFail($data['cabinet_id']);
@@ -592,6 +606,7 @@ class FtthController extends Controller
     public function deleteSubscriber($id)
     {
         Subscriber::findOrFail($id)->delete();
+
         return back()->with('success', 'Korisnik je obrisan.');
     }
 
@@ -637,6 +652,8 @@ class FtthController extends Controller
             'path' => ['nullable', 'json'],
             'note' => ['nullable', 'string'],
         ]);
+        $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
+        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
 
         if (! empty($data['path'])) {
             $data['path'] = json_decode($data['path'], true);
@@ -674,6 +691,7 @@ class FtthController extends Controller
         if (request()->expectsJson()) {
             return response()->json(['message' => 'Trasa je obrisana.']);
         }
+
         return back()->with('success', 'Trasa je obrisana.');
     }
 
@@ -689,6 +707,8 @@ class FtthController extends Controller
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
             'note' => ['nullable', 'string'],
         ]);
+        $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $route->project_id, 'odf_id');
+        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $route->project_id, 'cabinet_id');
         $route->update($data);
         $route->load(['odf', 'cabinet']);
 
@@ -775,12 +795,16 @@ class FtthController extends Controller
         $point = [];
 
         $flushPoint = function () use (&$current, &$point): void {
-            if (isset($point['x'], $point['y'])) $current[] = [(float) $point['y'], (float) $point['x']];
+            if (isset($point['x'], $point['y'])) {
+                $current[] = [(float) $point['y'], (float) $point['x']];
+            }
             $point = [];
         };
         $flushEntity = function () use (&$entities, &$current, &$point, $flushPoint): void {
             $flushPoint();
-            if (count($current) >= 2) $entities[] = $current;
+            if (count($current) >= 2) {
+                $entities[] = $current;
+            }
             $current = [];
         };
 
@@ -789,30 +813,41 @@ class FtthController extends Controller
                 if (in_array($value, ['LINE', 'LWPOLYLINE', 'POLYLINE'], true)) {
                     $flushEntity();
                     $currentType = $value;
+
                     continue;
                 }
                 if ($value === 'VERTEX' && $currentType === 'POLYLINE') {
                     $flushPoint();
+
                     continue;
                 }
                 if ($currentType === 'LINE' || $currentType === 'LWPOLYLINE' || ($currentType === 'POLYLINE' && $value === 'SEQEND')) {
                     $flushEntity();
                     $currentType = null;
                 }
+
                 continue;
             }
 
-            if (! $currentType) continue;
+            if (! $currentType) {
+                continue;
+            }
             if ($code === '10') {
-                if (isset($point['x'])) $flushPoint();
+                if (isset($point['x'])) {
+                    $flushPoint();
+                }
                 $point['x'] = $value;
             }
-            if ($code === '20') $point['y'] = $value;
+            if ($code === '20') {
+                $point['y'] = $value;
+            }
             if ($currentType === 'LINE' && $code === '11') {
                 $flushPoint();
                 $point['x'] = $value;
             }
-            if ($currentType === 'LINE' && $code === '21') $point['y'] = $value;
+            if ($currentType === 'LINE' && $code === '21') {
+                $point['y'] = $value;
+            }
         }
         $flushEntity();
 
@@ -894,6 +929,7 @@ class FtthController extends Controller
     public function deleteMaterial($id)
     {
         Material::findOrFail($id)->delete();
+
         return back()->with('success', 'Materijal je obrisan.');
     }
 
@@ -920,48 +956,53 @@ class FtthController extends Controller
         $linkedHouseCount = 0;
         $createdRouteCount = 0;
 
-        foreach ($data['cabinets'] as $cabinet) {
-            $createdCabinet = Cabinet::create([
-                'project_id' => $projectId,
-                'odf_id' => $cabinet['odf_id'] ?? null,
-                'name' => $cabinet['name'],
-                'address' => 'Sa mape - ' . $cabinet['latitude'] . ',' . $cabinet['longitude'],
-                'splitter_count' => $cabinet['splitter_count'],
-                'ports_per_splitter' => 4,
-                'latitude' => $cabinet['latitude'],
-                'longitude' => $cabinet['longitude'],
-            ]);
-            $createdCount++;
-
-            foreach ($cabinet['houses'] ?? [] as $index => $point) {
-                $house = House::query()
-                    ->where('project_id', $projectId)
-                    ->where('latitude', $point['latitude'])
-                    ->where('longitude', $point['longitude'])
-                    ->first();
-                if (! $house) continue;
-
-                $house->update(['cabinet_id' => $createdCabinet->id]);
-                $path = $point['path'] ?? [[(float) $createdCabinet->latitude, (float) $createdCabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
-                $length = $this->polylineLength($path);
-                NetworkRoute::create([
+        DB::transaction(function () use ($data, $projectId, &$createdCount, &$linkedHouseCount, &$createdRouteCount): void {
+            foreach ($data['cabinets'] as $cabinet) {
+                $this->ensureBelongsToProject(Odf::class, $cabinet['odf_id'] ?? null, $projectId, 'odf_id');
+                $createdCabinet = Cabinet::create([
                     'project_id' => $projectId,
-                    'cabinet_id' => $createdCabinet->id,
-                    'name' => "Drop {$createdCabinet->name}-".($index + 1),
-                    'route_type' => 'drop',
-                    'installation_type' => 'underground',
-                    'duct_length_m' => $length,
-                    'fiber_length_m' => $length,
-                    'fiber_count' => 4,
-                    'microduct_count' => 1,
-                    'microduct_type' => '10/8',
-                    'status' => 'planned',
-                    'path' => $path,
+                    'odf_id' => $cabinet['odf_id'] ?? null,
+                    'name' => $cabinet['name'],
+                    'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
+                    'splitter_count' => $cabinet['splitter_count'],
+                    'ports_per_splitter' => 4,
+                    'latitude' => $cabinet['latitude'],
+                    'longitude' => $cabinet['longitude'],
                 ]);
-                $linkedHouseCount++;
-                $createdRouteCount++;
+                $createdCount++;
+
+                foreach ($cabinet['houses'] ?? [] as $index => $point) {
+                    $house = House::query()
+                        ->where('project_id', $projectId)
+                        ->where('latitude', $point['latitude'])
+                        ->where('longitude', $point['longitude'])
+                        ->first();
+                    if (! $house) {
+                        continue;
+                    }
+
+                    $house->update(['cabinet_id' => $createdCabinet->id]);
+                    $path = $point['path'] ?? [[(float) $createdCabinet->latitude, (float) $createdCabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
+                    $length = $this->polylineLength($path);
+                    NetworkRoute::create([
+                        'project_id' => $projectId,
+                        'cabinet_id' => $createdCabinet->id,
+                        'name' => "Drop {$createdCabinet->name}-".($index + 1),
+                        'route_type' => 'drop',
+                        'installation_type' => 'underground',
+                        'duct_length_m' => $length,
+                        'fiber_length_m' => $length,
+                        'fiber_count' => 4,
+                        'microduct_count' => 1,
+                        'microduct_type' => '10/8',
+                        'status' => 'planned',
+                        'path' => $path,
+                    ]);
+                    $linkedHouseCount++;
+                    $createdRouteCount++;
+                }
             }
-        }
+        });
 
         return response()->json([
             'message' => "Kreirano {$createdCount} ormarića.",
@@ -969,5 +1010,16 @@ class FtthController extends Controller
             'linked_houses' => $linkedHouseCount,
             'created_routes' => $createdRouteCount,
         ]);
+    }
+
+    private function ensureBelongsToProject(string $model, $id, $projectId, string $field): void
+    {
+        validator([$field => $id], [
+            $field => [function (string $attribute, $value, $fail) use ($model, $projectId): void {
+                if ($value && ! $model::query()->whereKey($value)->where('project_id', $projectId)->exists()) {
+                    $fail('Odabrani zapis ne pripada projektu.');
+                }
+            }],
+        ])->validate();
     }
 }
