@@ -29,8 +29,8 @@
     if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarica nema povezani ODF.");
     if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehnicke podatke.");
 @endphp
-<body class="{{ $isWide ? 'min-h-screen xl:h-screen xl:overflow-hidden' : 'min-h-screen' }} overflow-x-hidden bg-slate-100 font-sans text-slate-950 antialiased">
-<div class="{{ $isWide ? 'flex min-h-screen xl:h-screen xl:overflow-hidden' : 'flex min-h-screen' }}">
+<body class="{{ $isWide ? 'min-h-screen lg:h-screen lg:overflow-hidden' : 'min-h-screen' }} overflow-x-hidden bg-slate-100 font-sans text-slate-950 antialiased">
+<div class="{{ $isWide ? 'flex min-h-screen lg:h-screen lg:overflow-hidden' : 'flex min-h-screen' }}">
     <aside class="hidden w-[204px] shrink-0 bg-gradient-to-b from-[#00659E] to-[#004f7d] text-white lg:flex lg:flex-col">
         <a href="{{ route('dashboard') }}" class="flex h-14 items-center gap-3 border-b border-slate-700/60 px-5 xl:h-16 xl:px-6">
             <span class="grid h-7 w-7 place-items-center rounded bg-[#81C342] text-[10px] font-black">FT</span><span class="text-base font-bold">FTTH Manager</span>
@@ -51,7 +51,7 @@
         <div class="mt-auto px-7 pb-7 text-slate-300"><b class="text-lg tracking-wider text-white">mediasky</b><small class="block tracking-[.35em] text-blue-400">telecom</small></div>
     </aside>
 
-    <main class="{{ $isWide ? 'flex min-h-0 flex-1 flex-col xl:overflow-hidden' : '' }} min-w-0 flex-1">
+    <main class="{{ $isWide ? 'flex min-h-0 flex-1 flex-col lg:overflow-hidden' : '' }} min-w-0 flex-1">
         <header class="flex h-[56px] shrink-0 items-center justify-between gap-2 border-b bg-white px-2 shadow-sm sm:h-[60px] sm:px-4 xl:px-5">
             <div class="flex min-w-0 items-center gap-2 text-sm xl:gap-5">
                 <button type="button" data-header-action="mobile-menu" class="rounded-md p-2 text-slate-700 hover:bg-slate-100 lg:hidden" aria-label="Otvori meni">Meni</button>
@@ -70,7 +70,7 @@
         @unless($isDashboard)
             <div class="shrink-0 border-b bg-white px-3 py-3 sm:px-5"><h1 class="text-lg font-semibold sm:text-xl">@yield('title')</h1><p class="mt-1 text-xs text-slate-500">@yield('subtitle')</p></div>
         @endunless
-        <div class="app-content {{ $isWide ? 'flex h-full min-h-0 flex-1 flex-col p-1.5 sm:p-2 xl:overflow-hidden xl:p-2.5' : 'mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6' }}">
+        <div class="app-content {{ $isWide ? 'flex h-full min-h-0 flex-1 flex-col p-1.5 sm:p-2 lg:overflow-hidden xl:p-2.5' : 'mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6' }}">
             @if (session('success'))<div class="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>@endif
             @if ($errors->any())<div class="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>@endif
             @yield('content')
