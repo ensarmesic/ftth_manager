@@ -5,11 +5,15 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [FtthController::class, 'dashboard'])->name('dashboard');
 Route::get('/mapa', [FtthController::class, 'dashboard'])->name('map.dashboard');
-Route::get('/mapa/editor', [FtthController::class, 'map'])->name('map.index');
+Route::redirect('/mapa/editor', '/')->name('map.index');
 Route::post('/mapa/plan', [FtthController::class, 'storePlan'])->name('map.plan.store');
 Route::post('/mapa/draft', [FtthController::class, 'storeDraft'])->name('map.draft.store');
 Route::post('/mapa/sugestije', [FtthController::class, 'storeSuggestedCabinets'])->name('map.suggestions.store');
 Route::get('/izvjestaji', [FtthController::class, 'reports'])->name('reports.index');
+Route::get('/splitteri', [FtthController::class, 'splitters'])->name('splitters.index');
+Route::get('/fiber-sema', [FtthController::class, 'fiberSchema'])->name('fiber-schema.index');
+Route::get('/provjera-projekta', [FtthController::class, 'projectCheck'])->name('project-check.index');
+Route::get('/postavke', [FtthController::class, 'settings'])->name('settings.index');
 
 Route::get('/projekti', [FtthController::class, 'projects'])->name('projects.index');
 Route::post('/projekti', [FtthController::class, 'storeProject'])->name('projects.store');

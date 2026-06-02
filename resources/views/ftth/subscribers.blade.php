@@ -12,7 +12,7 @@
             <label class="grid gap-1 text-sm"><span>Projekat</span><select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select></label>
             <label class="grid gap-1 text-sm"><span>Ormaric</span><select name="cabinet_id" id="cabinet-select" class="rounded-md border border-zinc-300 px-3 py-2"><option value="">Bez ormarica</option>@foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}" data-capacity="{{ $cabinet->capacity }}" data-used="{{ $cabinet->subscribers_count }}">{{ $cabinet->name }} ({{ $cabinet->subscribers_count }}/{{ $cabinet->capacity }})</option>@endforeach</select></label>
             <div id="capacity-warning" class="hidden rounded-md bg-red-50 p-3 text-sm font-medium text-red-800">
-                ⚠️ Odabrani ormaric je popunjen! Odaberi drugi ormaric ili planira novi.
+                Odabrani ormaric je popunjen! Odaberi drugi ormaric ili planiraj novi.
             </div>
             <label class="grid gap-1 text-sm"><span>Ime korisnika</span><input name="name" value="{{ old('name') }}" class="rounded-md border border-zinc-300 px-3 py-2" required></label>
             <label class="grid gap-1 text-sm"><span>Adresa</span><input name="address" value="{{ old('address') }}" class="rounded-md border border-zinc-300 px-3 py-2" required></label>

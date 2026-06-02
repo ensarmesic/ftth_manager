@@ -1,5 +1,233 @@
 @import 'tailwindcss';
 
+:root {
+    --ms-blue: #308DCC;
+    --ms-blue-dark: #00659E;
+    --ms-green-dark: #65A845;
+    --ms-green: #81C342;
+    --ms-blue-accent: #7BA9DA;
+    --ms-blue-light: #A7BCDE;
+    --ms-green-accent: #A3D06E;
+    --ms-green-bg: #EBF4E0;
+    --ms-green-light: #C3E0A6;
+    --ms-blue-bg: #D4E0F3;
+}
+
+body {
+    background: #f5f8fb;
+}
+
+.bg-blue-600,
+.bg-sky-600,
+.bg-sky-700 {
+    background-color: var(--ms-blue) !important;
+}
+
+.hover\:bg-blue-700:hover,
+.hover\:bg-sky-700:hover {
+    background-color: var(--ms-blue-dark) !important;
+}
+
+.text-blue-600,
+.text-blue-700,
+.text-sky-700 {
+    color: var(--ms-blue-dark) !important;
+}
+
+.border-blue-100,
+.border-blue-200,
+.border-sky-100,
+.border-sky-200 {
+    border-color: var(--ms-blue-light) !important;
+}
+
+.bg-blue-50,
+.bg-sky-50 {
+    background-color: color-mix(in srgb, var(--ms-blue-bg) 58%, white) !important;
+}
+
+.bg-emerald-600,
+.bg-emerald-700,
+.bg-green-600 {
+    background-color: var(--ms-green-dark) !important;
+}
+
+.hover\:bg-emerald-700:hover,
+.hover\:bg-green-700:hover {
+    background-color: #4f8934 !important;
+}
+
+.text-emerald-700,
+.text-emerald-800,
+.text-emerald-900,
+.text-green-600,
+.text-green-700 {
+    color: var(--ms-green-dark) !important;
+}
+
+.border-emerald-100,
+.border-emerald-200,
+.border-emerald-300 {
+    border-color: var(--ms-green-light) !important;
+}
+
+.bg-emerald-50,
+.bg-green-50 {
+    background-color: var(--ms-green-bg) !important;
+}
+
+.bg-emerald-100,
+.bg-green-100 {
+    background-color: var(--ms-green-light) !important;
+}
+
+.compact-tables table th,
+.compact-tables table td {
+    padding-top: .4rem !important;
+    padding-bottom: .4rem !important;
+    font-size: .75rem !important;
+}
+
+.hide-header-notifications [data-notification-badge] {
+    display: none;
+}
+
+img,
+svg,
+canvas {
+    max-width: 100%;
+}
+
+table {
+    max-width: 100%;
+}
+
+.app-content {
+    color: #0f172a;
+}
+
+.app-content > section,
+.app-content > article,
+.app-content > div {
+    min-width: 0;
+}
+
+.app-content article {
+    border-color: #e2e8f0;
+    border-radius: .9rem;
+}
+
+.app-content article:hover {
+    border-color: #cbd5e1;
+}
+
+.app-content form:not([style]) {
+    border-radius: .9rem;
+}
+
+.app-content form > h2,
+.app-content article h2,
+.app-content section > h2 {
+    letter-spacing: -.01em;
+}
+
+.app-content input,
+.app-content select,
+.app-content textarea {
+    min-width: 0;
+    border-color: #cbd5e1;
+    background-color: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.app-content input:focus,
+.app-content select:focus,
+.app-content textarea:focus {
+    border-color: var(--ms-blue);
+    box-shadow: 0 0 0 3px rgb(48 141 204 / .16);
+    outline: none;
+}
+
+.app-content label > span:first-child {
+    color: #475569;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+.app-content button,
+.app-content a {
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.app-content button:not(:disabled):active,
+.app-content a:active {
+    transform: translateY(1px);
+}
+
+.app-table-card,
+.app-content article,
+.app-content form:not([style]) {
+    box-shadow: 0 10px 28px rgb(15 23 42 / .06);
+}
+
+.app-table-card table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.app-table-card thead {
+    box-shadow: inset 0 -1px 0 #e2e8f0;
+}
+
+.app-table-card tbody td {
+    vertical-align: middle;
+}
+
+.app-table-card nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.app-content input[type='checkbox'] {
+    height: 1.1rem;
+    width: 1.1rem;
+    accent-color: var(--ms-blue);
+}
+
+@media print {
+    aside,
+    header,
+    footer {
+        display: none !important;
+    }
+
+    .app-content {
+        max-width: none !important;
+        padding: 0 !important;
+    }
+}
+
+@media (max-width: 639px) {
+    table th,
+    table td {
+        padding: .45rem .6rem;
+        font-size: .75rem;
+        white-space: nowrap;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+        max-width: 100%;
+    }
+
+    .app-content form {
+        padding: 1rem;
+    }
+}
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 

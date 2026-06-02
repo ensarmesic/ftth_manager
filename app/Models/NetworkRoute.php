@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class NetworkRoute extends Model
 {
     protected $table = 'routes';
-    protected $fillable = ['project_id', 'odf_id', 'cabinet_id', 'name', 'route_type', 'installation_type', 'duct_length_m', 'fiber_length_m', 'fiber_count', 'microduct_count', 'microduct_type', 'status', 'path'];
+    protected $fillable = ['project_id', 'odf_id', 'cabinet_id', 'name', 'route_type', 'installation_type', 'duct_length_m', 'fiber_length_m', 'fiber_count', 'microduct_count', 'microduct_type', 'status', 'path', 'note'];
 
     protected function casts(): array
     {

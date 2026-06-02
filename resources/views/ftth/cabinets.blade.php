@@ -26,15 +26,15 @@
         </div>
     </form>
 
-    <div class="overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
+    <div class="app-table-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
-                <thead class="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase text-zinc-500">
+                <thead class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <tr><th class="px-4 py-3">Ormaric</th><th>Projekat</th><th>ODF</th><th>Kapacitet</th><th>Zauzeto</th><th>Status</th><th>Akcije</th></tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100">
                     @forelse($cabinets as $cabinet)
-                        <tr class="hover:bg-zinc-50">
+                        <tr class="transition hover:bg-blue-50/50">
                             <td class="px-4 py-3 font-medium">{{ $cabinet->name }}</td>
                             <td>{{ $cabinet->project->name }}</td>
                             <td>{{ $cabinet->odf->name ?? '-' }}</td>
@@ -50,7 +50,7 @@
                                 <form method="POST" action="{{ route('cabinets.delete', $cabinet->id) }}" style="display:inline;" onsubmit="return confirm('Sigurno obrisati?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline">Obriši</button>
+                                    <button type="submit" class="rounded-md bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">Obrisi</button>
                                 </form>
                             </td>
                         </tr>
@@ -60,7 +60,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-zinc-100 px-4 py-3">{{ $cabinets->links() }}</div>
+        <div class="border-t border-slate-100 bg-slate-50/60 px-4 py-3">{{ $cabinets->links() }}</div>
     </div>
 </section>
 @endsection

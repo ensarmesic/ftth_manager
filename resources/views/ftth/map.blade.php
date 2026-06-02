@@ -37,9 +37,9 @@
     }
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); box-shadow: 0 7px 20px rgba(0,0,0,.35); border: 1.5px solid #fff; color: #fff; font: 700 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
-    .ftth-tag.odf { min-width: 30px; height: 18px; border-radius: 999px; background: #0891b2; }
-    .ftth-tag.cabinet { min-width: 38px; height: 18px; border-radius: 5px; background: #059669; }
-    .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #7c3aed; font-size: 0; }
+    .ftth-tag.odf { min-width: 30px; height: 18px; border-radius: 999px; background: #308DCC; }
+    .ftth-tag.cabinet { min-width: 38px; height: 18px; border-radius: 5px; background: #65A845; }
+    .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #81C342; font-size: 0; }
     .ftth-tag.suggest { min-width: 46px; height: 20px; border-radius: 5px; background: #f59e0b; color: #111827; }
     .route-label {
         border: 0;
@@ -338,7 +338,7 @@ const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/service
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap' });
 L.control.layers({ 'Satelit': imagery, 'OpenStreetMap': osm }, {}, { position: 'bottomleft' }).addTo(map);
 
-const cabinetPalette = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2'];
+const cabinetPalette = ['#308DCC', '#65A845', '#7BA9DA', '#81C342', '#00659E', '#A3D06E'];
 function cabinetColor(id) { return cabinetPalette[(Math.max(Number(id) || 1, 1) - 1) % cabinetPalette.length]; }
 const cabinetLegend = L.control({ position: 'bottomright' });
 cabinetLegend.onAdd = () => {
@@ -418,13 +418,14 @@ if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 }); el
 function setMode(next) {
     mode = next;
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-zinc-900'));
-    document.getElementById(`mode-${next}`).classList.add('ring-2', 'ring-zinc-900');
+    const button = document.getElementById(`mode-${next}`);
+    if (button) button.classList.add('ring-2', 'ring-zinc-900');
     const labels = {
         pan: 'PAN: pomjeraj mapu. Izaberi alat za crtanje.',
         odf: 'ODF: klikni lokaciju centrale/cvora. Novi ODF postaje aktivan.',
         cabinet: 'FTTH: klikni lokacije zelenih ormarica. Vezuju se na aktivni ODF.',
         house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
-        draw: 'TRASA: klik po klik crtaj trasu. ENTER ili desni klik zavrsava krak, ESC prekida.',
+        draw: 'TRASA: klik po klik crtaj trasu. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
     };
     document.getElementById('cad-command').textContent = labels[next];
 }
@@ -437,7 +438,7 @@ function routeTypeLabel(type) {
     return type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
 }
 function routeColor(type) {
-    return type === 'feeder' ? '#0ea5e9' : type === 'drop' ? '#7c3aed' : '#f59e0b';
+    return type === 'feeder' ? '#308DCC' : type === 'drop' ? '#7BA9DA' : '#81C342';
 }
 function nextRouteName(type) {
     const prefix = type === 'feeder' ? 'P' : type === 'drop' ? 'D' : 'S';
@@ -1589,6 +1590,12 @@ map.on('contextmenu', e => {
     finishBranch();
 });
 
+map.on('dblclick', e => {
+    if (mode !== 'draw') return;
+    e.originalEvent.preventDefault();
+    finishBranch();
+});
+
 document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
         if (mode === 'draw') {
@@ -1608,6 +1615,12 @@ document.addEventListener('keydown', event => {
     if (event.key === 'Enter' && mode === 'draw') {
         event.preventDefault();
         finishBranch();
+        return;
+    }
+
+    if (event.key === 'Backspace' && mode === 'draw') {
+        event.preventDefault();
+        undoDraw();
         return;
     }
 
