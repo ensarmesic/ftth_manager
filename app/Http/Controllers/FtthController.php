@@ -204,6 +204,7 @@ class FtthController extends Controller
                     'id' => $cabinet->id,
                     'name' => $cabinet->name,
                     'project' => $cabinet->project->name,
+                    'odf_id' => $cabinet->odf_id,
                     'odf' => $cabinet->odf->name ?? 'Nije povezano',
                     'address' => $cabinet->address,
                     'capacity' => $cabinet->capacity,
@@ -234,7 +235,12 @@ class FtthController extends Controller
                     'fiber_count' => $route->fiber_count,
                     'duct_length_m' => $route->duct_length_m,
                     'fiber_length_m' => $route->fiber_length_m,
+                    'odf_id' => $route->odf_id,
                     'cabinet_id' => $route->cabinet_id,
+                    'from_type' => $route->from_type,
+                    'from_id' => $route->from_id,
+                    'to_type' => $route->to_type,
+                    'to_id' => $route->to_id,
                     'status' => $route->status,
                     'note' => $route->note,
                     'path' => $route->path ?: ($route->odf && $route->cabinet ? [
@@ -283,7 +289,7 @@ class FtthController extends Controller
     public function fiberSchema(): View
     {
         $projects = Project::with([
-            'odfs.cabinets' => fn ($query) => $query->withCount(['houses', 'subscribers'])->orderBy('name'),
+            'odfs.cabinets' => fn ($query) => $query->with(['houses' => fn ($houseQuery) => $houseQuery->orderBy('label')])->withCount(['houses', 'subscribers'])->orderBy('name'),
             'routes' => fn ($query) => $query->orderBy('route_type')->orderBy('name'),
         ])->orderBy('name')->get();
 

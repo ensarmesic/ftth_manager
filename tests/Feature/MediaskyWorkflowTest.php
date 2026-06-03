@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
+use App\Models\Odf;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -46,6 +47,83 @@ class MediaskyWorkflowTest extends TestCase
         $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'S-01', 'duct_length_m' => 42]);
         $this->get(route('dashboard'))->assertOk()->assertSee('S-01')->assertSee('Predlozi ODO');
         $this->get(route('map.index'))->assertRedirect(route('dashboard'));
+    }
+
+    public function test_map_workspace_renders_cad_and_auto_odo_controls(): void
+    {
+        $this->get(route('map.dashboard'))
+            ->assertOk()
+            ->assertSee('Layer Manager')
+            ->assertSee('Command: PAN')
+            ->assertSee('Potvrdi raspored')
+            ->assertSee('Ponisti crtanje')
+            ->assertSee('Fiber tracing');
+    }
+
+    public function test_map_payload_contains_trace_relationships(): void
+    {
+        $project = Project::create(['name' => 'Trace mapa', 'code' => 'TRACE', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.45, 'longitude' => 18.65]);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 1-1', 'address' => 'Krak 1', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 44.451, 'longitude' => 18.651]);
+        House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'Kuca 12', 'latitude' => 44.452, 'longitude' => 18.652, 'status' => 'planned']);
+        NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'cabinet_id' => $cabinet->id, 'name' => 'ODF do FTTH', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 20, 'fiber_length_m' => 20, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651]]]);
+
+        $this->get(route('map.dashboard'))
+            ->assertOk()
+            ->assertSee('"odf_id":'.$odf->id, false)
+            ->assertSee('"cabinet_id":'.$cabinet->id, false)
+            ->assertSee('map-trace-panel');
+    }
+
+    public function test_map_trace_uses_network_path_fallback_instead_of_direct_shortest_line(): void
+    {
+        $this->get(route('map.dashboard'))
+            ->assertOk()
+            ->assertSee('traceLogicalNetworkPath')
+            ->assertSee('shortestTraceNetworkPath')
+            ->assertSee('Prikazana je logicka veza koja prati postojecu trasu/rov');
+    }
+
+    public function test_ftth_topology_renders_odf_cabinet_house_and_trace_panel(): void
+    {
+        $project = Project::create(['name' => 'Topologija', 'code' => 'TOP', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48]);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 1-1', 'address' => 'Krak 1', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+        House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'Kuca 1', 'status' => 'planned']);
+
+        $this->get(route('fiber-schema.index'))
+            ->assertOk()
+            ->assertSee('FTTH Topologija')
+            ->assertSee('ODF-01')
+            ->assertSee('FTTH 1-1')
+            ->assertSee('Kuca 1')
+            ->assertSee('Fiber tracing');
+    }
+
+    public function test_auto_odo_preview_works_after_map_draft_plan_is_saved(): void
+    {
+        $project = Project::create(['name' => 'Draft Auto ODO', 'code' => 'DAO', 'location' => 'Test', 'status' => 'planning']);
+        $plan = [
+            'odfs' => [['name' => 'ODF-01', 'lat' => 44.4510, 'lng' => 18.6500]],
+            'houses' => [
+                ['label' => 'K-001', 'lat' => 44.4501, 'lng' => 18.6501],
+                ['label' => 'K-002', 'lat' => 44.4503, 'lng' => 18.6501],
+            ],
+            'routes' => [[
+                'name' => 'Krak 1',
+                'route_type' => 'distribution',
+                'duct_length_m' => 120,
+                'fiber_length_m' => 120,
+                'path' => [[44.4500, 18.6500], [44.4510, 18.6500]],
+            ]],
+        ];
+
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+
+        $this->postJson(route('projects.odo-plan.preview', $project))
+            ->assertOk()
+            ->assertJsonPath('summary.houses_with_coordinates', 2)
+            ->assertJsonPath('branches.0.house_count', 2);
     }
 
     public function test_confirmed_cabinet_suggestion_links_house_and_creates_drop_route(): void

@@ -26,6 +26,13 @@
    <div id="map-move-actions" class="map-edit-actions hidden"><button type="button" data-action="save-position">Sačuvaj poziciju</button><button type="button" data-action="cancel-position">Poništi</button></div>
    <div id="map-draw-actions" class="map-edit-actions hidden"><button type="button" data-action="finish-route" disabled>Završi trasu</button><button type="button" data-action="undo-route-point">Undo tačka</button><button type="button" data-action="cancel-route">Odustani</button></div>
    <div id="map-toast" class="map-toast hidden"></div>
+   <div class="auto-preview" style="left:14px;right:auto;bottom:88px;">
+    <b>Snap</b>
+    <label><input type="checkbox" data-snap-option="odf" checked> ODF</label>
+    <label><input type="checkbox" data-snap-option="odo" checked> ODO</label>
+    <label><input type="checkbox" data-snap-option="house" checked> Kuce</label>
+    <label><input type="checkbox" data-snap-option="route" checked> Cvorovi trase</label>
+   </div>
    <div class="map-legend"><h6>LEGENDA</h6><div><span class="legend-symbol text-blue-600">ODF</span></div><div><span class="legend-symbol text-green-600">ODO</span></div><div><span class="legend-symbol text-orange-500">K</span></div><div><span class="legend-line main"></span>Glavna trasa</div><div><span class="legend-line secondary"></span>Sekundarna trasa</div><div><span class="legend-line drop"></span>Drop trasa</div></div>
   </section>
   <div class="bottom-grid grid min-h-0 gap-2 md:grid-cols-2 lg:grid-cols-[1.16fr_.82fr_150px] xl:grid-cols-[1.16fr_.82fr_160px]">
@@ -75,9 +82,12 @@
 <script>
 window.ftthData = @json($mapData);
 window.ftthConfig = {
+    mode: 'editor',
     projectId: {{ $activeProject?->id ?? 'null' }},
     csrf: @json(csrf_token()),
     suggestionUrl: @json(route('map.suggestions.store')),
+    autoOdoPreviewUrl: @json($activeProject ? route('projects.odo-plan.preview', $activeProject) : null),
+    autoOdoConfirmUrl: @json($activeProject ? route('projects.odo-plan.confirm', $activeProject) : null),
     odfUrl: @json(route('odfs.store')),
     cabinetUrl: @json(route('cabinets.store')),
     houseUrl: @json(route('houses.store')),
@@ -88,6 +98,7 @@ window.ftthConfig = {
     deleteUrls: { odf: @json(url('/odf/__ID__')), odo: @json(url('/ormarici/__ID__')), house: @json(url('/kuce/__ID__')) },
     positionUrls: { odf: @json(url('/odf/__ID__/pozicija')), odo: @json(url('/ormarici/__ID__/pozicija')), house: @json(url('/kuce/__ID__/pozicija')) },
 };
+window.ftthMapConfig = window.ftthConfig;
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{{ asset('js/ftth-map.js') }}"></script>

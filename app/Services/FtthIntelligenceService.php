@@ -9,19 +9,19 @@ use App\Models\Odf;
 use App\Models\Project;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 class FtthIntelligenceService
 {
+    private const BRANCH_WARNING = 'Nema definisanih krakova. Planiranje koristi samo geografsku blizinu i rezultat moze biti netacan.';
+
     public function previewOdoPlan(Project $project, array $parameters = []): array
     {
         $params = $this->planningParameters($parameters);
         $housesWithCoordinates = $project->houses()
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->orderBy('latitude')
-            ->orderBy('longitude')
+            ->orderBy('label')
             ->get();
         $housesWithoutCoordinates = $project->houses()
             ->where(fn ($query) => $query->whereNull('latitude')->orWhereNull('longitude'))
@@ -29,76 +29,57 @@ class FtthIntelligenceService
             ->get();
 
         if ($housesWithCoordinates->isEmpty()) {
-            throw new InvalidArgumentException('Nema kuća sa koordinatama za automatsko planiranje.');
+            throw new InvalidArgumentException('Nema kuca sa koordinatama za automatsko planiranje.');
         }
 
         $odfs = $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->get();
-        $groups = $this->groupHouses($housesWithCoordinates, $params);
-        $cabinets = [];
+        $branchRoutes = $this->branchRoutes($project);
+        $assignments = $branchRoutes->isEmpty()
+            ? $this->fallbackAssignments($housesWithCoordinates, $params)
+            : $this->assignHousesToBranches($housesWithCoordinates, $branchRoutes, $params);
+
         $warnings = [];
-
+        if ($branchRoutes->isEmpty()) {
+            $warnings[] = $this->validationItem('warning', self::BRANCH_WARNING, 'project', $project->id, 'Nacrtaj glavne, sekundarne ili distribucione trase prije preciznog Auto ODO planiranja.');
+        }
         if ($odfs->isEmpty()) {
-            $warnings[] = [
-                'level' => 'warning',
-                'message' => 'Projekat nema ODF, predloženi ODO ormarići nisu povezani na ODF.',
-                'element_type' => 'project',
-                'element_id' => $project->id,
-                'recommendation' => 'Dodaj barem jedan ODF sa koordinatama prije potvrde plana.',
+            $warnings[] = $this->validationItem('warning', 'Projekat nema ODF, predlozeni ODO ormarici nisu povezani na ODF.', 'project', $project->id, 'Dodaj barem jedan ODF sa koordinatama prije potvrde plana.');
+        }
+
+        $cabinets = [];
+        $branchSummaries = [];
+        foreach ($assignments['branches'] as $branchKey => $branch) {
+            $groups = $this->groupsForBranch($branch['houses'], $branch, $params);
+            $branchCabinets = [];
+            foreach ($groups as $groupIndex => $houses) {
+                $cabinet = $this->cabinetPreview($project, $houses, $branch, $groupIndex + 1, $odfs, $params);
+                $cabinets[] = $cabinet;
+                $branchCabinets[] = $cabinet;
+            }
+            $branchSummaries[] = [
+                'branch_id' => $branch['route']?->id,
+                'route_id' => $branch['route']?->id,
+                'branch_index' => $branch['branch_index'],
+                'name' => $branch['name'],
+                'house_count' => $branch['houses']->count(),
+                'odo_count' => count($branchCabinets),
+                'score' => $this->branchScore(collect($branchCabinets), $assignments['unassigned']->count()),
             ];
         }
 
-        foreach ($groups as $index => $group) {
-            $medoid = $this->medoid($group);
-            $centroid = $this->centroid($group);
-            $nearestOdf = $this->nearestOdf($medoid, $odfs);
-            $distances = $group->map(fn (House $house) => $this->distanceMeters($medoid['lat'], $medoid['lng'], (float) $house->latitude, (float) $house->longitude));
-            $houseCount = $group->count();
-            $splitterCount = $this->splitterCount($houseCount);
-            $utilization = round(($houseCount / 12) * 100, 1);
-            $cabinetWarnings = [];
-            $maxDistance = (int) round($distances->max() ?? 0);
-
-            if ($maxDistance > $params['max_distance_m']) {
-                $cabinetWarnings[] = 'Najudaljenija kuća je dalje od '.$params['max_distance_m'].' m.';
-            }
-            if ($utilization < 50) {
-                $cabinetWarnings[] = 'Iskorištenost ODO ormarića je ispod 50%.';
-            }
-
-            $cabinets[] = [
-                'name' => $this->plannedCabinetName($project, $index + 1),
-                'house_count' => $houseCount,
-                'splitter_count' => $splitterCount,
-                'utilization' => $utilization,
-                'proposed_latitude' => $medoid['lat'],
-                'proposed_longitude' => $medoid['lng'],
-                'medoid_house_id' => $medoid['house']->id,
-                'centroid_lat' => $centroid['lat'],
-                'centroid_lng' => $centroid['lng'],
-                'average_house_distance_m' => (int) round($distances->avg() ?? 0),
-                'max_house_distance_m' => $maxDistance,
-                'nearest_odf_id' => $nearestOdf['odf']?->id,
-                'nearest_odf_name' => $nearestOdf['odf']?->name,
-                'distance_to_odf_m' => $nearestOdf['distance_m'],
-                'warnings' => $cabinetWarnings,
-                'houses' => $group->map(fn (House $house) => [
-                    'id' => $house->id,
-                    'label' => $house->label,
-                    'address' => $house->address,
-                    'latitude' => (float) $house->latitude,
-                    'longitude' => (float) $house->longitude,
-                    'distance_to_odo_m' => (int) round($this->distanceMeters($medoid['lat'], $medoid['lng'], (float) $house->latitude, (float) $house->longitude)),
-                ])->values()->all(),
-            ];
+        foreach ($assignments['unassigned'] as $house) {
+            $warnings[] = $this->validationItem('warning', "{$house->label} nije dodijeljena kraku.", 'house', $house->id, 'Provjeri udaljenost kuce od trase ili povecaj max_branch_distance_m.');
         }
 
-        $summary = $this->planSummary($housesWithCoordinates, $housesWithoutCoordinates, collect($cabinets), $warnings);
+        $summary = $this->planSummary($housesWithCoordinates, $housesWithoutCoordinates, collect($cabinets), $warnings, $assignments['unassigned']);
 
         return [
             'project' => ['id' => $project->id, 'name' => $project->name, 'code' => $project->code],
             'parameters' => $params,
             'summary' => $summary,
+            'branches' => $branchSummaries,
             'warnings' => $warnings,
+            'unassigned_houses' => $assignments['unassigned']->map(fn (House $house) => $this->housePayload($house))->values()->all(),
             'cabinets' => $cabinets,
         ];
     }
@@ -106,41 +87,49 @@ class FtthIntelligenceService
     public function confirmOdoPlan(Project $project, array $plan, bool $createDropRoutes = false): array
     {
         if (empty($plan['cabinets']) || ! is_array($plan['cabinets'])) {
-            throw new InvalidArgumentException('Plan nema predložene ODO ormariće.');
+            throw new InvalidArgumentException('Plan nema predlozene ODO ormarice.');
         }
 
         $created = 0;
         $linkedHouses = 0;
         $createdRoutes = 0;
+        $seenHouseIds = [];
 
-        DB::transaction(function () use ($project, $plan, $createDropRoutes, &$created, &$linkedHouses, &$createdRoutes): void {
+        DB::transaction(function () use ($project, $plan, $createDropRoutes, &$created, &$linkedHouses, &$createdRoutes, &$seenHouseIds): void {
             foreach ($plan['cabinets'] as $cabinetPlan) {
                 $houses = collect($cabinetPlan['houses'] ?? []);
                 if ($houses->isEmpty()) {
-                    throw new InvalidArgumentException('Predloženi ODO nema kuće.');
+                    throw new InvalidArgumentException('Predlozeni ODO nema kuce.');
                 }
                 if ($houses->count() > 12) {
-                    throw new InvalidArgumentException('ODO ne može imati više od 12 kuća.');
+                    throw new InvalidArgumentException('ODO ne moze imati vise od 12 kuca.');
+                }
+
+                $branchIds = $houses->pluck('branch_id')->unique()->values();
+                if ($branchIds->count() > 1 || (int) ($branchIds->first() ?? 0) !== (int) ($cabinetPlan['branch_id'] ?? 0)) {
+                    throw new InvalidArgumentException('Plan mijesa kuce razlicitih krakova.');
                 }
 
                 $houseIds = $houses->pluck('id')->filter()->values();
-                $validHouseCount = House::query()
-                    ->where('project_id', $project->id)
-                    ->whereIn('id', $houseIds)
-                    ->count();
+                if ($houseIds->duplicates()->isNotEmpty() || collect($seenHouseIds)->intersect($houseIds)->isNotEmpty()) {
+                    throw new InvalidArgumentException('Kuca moze pripadati samo jednoj ODO grupi.');
+                }
+                $seenHouseIds = array_merge($seenHouseIds, $houseIds->all());
+
+                $validHouseCount = House::query()->where('project_id', $project->id)->whereIn('id', $houseIds)->count();
                 if ($validHouseCount !== $houseIds->count()) {
-                    throw new InvalidArgumentException('Plan sadrži kuću iz drugog projekta ili nepostojeću kuću.');
+                    throw new InvalidArgumentException('Plan sadrzi kucu iz drugog projekta ili nepostojecu kucu.');
                 }
 
                 $odfId = $cabinetPlan['nearest_odf_id'] ?? null;
                 if ($odfId && ! Odf::query()->whereKey($odfId)->where('project_id', $project->id)->exists()) {
-                    throw new InvalidArgumentException('Plan sadrži ODF iz drugog projekta.');
+                    throw new InvalidArgumentException('Plan sadrzi ODF iz drugog projekta.');
                 }
 
                 $cabinet = Cabinet::create([
                     'project_id' => $project->id,
                     'odf_id' => $odfId,
-                    'name' => $cabinetPlan['name'],
+                    'name' => $this->confirmedCabinetName((string) $cabinetPlan['name']),
                     'address' => 'Auto plan - '.$cabinetPlan['proposed_latitude'].','.$cabinetPlan['proposed_longitude'],
                     'splitter_count' => $this->splitterCount($houses->count()),
                     'ports_per_splitter' => 4,
@@ -153,12 +142,21 @@ class FtthIntelligenceService
                 $linkedHouses += $houseIds->count();
 
                 if ($createDropRoutes) {
+                    if (empty($cabinetPlan['cable_type']) || empty($cabinetPlan['microduct_type'])) {
+                        throw new InvalidArgumentException('Drop trase nisu kreirane jer cable_type ili microduct_type nisu sigurni.');
+                    }
                     foreach ($houses->values() as $index => $house) {
                         $path = [[(float) $cabinet->latitude, (float) $cabinet->longitude], [(float) $house['latitude'], (float) $house['longitude']]];
                         $length = $this->polylineLength($path);
                         NetworkRoute::create([
                             'project_id' => $project->id,
                             'cabinet_id' => $cabinet->id,
+                            'from_type' => 'cabinet',
+                            'from_id' => $cabinet->id,
+                            'to_type' => 'house',
+                            'to_id' => $house['id'],
+                            'coordinates_json' => $path,
+                            'cable_type' => $cabinetPlan['cable_type'],
                             'name' => "Drop {$cabinet->name}-".($index + 1),
                             'route_type' => 'drop',
                             'installation_type' => 'underground',
@@ -166,7 +164,7 @@ class FtthIntelligenceService
                             'fiber_length_m' => $length,
                             'fiber_count' => 4,
                             'microduct_count' => 1,
-                            'microduct_type' => '10/8',
+                            'microduct_type' => $cabinetPlan['microduct_type'],
                             'status' => 'planned',
                             'path' => $path,
                         ]);
@@ -177,7 +175,7 @@ class FtthIntelligenceService
         });
 
         return [
-            'message' => "Kreirano {$created} ODO ormarića.",
+            'message' => "Kreirano {$created} ODO ormarica.",
             'created' => $created,
             'linked_houses' => $linkedHouses,
             'created_routes' => $createdRoutes,
@@ -187,32 +185,39 @@ class FtthIntelligenceService
     public function validateProject(Project $project): array
     {
         $items = [];
-        $project->loadMissing([
-            'odfs',
-            'houses.cabinet',
-            'cabinets.odf',
-            'cabinets.houses',
-            'routes',
-        ]);
+        $project->loadMissing(['odfs', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
+        $branchRoutes = $this->branchRoutes($project);
 
         if ($project->odfs->isEmpty()) {
-            $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mrežnog plana.');
+            $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mreznog plana.');
         }
         if ($project->cabinets->isEmpty()) {
-            $items[] = $this->validationItem('info', 'Projekat nema ODO ormariće.', 'project', $project->id, 'Pokreni automatsko planiranje ODO ormarića.');
+            $items[] = $this->validationItem('info', 'Projekat nema ODO ormarice.', 'project', $project->id, 'Pokreni automatsko planiranje ODO ormarica.');
         }
         if ($project->houses->isEmpty()) {
-            $items[] = $this->validationItem('info', 'Projekat nema kuće.', 'project', $project->id, 'Dodaj kuće iz mape ili liste.');
+            $items[] = $this->validationItem('info', 'Projekat nema kuce.', 'project', $project->id, 'Dodaj kuce iz mape ili liste.');
         }
 
         foreach ($project->houses as $house) {
             if (! $house->cabinet_id) {
-                $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kuću ODO ormariću.');
+                $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kucu ODO ormaricu.');
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
                 $distance = $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $house->cabinet->latitude, (float) $house->cabinet->longitude);
                 if ($distance > 120) {
-                    $items[] = $this->validationItem('warning', "{$house->label} je udaljena više od 120 m od ODO.", 'house', $house->id, 'Razmotri novi ODO ili drugačije grupisanje.');
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od ODO.", 'house', $house->id, 'Razmotri novi ODO ili drugacije grupisanje.');
+                }
+            }
+            if ($branchRoutes->isNotEmpty() && $house->latitude && $house->longitude) {
+                $nearest = $this->nearestBranch((float) $house->latitude, (float) $house->longitude, $branchRoutes);
+                if ($nearest && $nearest['distance_m'] > 60) {
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, 'Pomjeri kucu ili dodaj krak blize objektu.');
+                }
+                if ($house->cabinet && $nearest) {
+                    $cabinetNearest = $this->nearestBranch((float) $house->cabinet->latitude, (float) $house->cabinet->longitude, $branchRoutes);
+                    if ($cabinetNearest && $cabinetNearest['route']->id !== $nearest['route']->id) {
+                        $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili rucno ispravi vezu.');
+                    }
                 }
             }
         }
@@ -220,46 +225,38 @@ class FtthIntelligenceService
         foreach ($project->cabinets as $cabinet) {
             $houseCount = $cabinet->houses->count();
             $neededSplitters = $this->splitterCount($houseCount);
-            $utilization = $houseCount / 12;
             if (! $cabinet->odf_id) {
-                $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Poveži ODO sa najbližim ODF-om.');
+                $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Povezi ODO sa najblizim ODF-om.');
             }
             if ($houseCount > 12) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} ima više od 12 kuća.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
+                $items[] = $this->validationItem('error', "{$cabinet->name} ima vise od 12 kuca.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
             }
             if ($cabinet->splitter_count < $neededSplitters) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} nema dovoljno splittera.", 'cabinet', $cabinet->id, "Postavi {$neededSplitters} splittera.");
             }
-            if ($cabinet->splitter_count > 3) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} ima više od 3 splittera.", 'cabinet', $cabinet->id, 'Maksimalan broj splittera je 3.');
-            }
-            if ($utilization > 0.9) {
-                $items[] = $this->validationItem('warning', "{$cabinet->name} je popunjen preko 90%.", 'cabinet', $cabinet->id, 'Planiraj rezervni kapacitet.');
-            }
-            if ($houseCount > 0 && $utilization < 0.5) {
-                $items[] = $this->validationItem('info', "{$cabinet->name} je iskorišten ispod 50%.", 'cabinet', $cabinet->id, 'Provjeri da li se može spojiti sa susjednom grupom.');
+            if ($branchRoutes->isNotEmpty() && $cabinet->latitude && $cabinet->longitude) {
+                $nearest = $this->nearestBranch((float) $cabinet->latitude, (float) $cabinet->longitude, $branchRoutes);
+                if ($nearest && $nearest['distance_m'] > 10) {
+                    $items[] = $this->validationItem('warning', "{$cabinet->name} nije na trasi/kraku.", 'cabinet', $cabinet->id, 'Pomjeri ODO na najblizu tacku trase.');
+                }
             }
         }
 
         foreach ($project->routes as $route) {
-            if (! $route->microduct_type) {
-                $items[] = $this->validationItem('warning', "{$route->name} nema mikrocijev.", 'route', $route->id, 'Unesi profil mikrocijevi.');
-            }
             if (! $route->fiber_count) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema kabal.", 'route', $route->id, 'Unesi broj niti kabla.');
+            }
+            if (! $route->microduct_type) {
+                $items[] = $this->validationItem('warning', "{$route->name} nema mikrocijev.", 'route', $route->id, 'Unesi profil mikrocijevi.');
             }
             if (! $route->path) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema geometriju.", 'route', $route->id, 'Uredi geometriju trase na mapi.');
             } elseif (count($route->path) < 2) {
-                $items[] = $this->validationItem('error', "{$route->name} ima manje od dvije tačke.", 'route', $route->id, 'Dodaj najmanje dvije tačke trase.');
+                $items[] = $this->validationItem('error', "{$route->name} ima manje od dvije tacke.", 'route', $route->id, 'Dodaj najmanje dvije tacke trase.');
             }
         }
 
-        if (! $items) {
-            $items[] = $this->validationItem('ok', 'Projekat nema otvorenih FTTH upozorenja.', 'project', $project->id, 'Nastavi sa projektovanjem.');
-        }
-
-        return $items;
+        return $items ?: [$this->validationItem('ok', 'Projekat nema otvorenih FTTH upozorenja.', 'project', $project->id, 'Nastavi sa projektovanjem.')];
     }
 
     public function materialSummary(Project $project): array
@@ -303,45 +300,289 @@ class FtthIntelligenceService
     private function planningParameters(array $parameters): array
     {
         return [
+            'max_branch_distance_m' => max(1, (int) ($parameters['max_branch_distance_m'] ?? 60)),
             'max_houses_per_odo' => min(12, max(1, (int) ($parameters['max_houses_per_odo'] ?? 12))),
-            'max_distance_m' => max(20, (int) ($parameters['max_distance_m'] ?? 120)),
+            'max_house_to_odo_m' => max(20, (int) ($parameters['max_house_to_odo_m'] ?? ($parameters['max_distance_m'] ?? 120))),
+            'max_gap_m' => max(10, (int) ($parameters['max_gap_m'] ?? 100)),
             'preferred_fill_min' => min(12, max(1, (int) ($parameters['preferred_fill_min'] ?? 8))),
             'create_drop_routes' => filter_var($parameters['create_drop_routes'] ?? false, FILTER_VALIDATE_BOOL),
         ];
     }
 
-    private function groupHouses(Collection $houses, array $params): array
+    private function branchRoutes(Project $project): Collection
     {
-        $unassigned = $houses->values();
-        $groups = [];
+        $allowed = ['feeder', 'primarna', 'main', 'glavna', 'secondary', 'sekundarna', 'distribution', 'distribuciona'];
 
-        while ($unassigned->isNotEmpty()) {
-            $group = collect([$unassigned->shift()]);
+        return $project->routes()
+            ->whereNotNull('path')
+            ->get()
+            ->filter(fn (NetworkRoute $route) => count($route->path ?? []) > 1 && in_array(strtolower((string) $route->route_type), $allowed, true))
+            ->values();
+    }
 
-            while ($group->count() < $params['max_houses_per_odo'] && $unassigned->isNotEmpty()) {
-                $medoid = $this->medoid($group);
-                $nearest = $unassigned
-                    ->map(fn (House $house, int $index) => [
-                        'index' => $index,
-                        'house' => $house,
-                        'distance' => $this->distanceMeters($medoid['lat'], $medoid['lng'], (float) $house->latitude, (float) $house->longitude),
-                    ])
-                    ->sortBy('distance')
-                    ->first();
+    private function assignHousesToBranches(Collection $houses, Collection $routes, array $params): array
+    {
+        $branches = [];
+        foreach ($routes->values() as $index => $route) {
+            $branches[$route->id] = [
+                'route' => $route,
+                'name' => $route->name,
+                'branch_index' => $this->branchIndex($route, $index + 1),
+                'houses' => collect(),
+            ];
+        }
+        $unassigned = collect();
 
-                if (! $nearest || $nearest['distance'] > $params['max_distance_m']) {
-                    break;
-                }
-
-                $group->push($nearest['house']);
-                $unassigned->forget($nearest['index']);
-                $unassigned = $unassigned->values();
+        foreach ($houses as $house) {
+            $nearest = $this->nearestBranch((float) $house->latitude, (float) $house->longitude, $routes);
+            if (! $nearest || $nearest['distance_m'] > $params['max_branch_distance_m']) {
+                $unassigned->push($house);
+                continue;
             }
+            $house->setAttribute('branch_id', $nearest['route']->id);
+            $house->setAttribute('branch_name', $nearest['route']->name);
+            $house->setAttribute('branch_index', $branches[$nearest['route']->id]['branch_index']);
+            $house->setAttribute('distance_to_branch_m', (int) round($nearest['distance_m']));
+            $house->setAttribute('chainage_m', (int) round($nearest['chainage_m']));
+            $branches[$nearest['route']->id]['houses']->push($house);
+        }
 
-            $groups[] = $group;
+        return [
+            'branches' => collect($branches)->filter(fn (array $branch) => $branch['houses']->isNotEmpty())->values()->all(),
+            'unassigned' => $unassigned,
+        ];
+    }
+
+    private function fallbackAssignments(Collection $houses, array $params): array
+    {
+        $groups = $this->fallbackGroups($houses->values(), $params);
+        $branches = [];
+        foreach ($groups as $index => $group) {
+            $group->values()->each(function (House $house, int $houseIndex) use ($index): void {
+                $house->setAttribute('branch_id', 0 - ($index + 1));
+                $house->setAttribute('branch_name', 'Fallback krak '.($index + 1));
+                $house->setAttribute('branch_index', $index + 1);
+                $house->setAttribute('distance_to_branch_m', null);
+                $house->setAttribute('chainage_m', $houseIndex);
+            });
+            $branches[] = [
+                'route' => null,
+                'name' => 'Fallback krak '.($index + 1),
+                'branch_index' => $index + 1,
+                'houses' => $group,
+            ];
+        }
+
+        return ['branches' => $branches, 'unassigned' => collect()];
+    }
+
+    private function fallbackGroups(Collection $houses, array $params): array
+    {
+        $houses = $houses->values();
+        $clusterCount = max(1, (int) ceil($houses->count() / $params['max_houses_per_odo']));
+        if ($clusterCount === 1) {
+            return [$houses];
+        }
+
+        $ordered = $houses->sortBy(fn (House $house) => (float) $house->longitude)->values();
+        $seeds = collect(range(0, $clusterCount - 1))
+            ->map(fn (int $index) => $ordered[(int) round(($index / max(1, $clusterCount - 1)) * max(0, $ordered->count() - 1))])
+            ->all();
+        $groups = array_fill(0, $clusterCount, null);
+        for ($i = 0; $i < $clusterCount; $i++) {
+            $groups[$i] = collect();
+        }
+
+        foreach ($houses as $house) {
+            $target = collect($seeds)
+                ->map(fn (House $seed, int $index) => [
+                    'index' => $index,
+                    'distance' => $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $seed->latitude, (float) $seed->longitude),
+                ])
+                ->sortBy('distance')
+                ->first(fn (array $candidate) => $groups[$candidate['index']]->count() < $params['max_houses_per_odo']);
+            $groups[$target['index'] ?? 0]->push($house);
+        }
+
+        return collect($groups)->filter->isNotEmpty()->map(fn (Collection $group) => $group->values())->values()->all();
+    }
+
+    private function groupsForBranch(Collection $houses, array $branch, array $params): array
+    {
+        $ordered = $houses->sortBy(fn (House $house) => (float) $house->getAttribute('chainage_m'))->values();
+        $groups = [];
+        $current = collect();
+        $previous = null;
+
+        foreach ($ordered as $house) {
+            $shouldStart = $current->count() >= $params['max_houses_per_odo'];
+            if ($previous && abs((float) $house->getAttribute('chainage_m') - (float) $previous->getAttribute('chainage_m')) > $params['max_gap_m']) {
+                $shouldStart = true;
+            }
+            if (! $shouldStart && $current->isNotEmpty()) {
+                $candidate = $current->push($house);
+                $odoPoint = $this->odoPointForGroup($candidate, $branch);
+                $maxDistance = $candidate->max(fn (House $candidateHouse) => $this->distanceMeters($odoPoint['lat'], $odoPoint['lng'], (float) $candidateHouse->latitude, (float) $candidateHouse->longitude));
+                $current->pop();
+                if ($maxDistance > $params['max_house_to_odo_m']) {
+                    $shouldStart = true;
+                }
+            }
+            if ($shouldStart && $current->isNotEmpty()) {
+                $groups[] = $current->values();
+                $current = collect();
+            }
+            $current->push($house);
+            $previous = $house;
+        }
+        if ($current->isNotEmpty()) {
+            $groups[] = $current->values();
         }
 
         return $groups;
+    }
+
+    private function cabinetPreview(Project $project, Collection $houses, array $branch, int $groupIndex, Collection $odfs, array $params): array
+    {
+        $odoPoint = $this->odoPointForGroup($houses, $branch);
+        $nearestOdf = $this->nearestOdf($odoPoint, $odfs);
+        $distances = $houses->map(fn (House $house) => $this->distanceMeters($odoPoint['lat'], $odoPoint['lng'], (float) $house->latitude, (float) $house->longitude));
+        $houseCount = $houses->count();
+        $splitterCount = $this->splitterCount($houseCount);
+        $utilization = round(($houseCount / 12) * 100, 1);
+        $maxDistance = (int) round($distances->max() ?? 0);
+        $averageDistance = (int) round($distances->avg() ?? 0);
+        $warnings = [];
+
+        if ($maxDistance > $params['max_house_to_odo_m']) {
+            $warnings[] = 'Najudaljenija kuca je dalje od '.$params['max_house_to_odo_m'].' m.';
+        }
+        if ($utilization < (($params['preferred_fill_min'] / 12) * 100)) {
+            $warnings[] = 'Iskoristenost ODO ormarica je ispod preferiranog minimuma.';
+        }
+        if ($nearestOdf['odf'] === null) {
+            $warnings[] = 'Nema ODF-a za automatsko povezivanje.';
+        }
+        if (! $params['create_drop_routes']) {
+            $warnings[] = 'Drop trase su samo preview i nece biti snimljene bez create_drop_routes=true.';
+        }
+
+        $name = "FTTH {$branch['branch_index']}-{$groupIndex}";
+
+        return [
+            'name' => $name.' PRIJEDLOG',
+            'confirmed_name' => $name,
+            'branch_id' => $branch['route']?->id ?? (int) $houses->first()->getAttribute('branch_id'),
+            'route_id' => $branch['route']?->id,
+            'branch_index' => $branch['branch_index'],
+            'branch_name' => $branch['name'],
+            'group_index' => $groupIndex,
+            'house_count' => $houseCount,
+            'splitter_count' => $splitterCount,
+            'utilization_percent' => $utilization,
+            'utilization' => $utilization,
+            'proposed_latitude' => $odoPoint['lat'],
+            'proposed_longitude' => $odoPoint['lng'],
+            'medoid_house_id' => $odoPoint['medoid']->id,
+            'average_distance_m' => $averageDistance,
+            'max_distance_m' => $maxDistance,
+            'average_house_distance_m' => $averageDistance,
+            'max_house_distance_m' => $maxDistance,
+            'nearest_odf_id' => $nearestOdf['odf']?->id,
+            'nearest_odf_name' => $nearestOdf['odf']?->name,
+            'distance_to_odf_m' => $nearestOdf['distance_m'],
+            'warnings' => $warnings,
+            'score' => $this->odoScore($averageDistance, $maxDistance, $utilization, count($warnings), 0),
+            'drop_preview' => $houses->map(fn (House $house) => [
+                'from' => ['lat' => $odoPoint['lat'], 'lng' => $odoPoint['lng']],
+                'to' => ['lat' => (float) $house->latitude, 'lng' => (float) $house->longitude],
+                'house_id' => $house->id,
+                'length_m' => (int) round($this->distanceMeters($odoPoint['lat'], $odoPoint['lng'], (float) $house->latitude, (float) $house->longitude)),
+            ])->values()->all(),
+            'houses' => $houses->map(fn (House $house) => $this->housePayload($house, $odoPoint))->values()->all(),
+        ];
+    }
+
+    private function housePayload(House $house, ?array $odoPoint = null): array
+    {
+        return [
+            'id' => $house->id,
+            'label' => $house->label,
+            'address' => $house->address,
+            'latitude' => (float) $house->latitude,
+            'longitude' => (float) $house->longitude,
+            'branch_id' => $house->getAttribute('branch_id'),
+            'route_id' => $house->getAttribute('branch_id') > 0 ? $house->getAttribute('branch_id') : null,
+            'branch_index' => $house->getAttribute('branch_index'),
+            'branch_name' => $house->getAttribute('branch_name'),
+            'distance_to_branch_m' => $house->getAttribute('distance_to_branch_m'),
+            'chainage_m' => $house->getAttribute('chainage_m'),
+            'distance_to_odo_m' => $odoPoint ? (int) round($this->distanceMeters($odoPoint['lat'], $odoPoint['lng'], (float) $house->latitude, (float) $house->longitude)) : null,
+        ];
+    }
+
+    private function odoPointForGroup(Collection $houses, array $branch): array
+    {
+        $medoid = $this->medoid($houses)['house'];
+        if (! $branch['route']) {
+            return ['lat' => (float) $medoid->latitude, 'lng' => (float) $medoid->longitude, 'medoid' => $medoid];
+        }
+        $projection = $this->projectPointToRoute((float) $medoid->latitude, (float) $medoid->longitude, $branch['route']);
+
+        return ['lat' => round($projection['lat'], 7), 'lng' => round($projection['lng'], 7), 'medoid' => $medoid];
+    }
+
+    private function nearestBranch(float $lat, float $lng, Collection $routes): ?array
+    {
+        return $routes
+            ->map(fn (NetworkRoute $route) => ['route' => $route] + $this->projectPointToRoute($lat, $lng, $route))
+            ->sortBy('distance_m')
+            ->first();
+    }
+
+    private function projectPointToRoute(float $lat, float $lng, NetworkRoute $route): array
+    {
+        $points = $route->path ?? [];
+        $originLat = $lat;
+        $originLng = $lng;
+        $best = null;
+        $chainage = 0.0;
+
+        for ($i = 1; $i < count($points); $i++) {
+            [$aLat, $aLng] = $points[$i - 1];
+            [$bLat, $bLng] = $points[$i];
+            $a = $this->toMeters((float) $aLat, (float) $aLng, $originLat, $originLng);
+            $b = $this->toMeters((float) $bLat, (float) $bLng, $originLat, $originLng);
+            $p = $this->toMeters($lat, $lng, $originLat, $originLng);
+            $abx = $b['x'] - $a['x'];
+            $aby = $b['y'] - $a['y'];
+            $ab2 = max(0.000001, ($abx ** 2) + ($aby ** 2));
+            $t = max(0, min(1, ((($p['x'] - $a['x']) * $abx) + (($p['y'] - $a['y']) * $aby)) / $ab2));
+            $x = $a['x'] + ($abx * $t);
+            $y = $a['y'] + ($aby * $t);
+            $distance = sqrt((($p['x'] - $x) ** 2) + (($p['y'] - $y) ** 2));
+            $segmentLength = sqrt($ab2);
+
+            if (! $best || $distance < $best['distance_m']) {
+                $best = [
+                    'lat' => $originLat + ($y / 111320),
+                    'lng' => $originLng + ($x / (111320 * cos(deg2rad($originLat)))),
+                    'distance_m' => $distance,
+                    'chainage_m' => $chainage + ($segmentLength * $t),
+                ];
+            }
+            $chainage += $segmentLength;
+        }
+
+        return $best ?? ['lat' => $lat, 'lng' => $lng, 'distance_m' => INF, 'chainage_m' => 0];
+    }
+
+    private function toMeters(float $lat, float $lng, float $originLat, float $originLng): array
+    {
+        return [
+            'x' => ($lng - $originLng) * 111320 * cos(deg2rad($originLat)),
+            'y' => ($lat - $originLat) * 111320,
+        ];
     }
 
     private function medoid(Collection $houses): array
@@ -357,43 +598,48 @@ class FtthIntelligenceService
         return $best;
     }
 
-    private function centroid(Collection $houses): array
-    {
-        return [
-            'lat' => round((float) $houses->avg(fn (House $house) => (float) $house->latitude), 7),
-            'lng' => round((float) $houses->avg(fn (House $house) => (float) $house->longitude), 7),
-        ];
-    }
-
-    private function nearestOdf(array $medoid, Collection $odfs): array
+    private function nearestOdf(array $point, Collection $odfs): array
     {
         if ($odfs->isEmpty()) {
             return ['odf' => null, 'distance_m' => null];
         }
 
-        $nearest = $odfs
+        return $odfs
             ->map(fn (Odf $odf) => [
                 'odf' => $odf,
-                'distance_m' => (int) round($this->distanceMeters($medoid['lat'], $medoid['lng'], (float) $odf->latitude, (float) $odf->longitude)),
+                'distance_m' => (int) round($this->distanceMeters($point['lat'], $point['lng'], (float) $odf->latitude, (float) $odf->longitude)),
             ])
             ->sortBy('distance_m')
             ->first();
-
-        return $nearest;
     }
 
-    private function planSummary(Collection $housesWithCoordinates, Collection $housesWithoutCoordinates, Collection $cabinets, array $warnings): array
+    private function branchIndex(NetworkRoute $route, int $fallback): int
+    {
+        if (preg_match('/\d+/', $route->name.' '.$route->route_type, $match)) {
+            return (int) $match[0];
+        }
+
+        return $fallback;
+    }
+
+    private function confirmedCabinetName(string $name): string
+    {
+        return trim(str_replace(' PRIJEDLOG', '', $name));
+    }
+
+    private function planSummary(Collection $housesWithCoordinates, Collection $housesWithoutCoordinates, Collection $cabinets, array $warnings, Collection $unassigned): array
     {
         $totalDrop = $cabinets->sum(fn (array $cabinet) => collect($cabinet['houses'])->sum('distance_to_odo_m'));
         $averageDistance = (int) round($cabinets->avg('average_house_distance_m') ?? 0);
         $maxDistance = (int) ($cabinets->max('max_house_distance_m') ?? 0);
-        $averageUtilization = round((float) ($cabinets->avg('utilization') ?? 0), 1);
+        $averageUtilization = round((float) ($cabinets->avg('utilization_percent') ?? 0), 1);
         $cabinetWarnings = $cabinets->sum(fn (array $cabinet) => count($cabinet['warnings']));
         $warningCount = count($warnings) + $cabinetWarnings;
 
         return [
             'houses_with_coordinates' => $housesWithCoordinates->count(),
             'houses_without_coordinates' => $housesWithoutCoordinates->count(),
+            'unassigned_house_count' => $unassigned->count(),
             'proposed_odo_count' => $cabinets->count(),
             'splitter_count' => $cabinets->sum('splitter_count'),
             'average_house_distance_m' => $averageDistance,
@@ -401,28 +647,41 @@ class FtthIntelligenceService
             'estimated_drop_length_m' => (int) round($totalDrop),
             'average_utilization' => $averageUtilization,
             'warning_count' => $warningCount,
-            'score' => $this->planScore($averageDistance, $averageUtilization, $warningCount, $cabinets->count(), $housesWithCoordinates->count()),
+            'score' => $this->planScore($averageDistance, $averageUtilization, $warningCount, $cabinets->count(), $housesWithCoordinates->count(), $unassigned->count()),
             'houses_without_coordinates_list' => $housesWithoutCoordinates->map(fn (House $house) => ['id' => $house->id, 'label' => $house->label])->values()->all(),
         ];
     }
 
-    private function planScore(int $averageDistance, float $averageUtilization, int $warningCount, int $cabinetCount, int $houseCount): int
+    private function odoScore(int $averageDistance, int $maxDistance, float $utilization, int $warningCount, int $mixingPenalty): int
+    {
+        $score = 100;
+        $score -= max(0, $averageDistance - 60) * 0.25;
+        $score -= max(0, $maxDistance - 120) * 0.5;
+        $score -= max(0, 70 - $utilization) * 0.4;
+        $score -= $warningCount * 8;
+        $score -= $mixingPenalty;
+
+        return max(0, min(100, (int) round($score)));
+    }
+
+    private function branchScore(Collection $cabinets, int $unassignedCount): int
+    {
+        if ($cabinets->isEmpty()) {
+            return 0;
+        }
+
+        return max(0, (int) round($cabinets->avg('score') - ($unassignedCount * 5)));
+    }
+
+    private function planScore(int $averageDistance, float $averageUtilization, int $warningCount, int $cabinetCount, int $houseCount, int $unassignedCount): int
     {
         $distanceScore = $averageDistance <= 60 ? 100 : ($averageDistance <= 120 ? max(40, 100 - (($averageDistance - 60) / 60) * 60) : max(0, 40 - (($averageDistance - 120) / 120) * 40));
         $utilizationScore = $averageUtilization >= 70 ? 100 : max(0, ($averageUtilization / 70) * 100);
-        $warningScore = max(0, 100 - ($warningCount * 15));
-        $idealCabinets = max(1, (int) ceil($houseCount / 12));
-        $cabinetScore = $cabinetCount <= $idealCabinets ? 100 : max(0, 100 - (($cabinetCount - $idealCabinets) * 20));
+        $warningScore = max(0, 100 - ($warningCount * 12) - ($unassignedCount * 18));
+        $idealCabinets = max(1, (int) ceil(max(1, $houseCount - $unassignedCount) / 12));
+        $cabinetScore = $cabinetCount <= $idealCabinets ? 100 : max(0, 100 - (($cabinetCount - $idealCabinets) * 15));
 
-        return (int) round(($distanceScore * 0.4) + ($utilizationScore * 0.25) + ($warningScore * 0.2) + ($cabinetScore * 0.15));
-    }
-
-    private function plannedCabinetName(Project $project, int $index): string
-    {
-        $code = Str::upper(Str::slug($project->code ?: $project->name, ''));
-        $code = $code ?: 'PR';
-
-        return 'ODO-'.$code.'-'.str_pad((string) $index, 2, '0', STR_PAD_LEFT);
+        return (int) round(($distanceScore * 0.35) + ($utilizationScore * 0.25) + ($warningScore * 0.25) + ($cabinetScore * 0.15));
     }
 
     private function validationItem(string $level, string $message, string $type, int $id, string $recommendation): array

@@ -1,4 +1,7 @@
 (function () {
+    window.MapEditor = window.MapEditor || {};
+    if (window.MapEditor.initialized) return;
+    window.MapEditor.initialized = true;
     const MapEditor = {
         map: null,
         activeTool: "select",
@@ -11,6 +14,13 @@
         dirty: false,
         routeLayers: new Map(),
         snapTargets: [],
+        snapOptions: { odf: true, odo: true, house: true, route: true },
+        ortho: false,
+        autoPlanning: {
+            loading: false,
+            previewActive: false,
+            currentPreview: null,
+        },
         defaultDetails: null,
         defaultHeading: null,
         layers: {},
@@ -45,7 +55,8 @@
     ];
     const data = () =>
         window.ftthData || { odfs: [], cabinets: [], houses: [], routes: [] };
-    const config = () => window.ftthConfig || {};
+    const config = () => window.ftthMapConfig || window.ftthConfig || {};
+    const isEditor = () => (config().mode || "editor") === "editor";
     const status = () => document.getElementById("map-status");
     const details = () => document.getElementById("detail-body");
     const heading = () => document.getElementById("detail-heading");
@@ -77,6 +88,7 @@
                     Trase: MapEditor.layers.routes,
                     Cvorovi: MapEditor.layers.routeNodes,
                     Mjerenje: MapEditor.layers.measure,
+                    "Auto ODO": MapEditor.layers.autoPlanMarkers,
                 },
             )
             .addTo(MapEditor.map);
@@ -106,6 +118,9 @@
             "measure",
             "snap",
             "suggestions",
+            "autoPlanMarkers",
+            "autoPlanLines",
+            "autoPlanHighlights",
         ].forEach((name) => {
             MapEditor.layers[name] = L.layerGroup().addTo(MapEditor.map);
         });
@@ -114,6 +129,7 @@
         document.querySelectorAll(".tool[data-tool]").forEach((button) =>
             button.addEventListener("click", (event) => {
                 event.preventDefault();
+                if (!isEditor() && button.dataset.tool !== "select") return;
                 setActiveTool(button.dataset.tool);
             }),
         );
@@ -156,14 +172,23 @@
             .querySelectorAll('[data-action="suggest-cabinets"]')
             .forEach((button) => button.addEventListener("click", (event) => {
                 event.preventDefault();
-                suggestCabinets();
+                previewAutoOdoPlan();
             }));
         document
             .querySelectorAll('[data-action="close-suggestions"]')
             .forEach((button) => button.addEventListener("click", closeSuggestions));
         document
             .querySelector('[data-action="save-suggestions"]')
-            ?.addEventListener("click", saveSuggestions);
+            ?.addEventListener("click", confirmAutoOdoPlan);
+        document
+            .querySelectorAll('[data-action="discard-auto-plan"], [data-action="close-suggestions"]')
+            .forEach((button) => button.addEventListener("click", discardAutoPlan));
+        document
+            .querySelectorAll("[data-snap-option]")
+            .forEach((input) => input.addEventListener("change", () => {
+                MapEditor.snapOptions[input.dataset.snapOption] = input.checked;
+                setStatus(toolInstruction(MapEditor.activeTool));
+            }));
         document.querySelectorAll("[data-quick-tool]").forEach((button) =>
             button.addEventListener("click", (event) => {
                 event.preventDefault();
@@ -172,6 +197,7 @@
         );
     }
     function setActiveTool(tool) {
+        if (!isEditor() && tool !== "select") tool = "select";
         if (
             MapEditor.dirty &&
             tool !== MapEditor.activeTool &&
@@ -222,7 +248,8 @@
         if (points !== null) extras.push(`Tacke: ${points}`);
         if (length !== null) extras.push(`Duzina: ${length} m`);
         if (snap !== null) extras.push(`Snap: ${snap || "nema"}`);
-        status().textContent = `Alat: ${MapEditor.activeTool} | ${message}${extras.length ? ` | ${extras.join(" | ")}` : ""}`;
+        extras.push(`ORTHO: ${MapEditor.ortho ? "ON" : "OFF"}`);
+        status().textContent = `Command: ${MapEditor.activeTool.toUpperCase()} | ${message}${extras.length ? ` | ${extras.join(" | ")}` : ""}`;
     }
     function renderAll() {
         renderOdfs();
@@ -282,6 +309,7 @@
         MapEditor.snapTargets.push({
             latlng: marker.getLatLng(),
             label: item.name || item.label || labels[type],
+            type,
         });
     }
     function renderRoutes() {
@@ -326,6 +354,7 @@
             MapEditor.snapTargets.push({
                 latlng: L.latLng(point),
                 label: `${route.name} T${index + 1}`,
+                type: "route",
             }),
         );
         return line;
@@ -767,18 +796,35 @@
             return true;
         });
     }
+    function confirmDeleteElement(item) {
+        if (item.elementType === "route") return confirmDeleteRoute(item);
+        if (item.elementType === "odf") return confirmDeleteOdf(item);
+        if (item.elementType === "odo") return confirmDeleteCabinet(item);
+        if (item.elementType === "house") return confirmDeleteHouse(item);
+    }
     function applySnap(latlng) {
         if (!["draw_route", "measure"].includes(MapEditor.activeTool))
             return { latlng, label: "" };
         const target = findSnapTarget(latlng);
-        return target
+        const snapped = target
             ? { latlng: target.latlng, label: target.label }
             : { latlng, label: "" };
+        if (MapEditor.ortho && MapEditor.activeTool === "draw_route" && MapEditor.drawing.points.length) {
+            snapped.latlng = applyOrtho(snapped.latlng, MapEditor.drawing.points.at(-1));
+        }
+        return snapped;
+    }
+    function applyOrtho(latlng, previousPoint) {
+        const previous = L.latLng(previousPoint);
+        const latDelta = Math.abs(latlng.lat - previous.lat);
+        const lngDelta = Math.abs(latlng.lng - previous.lng);
+        return L.latLng(latDelta > lngDelta ? latlng.lat : previous.lat, latDelta > lngDelta ? previous.lng : latlng.lng);
     }
     function findSnapTarget(latlng) {
         const point = MapEditor.map.latLngToContainerPoint(latlng);
         return MapEditor.snapTargets.find(
             (target) =>
+                MapEditor.snapOptions[target.type === "odo" ? "odo" : target.type] !== false &&
                 point.distanceTo(
                     MapEditor.map.latLngToContainerPoint(target.latlng),
                 ) <= 12,
@@ -801,6 +847,114 @@
         return Math.round(total);
     }
     function suggestCabinets() {
+        return previewAutoOdoPlan();
+    }
+    async function previewAutoOdoPlan() {
+        if (MapEditor.autoPlanning.loading) return;
+        if (!config().autoOdoPreviewUrl) return showToast("Auto ODO preview endpoint nije podesen.", "error");
+        if (!prepareForAutoPlanning()) return;
+        MapEditor.autoPlanning.loading = true;
+        const buttons = document.querySelectorAll('[data-action="suggest-cabinets"]');
+        buttons.forEach((button) => {
+            button.disabled = true;
+            button.dataset.originalText = button.textContent;
+            button.textContent = "Planiram...";
+        });
+        try {
+            clearAutoPlanPreview();
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 20000);
+            const plan = await request(config().autoOdoPreviewUrl, "POST", {
+                max_branch_distance_m: Number(document.getElementById("planner-branch-distance")?.value || 60),
+                max_houses_per_odo: Number(document.getElementById("planner-max")?.value || 12),
+                max_house_to_odo_m: Number(document.getElementById("planner-max-drop")?.value || 120),
+                max_gap_m: Number(document.getElementById("planner-max-gap")?.value || 100),
+                preferred_fill_min: Number(document.getElementById("planner-min")?.value || 8),
+                create_drop_routes: false,
+            }, { signal: controller.signal });
+            clearTimeout(timeout);
+            MapEditor.autoPlanning.currentPreview = plan;
+            MapEditor.autoPlanning.previewActive = true;
+            renderAutoPlanPreview(plan);
+            showAutoPlanPanel(plan);
+        } catch (error) {
+            showToast(error.name === "AbortError" ? "Auto ODO request je istekao." : error.message, "error");
+        } finally {
+            MapEditor.autoPlanning.loading = false;
+            buttons.forEach((button) => {
+                button.disabled = false;
+                button.textContent = button.dataset.originalText || "Predlozi ODO";
+            });
+        }
+    }
+    function prepareForAutoPlanning() {
+        if (MapEditor.drawing.points.length && !confirm("Aktivno je crtanje trase. Prekinuti crtanje i pokrenuti Auto ODO?")) return false;
+        if (MapEditor.editing.route && !confirm("Aktivno je editovanje trase. Prekinuti editovanje i pokrenuti Auto ODO?")) return false;
+        if (MapEditor.measure.points.length && !confirm("Aktivno je mjerenje. Prekinuti mjerenje i pokrenuti Auto ODO?")) return false;
+        cancelDrawingRoute();
+        cancelMeasure();
+        cancelEditedRoute();
+        clearAutoPlanPreview();
+        return true;
+    }
+    function clearAutoPlanPreview() {
+        ["autoPlanMarkers", "autoPlanLines", "autoPlanHighlights"].forEach((name) => MapEditor.layers[name]?.clearLayers());
+        MapEditor.autoPlanning.previewActive = false;
+        MapEditor.autoPlanning.currentPreview = null;
+    }
+    function renderAutoPlanPreview(plan) {
+        (plan.cabinets || []).forEach((cabinet, index) => {
+            const color = cabinetPalette[index % cabinetPalette.length];
+            const point = [cabinet.proposed_latitude, cabinet.proposed_longitude];
+            L.marker(point, { icon: markerIcon("suggest", "ODO", color) })
+                .bindTooltip(`${cabinet.name}: ${cabinet.house_count}/12 | score ${cabinet.score}`)
+                .addTo(MapEditor.layers.autoPlanMarkers);
+            (cabinet.houses || []).forEach((house) => {
+                L.circleMarker([house.latitude, house.longitude], {
+                    radius: 7,
+                    color,
+                    weight: 2,
+                    fillColor: color,
+                    fillOpacity: 0.35,
+                }).bindTooltip(`${house.label} | krak ${house.branch_index} | ${house.chainage_m ?? "-"} m`).addTo(MapEditor.layers.autoPlanHighlights);
+                L.polyline([point, [house.latitude, house.longitude]], {
+                    color,
+                    weight: 1.4,
+                    opacity: 0.8,
+                    dashArray: "5,5",
+                }).addTo(MapEditor.layers.autoPlanLines);
+            });
+        });
+    }
+    function showAutoPlanPanel(plan) {
+        const summary = plan.summary || {};
+        const warningHtml = [...(plan.warnings || []), ...(plan.cabinets || []).flatMap((cabinet) => (cabinet.warnings || []).map((message) => ({ message })))]
+            .map((warning) => `<div class="border-t py-1 text-amber-700">${escapeHtml(warning.message || warning)}</div>`)
+            .join("");
+        const cabinetsHtml = (plan.cabinets || []).map((cabinet) =>
+            `<div class="border-t py-2"><b>${escapeHtml(cabinet.name)}</b><br>Krak ${cabinet.branch_index}: ${cabinet.house_count}/12 kuca, ${cabinet.splitter_count} splittera, max ${cabinet.max_distance_m} m, score ${cabinet.score}</div>`,
+        ).join("");
+        document.getElementById("suggestion-summary").innerHTML =
+            `<p class="mb-2"><b>Analiza plana</b>: ${summary.proposed_odo_count || 0} ODO, score ${summary.score || 0}, nedodijeljeno ${summary.unassigned_house_count || 0}.</p>${cabinetsHtml}${warningHtml}`;
+        document.getElementById("suggestion-modal")?.classList.remove("hidden");
+    }
+    async function confirmAutoOdoPlan() {
+        const plan = MapEditor.autoPlanning.currentPreview || (MapEditor.suggestions.length ? null : null);
+        if (!plan) return saveSuggestions();
+        if (!config().autoOdoConfirmUrl) return showToast("Auto ODO confirm endpoint nije podesen.", "error");
+        const result = await request(config().autoOdoConfirmUrl, "POST", { plan, create_drop_routes: false });
+        showToast(result.message || "Auto ODO plan je snimljen.");
+        discardAutoPlan();
+        window.location.reload();
+    }
+    function discardAutoPlan() {
+        clearAutoPlanPreview();
+        document.getElementById("suggestion-modal")?.classList.add("hidden");
+    }
+    function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+    }
+    function legacySuggestCabinets() {
         clearSuggestions();
         const houses = data().houses.filter(
             (house) => validPoint(house) && !house.cabinet_id,
@@ -1234,7 +1388,7 @@
         MapEditor.dirty = false;
         document.getElementById("map-move-actions").classList.add("hidden");
     }
-    async function request(url, method, payload = null) {
+    async function request(url, method, payload = null, options = {}) {
         try {
             if (!config().projectId && method === "POST")
                 throw new Error("Prvo kreiraj projekat.");
@@ -1246,6 +1400,7 @@
                     "X-CSRF-TOKEN": config().csrf,
                 },
                 body: payload ? JSON.stringify(payload) : null,
+                ...options,
             });
             const json = await response.json();
             if (!response.ok)
@@ -1257,6 +1412,7 @@
             return json;
         } catch (error) {
             showToast(error.message, "error");
+            if (options.signal) throw error;
             return null;
         }
     }
@@ -1426,6 +1582,8 @@
         return points.length >= 2 && !Object.values(errors).some(Boolean);
     }
     function onKeyDown(event) {
+        const tag = event.target?.tagName?.toLowerCase();
+        if (["input", "select", "textarea"].includes(tag) || event.target?.closest?.(".route-modal")) return;
         if (event.key === "Escape") {
             cancelDrawingRoute();
             cancelMeasure();
@@ -1435,12 +1593,31 @@
             closeDeleteModal();
             setActiveTool("select");
         }
+        if (event.key === "Enter" && MapEditor.activeTool === "draw_route") {
+            event.preventDefault();
+            finishDrawingRoute();
+        }
         if (
             event.key === "Backspace" &&
             MapEditor.activeTool === "draw_route"
         ) {
             event.preventDefault();
             removeLastRoutePoint();
+        }
+        if (event.key === "Delete") {
+            if (MapEditor.selectedRoute) confirmDeleteRoute(MapEditor.selectedRoute);
+            else if (MapEditor.selectedElement) confirmDeleteElement(MapEditor.selectedElement);
+        }
+        const key = event.key.toLowerCase();
+        const shortcuts = { s: "select", l: "draw_route", m: "measure", e: "edit_route" };
+        if (shortcuts[key]) {
+            event.preventDefault();
+            setActiveTool(shortcuts[key]);
+        }
+        if (key === "o") {
+            event.preventDefault();
+            MapEditor.ortho = !MapEditor.ortho;
+            setStatus(toolInstruction(MapEditor.activeTool));
         }
     }
     function showToast(message, type = "") {

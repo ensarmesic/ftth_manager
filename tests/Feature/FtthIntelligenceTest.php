@@ -54,6 +54,42 @@ class FtthIntelligenceTest extends TestCase
         $this->assertSame(3, Cabinet::firstOrFail()->splitter_count);
     }
 
+    public function test_preview_plan_keeps_natural_house_clusters_together(): void
+    {
+        $project = Project::create(['name' => 'Zone', 'code' => 'ZONE', 'location' => 'Test', 'status' => 'planning']);
+
+        foreach ([18.6400, 18.6700] as $zone => $longitude) {
+            for ($i = 0; $i < 12; $i++) {
+                House::create([
+                    'project_id' => $project->id,
+                    'label' => 'Z'.($zone + 1).'-'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
+                    'address' => 'Zona '.($zone + 1),
+                    'latitude' => 44.4490 + ($i * 0.00004),
+                    'longitude' => $longitude + (($i % 3) * 0.00004),
+                    'status' => 'planned',
+                ]);
+            }
+        }
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project), [
+            'max_houses_per_odo' => 12,
+            'preferred_fill_min' => 8,
+            'max_distance_m' => 180,
+        ])->assertOk()->json();
+
+        $this->assertSame(2, $plan['summary']['proposed_odo_count']);
+        foreach ($plan['cabinets'] as $cabinet) {
+            $zones = collect($cabinet['houses'])
+                ->map(fn (array $house) => str_starts_with($house['label'], 'Z1-') ? 'Z1' : 'Z2')
+                ->unique()
+                ->values();
+
+            $this->assertCount(1, $zones);
+            $this->assertSame(12, $cabinet['house_count']);
+            $this->assertLessThanOrEqual(180, $cabinet['max_house_distance_m']);
+        }
+    }
+
     public function test_houses_without_coordinates_are_skipped_and_reported(): void
     {
         $project = $this->projectWithHouses(3);
@@ -138,6 +174,117 @@ class FtthIntelligenceTest extends TestCase
         $this->assertSame($cabinet->id, $subscriber->fresh()->cabinet_id);
     }
 
+    public function test_houses_from_different_branches_are_never_mixed(): void
+    {
+        $project = Project::create(['name' => 'Krakovi', 'code' => 'KR', 'location' => 'Test', 'status' => 'planning']);
+        $routeA = $this->branchRoute($project, 'Sekundarni krak 1', [[44.4490, 18.6400], [44.4510, 18.6400]]);
+        $routeB = $this->branchRoute($project, 'Sekundarni krak 2', [[44.4490, 18.6700], [44.4510, 18.6700]]);
+        foreach ([18.64005, 18.67005] as $zone => $longitude) {
+            for ($i = 0; $i < 6; $i++) {
+                House::create(['project_id' => $project->id, 'label' => 'B'.($zone + 1).'-'.$i, 'latitude' => 44.4491 + ($i * 0.0001), 'longitude' => $longitude, 'status' => 'planned']);
+            }
+        }
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()->json();
+
+        $this->assertCount(2, $plan['cabinets']);
+        foreach ($plan['cabinets'] as $cabinet) {
+            $this->assertCount(1, collect($cabinet['houses'])->pluck('branch_id')->unique());
+            $this->assertContains($cabinet['branch_id'], [$routeA->id, $routeB->id]);
+        }
+    }
+
+    public function test_house_is_assigned_to_nearest_branch_only_inside_distance_limit(): void
+    {
+        $project = Project::create(['name' => 'Limit', 'code' => 'LIM', 'location' => 'Test', 'status' => 'planning']);
+        $route = $this->branchRoute($project, 'Krak 7', [[44.4490, 18.6400], [44.4510, 18.6400]]);
+        House::create(['project_id' => $project->id, 'label' => 'Blizu', 'latitude' => 44.4495, 'longitude' => 18.6401, 'status' => 'planned']);
+        House::create(['project_id' => $project->id, 'label' => 'Daleko', 'latitude' => 44.4495, 'longitude' => 18.6450, 'status' => 'planned']);
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project), ['max_branch_distance_m' => 60])->assertOk()->json();
+
+        $this->assertSame($route->id, $plan['cabinets'][0]['branch_id']);
+        $this->assertSame(['Daleko'], collect($plan['unassigned_houses'])->pluck('label')->all());
+    }
+
+    public function test_houses_are_sorted_by_chainage_and_gap_creates_new_group(): void
+    {
+        $project = Project::create(['name' => 'Chainage', 'code' => 'CH', 'location' => 'Test', 'status' => 'planning']);
+        $this->branchRoute($project, 'Krak 1', [[44.4490, 18.6400], [44.4550, 18.6400]]);
+        House::create(['project_id' => $project->id, 'label' => 'Treca', 'latitude' => 44.4535, 'longitude' => 18.64005, 'status' => 'planned']);
+        House::create(['project_id' => $project->id, 'label' => 'Prva', 'latitude' => 44.4492, 'longitude' => 18.64005, 'status' => 'planned']);
+        House::create(['project_id' => $project->id, 'label' => 'Druga', 'latitude' => 44.4497, 'longitude' => 18.64005, 'status' => 'planned']);
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project), ['max_gap_m' => 150])->assertOk()->json();
+
+        $this->assertCount(2, $plan['cabinets']);
+        $this->assertSame(['Prva', 'Druga'], collect($plan['cabinets'][0]['houses'])->pluck('label')->all());
+        $this->assertSame('Treca', $plan['cabinets'][1]['houses'][0]['label']);
+        $this->assertLessThan($plan['cabinets'][0]['houses'][1]['chainage_m'], $plan['cabinets'][0]['houses'][0]['chainage_m']);
+    }
+
+    public function test_odo_is_placed_on_route_and_named_by_branch(): void
+    {
+        $project = Project::create(['name' => 'Naming', 'code' => 'NM', 'location' => 'Test', 'status' => 'planning']);
+        $this->branchRoute($project, 'Sekundarni krak 1', [[44.4490, 18.6400], [44.4510, 18.6400]]);
+        $this->branchRoute($project, 'Sekundarni krak 2', [[44.4490, 18.6700], [44.4510, 18.6700]]);
+        foreach ([[18.64008, 'A'], [18.67008, 'B']] as [$longitude, $prefix]) {
+            for ($i = 0; $i < 13; $i++) {
+                House::create(['project_id' => $project->id, 'label' => $prefix.$i, 'latitude' => 44.4490 + ($i * 0.00008), 'longitude' => $longitude, 'status' => 'planned']);
+            }
+        }
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()->json();
+        $names = collect($plan['cabinets'])->pluck('confirmed_name')->all();
+
+        $this->assertContains('FTTH 1-1', $names);
+        $this->assertContains('FTTH 1-2', $names);
+        $this->assertContains('FTTH 2-1', $names);
+        foreach ($plan['cabinets'] as $cabinet) {
+            $this->assertEqualsWithDelta($cabinet['branch_index'] === 1 ? 18.6400 : 18.6700, $cabinet['proposed_longitude'], 0.00001);
+            $this->assertLessThanOrEqual(12, $cabinet['house_count']);
+        }
+    }
+
+    public function test_confirm_rejects_cross_project_odf_and_cross_branch_house(): void
+    {
+        $project = Project::create(['name' => 'Confirm', 'code' => 'CF', 'location' => 'Test', 'status' => 'planning']);
+        $otherProject = Project::create(['name' => 'Other', 'code' => 'OT', 'location' => 'Test', 'status' => 'planning']);
+        $this->branchRoute($project, 'Krak 1', [[44.4490, 18.6400], [44.4510, 18.6400]]);
+        $this->branchRoute($project, 'Krak 2', [[44.4490, 18.6700], [44.4510, 18.6700]]);
+        House::create(['project_id' => $project->id, 'label' => 'A', 'latitude' => 44.4492, 'longitude' => 18.64005, 'status' => 'planned']);
+        House::create(['project_id' => $project->id, 'label' => 'B', 'latitude' => 44.4492, 'longitude' => 18.67005, 'status' => 'planned']);
+        $otherOdf = Odf::create(['project_id' => $otherProject->id, 'name' => 'ODF-X', 'address' => 'X', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4490, 'longitude' => 18.6490]);
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()->json();
+        $plan['cabinets'][0]['nearest_odf_id'] = $otherOdf->id;
+
+        $this->postJson(route('projects.odo-plan.confirm', $project), ['plan' => $plan])->assertUnprocessable();
+        $this->assertSame(0, Cabinet::count());
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()->json();
+        $plan['cabinets'][0]['houses'][] = $plan['cabinets'][1]['houses'][0];
+        $this->postJson(route('projects.odo-plan.confirm', $project), ['plan' => $plan])->assertUnprocessable();
+        $this->assertSame(0, Cabinet::count());
+    }
+
+    public function test_fallback_warning_and_score_penalizes_unassigned_houses(): void
+    {
+        $project = $this->projectWithHouses(3);
+        $fallback = $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()->json();
+
+        $this->assertStringContainsString('Nema definisanih krakova', $fallback['warnings'][0]['message']);
+
+        $projectWithRoute = Project::create(['name' => 'Score', 'code' => 'SC', 'location' => 'Test', 'status' => 'planning']);
+        $this->branchRoute($projectWithRoute, 'Krak 1', [[44.4490, 18.6400], [44.4510, 18.6400]]);
+        House::create(['project_id' => $projectWithRoute->id, 'label' => 'Blizu', 'latitude' => 44.4495, 'longitude' => 18.6401, 'status' => 'planned']);
+        House::create(['project_id' => $projectWithRoute->id, 'label' => 'Daleko', 'latitude' => 44.4495, 'longitude' => 18.6500, 'status' => 'planned']);
+
+        $penalized = $this->postJson(route('projects.odo-plan.preview', $projectWithRoute))->assertOk()->json();
+
+        $this->assertSame(1, $penalized['summary']['unassigned_house_count']);
+        $this->assertLessThan($fallback['summary']['score'], $penalized['summary']['score']);
+    }
+
     private function projectWithHouses(int $count): Project
     {
         $project = Project::create(['name' => 'Plan', 'code' => 'PR', 'location' => 'Test', 'status' => 'planning']);
@@ -153,5 +300,22 @@ class FtthIntelligenceTest extends TestCase
         }
 
         return $project;
+    }
+
+    private function branchRoute(Project $project, string $name, array $path): NetworkRoute
+    {
+        return NetworkRoute::create([
+            'project_id' => $project->id,
+            'name' => $name,
+            'route_type' => 'distribution',
+            'installation_type' => 'underground',
+            'duct_length_m' => 100,
+            'fiber_length_m' => 100,
+            'fiber_count' => 12,
+            'microduct_count' => 1,
+            'microduct_type' => '14/10',
+            'status' => 'planned',
+            'path' => $path,
+        ]);
     }
 }
