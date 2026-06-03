@@ -1,7 +1,7 @@
 @extends('ftth.layout')
 
 @section('title', 'ODF lokacije')
-@section('subtitle', 'Centralne opticke distribucione tacke iz kojih se napaja mreza.')
+@section('subtitle', 'Centralne optičke distribucione tačke iz kojih se napaja mreža.')
 
 @section('content')
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
@@ -19,10 +19,14 @@
                 <label class="grid gap-1 text-sm"><span>Longitude</span><input name="longitude" value="{{ old('longitude') }}" class="rounded-md border border-zinc-300 px-3 py-2"></label>
             </div>
             <label class="grid gap-1 text-sm"><span>Napomena</span><textarea name="notes" rows="2" class="rounded-md border border-zinc-300 px-3 py-2">{{ old('notes') }}</textarea></label>
-            <button class="rounded-md bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">Sacuvaj ODF</button>
+            <button class="rounded-md bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">Sačuvaj ODF</button>
         </div>
     </form>
 
-    @include('ftth.partials.table', ['rows' => $odfs, 'columns' => ['name' => 'Naziv', 'project.name' => 'Projekat', 'address' => 'Adresa', 'port_count' => 'Portovi', 'fiber_capacity' => 'Vlakna'], 'deleteRoute' => fn($id) => route('odfs.delete', $id)])
+    @include('ftth.partials.table', ['rows' => $odfs, 'columns' => ['name' => 'Naziv', 'project.name' => 'Projekat', 'address' => 'Adresa', 'port_count' => 'Portovi', 'fiber_capacity' => 'Vlakna'], 'editRoute' => fn($id) => route('odfs.update', $id), 'deleteRoute' => fn($id) => route('odfs.delete', $id), 'editFields' => [
+        'project_id' => ['label' => 'Projekat', 'type' => 'select', 'options' => $projects->pluck('name', 'id')->all()],
+        'name' => 'Naziv', 'address' => 'Adresa', 'fiber_capacity' => ['label' => 'Vlakna', 'type' => 'number'],
+        'port_count' => ['label' => 'Portovi', 'type' => 'number'], 'latitude' => 'Latitude', 'longitude' => 'Longitude', 'notes' => 'Napomena',
+    ]])
 </section>
 @endsection

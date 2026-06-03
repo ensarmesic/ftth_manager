@@ -1,7 +1,7 @@
 @extends('ftth.layout')
 
-@section('title', 'Mapa mreze')
-@section('subtitle', 'Satelitski projektantski prikaz za ODF, FTTH ormarice, kuce i trase.')
+@section('title', 'Mapa mreže')
+@section('subtitle', 'Satelitski projektantski prikaz za ODF, FTTH ormariće, kuće i trase.')
 @section('wide', '1')
 
 @section('content')
@@ -84,7 +84,7 @@
                 </div>
                 <div class="grid grid-cols-3 gap-2 text-xs">
                     <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">Trasa</span><strong id="draw-length" class="text-sm text-amber-700">0 m</strong></div>
-                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">Kuce</span><strong id="house-count" class="text-sm text-violet-700">0</strong></div>
+                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">Kuće</span><strong id="house-count" class="text-sm text-violet-700">0</strong></div>
                     <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">FTTH</span><strong id="cabinet-count" class="text-sm text-emerald-700">0</strong></div>
                 </div>
             </div>
@@ -92,25 +92,25 @@
                 <button type="button" id="mode-pan" class="tool-btn rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white">Pomjeraj</button>
                 <button type="button" id="mode-odf" class="tool-btn rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800">ODF</button>
                 <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
-                <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuce</button>
+                <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuće</button>
                 <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
                 <span class="mx-1 hidden h-8 w-px bg-zinc-200 sm:block"></span>
-                <button type="button" id="finish-branch" class="action-btn rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950">Zavrsi krak</button>
-                <button type="button" id="undo-draw" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo tacka</button>
+                <button type="button" id="finish-branch" class="action-btn rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950">Završi krak</button>
+                <button type="button" id="undo-draw" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo tačka</button>
                 <button type="button" id="undo-branch" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo krak</button>
                 <button type="button" id="undo-element" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo element</button>
-                <button type="button" id="undo-house" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo kuca</button>
-                <button type="button" id="clear-draw" class="action-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Ocisti trase</button>
-                <button type="button" id="quick-save-draft" class="action-btn rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sacuvaj nacrt</button>
+                <button type="button" id="undo-house" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo kuća</button>
+                <button type="button" id="clear-draw" class="action-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Očisti trase</button>
+                <button type="button" id="quick-save-draft" class="action-btn rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sačuvaj nacrt</button>
                 <button type="button" id="expand-map" class="action-btn ml-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
             </div>
-            <p class="mt-2 text-xs text-zinc-500">Nacrt se cuva automatski. Desni klik na element: obrisi ili premjesti.</p>
+            <p class="mt-2 text-xs text-zinc-500">Nacrt se čuva automatski. Desni klik na element: obriši ili premjesti.</p>
         </div>
         <div id="network-map" class="min-h-0 flex-1 w-full"></div>
         <div class="cad-status grid gap-2 px-3 py-2 md:grid-cols-[1fr_auto_auto]">
-            <div id="cad-command">PAN: pomjeraj mapu. Izaberi ODF, FTTH, Kuce ili Trasa.</div>
+            <div id="cad-command">PAN: pomjeraj mapu. Izaberi ODF, FTTH, Kuće ili Trasa.</div>
             <div id="cad-coordinates" class="cad-chip rounded px-2 py-1">LAT -, LNG -</div>
-            <div class="cad-chip rounded px-2 py-1">ESC prekid · ENTER zavrsi · CTRL+Z undo</div>
+            <div class="cad-chip rounded px-2 py-1">ESC prekid · ENTER završi · CTRL+Z undo</div>
         </div>
     </div>
 
@@ -130,14 +130,14 @@
                 <button type="button" id="close-element-editor" class="rounded px-2 py-1 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Zatvori</button>
             </div>
             <input id="element-editor-name" class="mt-3 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv elementa">
-            <button type="button" id="save-element-name" class="mt-2 w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj naziv</button>
+            <button type="button" id="save-element-name" class="mt-2 w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj naziv</button>
             <div id="element-editor-status" class="mt-2 text-xs font-semibold text-emerald-700"></div>
         </div>
         <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="control-panel rounded-md p-3">
             @csrf
             <div class="grid gap-1">
                 <h2 class="font-semibold text-zinc-950">Plan projekta</h2>
-                <span id="bulk-plan-summary" class="text-sm text-emerald-700">Draft: 0 ODF, 0 FTTH, 0 kuca, 0 trasa.</span>
+                <span id="bulk-plan-summary" class="text-sm text-emerald-700">Draft: 0 ODF, 0 FTTH, 0 kuća, 0 trasa.</span>
             </div>
             <div class="mt-3 grid gap-2">
                 <select id="active-project-id" name="project_id" class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
@@ -145,14 +145,14 @@
                     <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
                         <button type="button" data-guide-mode="odf" class="guide-step rounded bg-cyan-100 px-2 py-2 text-cyan-800">1 ODF</button>
                         <button type="button" data-guide-mode="draw" class="guide-step rounded bg-amber-100 px-2 py-2 text-amber-800">2 Trasa</button>
-                        <button type="button" data-guide-mode="house" class="guide-step rounded bg-violet-100 px-2 py-2 text-violet-800">3 Kuce</button>
+                        <button type="button" data-guide-mode="house" class="guide-step rounded bg-violet-100 px-2 py-2 text-violet-800">3 Kuće</button>
                         <button type="button" id="guide-suggest" class="guide-step rounded bg-emerald-100 px-2 py-2 text-emerald-800">4 FTTH</button>
                     </div>
-                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">5 Sacuvaj na mapi</button>
+                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">5 Sačuvaj na mapi</button>
                 </div>
                 <div class="rounded-md border border-cyan-100 bg-cyan-50 p-3">
                     <label class="grid gap-1 text-xs font-semibold text-cyan-900">
-                        Aktivni ODF za nove ormarice
+                        Aktivni ODF za nove ormariće
                         <select id="active-odf-index" class="rounded-md border border-cyan-200 bg-white px-3 py-2 text-sm font-normal text-zinc-800">
                             <option value="">Prvo postavi ODF</option>
                         </select>
@@ -180,7 +180,7 @@
                     </div>
                     <div class="mt-2 grid grid-cols-3 gap-2">
                         <label class="grid gap-1 text-xs text-amber-900">Polaganje
-                            <select id="route-draw-installation" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="underground">Podzemna</option><option value="aerial">Zracna</option></select>
+                            <select id="route-draw-installation" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="underground">Podzemna</option><option value="aerial">Zračna</option></select>
                         </label>
                         <label class="grid gap-1 text-xs text-amber-900">Mikrocijev
                             <select id="route-draw-microduct-type" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="14/10">14/10</option><option value="10/8">10/8</option></select>
@@ -198,8 +198,8 @@
                 </details>
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">Sacuvaj radnu verziju</button>
-                    <button class="action-btn rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sacuvaj na mapi</button>
+                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">Sačuvaj radnu verziju</button>
+                    <button class="action-btn rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sačuvaj na mapi</button>
                 </div>
             </div>
             <div id="bulk-plan-status" class="mt-2 text-sm font-semibold text-emerald-800"></div>
@@ -210,15 +210,15 @@
         <div class="border-t border-zinc-100 p-3">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="font-semibold">Automatski raspored</h2>
-                <button type="button" id="suggest-cabinets" class="action-btn rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Predlozi FTTH</button>
+                <button type="button" id="suggest-cabinets" class="action-btn rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Predloži FTTH</button>
             </div>
             <div class="mt-2 grid grid-cols-4 gap-2">
                 <label class="grid gap-1 text-xs text-zinc-600">Min<input id="planner-min" type="number" min="1" max="12" value="8" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
                 <label class="grid gap-1 text-xs text-zinc-600">Max<input id="planner-max" type="number" min="1" max="12" value="12" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
                 <label class="grid gap-1 text-xs text-zinc-600">Max m<input id="planner-max-drop" type="number" min="20" value="90" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
-                <button type="button" id="clear-suggestions" class="action-btn mt-5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Ocisti</button>
+                <button type="button" id="clear-suggestions" class="action-btn mt-5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Očisti</button>
             </div>
-            <div id="suggestion-output" class="mt-3 max-h-56 overflow-auto rounded-md border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-700">Nacrtaj trasu i oznaci kuce.</div>
+            <div id="suggestion-output" class="mt-3 max-h-56 overflow-auto rounded-md border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-700">Nacrtaj trasu i oznaci kuće.</div>
             <button type="button" id="save-suggestions" class="action-btn mt-3 hidden w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Potvrdi raspored</button>
         </div>
         </details>
@@ -228,25 +228,25 @@
             <div class="grid gap-3 border-t border-zinc-100 p-3">
                 <form method="POST" action="{{ route('odfs.store') }}" id="odf-form" class="grid gap-3 rounded-md border border-cyan-100 bg-cyan-50 p-3">
                     @csrf
-                    <h3 class="font-semibold text-cyan-900">Sacuvaj ODF</h3>
+                    <h3 class="font-semibold text-cyan-900">Sačuvaj ODF</h3>
                     <select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
                     <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv ODF-a" required>
                     <input name="address" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Adresa" required>
                     <input type="number" name="fiber_capacity" value="144" min="1" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required>
                     <input type="number" name="port_count" value="48" min="1" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required>
                     <div class="grid grid-cols-2 gap-2"><input id="odf-lat" name="latitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lat" required><input id="odf-lng" name="longitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lng" required></div>
-                    <button class="rounded-md bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj ODF</button>
+                    <button class="rounded-md bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj ODF</button>
                 </form>
                 <form method="POST" action="{{ route('cabinets.store') }}" id="cabinet-form" class="grid gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-3">
                     @csrf
-                    <h3 class="font-semibold text-emerald-900">Sacuvaj FTTH ormaric</h3>
+                    <h3 class="font-semibold text-emerald-900">Sačuvaj FTTH ormarić</h3>
                     <select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
                     <select name="odf_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><option value="">Povezani ODF</option>@foreach($odfsForSelect as $odf)<option value="{{ $odf->id }}">{{ $odf->name }} - {{ $odf->project->name }}</option>@endforeach</select>
                     <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv, npr. FTTH-001" required>
                     <input name="address" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Adresa" required>
                     <div class="grid grid-cols-2 gap-2"><input type="number" name="splitter_count" value="3" min="1" max="3" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><input type="number" name="ports_per_splitter" value="4" min="1" max="4" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"></div>
                     <div class="grid grid-cols-2 gap-2"><input id="cabinet-lat" name="latitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lat" required><input id="cabinet-lng" name="longitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lng" required></div>
-                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj FTTH</button>
+                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj FTTH</button>
                 </form>
                 <form method="POST" action="{{ route('routes.store') }}" id="route-form" class="hidden">
                     @csrf
@@ -370,7 +370,7 @@ data.odfs.forEach(odf => {
     const connectedCabinets = data.cabinets.filter(c => c.odf === odf.name).length;
     const marker = L.marker(p, { icon: icon('odf', 'ODF'), draggable: false })
         .bindTooltip(`${odf.name} · ${connectedCabinets} FTTH`, { direction: 'top', offset: [0, -10] })
-        .bindPopup(`<b>ODF: ${odf.name}</b><br>${odf.address}<br>FTTH ormarica: ${connectedCabinets}`)
+        .bindPopup(`<b>ODF: ${odf.name}</b><br>${odf.address}<br>FTTH ormarića: ${connectedCabinets}`)
         .addTo(map);
     marker.on('click', event => {
         if (mode === 'draw') {
@@ -399,6 +399,7 @@ data.cabinets.forEach(c => {
 });
     const savedHouseKeys = new Set();
     const savedHouseColorByKey = {};
+    const houseDataByKey = {};
 function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).toFixed(7)}`; }
     data.houses.forEach(h => {
         const p = L.latLng(h.lat, h.lng);
@@ -406,6 +407,7 @@ function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).to
         const color = h.cabinet_id ? cabinetColor(h.cabinet_id) : null;
         savedHouseKeys.add(key);
         savedHouseColorByKey[key] = color;
+        houseDataByKey[key] = h;
         const marker = L.marker(p, { icon: icon('house', '', color), draggable: false }).bindPopup(`<b>${h.label}</b><br>ODO: ${h.cabinet}`).addTo(map);
         registerSavedContext(marker, h.label, deleteUrls.house(h.id), positionUrls.house(h.id));
         houseMarkerByKey[key] = marker;
@@ -423,7 +425,7 @@ function setMode(next) {
     const labels = {
         pan: 'PAN: pomjeraj mapu. Izaberi alat za crtanje.',
         odf: 'ODF: klikni lokaciju centrale/cvora. Novi ODF postaje aktivan.',
-        cabinet: 'FTTH: klikni lokacije zelenih ormarica. Vezuju se na aktivni ODF.',
+        cabinet: 'FTTH: klikni lokacije zelenih ormarića. Vezuju se na aktivni ODF.',
         house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
         draw: 'TRASA: klik po klik crtaj trasu. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
     };
@@ -551,7 +553,7 @@ function registerDraftContext(marker, title) {
     marker.on('contextmenu', event => {
         L.DomEvent.stop(event);
         showCadContext(event.latlng, title, [
-            { label: 'Obrisi', run: () => removeDraftElement(marker) },
+            { label: 'Obriši', run: () => removeDraftElement(marker) },
             { label: 'Premjesti: povuci marker misem', run: () => marker.dragging?.enable() },
         ]);
     });
@@ -568,7 +570,7 @@ function registerHouseContext(marker) {
     marker.on('contextmenu', event => {
         L.DomEvent.stop(event);
         showCadContext(event.latlng, 'Kuca', [
-            { label: 'Obrisi', run: () => removeDraftHouse(marker) },
+            { label: 'Obriši', run: () => removeDraftHouse(marker) },
             { label: 'Premjesti: povuci marker misem', run: () => marker.dragging?.enable() },
         ]);
     });
@@ -592,7 +594,7 @@ function registerBranchContext(line) {
         const index = branchLines.indexOf(line);
         if (index < 0) return;
         showCadContext(event.latlng, branchMeta[index]?.name || 'Krak trase', [
-            { label: 'Obrisi krak', run: () => removeBranchAt(index) },
+            { label: 'Obriši krak', run: () => removeBranchAt(index) },
         ]);
     });
 }
@@ -628,9 +630,9 @@ async function saveSavedPosition(marker, url) {
         body: JSON.stringify({ latitude: position.lat, longitude: position.lng }),
     });
 
-    if (!response.ok) throw new Error(await response.text() || 'Pomjeranje nije sacuvano.');
+    if (!response.ok) throw new Error(await response.text() || 'Pomjeranje nije sačuvano.');
     marker.dragging?.disable();
-    document.getElementById('cad-command').textContent = 'Nova pozicija je sacuvana.';
+    document.getElementById('cad-command').textContent = 'Nova pozicija je sačuvana.';
 }
 function registerSavedContext(layer, title, url, positionUrl = null) {
     const triggerLayer = Array.isArray(layer) ? layer[0] : layer;
@@ -650,7 +652,7 @@ function registerSavedContext(layer, title, url, positionUrl = null) {
     triggerLayer.on('contextmenu', event => {
         L.DomEvent.stop(event);
         const actions = [
-            { label: 'Obrisi', run: () => deleteSavedElement(url, layer) },
+            { label: 'Obriši', run: () => deleteSavedElement(url, layer) },
         ];
         if (positionUrl) actions.push({ label: 'Premjesti: povuci marker misem', run: () => triggerLayer.dragging?.enable() });
         showCadContext(event.latlng, title, [
@@ -705,7 +707,7 @@ function addDrawPoint(latlng) {
     });
     activeBranchMarkers.push(marker);
     redrawActiveBranch();
-    document.getElementById('cad-command').textContent = `TRASA: tacka ${activeBranch.length}. Sljedeci klik nastavlja, ENTER/desni klik zavrsava krak.`;
+    document.getElementById('cad-command').textContent = `TRASA: tačka ${activeBranch.length}. Sljedeći klik nastavlja, ENTER/desni klik zavrsava krak.`;
 }
 function finishBranch() {
     if (activeBranch.length > 1) {
@@ -755,34 +757,42 @@ function projectOnSegment(point, a, b) {
     return map.layerPointToLatLng(L.point(pa.x + ab.x*t, pa.y + ab.y*t));
 }
 function nearestOnNetwork(point) {
-    let best = null, bestDist = Infinity, chain = 0, passed = 0;
-    for (const branch of allNetworkPoints()) {
+    let best = null, bestDist = Infinity, chain = 0, passed = 0, branchIndex = -1, segmentIndex = -1;
+    for (const [currentBranchIndex, branch] of allNetworkPoints().entries()) {
         for (let i = 1; i < branch.length; i++) {
             const projected = projectOnSegment(point, branch[i-1], branch[i]);
             const dist = map.distance(point, projected);
-            if (dist < bestDist) { best = projected; bestDist = dist; chain = passed + map.distance(branch[i-1], projected); }
+            if (dist < bestDist) {
+                best = projected;
+                bestDist = dist;
+                chain = passed + map.distance(branch[i-1], projected);
+                branchIndex = currentBranchIndex;
+                segmentIndex = i;
+            }
             passed += map.distance(branch[i-1], branch[i]);
         }
     }
-    return { point: best, chain };
+    return { point: best, chain, branchIndex, segmentIndex };
 }
 
 function networkPathBetween(aPoint, bPoint) {
     const a = nearestOnNetwork(aPoint);
     const b = nearestOnNetwork(bPoint);
     if (!a.point || !b.point) return [aPoint, bPoint];
-    return a.chain <= b.chain
-        ? [aPoint, a.point, b.point, bPoint]
-        : [aPoint, a.point, b.point, bPoint];
+    const branch = allNetworkPoints()[a.branchIndex];
+    if (!branch || a.branchIndex !== b.branchIndex) return [aPoint, a.point, b.point, bPoint];
+    const middle = [];
+    if (a.segmentIndex <= b.segmentIndex) {
+        for (let i = a.segmentIndex; i < b.segmentIndex; i++) middle.push(branch[i]);
+        return [aPoint, a.point, ...middle, b.point, bPoint];
+    }
+    for (let i = a.segmentIndex - 1; i >= b.segmentIndex; i--) middle.push(branch[i]);
+    return [aPoint, a.point, ...middle, b.point, bPoint];
 }
 
 function networkDropDistance(cabinetPoint, housePoint) {
-    const a = nearestOnNetwork(cabinetPoint);
-    const b = nearestOnNetwork(housePoint);
-    if (!a.point || !b.point) return map.distance(cabinetPoint, housePoint);
-    return map.distance(cabinetPoint, a.point)
-        + Math.abs(a.chain - b.chain)
-        + map.distance(b.point, housePoint);
+    const path = networkPathBetween(cabinetPoint, housePoint);
+    return path.reduce((sum, point, index) => index ? sum + map.distance(path[index - 1], point) : 0, 0);
 }
 function snapCabinetToRoute(point) {
     const snapped = nearestOnNetwork(point);
@@ -892,7 +902,7 @@ function clearSuggestions() {
     suggestionLayers=[];
     suggestedCabinets=[];
     document.getElementById('cabinet-count').textContent='0';
-    document.getElementById('suggestion-output').innerHTML='Nacrtaj trasu i oznaci kuce.';
+    document.getElementById('suggestion-output').innerHTML='Nacrtaj trasu i oznaci kuće.';
     document.getElementById('save-suggestions').classList.add('hidden');
     document.getElementById('material-specs-output').classList.add('hidden');
     refreshPlanSummary();
@@ -901,12 +911,12 @@ function clearSuggestions() {
 function calculateMaterialSpecs() {
     const specs = {};
 
-    // Spliters i ormarici
+    // Spliters i ormarići
     const splitterTotal = suggestedCabinets.reduce((sum, c) => sum + c.splitter_count, 0);
     const cabinetCount = suggestedCabinets.length;
 
     specs['Spliteri 1:4'] = { quantity: splitterTotal, unit: 'kom', price: 160 };
-    specs['Zeleni ormarici (FTTH)'] = { quantity: cabinetCount, unit: 'kom', price: 900 };
+    specs['Zeleni ormarići (FTTH)'] = { quantity: cabinetCount, unit: 'kom', price: 900 };
 
     // Mikrocijevi i kabl
     const totalDuct = allDistance();
@@ -915,7 +925,7 @@ function calculateMaterialSpecs() {
     const reserveMicroduct = Math.ceil(totalMicroduct * 1.1);
 
     specs['Mikrocijevi 14/10 (m)'] = { quantity: Math.ceil(reserveMicroduct / 1000), unit: '1km', price: 15000 };
-    specs['Opticki kabl SM (m)'] = { quantity: Math.ceil(totalDuct * 1.1), unit: 'm', price: 12 };
+    specs['Optički kabl SM (m)'] = { quantity: Math.ceil(totalDuct * 1.1), unit: 'm', price: 12 };
 
     // Konektori i spajanja
     const spliceCount = splitterTotal + (housePoints.length - savedHouseCount);
@@ -923,7 +933,7 @@ function calculateMaterialSpecs() {
     specs['Spojnice SC/APC'] = { quantity: housePoints.length - savedHouseCount, unit: 'kom', price: 8 };
 
     // Korisnički priključci
-    specs['Opticki prikljucak ONT'] = { quantity: housePoints.length - savedHouseCount, unit: 'kom', price: 45 };
+    specs['Optički prikljucak ONT'] = { quantity: housePoints.length - savedHouseCount, unit: 'kom', price: 45 };
 
     return specs;
 }
@@ -952,7 +962,7 @@ function suggest() {
     clearSuggestions();
     suggestedCabinets = [];
     if (!allNetworkPoints().length) { document.getElementById('suggestion-output').innerHTML='<b class="text-red-700">Prvo nacrtaj bar jedan krak trase.</b>'; return; }
-    if (!housePoints.length) { document.getElementById('suggestion-output').innerHTML='<b class="text-red-700">Prvo oznaci kuce.</b>'; return; }
+    if (!housePoints.length) { document.getElementById('suggestion-output').innerHTML='<b class="text-red-700">Prvo oznaci kuće.</b>'; return; }
     const groups = assignHousesToNearestCabinets(optimize(housePoints), housePoints), summary = {};
     const html = groups.map((g,i) => {
         const groupColor = cabinetPalette[i % cabinetPalette.length];
@@ -975,7 +985,7 @@ function suggest() {
         };
         const marker = L.marker(cabinetPos, { icon: icon('suggest', `FTTH-${String(i+1).padStart(2,'0')}`, groupColor) })
             .bindTooltip(`${g.s}/12`, { direction: 'top', offset: [0, -10] })
-            .bindPopup(`<b>FTTH-${i+1}</b><br>${g.s}/12 kuca<br>${g.splitters} splittera<br>${g.waste} praznih portova<br>ODF: ${odfLabel}`)
+            .bindPopup(`<b>FTTH-${i+1}</b><br>${g.s}/12 kuća<br>${g.splitters} splittera<br>${g.waste} praznih portova<br>ODF: ${odfLabel}`)
             .addTo(map);
         const drops = g.group.map(h => {
             const houseMarker = houseMarkerByKey[pointKey(h.point.lat, h.point.lng)];
@@ -986,10 +996,10 @@ function suggest() {
         suggestedCabinet.dropLines = drops;
         suggestedCabinets.push(suggestedCabinet);
         suggestionLayers.push(marker, ...drops);
-        return `<div class="border-b border-zinc-200 py-2"><b>FTTH-${String(i+1).padStart(2,'0')}</b><br>${g.s}/12 kuca, ${g.splitters} splittera, ${g.waste} praznih portova<br>ODF: ${odfLabel}<br>${cabinetPos.lat.toFixed(7)}, ${cabinetPos.lng.toFixed(7)}</div>`;
+        return `<div class="border-b border-zinc-200 py-2"><b>FTTH-${String(i+1).padStart(2,'0')}</b><br>${g.s}/12 kuća, ${g.splitters} splittera, ${g.waste} praznih portova<br>ODF: ${odfLabel}<br>${cabinetPos.lat.toFixed(7)}, ${cabinetPos.lng.toFixed(7)}</div>`;
     }).join('');
-    const sum = Object.entries(summary).map(([n,v]) => `<div class="rounded-md bg-white p-2"><b>${n}</b><br>${v.c} FTTH · ${v.h} kuca · ${v.s} splittera</div>`).join('');
-    const draftOdfNote = '<div class="mb-2 rounded-md bg-emerald-50 p-2 text-xs font-semibold text-emerald-800">Pregled je spreman. Klikni "5 Sacuvaj na mapi" da elementi ostanu trajno prikazani.</div>';
+    const sum = Object.entries(summary).map(([n,v]) => `<div class="rounded-md bg-white p-2"><b>${n}</b><br>${v.c} FTTH · ${v.h} kuća · ${v.s} splittera</div>`).join('');
+    const draftOdfNote = '<div class="mb-2 rounded-md bg-emerald-50 p-2 text-xs font-semibold text-emerald-800">Pregled je spreman. Klikni "5 Sačuvaj na mapi" da elementi ostanu trajno prikazani.</div>';
     document.getElementById('cabinet-count').textContent = groups.length;
     document.getElementById('suggestion-output').innerHTML = `${draftOdfNote}${sum ? `<div class="mb-3 grid gap-2">${sum}</div>` : ''}${html}`;
     document.getElementById('save-suggestions').classList.remove('hidden');
@@ -1017,11 +1027,11 @@ function defaultDraftName(type, index) {
 function selectDraftElement(type, item) {
     selectedDraftElement = { type, item };
     document.getElementById('element-editor').classList.remove('hidden');
-    document.getElementById('element-editor-type').textContent = type === 'odf' ? 'ODF lokacija' : 'Draft FTTH ormaric';
+    document.getElementById('element-editor-type').textContent = type === 'odf' ? 'ODF lokacija' : 'Draft FTTH ormarić';
     document.getElementById('element-editor-name').value = item.pending ? '' : item.name;
     document.getElementById('element-editor-status').textContent = item.pending
         ? 'Unos naziva je obavezan da bi ODF bio dodat.'
-        : 'Upisi naziv i klikni Sacuvaj naziv.';
+        : 'Upiši naziv i klikni Sačuvaj naziv.';
     document.getElementById('element-editor-name').focus();
 }
 function closeDraftElementEditor() {
@@ -1054,8 +1064,8 @@ function saveSelectedDraftElementName() {
     refreshDraftTooltips();
     refreshPlanSummary();
     document.getElementById('element-editor-status').textContent = selectedDraftElement.type === 'odf'
-        ? `ODF "${name}" je sacuvan.`
-        : `Naziv "${name}" je sacuvan.`;
+        ? `ODF "${name}" je sačuvan.`
+        : `Naziv "${name}" je sačuvan.`;
     if (wasPendingOdf) {
         const savedItem = selectedDraftElement.item;
         setTimeout(() => {
@@ -1149,7 +1159,7 @@ function planPayload() {
 function refreshPlanSummary() {
     const payload = planPayload();
     document.getElementById('bulk-plan-json').value = JSON.stringify(payload);
-    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa.`;
+    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuća, ${payload.routes.length} trasa.`;
     scheduleDraftAutosave();
 }
 
@@ -1276,7 +1286,7 @@ function scheduleDraftAutosave() {
     if (!autosaveReady || restoringDraft || !document.getElementById('active-project-id').value) return;
     clearTimeout(autosaveTimer);
     const status = document.getElementById('bulk-plan-status');
-    status.textContent = 'Izmjena spremna za automatsko cuvanje...';
+    status.textContent = 'Izmjena spremna za automatsko čuvanje...';
     autosaveTimer = setTimeout(() => saveDraft({ quiet: true }).catch(error => {
         status.textContent = error.message;
     }), 700);
@@ -1286,7 +1296,7 @@ async function saveDraft({ quiet = false } = {}) {
     const projectId = document.getElementById('active-project-id').value;
     const status = document.getElementById('bulk-plan-status');
     if (!projectId) {
-        status.textContent = 'Odaberi projekat prije cuvanja nacrta.';
+        status.textContent = 'Odaberi projekat prije čuvanja nacrta.';
         return;
     }
 
@@ -1294,7 +1304,7 @@ async function saveDraft({ quiet = false } = {}) {
     body.append('_token', document.querySelector('#bulk-plan-form input[name="_token"]').value);
     body.append('project_id', projectId);
     body.append('draft', JSON.stringify(draftPayload()));
-    status.textContent = quiet ? 'Automatski cuvam nacrt...' : 'Cuvam nacrt...';
+    status.textContent = quiet ? 'Automatski čuvam nacrt...' : 'Cuvam nacrt...';
 
     const response = await fetch('{{ route('map.draft.store') }}', {
         method: 'POST',
@@ -1307,9 +1317,9 @@ async function saveDraft({ quiet = false } = {}) {
         return;
     }
 
-    const result = await readJsonResponse(response, 'Nacrt nije sacuvan.');
+    const result = await readJsonResponse(response, 'Nacrt nije sačuvan.');
     draftsByProject[projectId] = draftPayload();
-    status.textContent = quiet ? `Nacrt automatski sacuvan (${result.updated_at})` : `${result.message} (${result.updated_at})`;
+    status.textContent = quiet ? `Nacrt automatski sačuvan (${result.updated_at})` : `${result.message} (${result.updated_at})`;
 }
 
 function commitTrenchLines() {
@@ -1329,7 +1339,7 @@ document.getElementById('undo-branch').addEventListener('click', undoBranch);
 document.getElementById('clear-draw').addEventListener('click', clearDraw);
 document.getElementById('route-draw-type').addEventListener('change', event => {
     document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName(event.target.value)}`;
-    document.getElementById('cad-command').textContent = `TRASA: aktivan tip ${routeTypeLabel(event.target.value)}. Klikni tacke na mapi.`;
+    document.getElementById('cad-command').textContent = `TRASA: aktivan tip ${routeTypeLabel(event.target.value)}. Klikni tačke na mapi.`;
 });
 document.getElementById('undo-house').addEventListener('click', () => { const m = houseMarkers.pop(); if(m) map.removeLayer(m); housePoints.pop(); refreshStats(); });
 document.getElementById('undo-element').addEventListener('click', () => {
@@ -1393,7 +1403,7 @@ async function saveSuggestions() {
                     odf_id: c.odf_id,
                     houses: (c.houseKeys || []).map(key => {
                         const [latitude, longitude] = key.split(',').map(Number);
-                        return { latitude, longitude };
+                        return { id: houseDataByKey[key]?.id || null, latitude, longitude };
                     }),
                 })),
             }),
@@ -1405,7 +1415,7 @@ async function saveSuggestions() {
             return;
         }
 
-        const result = await readJsonResponse(response, 'FTTH ormarici nisu snimljeni.');
+        const result = await readJsonResponse(response, 'FTTH ormarići nisu snimljeni.');
         output.innerHTML = `<b class="text-emerald-700">${result.message}</b>`;
         keepSavedSuggestionsOnMap();
     } catch (error) {
@@ -1422,13 +1432,13 @@ function keepSavedSuggestionsOnMap() {
         cabinet.marker
             ?.setIcon(icon('cabinet', cabinet.name))
             .bindTooltip(`0/${cabinet.splitter_count * 4}`, { direction: 'top', offset: [0, -10] })
-            .bindPopup(`<b>${cabinet.name}</b><br>Snimljen FTTH ormaric<br>${cabinet.splitter_count} splittera`);
+            .bindPopup(`<b>${cabinet.name}</b><br>Snimljen FTTH ormarić<br>${cabinet.splitter_count} splittera`);
     });
 
     suggestionLayers = suggestionLayers.filter(layer => !suggestedCabinets.some(cabinet => cabinet.dropLines?.includes(layer)));
     suggestedCabinets = [];
     document.getElementById('save-suggestions').classList.add('hidden');
-    document.getElementById('suggestion-output').innerHTML = '<b class="text-emerald-700">FTTH ormarici su snimljeni i ostaju prikazani na shemi.</b>';
+    document.getElementById('suggestion-output').innerHTML = '<b class="text-emerald-700">FTTH ormarići su snimljeni i ostaju prikazani na shemi.</b>';
     refreshPlanSummary();
 }
 
@@ -1509,7 +1519,7 @@ document.getElementById('quick-project-form').addEventListener('submit', async e
         draftsByProject[result.project.id] = draftPayload();
         await saveDraft();
         form.reset();
-        status.textContent = `${result.project.name} je kreiran, odabran i nacrt je sacuvan.`;
+        status.textContent = `${result.project.name} je kreiran, odabran i nacrt je sačuvan.`;
     } catch (error) {
         status.textContent = error.message;
     }

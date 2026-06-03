@@ -10,6 +10,7 @@ use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\Subscriber;
+use App\Services\FtthIntelligenceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,11 @@ use Illuminate\View\View;
 
 class FtthController extends Controller
 {
+    public function __construct(private readonly FtthIntelligenceService $ftthIntelligence)
+    {
+    }
+
+    // Dashboard and map workspace
     public function dashboard(): View
     {
         $projects = Project::withCount(['odfs', 'cabinets', 'subscribers', 'houses', 'routes'])->latest()->get();
@@ -29,19 +35,10 @@ class FtthController extends Controller
         $houses = $projectQuery(House::query())->with('cabinet')->get();
         $subscribers = $projectQuery(Subscriber::query())->with('cabinet')->latest()->take(5)->get();
         $routes = $projectQuery(NetworkRoute::query())->with(['odf', 'cabinet'])->latest()->get();
-        $issues = collect();
+        $validationItems = $activeProject ? collect($this->ftthIntelligence->validateProject($activeProject)) : collect();
+        $issues = $validationItems->reject(fn (array $item) => $item['level'] === 'ok')->values();
+        $materialSummary = $activeProject ? $this->ftthIntelligence->materialSummary($activeProject) : [];
 
-        $houses->whereNull('cabinet_id')->each(fn (House $house) => $issues->push(['level' => 'warning', 'message' => "{$house->label} nema dodijeljen ODO ormarić."]));
-        $cabinets->whereNull('odf_id')->each(fn (Cabinet $cabinet) => $issues->push(['level' => 'warning', 'message' => "{$cabinet->name} nema povezani ODF."]));
-        $cabinets->filter(fn (Cabinet $cabinet) => $cabinet->houses_count > 12)->each(fn (Cabinet $cabinet) => $issues->push(['level' => 'error', 'message' => "{$cabinet->name} ima više od 12 kuća."]));
-        $routes->filter(fn (NetworkRoute $route) => ! $route->duct_length_m)->each(fn (NetworkRoute $route) => $issues->push(['level' => 'warning', 'message' => "{$route->name} nema evidentiranu dužinu."]));
-
-        $cabinets->filter(fn (Cabinet $cabinet) => $cabinet->houses_count > $cabinet->splitter_count * 4)
-            ->each(fn (Cabinet $cabinet) => $issues->push(['level' => 'error', 'message' => "{$cabinet->name} nema dovoljno splittera."]));
-        $routes->filter(fn (NetworkRoute $route) => ! $route->microduct_type)
-            ->each(fn (NetworkRoute $route) => $issues->push(['level' => 'warning', 'message' => "{$route->name} nema mikrocijev."]));
-        $routes->filter(fn (NetworkRoute $route) => ! $route->fiber_count)
-            ->each(fn (NetworkRoute $route) => $issues->push(['level' => 'warning', 'message' => "{$route->name} nema opticki kabal."]));
 
         return view('ftth.dashboard', [
             'projects' => $projects,
@@ -73,7 +70,11 @@ class FtthController extends Controller
                 'microduct_10_8' => $routes->where('microduct_type', '10/8')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
                 'fiber_4' => $routes->where('fiber_count', 4)->sum('fiber_length_m'),
                 'fiber_12' => $routes->where('fiber_count', 12)->sum('fiber_length_m'),
+                'issues_errors' => $validationItems->where('level', 'error')->count(),
+                'issues_warnings' => $validationItems->where('level', 'warning')->count(),
             ],
+            'materialSummary' => $materialSummary,
+            'validationItems' => $validationItems,
         ]);
     }
 
@@ -82,11 +83,67 @@ class FtthController extends Controller
         return view('ftth.projects', ['projects' => Project::latest()->paginate(12)]);
     }
 
+    // Projects
     public function deleteProject($id)
     {
         Project::findOrFail($id)->delete();
 
         return back()->with('success', 'Projekat je obrisan.');
+    }
+
+    public function updateProject(Request $request, $id): RedirectResponse
+    {
+        $project = Project::findOrFail($id);
+        $project->update($request->validate([
+            'name' => ['required', 'max:255'],
+            'code' => ['required', 'max:50', 'unique:projects,code,'.$project->id],
+            'location' => ['required', 'max:255'],
+            'investor' => ['nullable', 'max:255'],
+            'status' => ['required', 'in:planning,active,paused,completed'],
+            'start_date' => ['nullable', 'date'],
+            'deadline' => ['nullable', 'date'],
+            'description' => ['nullable', 'max:2000'],
+        ]));
+
+        return back()->with('success', 'Projekat je ažuriran.');
+    }
+
+    public function previewOdoPlan(Request $request, Project $project)
+    {
+        try {
+            return response()->json($this->ftthIntelligence->previewOdoPlan($project, $request->all()));
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+    }
+
+    public function confirmOdoPlan(Request $request, Project $project)
+    {
+        $data = $request->validate([
+            'plan' => ['required', 'array'],
+            'create_drop_routes' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            return response()->json($this->ftthIntelligence->confirmOdoPlan(
+                $project,
+                $data['plan'],
+                $request->boolean('create_drop_routes')
+            ), 201);
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        } catch (\Throwable $exception) {
+            return response()->json(['message' => 'Plan nije snimljen. Sve izmjene su poništene.'], 500);
+        }
+    }
+
+    public function validateProject(Project $project)
+    {
+        return response()->json([
+            'project' => ['id' => $project->id, 'name' => $project->name],
+            'items' => $this->ftthIntelligence->validateProject($project),
+            'materials' => $this->ftthIntelligence->materialSummary($project),
+        ]);
     }
 
     public function map(): View
@@ -189,6 +246,7 @@ class FtthController extends Controller
         ]);
     }
 
+    // Reports and support pages
     public function reports(): View
     {
         $projects = Project::withCount(['odfs', 'cabinets', 'subscribers', 'houses', 'routes'])
@@ -198,6 +256,10 @@ class FtthController extends Controller
 
         return view('ftth.reports', [
             'projects' => $projects,
+            'projectInsights' => $projects->mapWithKeys(fn (Project $project) => [$project->id => [
+                'validation' => $this->ftthIntelligence->validateProject($project),
+                'materials' => $this->ftthIntelligence->materialSummary($project),
+            ]]),
             'totals' => [
                 'projects' => Project::count(),
                 'subscribers' => Subscriber::count(),
@@ -245,6 +307,7 @@ class FtthController extends Controller
         return view('ftth.settings');
     }
 
+    // Project mutations
     public function storeProject(Request $request)
     {
         if ($request->boolean('quick_create')) {
@@ -301,6 +364,7 @@ class FtthController extends Controller
         ]);
     }
 
+    // ODF
     public function storeOdf(Request $request)
     {
         $odf = Odf::create($request->validate([
@@ -309,8 +373,8 @@ class FtthController extends Controller
             'address' => ['required', 'max:255'],
             'fiber_capacity' => ['required', 'integer', 'min:1'],
             'port_count' => ['required', 'integer', 'min:1'],
-            'latitude' => ['nullable', 'numeric'],
-            'longitude' => ['nullable', 'numeric'],
+            'latitude' => $this->latitudeRules(),
+            'longitude' => $this->longitudeRules(),
             'notes' => ['nullable', 'max:2000'],
         ]));
 
@@ -334,6 +398,23 @@ class FtthController extends Controller
         return back()->with('success', 'ODF lokacija je obrisana.');
     }
 
+    public function updateOdf(Request $request, $id): RedirectResponse
+    {
+        $odf = Odf::findOrFail($id);
+        $odf->update($request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+            'name' => ['required', 'max:255'],
+            'address' => ['required', 'max:255'],
+            'fiber_capacity' => ['required', 'integer', 'min:1'],
+            'port_count' => ['required', 'integer', 'min:1'],
+            'latitude' => $this->latitudeRules(),
+            'longitude' => $this->longitudeRules(),
+            'notes' => ['nullable', 'max:2000'],
+        ]));
+
+        return back()->with('success', 'ODF lokacija je ažurirana.');
+    }
+
     public function updateOdfPosition(Request $request, $id)
     {
         return $this->updatePosition($request, Odf::findOrFail($id));
@@ -348,6 +429,7 @@ class FtthController extends Controller
         ]);
     }
 
+    // ODO cabinets
     public function storeCabinet(Request $request)
     {
         $data = $request->validate([
@@ -357,21 +439,21 @@ class FtthController extends Controller
             'address' => ['required', 'max:255'],
             'splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
             'ports_per_splitter' => ['required', 'integer', 'min:1', 'max:4'],
-            'latitude' => ['nullable', 'numeric'],
-            'longitude' => ['nullable', 'numeric'],
+            'latitude' => $this->latitudeRules(),
+            'longitude' => $this->longitudeRules(),
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $cabinet = Cabinet::create($data);
 
         if ($request->expectsJson()) {
-            return response()->json(['message' => 'Ormaric je dodat.', 'cabinet' => [
+            return response()->json(['message' => 'Ormarić je dodat.', 'cabinet' => [
                 'id' => $cabinet->id, 'name' => $cabinet->name, 'address' => $cabinet->address,
                 'odf' => $cabinet->odf?->name ?? 'Nije povezano', 'used' => 0, 'capacity' => $cabinet->capacity,
                 'splitters' => $cabinet->splitter_count, 'lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude,
             ]], 201);
         }
 
-        return back()->with('success', 'Ormaric je dodat.');
+        return back()->with('success', 'Ormarić je dodat.');
     }
 
     public function deleteCabinet($id)
@@ -384,12 +466,44 @@ class FtthController extends Controller
         $cabinet->houses()->update(['cabinet_id' => null]);
         $cabinet->delete();
         if (request()->expectsJson()) {
-            return response()->json(['message' => 'Ormaric i njegove drop trase su obrisani.']);
+            return response()->json(['message' => 'Ormarić i njegove drop trase su obrisani.']);
         }
 
-        return back()->with('success', 'Ormaric je obrisan.');
+        return back()->with('success', 'Ormarić je obrisan.');
     }
 
+    public function updateCabinet(Request $request, $id): RedirectResponse
+    {
+        $cabinet = Cabinet::findOrFail($id);
+        $data = $request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+            'odf_id' => ['nullable', 'exists:odfs,id'],
+            'name' => ['required', 'max:255'],
+            'address' => ['required', 'max:255'],
+            'splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
+            'ports_per_splitter' => ['required', 'integer', 'min:1', 'max:4'],
+            'latitude' => $this->latitudeRules(),
+            'longitude' => $this->longitudeRules(),
+        ]);
+        $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
+        if ($cabinet->houses()->count() > $data['splitter_count'] * $data['ports_per_splitter']) {
+            return back()->withErrors(['splitter_count' => 'Novi kapacitet je manji od broja dodijeljenih kuća.'])->withInput();
+        }
+        $cabinet->update($data);
+
+        return back()->with('success', 'Ormarić je ažuriran.');
+    }
+
+    public function houses(): View
+    {
+        return view('ftth.houses', [
+            'houses' => House::with(['project', 'cabinet'])->latest()->paginate(12),
+            'projects' => Project::orderBy('name')->get(),
+            'cabinets' => Cabinet::with(['project'])->withCount('houses')->orderBy('name')->get(),
+        ]);
+    }
+
+    // Houses
     public function updateCabinetPosition(Request $request, $id)
     {
         return $this->updatePosition($request, Cabinet::findOrFail($id));
@@ -402,11 +516,12 @@ class FtthController extends Controller
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'label' => ['required', 'max:255'],
             'address' => ['nullable', 'max:255'],
-            'latitude' => ['required', 'numeric'],
-            'longitude' => ['required', 'numeric'],
+            'latitude' => $this->latitudeRules(true),
+            'longitude' => $this->longitudeRules(true),
             'status' => ['required', 'in:planned,connected,cancelled'],
         ]);
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
+        $this->ensureCabinetHouseCapacity($data['cabinet_id'] ?? null);
         $house = House::create($data);
 
         if ($request->expectsJson()) {
@@ -430,6 +545,25 @@ class FtthController extends Controller
         return back()->with('success', 'Kuca je obrisana.');
     }
 
+    public function updateHouse(Request $request, $id): RedirectResponse
+    {
+        $house = House::findOrFail($id);
+        $data = $request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+            'cabinet_id' => ['nullable', 'exists:cabinets,id'],
+            'label' => ['required', 'max:255'],
+            'address' => ['nullable', 'max:255'],
+            'latitude' => $this->latitudeRules(true),
+            'longitude' => $this->longitudeRules(true),
+            'status' => ['required', 'in:planned,connected,cancelled'],
+        ]);
+        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
+        $this->ensureCabinetHouseCapacity($data['cabinet_id'] ?? null, $house->id);
+        $house->update($data);
+
+        return back()->with('success', 'Kuća je ažurirana.');
+    }
+
     public function updateHousePosition(Request $request, $id)
     {
         return $this->updatePosition($request, House::findOrFail($id));
@@ -438,14 +572,14 @@ class FtthController extends Controller
     private function updatePosition(Request $request, Model $element)
     {
         $position = $request->validate([
-            'latitude' => ['required', 'numeric', 'between:-90,90'],
-            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'latitude' => $this->latitudeRules(true),
+            'longitude' => $this->longitudeRules(true),
         ]);
 
         $element->update($position);
 
         return response()->json([
-            'message' => 'Nova pozicija je sacuvana.',
+            'message' => 'Nova pozicija je sačuvana.',
             'latitude' => (float) $element->latitude,
             'longitude' => (float) $element->longitude,
         ]);
@@ -534,7 +668,7 @@ class FtthController extends Controller
 
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => 'Cijeli plan sa mape je sacuvan.',
+                'message' => 'Cijeli plan sa mape je sačuvan.',
                 'created' => [
                     'odfs' => count($createdOdfs),
                     'cabinets' => count($createdCabinets),
@@ -544,7 +678,7 @@ class FtthController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Cijeli plan sa mape je sacuvan.');
+        return back()->with('success', 'Cijeli plan sa mape je sačuvan.');
     }
 
     public function storeDraft(Request $request)
@@ -560,7 +694,7 @@ class FtthController extends Controller
         );
 
         return response()->json([
-            'message' => 'Nacrt projekta je sacuvan.',
+            'message' => 'Nacrt projekta je sačuvan.',
             'updated_at' => $draft->updated_at?->format('Y-m-d H:i'),
         ]);
     }
@@ -574,6 +708,7 @@ class FtthController extends Controller
         ]);
     }
 
+    // Subscribers
     public function storeSubscriber(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -581,8 +716,8 @@ class FtthController extends Controller
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
             'address' => ['required', 'max:255'],
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'latitude' => $this->latitudeRules(),
+            'longitude' => $this->longitudeRules(),
             'phone' => ['nullable', 'max:50'],
             'service_status' => ['required', 'in:planned,connected,in_service,cancelled'],
             'splitter_no' => ['nullable', 'integer', 'min:1', 'max:3'],
@@ -594,13 +729,41 @@ class FtthController extends Controller
         if (! empty($data['cabinet_id'])) {
             $cabinet = Cabinet::withCount('subscribers')->findOrFail($data['cabinet_id']);
             if ($cabinet->subscribers_count >= $cabinet->capacity) {
-                return back()->withErrors(['cabinet_id' => 'Odabrani ormaric je popunjen. Potrebno je planirati novi ormaric.'])->withInput();
+                return back()->withErrors(['cabinet_id' => 'Odabrani ormarić je popunjen. Potrebno je planirati novi ormarić.'])->withInput();
             }
         }
 
         Subscriber::create($data);
 
         return back()->with('success', 'Korisnik je evidentiran.');
+    }
+
+    public function updateSubscriber(Request $request, $id): RedirectResponse
+    {
+        $subscriber = Subscriber::findOrFail($id);
+        $data = $request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+            'cabinet_id' => ['nullable', 'exists:cabinets,id'],
+            'name' => ['required', 'max:255'],
+            'address' => ['required', 'max:255'],
+            'latitude' => $this->latitudeRules(),
+            'longitude' => $this->longitudeRules(),
+            'phone' => ['nullable', 'max:50'],
+            'service_status' => ['required', 'in:planned,connected,in_service,cancelled'],
+            'splitter_no' => ['nullable', 'integer', 'min:1', 'max:3'],
+            'port_no' => ['nullable', 'integer', 'min:1', 'max:4'],
+            'connected_at' => ['nullable', 'date'],
+        ]);
+        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
+        if (! empty($data['cabinet_id'])) {
+            $cabinet = Cabinet::withCount(['subscribers' => fn ($query) => $query->whereKeyNot($subscriber->id)])->findOrFail($data['cabinet_id']);
+            if ($cabinet->subscribers_count >= $cabinet->capacity) {
+                return back()->withErrors(['cabinet_id' => 'Odabrani ormarić je popunjen.'])->withInput();
+            }
+        }
+        $subscriber->update($data);
+
+        return back()->with('success', 'Korisnik je ažuriran.');
     }
 
     public function deleteSubscriber($id)
@@ -634,6 +797,7 @@ class FtthController extends Controller
         ]);
     }
 
+    // Routes
     public function storeRoute(Request $request)
     {
         $data = $request->validate([
@@ -712,8 +876,12 @@ class FtthController extends Controller
         $route->update($data);
         $route->load(['odf', 'cabinet']);
 
+        if (! $request->expectsJson()) {
+            return back()->with('success', 'Podaci trase su sačuvani.');
+        }
+
         return response()->json([
-            'message' => 'Podaci trase su sacuvani.',
+            'message' => 'Podaci trase su sačuvani.',
             'route' => [
                 'id' => $route->id, 'name' => $route->name, 'from' => $route->odf?->name ?? '-',
                 'to' => $route->cabinet?->name ?? '-', 'type' => $route->route_type, 'length' => $route->duct_length_m,
@@ -740,7 +908,7 @@ class FtthController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Geometrija trase je sacuvana.',
+            'message' => 'Geometrija trase je sačuvana.',
             'route' => [
                 'id' => $route->id,
                 'path' => $route->path,
@@ -880,7 +1048,7 @@ class FtthController extends Controller
             'Opticki kabl 12 niti' => ['unit' => 'm', 'quantity' => 0],
             'Opticki kabl 24 niti' => ['unit' => 'm', 'quantity' => 0],
             'Opticki kabl 48 niti' => ['unit' => 'm', 'quantity' => 0],
-            'ODO ormaric' => ['unit' => 'kom', 'quantity' => $project->cabinets()->count()],
+            'ODO ormarić' => ['unit' => 'kom', 'quantity' => $project->cabinets()->count()],
             'Splitter 1:4' => ['unit' => 'kom', 'quantity' => $project->cabinets()->sum('splitter_count')],
             'ODF' => ['unit' => 'kom', 'quantity' => $project->odfs()->count()],
         ];
@@ -901,9 +1069,10 @@ class FtthController extends Controller
             }
         });
 
-        return back()->with('success', 'Materijali su obracunati iz spremljenih trasa i kapaciteta.');
+        return back()->with('success', 'Materijali su obračunati iz spremljenih trasa i kapaciteta.');
     }
 
+    // Materials
     public function materials(): View
     {
         return view('ftth.materials', [
@@ -926,6 +1095,21 @@ class FtthController extends Controller
         return back()->with('success', 'Materijal je dodat.');
     }
 
+    public function updateMaterial(Request $request, $id): RedirectResponse
+    {
+        $material = Material::findOrFail($id);
+        $material->update($request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+            'name' => ['required', 'max:255'],
+            'unit' => ['required', 'max:30'],
+            'planned_quantity' => ['required', 'numeric', 'min:0'],
+            'used_quantity' => ['required', 'numeric', 'min:0'],
+            'unit_price' => ['required', 'numeric', 'min:0'],
+        ]));
+
+        return back()->with('success', 'Materijal je ažuriran.');
+    }
+
     public function deleteMaterial($id)
     {
         Material::findOrFail($id)->delete();
@@ -939,13 +1123,14 @@ class FtthController extends Controller
             'project_id' => ['required', 'exists:projects,id'],
             'cabinets' => ['required', 'array', 'min:1'],
             'cabinets.*.name' => ['required', 'max:255'],
-            'cabinets.*.latitude' => ['required', 'numeric'],
-            'cabinets.*.longitude' => ['required', 'numeric'],
+            'cabinets.*.latitude' => $this->latitudeRules(true),
+            'cabinets.*.longitude' => $this->longitudeRules(true),
             'cabinets.*.splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
             'cabinets.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
             'cabinets.*.houses' => ['nullable', 'array'],
-            'cabinets.*.houses.*.latitude' => ['required', 'numeric'],
-            'cabinets.*.houses.*.longitude' => ['required', 'numeric'],
+            'cabinets.*.houses.*.id' => ['nullable', 'integer', 'exists:houses,id'],
+            'cabinets.*.houses.*.latitude' => $this->latitudeRules(true),
+            'cabinets.*.houses.*.longitude' => $this->longitudeRules(true),
             'cabinets.*.houses.*.path' => ['nullable', 'array', 'min:2'],
             'cabinets.*.houses.*.path.*' => ['required', 'array', 'size:2'],
             'cabinets.*.houses.*.path.*.*' => ['required', 'numeric'],
@@ -972,16 +1157,23 @@ class FtthController extends Controller
                 $createdCount++;
 
                 foreach ($cabinet['houses'] ?? [] as $index => $point) {
-                    $house = House::query()
-                        ->where('project_id', $projectId)
-                        ->where('latitude', $point['latitude'])
-                        ->where('longitude', $point['longitude'])
-                        ->first();
+                    $house = ! empty($point['id'])
+                        ? House::query()->where('project_id', $projectId)->whereKey($point['id'])->first()
+                        : House::query()
+                            ->where('project_id', $projectId)
+                            ->where('latitude', $point['latitude'])
+                            ->where('longitude', $point['longitude'])
+                            ->first();
                     if (! $house) {
                         continue;
                     }
 
                     $house->update(['cabinet_id' => $createdCabinet->id]);
+                    Subscriber::query()
+                        ->where('project_id', $projectId)
+                        ->whereNull('cabinet_id')
+                        ->where('address', $house->address)
+                        ->update(['cabinet_id' => $createdCabinet->id]);
                     $path = $point['path'] ?? [[(float) $createdCabinet->latitude, (float) $createdCabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
                     $length = $this->polylineLength($path);
                     NetworkRoute::create([
@@ -1012,6 +1204,7 @@ class FtthController extends Controller
         ]);
     }
 
+    // Shared validation helpers
     private function ensureBelongsToProject(string $model, $id, $projectId, string $field): void
     {
         validator([$field => $id], [
@@ -1021,5 +1214,34 @@ class FtthController extends Controller
                 }
             }],
         ])->validate();
+    }
+
+    private function ensureCabinetHouseCapacity($cabinetId, ?int $exceptHouseId = null): void
+    {
+        if (! $cabinetId) {
+            return;
+        }
+
+        $cabinet = Cabinet::findOrFail($cabinetId);
+        $query = $cabinet->houses();
+        if ($exceptHouseId) {
+            $query->whereKeyNot($exceptHouseId);
+        }
+
+        if ($query->count() >= 12) {
+            validator(['cabinet_id' => $cabinetId], [
+                'cabinet_id' => [fn ($attribute, $value, $fail) => $fail('ODO ormarić ne može imati više od 12 kuća.')],
+            ])->validate();
+        }
+    }
+
+    private function latitudeRules(bool $required = false): array
+    {
+        return [$required ? 'required' : 'nullable', 'numeric', 'between:-90,90'];
+    }
+
+    private function longitudeRules(bool $required = false): array
+    {
+        return [$required ? 'required' : 'nullable', 'numeric', 'between:-180,180'];
     }
 }

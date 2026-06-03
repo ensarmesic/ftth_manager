@@ -1,7 +1,7 @@
 @extends('ftth.layout')
 
 @section('title', 'Fiber sema')
-@section('subtitle', 'Hijerarhijski pregled projekta: ODF, ODO ormarici, portovi i trase.')
+@section('subtitle', 'Hijerarhijski pregled projekta: ODF, ODO ormarići, portovi i trase.')
 
 @section('content')
 <section class="grid gap-4">
@@ -18,17 +18,17 @@
                 <p class="mt-1 text-xs text-slate-500">{{ $odf->address }} / {{ $odf->port_count }} portova / {{ $odf->fiber_capacity }} vlakana</p>
                 <div class="mt-3 grid gap-2">
                 @forelse($odf->cabinets as $cabinet)
-                    <div class="rounded-md border border-emerald-100 bg-white p-3 text-sm"><div class="flex justify-between gap-3"><b class="text-emerald-700">ODO: {{ $cabinet->name }}</b><span>{{ $cabinet->houses_count }}/{{ $cabinet->capacity }} kuca</span></div><div class="mt-1 text-xs text-slate-500">{{ $cabinet->splitter_count }} splittera 1:4 / {{ $cabinet->subscribers_count }} aktivnih korisnika</div></div>
+                    <div class="rounded-md border border-emerald-100 bg-white p-3 text-sm"><div class="flex justify-between gap-3"><b class="text-emerald-700">ODO: {{ $cabinet->name }}</b><span>{{ $cabinet->houses_count }}/{{ $cabinet->capacity }} kuća</span></div><div class="mt-1 text-xs text-slate-500">{{ $cabinet->splitter_count }} splittera 1:4 / {{ $cabinet->subscribers_count }} aktivnih korisnika</div></div>
                 @empty
-                    <p class="text-sm text-slate-500">ODF jos nema povezane ODO ormarice.</p>
+                    <p class="text-sm text-slate-500">ODF još nema povezane ODO ormariće.</p>
                 @endforelse
                 </div>
             </section>
         @empty
-            <p class="text-sm text-slate-500">Projekat jos nema ODF lokaciju.</p>
+            <p class="text-sm text-slate-500">Projekat još nema ODF lokaciju.</p>
         @endforelse
         </div>
-        <div class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">Trase: {{ $project->routes->count() }} / Ukupna duzina: {{ number_format($project->routes->sum('duct_length_m')) }} m</div>
+        <div class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">Trase: {{ $project->routes->count() }} / Ukupna dužina: {{ number_format($project->routes->sum('duct_length_m')) }} m</div>
     </article>
 @empty
     <div class="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Nema projekata.</div>

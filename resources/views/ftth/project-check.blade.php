@@ -23,7 +23,7 @@
         @forelse($checks as [$level, $message])
             <div class="rounded-md border px-3 py-2 text-sm {{ $level === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-amber-200 bg-amber-50 text-amber-800' }}">{{ $message }}</div>
         @empty
-            <div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Nisu pronadjene tehnicke greske.</div>
+            <div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Nisu pronadjene tehničke greske.</div>
         @endforelse
         </div>
     </article>

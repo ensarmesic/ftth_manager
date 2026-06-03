@@ -19,8 +19,8 @@ return new class extends Migration
 
         Schema::table('routes', function (Blueprint $table) {
             $table->string('installation_type')->default('underground')->after('route_type');
-            $table->string('microduct_type')->default('14/10')->after('microduct_count');
-            $table->unsignedInteger('fiber_count')->default(12)->after('fiber_length_m');
+            $table->string('microduct_type')->nullable()->after('microduct_count');
+            $table->unsignedInteger('fiber_count')->nullable()->after('fiber_length_m');
         });
 
     }

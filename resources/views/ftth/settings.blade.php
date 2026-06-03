@@ -7,12 +7,12 @@
 <section class="grid gap-5 lg:grid-cols-[minmax(0,560px)_1fr]">
     <form id="display-settings" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="font-bold">Prikaz aplikacije</h2>
-        <p class="mt-1 text-sm text-slate-500">Postavke se cuvaju u ovom browseru.</p>
+        <p class="mt-1 text-sm text-slate-500">Postavke se čuvaju u ovom browseru.</p>
         <div class="mt-5 grid gap-4">
             <label class="flex items-center justify-between gap-4 rounded-md border border-slate-200 p-3 text-sm"><span>Kompaktni prikaz tabela</span><input type="checkbox" name="compactTables"></label>
             <label class="flex items-center justify-between gap-4 rounded-md border border-slate-200 p-3 text-sm"><span>Smanjene oznake na mapi</span><input type="checkbox" name="smallMarkers" checked></label>
             <label class="flex items-center justify-between gap-4 rounded-md border border-slate-200 p-3 text-sm"><span>Prikazi brojac obavjestenja u headeru</span><input type="checkbox" name="notifications" checked></label>
-            <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj postavke</button>
+            <button class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj postavke</button>
             <div id="settings-status" class="text-sm font-semibold text-emerald-700"></div>
         </div>
     </form>
@@ -37,7 +37,7 @@ settingsForm.addEventListener('submit', event => {
     document.documentElement.classList.toggle('compact-tables', next.compactTables);
     document.documentElement.classList.toggle('small-markers', next.smallMarkers);
     document.documentElement.classList.toggle('hide-header-notifications', !next.notifications);
-    document.getElementById('settings-status').textContent = 'Postavke su sacuvane.';
+    document.getElementById('settings-status').textContent = 'Postavke su sačuvane.';
 });
 </script>
 @endpush

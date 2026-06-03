@@ -4,11 +4,11 @@
 
 - Pregledani aplikacijski PHP fajlovi, migracije, rute, Blade view fajlovi, frontend skripta i testovi.
 - Uklonjeni zastarjeli zadaci iz izvjestaja za `2026-06-01`; zavrsene stavke su prebacene u historiju.
-- Sprijeceno povezivanje ODF-a, ODO ormarica, kuce, korisnika ili trase sa zapisom iz drugog projekta.
+- Spriječeno povezivanje ODF-a, ODO ormarića, kuće, korisnika ili trase sa zapisom iz drugog projekta.
 - Dodana zajednicka backend provjera `ensureBelongsToProject`.
 - Spremanje kompletnog plana sa mape stavljeno je u DB transakciju.
-- Spremanje predlozenih ODO ormarica i pripadajucih drop trasa stavljeno je u DB transakciju.
-- Popravljen JSON odgovor za AJAX validacijske greske na web rutama: sada se uredno vraca HTTP `422`.
+- Spremanje predloženih ODO ormarića i pripadajućih drop trasa stavljeno je u DB transakciju.
+- Popravljen JSON odgovor za AJAX validacijske greske na web rutama: sada se uredno vraća HTTP `422`.
 - Dodani regresioni testovi za zabranu veza izmedju projekata i rollback plana kada jedan zapis nije ispravan.
 
 ## Uklonjeno kao nepotrebno

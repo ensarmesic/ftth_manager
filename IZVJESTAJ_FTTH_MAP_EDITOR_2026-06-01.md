@@ -6,31 +6,31 @@
 - Uklonjeni hardkodirani demo redovi iz dashboard tabela.
 - Dashboard prikazuje samo stvarne podatke iz baze i nule kada podataka nema.
 - Satelitska Esri podloga je podrazumijevana; OSM je dostupan kao opcija.
-- Mapa je organizovana u slojeve: ODF, ODO, kuce, trase, outline trase, cvorovi, crtanje, mjerenje i snap.
+- Mapa je organizovana u slojeve: ODF, ODO, kuće, trase, outline trase, cvorovi, crtanje, mjerenje i snap.
 - Dodan `MapEditor` objekat u `public/js/ftth-map.js`.
 - Aktivni alat mijenja stil, cursor i statusnu poruku.
-- Dodani alati: select, dodaj ODF, dodaj ODO, dodaj kucu, nacrtaj trasu, mjerenje, uredi trasu, obrisi tacku i obrisi element.
+- Dodani alati: select, dodaj ODF, dodaj ODO, dodaj kuću, nacrtaj trasu, mjerenje, uredi trasu, obriši tačku i obriši element.
 - Dodan status bar sa aktivnim alatom, brojem tacaka, duzinom i snap stanjem.
-- Crtanje trase radi tacku po tacku, uz privremeni isprekidani segment do kursora.
-- `Double click` zavrsava crtanje; `ESC` prekida operaciju; `Backspace` uklanja zadnju tacku.
+- Crtanje trase radi tačku po tačku, uz privremeni isprekidani segment do kursora.
+- `Double click` završava crtanje; `ESC` prekida operaciju; `Backspace` uklanja zadnju tačku.
 - Backend racuna stvarnu duzinu trase iz koordinata pri prvom snimanju.
 - Nova trasa se odmah prikazuje na mapi, u tabeli i statistikama bez reload-a.
 - Mjerenje radi nezavisno od baze i ne snima podatke.
 - Edit geometrije trase prikazuje draggable cvorove.
-- Klik na segment trase u edit modu dodaje novu lomnu tacku.
-- Brisanje tacke ne dozvoljava da trasa ostane sa manje od dvije tacke.
-- Izmjene geometrije se snimaju tek klikom na `Sacuvaj izmjene`.
+- Klik na segment trase u edit modu dodaje novu lomnu tačku.
+- Brisanje tačke ne dozvoljava da trasa ostane sa manje od dvije tačke.
+- Izmjene geometrije se snimaju tek klikom na `Sačuvaj izmjene`.
 - Dodan PATCH endpoint `routes.geometry.update`; backend ponovo racuna duzinu nakon editovanja.
 - Brisanje trase trazi potvrdu i podrzava JSON odgovor.
-- Dodan osnovni snap radijusa 12 px na ODF, ODO, kuce i postojece cvorove trase.
+- Dodan osnovni snap radijusa 12 px na ODF, ODO, kuće i postojece cvorove trase.
 - Dodani toast prikazi za uspjeh i server greske.
 - Dodano upozorenje prije napustanja stranice kada postoje nespremljene izmjene.
-- Popravljen nestanak Leaflet mape: promjena alata vise ne brise obaveznu `leaflet-container` klasu.
+- Popravljen nestanak Leaflet mape: promjena alata više ne briše obaveznu `leaflet-container` klasu.
 - Dodan modal za kreiranje trase sa nazivom, tipom, ODF/ODO vezom, mikrocijevi, kablom, brojem tacaka i automatskom duzinom.
 - Isti modal radi u edit rezimu za podatke postojece trase.
-- Dodan property panel za odabranu trasu: `Uredi podatke`, `Uredi geometriju`, `Obrisi`.
-- Dodan property panel za ODF/ODO/kucu: `Pomjeri`.
-- Dodano sigurno pomjeranje markera: marker je draggable tek nakon akcije, a nova pozicija ide serveru tek klikom na `Sacuvaj poziciju`; `Ponisti` vraca staru poziciju.
+- Dodan property panel za odabranu trasu: `Uredi podatke`, `Uredi geometriju`, `Obriši`.
+- Dodan property panel za ODF/ODO/kuću: `Pomjeri`.
+- Dodano sigurno pomjeranje markera: marker je draggable tek nakon akcije, a nova pozicija ide serveru tek klikom na `Sačuvaj poziciju`; `Poništi` vraća staru poziciju.
 - `ESC` zatvara modal i prekida crtanje, mjerenje, editovanje ili pomjeranje.
 
 ## Dodana ruta
@@ -58,7 +58,7 @@ Naziv rute: `routes.geometry.update`.
 
 ## Naknadno zavrseno
 
-- Dodano brisanje ODF/ODO/kuce iz property panela uz potvrdu.
+- Dodano brisanje ODF/ODO/kuće iz property panela uz potvrdu.
 - Dodana napomena trase u bazu, API i modal.
 - Doradjen select/highlight stil odabranih markera i trase.
 - Osvjezavanje tabele i statistike nakon brisanja ili editovanja trase radi bez reload-a.
