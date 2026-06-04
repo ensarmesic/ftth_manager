@@ -909,6 +909,7 @@
             L.marker(point, { icon: markerIcon("suggest", "ODO", color) })
                 .bindTooltip(`${cabinet.name}: ${cabinet.house_count}/12 | score ${cabinet.score}`)
                 .addTo(MapEditor.layers.autoPlanMarkers);
+            const dropPaths = new Map((cabinet.drop_preview || []).map((drop) => [Number(drop.house_id), drop.path]));
             (cabinet.houses || []).forEach((house) => {
                 L.circleMarker([house.latitude, house.longitude], {
                     radius: 7,
@@ -917,7 +918,7 @@
                     fillColor: color,
                     fillOpacity: 0.35,
                 }).bindTooltip(`${house.label} | krak ${house.branch_index} | ${house.chainage_m ?? "-"} m`).addTo(MapEditor.layers.autoPlanHighlights);
-                L.polyline([point, [house.latitude, house.longitude]], {
+                L.polyline(dropPaths.get(Number(house.id)) || [point, [house.latitude, house.longitude]], {
                     color,
                     weight: 1.4,
                     opacity: 0.8,

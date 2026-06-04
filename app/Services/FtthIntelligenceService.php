@@ -145,8 +145,9 @@ class FtthIntelligenceService
                     if (empty($cabinetPlan['cable_type']) || empty($cabinetPlan['microduct_type'])) {
                         throw new InvalidArgumentException('Drop trase nisu kreirane jer cable_type ili microduct_type nisu sigurni.');
                     }
+                    $dropPreviewByHouse = collect($cabinetPlan['drop_preview'] ?? [])->keyBy('house_id');
                     foreach ($houses->values() as $index => $house) {
-                        $path = [[(float) $cabinet->latitude, (float) $cabinet->longitude], [(float) $house['latitude'], (float) $house['longitude']]];
+                        $path = $dropPreviewByHouse->get($house['id'])['path'] ?? [[(float) $cabinet->latitude, (float) $cabinet->longitude], [(float) $house['latitude'], (float) $house['longitude']]];
                         $length = $this->polylineLength($path);
                         NetworkRoute::create([
                             'project_id' => $project->id,
@@ -422,7 +423,7 @@ class FtthIntelligenceService
             if (! $shouldStart && $current->isNotEmpty()) {
                 $candidate = $current->push($house);
                 $odoPoint = $this->odoPointForGroup($candidate, $branch);
-                $maxDistance = $candidate->max(fn (House $candidateHouse) => $this->distanceMeters($odoPoint['lat'], $odoPoint['lng'], (float) $candidateHouse->latitude, (float) $candidateHouse->longitude));
+                $maxDistance = $candidate->max(fn (House $candidateHouse) => $this->dropPreviewForHouse($candidateHouse, $odoPoint, $branch)['length_m']);
                 $current->pop();
                 if ($maxDistance > $params['max_house_to_odo_m']) {
                     $shouldStart = true;
@@ -446,7 +447,7 @@ class FtthIntelligenceService
     {
         $odoPoint = $this->odoPointForGroup($houses, $branch);
         $nearestOdf = $this->nearestOdf($odoPoint, $odfs);
-        $distances = $houses->map(fn (House $house) => $this->distanceMeters($odoPoint['lat'], $odoPoint['lng'], (float) $house->latitude, (float) $house->longitude));
+        $distances = $houses->map(fn (House $house) => $this->dropPreviewForHouse($house, $odoPoint, $branch)['length_m']);
         $houseCount = $houses->count();
         $splitterCount = $this->splitterCount($houseCount);
         $utilization = round(($houseCount / 12) * 100, 1);
@@ -493,13 +494,32 @@ class FtthIntelligenceService
             'distance_to_odf_m' => $nearestOdf['distance_m'],
             'warnings' => $warnings,
             'score' => $this->odoScore($averageDistance, $maxDistance, $utilization, count($warnings), 0),
-            'drop_preview' => $houses->map(fn (House $house) => [
-                'from' => ['lat' => $odoPoint['lat'], 'lng' => $odoPoint['lng']],
-                'to' => ['lat' => (float) $house->latitude, 'lng' => (float) $house->longitude],
-                'house_id' => $house->id,
-                'length_m' => (int) round($this->distanceMeters($odoPoint['lat'], $odoPoint['lng'], (float) $house->latitude, (float) $house->longitude)),
-            ])->values()->all(),
+            'drop_preview' => $houses->map(fn (House $house) => $this->dropPreviewForHouse($house, $odoPoint, $branch))->values()->all(),
             'houses' => $houses->map(fn (House $house) => $this->housePayload($house, $odoPoint))->values()->all(),
+        ];
+    }
+
+    private function dropPreviewForHouse(House $house, array $odoPoint, array $branch): array
+    {
+        $path = [
+            [$odoPoint['lat'], $odoPoint['lng']],
+            [(float) $house->latitude, (float) $house->longitude],
+        ];
+
+        if ($branch['route']) {
+            $odoProjection = $this->projectPointToRoute((float) $odoPoint['lat'], (float) $odoPoint['lng'], $branch['route']);
+            $houseProjection = $this->projectPointToRoute((float) $house->latitude, (float) $house->longitude, $branch['route']);
+            $path = $this->routePathBetween($branch['route'], $odoProjection, $houseProjection);
+            $path[] = [(float) $house->latitude, (float) $house->longitude];
+            $path = $this->compactPath($path);
+        }
+
+        return [
+            'from' => ['lat' => $odoPoint['lat'], 'lng' => $odoPoint['lng']],
+            'to' => ['lat' => (float) $house->latitude, 'lng' => (float) $house->longitude],
+            'house_id' => $house->id,
+            'path' => $path,
+            'length_m' => $this->polylineLength($path),
         ];
     }
 
@@ -569,12 +589,64 @@ class FtthIntelligenceService
                     'lng' => $originLng + ($x / (111320 * cos(deg2rad($originLat)))),
                     'distance_m' => $distance,
                     'chainage_m' => $chainage + ($segmentLength * $t),
+                    'segment_index' => $i,
                 ];
             }
             $chainage += $segmentLength;
         }
 
-        return $best ?? ['lat' => $lat, 'lng' => $lng, 'distance_m' => INF, 'chainage_m' => 0];
+        return $best ?? ['lat' => $lat, 'lng' => $lng, 'distance_m' => INF, 'chainage_m' => 0, 'segment_index' => 0];
+    }
+
+    private function routePathBetween(NetworkRoute $route, array $start, array $end): array
+    {
+        $points = array_values($route->path ?? []);
+        if (count($points) < 2) {
+            return [[$start['lat'], $start['lng']], [$end['lat'], $end['lng']]];
+        }
+
+        $reverse = $start['chainage_m'] > $end['chainage_m'];
+        $from = $reverse ? $end : $start;
+        $to = $reverse ? $start : $end;
+
+        $path = [[$from['lat'], $from['lng']]];
+        for ($i = max(1, (int) $from['segment_index']); $i < count($points); $i++) {
+            $vertexChainage = $this->routeVertexChainage($points, $i);
+            if ($vertexChainage <= $from['chainage_m'] + 0.01) {
+                continue;
+            }
+            if ($vertexChainage >= $to['chainage_m'] - 0.01) {
+                break;
+            }
+            $path[] = [(float) $points[$i][0], (float) $points[$i][1]];
+        }
+        $path[] = [$to['lat'], $to['lng']];
+
+        return $reverse ? array_reverse($this->compactPath($path)) : $this->compactPath($path);
+    }
+
+    private function routeVertexChainage(array $points, int $vertexIndex): float
+    {
+        $chainage = 0.0;
+        for ($i = 1; $i <= $vertexIndex && $i < count($points); $i++) {
+            $chainage += $this->distanceMeters((float) $points[$i - 1][0], (float) $points[$i - 1][1], (float) $points[$i][0], (float) $points[$i][1]);
+        }
+
+        return $chainage;
+    }
+
+    private function compactPath(array $path): array
+    {
+        $compact = [];
+        foreach ($path as $point) {
+            $normalized = [round((float) $point[0], 7), round((float) $point[1], 7)];
+            $last = $compact[array_key_last($compact)] ?? null;
+            if (! $last || abs($last[0] - $normalized[0]) > 0.0000001 || abs($last[1] - $normalized[1]) > 0.0000001) {
+                $compact[] = $normalized;
+            }
+        }
+
+        return $compact;
     }
 
     private function toMeters(float $lat, float $lng, float $originLat, float $originLng): array

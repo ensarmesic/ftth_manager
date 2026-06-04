@@ -26,14 +26,16 @@
    <div id="map-move-actions" class="map-edit-actions hidden"><button type="button" data-action="save-position">Sačuvaj poziciju</button><button type="button" data-action="cancel-position">Poništi</button></div>
    <div id="map-draw-actions" class="map-edit-actions hidden"><button type="button" data-action="finish-route" disabled>Završi trasu</button><button type="button" data-action="undo-route-point">Undo tačka</button><button type="button" data-action="cancel-route">Odustani</button></div>
    <div id="map-toast" class="map-toast hidden"></div>
-   <div class="auto-preview" style="left:14px;right:auto;bottom:88px;">
-    <b>Snap</b>
-    <label><input type="checkbox" data-snap-option="odf" checked> ODF</label>
-    <label><input type="checkbox" data-snap-option="odo" checked> ODO</label>
-    <label><input type="checkbox" data-snap-option="house" checked> Kuce</label>
-    <label><input type="checkbox" data-snap-option="route" checked> Cvorovi trase</label>
+   <div class="map-overlay-stack">
+    <div class="map-legend"><h6>LEGENDA</h6><div><span class="legend-symbol text-blue-600">ODF</span></div><div><span class="legend-symbol text-green-600">ODO</span></div><div><span class="legend-symbol text-orange-500">K</span>Kuce</div><div><span class="legend-line main"></span>Glavna trasa</div><div><span class="legend-line secondary"></span>Sekundarna trasa</div><div><span class="legend-line drop"></span>Drop trasa</div></div>
+    <div class="snap-panel">
+     <b>SNAP</b>
+     <label><input type="checkbox" data-snap-option="odf" checked><span>ODF</span></label>
+     <label><input type="checkbox" data-snap-option="odo" checked><span>ODO</span></label>
+     <label><input type="checkbox" data-snap-option="house" checked><span>Kuce</span></label>
+     <label><input type="checkbox" data-snap-option="route" checked><span>Cvorovi</span></label>
+    </div>
    </div>
-   <div class="map-legend"><h6>LEGENDA</h6><div><span class="legend-symbol text-blue-600">ODF</span></div><div><span class="legend-symbol text-green-600">ODO</span></div><div><span class="legend-symbol text-orange-500">K</span></div><div><span class="legend-line main"></span>Glavna trasa</div><div><span class="legend-line secondary"></span>Sekundarna trasa</div><div><span class="legend-line drop"></span>Drop trasa</div></div>
   </section>
   <div class="bottom-grid grid min-h-0 gap-2 md:grid-cols-2 lg:grid-cols-[1.16fr_.82fr_150px] xl:grid-cols-[1.16fr_.82fr_160px]">
    <section class="panel bottom-card overflow-hidden"><div class="border-b px-4 py-3 text-xs font-bold">TRASE</div><div class="table-scroll overflow-auto"><table class="data-table w-full text-left tiny"><thead><tr class="text-slate-600"><th>#</th><th>Od</th><th>Do</th><th>Tip</th><th>Dužina</th><th>MC</th><th>Kabl</th></tr></thead><tbody id="dashboard-routes-body">@forelse($routes->take(5) as $route)<tr class="border-t"><td>{{ $loop->iteration }}</td><td>{{ $route->odf->name ?? '-' }}</td><td>{{ $route->cabinet->name ?? '-' }}</td><td>{{ $route->route_type }}</td><td>{{ number_format($route->duct_length_m) }} m</td><td>{{ $route->microduct_type }}</td><td>{{ $route->fiber_count }} niti</td></tr>@empty<tr data-empty-row class="border-t"><td colspan="7" class="px-4 py-6 text-center text-slate-400">Nema trasa.</td></tr>@endforelse</tbody></table></div><div class="p-3 text-center"><a href="{{ route('routes.index') }}" class="inline-block rounded border px-10 py-2 tiny font-semibold text-blue-600">Prikaži sve trase</a></div></section>

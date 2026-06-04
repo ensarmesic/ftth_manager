@@ -41,6 +41,10 @@
     .ftth-tag.cabinet { min-width: 38px; height: 18px; border-radius: 5px; background: #65A845; }
     .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #81C342; font-size: 0; }
     .ftth-tag.suggest { min-width: 46px; height: 20px; border-radius: 5px; background: #f59e0b; color: #111827; }
+    .cad-popup .leaflet-popup-content-wrapper { border-radius: 6px; padding: 0; }
+    .cad-popup .leaflet-popup-content { width: 92px !important; margin: 0; }
+    .cad-popup .leaflet-popup-close-button { width: 16px; height: 16px; padding: 0; font-size: 14px; line-height: 14px; }
+    .cad-popup .leaflet-popup-tip { width: 10px; height: 10px; }
     .route-label {
         border: 0;
         background: transparent;
@@ -885,10 +889,10 @@ function addRouteLabel(points, name, track = true) {
 }
 function showCadContext(latlng, title, actions) {
     cadContext = actions;
-    const buttons = actions.map((action, index) => `<button type="button" data-cad-action="${index}" class="block w-full rounded px-3 py-2 text-left text-sm font-semibold hover:bg-zinc-100">${action.label}</button>`).join('');
-    L.popup()
+    const buttons = actions.map((action, index) => `<button type="button" data-cad-action="${index}" class="block w-full rounded px-2 py-1 text-left text-[10px] font-semibold leading-tight hover:bg-zinc-100">${action.label}</button>`).join('');
+    L.popup({ closeButton: true, minWidth: 82, maxWidth: 110, className: 'cad-popup' })
         .setLatLng(latlng)
-        .setContent(`<div class="min-w-[150px]"><div class="border-b border-zinc-200 px-3 py-2 text-sm font-semibold">${title}</div><div class="p-1">${buttons}</div></div>`)
+        .setContent(`<div class="w-[92px]"><div class="border-b border-zinc-200 px-2 py-1 text-[10px] font-bold leading-tight">${title}</div><div class="p-0.5">${buttons}</div></div>`)
         .openOn(map);
 }
 map.on('popupopen', event => {
@@ -924,7 +928,7 @@ function registerDraftContext(marker, title) {
         L.DomEvent.stop(event);
         showCadContext(event.latlng, title, [
             { label: 'Obrisi', run: () => removeDraftElement(marker) },
-            { label: 'Premjesti: povuci marker misem', run: () => marker.dragging?.enable() },
+            { label: 'Pomjeri', run: () => marker.dragging?.enable() },
         ]);
     };
     marker.on('contextmenu', openMenu);
@@ -945,7 +949,7 @@ function registerHouseContext(marker) {
         L.DomEvent.stop(event);
         showCadContext(event.latlng, 'Kuca', [
             { label: 'Obrisi', run: () => removeDraftHouse(marker) },
-            { label: 'Premjesti: povuci marker misem', run: () => marker.dragging?.enable() },
+            { label: 'Pomjeri', run: () => marker.dragging?.enable() },
         ]);
     };
     marker.on('contextmenu', openMenu);
@@ -1036,7 +1040,7 @@ function registerSavedContext(layer, title, url, positionUrl = null) {
         const actions = [
             { label: 'Obrisi', run: () => deleteSavedElement(url, layer) },
         ];
-        if (positionUrl) actions.push({ label: 'Premjesti: povuci marker misem', run: () => triggerLayer.dragging?.enable() });
+        if (positionUrl) actions.push({ label: 'Pomjeri', run: () => triggerLayer.dragging?.enable() });
         showCadContext(event.latlng, title, actions);
     };
     triggerLayer.on('contextmenu', openMenu);
@@ -1442,10 +1446,13 @@ function renderAutoOdoPlan(plan) {
             .bindTooltip(`${cabinet.confirmed_name || cabinet.name} · ${cabinet.house_count}/12`, { direction: 'top', offset: [0, -10] })
             .bindPopup(`<b>${cabinet.confirmed_name || cabinet.name}</b><br>Krak ${cabinet.branch_index}<br>${cabinet.house_count}/12 kuca<br>ODF: ${cabinet.nearest_odf_name || 'nema'}`)
             .addTo(map), 'preview');
-        const dropLines = (cabinet.drop_preview || []).map(drop => trackLayer(L.polyline([
-            [drop.from.lat, drop.from.lng],
-            [drop.to.lat, drop.to.lng],
-        ], { color, weight: 1.7, opacity: .75, dashArray: '5 7' }).addTo(map), 'drops'));
+        const dropLines = (cabinet.drop_preview || []).map(drop => {
+            const path = drop.path?.length ? drop.path : [
+                [drop.from.lat, drop.from.lng],
+                [drop.to.lat, drop.to.lng],
+            ];
+            return trackLayer(L.polyline(path, { color, weight: 1.7, opacity: .75, dashArray: '5 7' }).addTo(map), 'drops');
+        });
         (cabinet.houses || []).forEach(house => {
             const houseMarker = houseMarkerByKey[pointKey(house.latitude, house.longitude)];
             if (houseMarker) houseMarker.setIcon(icon('house', '', color));

@@ -246,6 +246,24 @@ class FtthIntelligenceTest extends TestCase
         }
     }
 
+    public function test_drop_preview_follows_existing_route_geometry(): void
+    {
+        $project = Project::create(['name' => 'Drop po trasi', 'code' => 'DPT', 'location' => 'Test', 'status' => 'planning']);
+        $this->branchRoute($project, 'Sekundarni krak 1', [
+            [44.4490, 18.6400],
+            [44.4490, 18.6420],
+            [44.4510, 18.6420],
+        ]);
+        House::create(['project_id' => $project->id, 'label' => 'Pocetak', 'latitude' => 44.44905, 'longitude' => 18.6402, 'status' => 'planned']);
+        House::create(['project_id' => $project->id, 'label' => 'Kraj', 'latitude' => 44.4508, 'longitude' => 18.64205, 'status' => 'planned']);
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project), ['max_house_to_odo_m' => 400, 'max_gap_m' => 500])->assertOk()->json();
+        $paths = collect($plan['cabinets'][0]['drop_preview'])->pluck('path');
+
+        $this->assertTrue($paths->contains(fn (array $path) => count($path) > 2));
+        $this->assertTrue($paths->flatten(1)->contains(fn (array $point) => abs($point[0] - 44.4490) < 0.000001 && abs($point[1] - 18.6420) < 0.000001));
+    }
+
     public function test_confirm_rejects_cross_project_odf_and_cross_branch_house(): void
     {
         $project = Project::create(['name' => 'Confirm', 'code' => 'CF', 'location' => 'Test', 'status' => 'planning']);
