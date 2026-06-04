@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -31,7 +32,7 @@ class FtthController extends Controller
         $activeProject = $projects->first();
         $projectQuery = fn ($query) => $activeProject ? $query->where('project_id', $activeProject->id) : $query->whereRaw('1 = 0');
         $odfs = $projectQuery(Odf::query())->withCount('cabinets')->get();
-        $cabinets = $projectQuery(Cabinet::query())->with(['project', 'odf'])->withCount(['subscribers', 'houses'])->orderBy('name')->get();
+        $cabinets = $projectQuery(Cabinet::query())->with(['project', 'odf', 'parentCabinet'])->withCount(['subscribers', 'houses'])->orderBy('name')->get();
         $houses = $projectQuery(House::query())->with('cabinet')->get();
         $subscribers = $projectQuery(Subscriber::query())->with('cabinet')->latest()->take(5)->get();
         $routes = $projectQuery(NetworkRoute::query())->with(['odf', 'cabinet'])->latest()->get();
@@ -51,9 +52,9 @@ class FtthController extends Controller
             'issues' => $issues,
             'mapData' => [
                 'odfs' => $odfs->map(fn (Odf $odf) => ['id' => $odf->id, 'name' => $odf->name, 'address' => $odf->address, 'ports' => $odf->port_count, 'fibers' => $odf->fiber_capacity, 'cabinets' => $odf->cabinets_count, 'lat' => (float) $odf->latitude, 'lng' => (float) $odf->longitude]),
-                'cabinets' => $cabinets->map(fn (Cabinet $cabinet) => ['id' => $cabinet->id, 'name' => $cabinet->name, 'address' => $cabinet->address, 'odf' => $cabinet->odf->name ?? 'Nije povezano', 'used' => $cabinet->houses_count, 'capacity' => 12, 'splitters' => $cabinet->splitter_count, 'lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude]),
+                'cabinets' => $cabinets->map(fn (Cabinet $cabinet) => ['id' => $cabinet->id, 'name' => $cabinet->name, 'address' => $cabinet->address, 'odf' => $cabinet->odf->name ?? 'Nije povezano', 'parent_cabinet_id' => $cabinet->parent_cabinet_id, 'parent_cabinet' => $cabinet->parentCabinet?->name, 'fed_from' => $cabinet->parentCabinet?->name ?? ($cabinet->odf->name ?? 'Nije povezano'), 'used' => $cabinet->houses_count, 'capacity' => 12, 'splitters' => $cabinet->splitter_count, 'lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude]),
                 'houses' => $houses->map(fn (House $house) => ['id' => $house->id, 'name' => $house->label, 'address' => $house->address, 'cabinet_id' => $house->cabinet_id, 'cabinet' => $house->cabinet->name ?? 'Nije povezano', 'status' => $house->status, 'lat' => (float) $house->latitude, 'lng' => (float) $house->longitude]),
-                'routes' => $routes->map(fn (NetworkRoute $route) => ['id' => $route->id, 'name' => $route->name, 'from' => $route->odf->name ?? '-', 'to' => $route->cabinet->name ?? '-', 'cabinet_id' => $route->cabinet_id, 'type' => $route->route_type, 'length' => $route->duct_length_m, 'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'note' => $route->note, 'path' => $route->path ?: ($route->odf && $route->cabinet ? [[(float) $route->odf->latitude, (float) $route->odf->longitude], [(float) $route->cabinet->latitude, (float) $route->cabinet->longitude]] : [])]),
+                'routes' => $routes->map(fn (NetworkRoute $route) => ['id' => $route->id, 'name' => $route->name, 'from' => $this->routeStartLabel($route), 'to' => $route->cabinet->name ?? '-', 'odf_id' => $route->odf_id, 'from_type' => $route->from_type, 'from_id' => $route->from_id, 'cabinet_id' => $route->cabinet_id, 'type' => $route->route_type, 'length' => $route->duct_length_m, 'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'note' => $route->note, 'path' => $route->path ?: ($route->odf && $route->cabinet ? [[(float) $route->odf->latitude, (float) $route->odf->longitude], [(float) $route->cabinet->latitude, (float) $route->cabinet->longitude]] : [])]),
             ],
             'stats' => [
                 'projects' => Project::count(),
@@ -70,6 +71,7 @@ class FtthController extends Controller
                 'microduct_10_8' => $routes->where('microduct_type', '10/8')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
                 'fiber_4' => $routes->where('fiber_count', 4)->sum('fiber_length_m'),
                 'fiber_12' => $routes->where('fiber_count', 12)->sum('fiber_length_m'),
+                'fiber_24' => $routes->where('fiber_count', 24)->sum('fiber_length_m'),
                 'issues_errors' => $validationItems->where('level', 'error')->count(),
                 'issues_warnings' => $validationItems->where('level', 'warning')->count(),
             ],
@@ -153,8 +155,8 @@ class FtthController extends Controller
             ->whereNotNull('longitude')
             ->get();
 
-        $cabinets = Cabinet::with(['project', 'odf'])
-            ->withCount('subscribers')
+        $cabinets = Cabinet::with(['project', 'odf', 'parentCabinet'])
+            ->withCount(['houses', 'subscribers'])
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->get();
@@ -192,6 +194,7 @@ class FtthController extends Controller
                 ]),
                 'odfs' => $odfs->map(fn (Odf $odf) => [
                     'id' => $odf->id,
+                    'project_id' => $odf->project_id,
                     'name' => $odf->name,
                     'project' => $odf->project->name,
                     'address' => $odf->address,
@@ -205,12 +208,15 @@ class FtthController extends Controller
                     'name' => $cabinet->name,
                     'project' => $cabinet->project->name,
                     'odf_id' => $cabinet->odf_id,
+                    'parent_cabinet_id' => $cabinet->parent_cabinet_id,
                     'odf' => $cabinet->odf->name ?? 'Nije povezano',
+                    'parent_cabinet' => $cabinet->parentCabinet?->name,
+                    'fed_from' => $cabinet->parentCabinet?->name ?? ($cabinet->odf->name ?? 'Nije povezano'),
                     'address' => $cabinet->address,
-                    'capacity' => $cabinet->capacity,
-                    'used_ports' => $cabinet->used_ports,
-                    'free_ports' => max($cabinet->capacity - $cabinet->used_ports, 0),
-                    'utilization' => $cabinet->utilization,
+                    'capacity' => 12,
+                    'used_ports' => $cabinet->houses_count,
+                    'free_ports' => max(12 - $cabinet->houses_count, 0),
+                    'utilization' => (int) round($cabinet->houses_count / 12 * 100),
                     'lat' => (float) $cabinet->latitude,
                     'lng' => (float) $cabinet->longitude,
                 ]),
@@ -235,6 +241,11 @@ class FtthController extends Controller
                     'fiber_count' => $route->fiber_count,
                     'duct_length_m' => $route->duct_length_m,
                     'fiber_length_m' => $route->fiber_length_m,
+                    'from' => $this->routeStartLabel($route),
+                    'to' => $route->cabinet?->name ?? '-',
+                    'length' => $route->duct_length_m,
+                    'microduct' => $route->microduct_type,
+                    'fibers' => $route->fiber_count,
                     'odf_id' => $route->odf_id,
                     'cabinet_id' => $route->cabinet_id,
                     'from_type' => $route->from_type,
@@ -289,7 +300,14 @@ class FtthController extends Controller
     public function fiberSchema(): View
     {
         $projects = Project::with([
-            'odfs.cabinets' => fn ($query) => $query->with(['houses' => fn ($houseQuery) => $houseQuery->orderBy('label')])->withCount(['houses', 'subscribers'])->orderBy('name'),
+            'odfs.cabinets' => fn ($query) => $query
+                ->whereNull('parent_cabinet_id')
+                ->with([
+                    'houses' => fn ($houseQuery) => $houseQuery->orderBy('label'),
+                    'childCabinets' => fn ($childQuery) => $childQuery->with(['houses' => fn ($houseQuery) => $houseQuery->orderBy('label')])->withCount(['houses', 'subscribers'])->orderBy('name'),
+                ])
+                ->withCount(['houses', 'subscribers'])
+                ->orderBy('name'),
             'routes' => fn ($query) => $query->orderBy('route_type')->orderBy('name'),
         ])->orderBy('name')->get();
 
@@ -429,7 +447,8 @@ class FtthController extends Controller
     public function cabinets(): View
     {
         return view('ftth.cabinets', [
-            'cabinets' => Cabinet::with(['project', 'odf'])->withCount('subscribers')->latest()->paginate(12),
+            'cabinets' => Cabinet::with(['project', 'odf', 'parentCabinet', 'childCabinets'])->withCount(['houses', 'subscribers'])->latest()->paginate(12),
+            'parentCabinets' => Cabinet::with('project')->orderBy('name')->get(),
             'projects' => Project::orderBy('name')->get(),
             'odfs' => Odf::with('project')->orderBy('name')->get(),
         ]);
@@ -441,6 +460,7 @@ class FtthController extends Controller
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
+            'parent_cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
             'address' => ['required', 'max:255'],
             'splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
@@ -449,12 +469,14 @@ class FtthController extends Controller
             'longitude' => $this->longitudeRules(),
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
+        $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
         $cabinet = Cabinet::create($data);
 
         if ($request->expectsJson()) {
             return response()->json(['message' => 'Ormarić je dodat.', 'cabinet' => [
                 'id' => $cabinet->id, 'name' => $cabinet->name, 'address' => $cabinet->address,
-                'odf' => $cabinet->odf?->name ?? 'Nije povezano', 'used' => 0, 'capacity' => $cabinet->capacity,
+                'odf' => $cabinet->odf?->name ?? 'Nije povezano', 'parent_cabinet_id' => $cabinet->parent_cabinet_id,
+                'parent_cabinet' => $cabinet->parentCabinet?->name, 'fed_from' => $cabinet->parentCabinet?->name ?? ($cabinet->odf?->name ?? 'Nije povezano'), 'used' => 0, 'capacity' => $cabinet->capacity,
                 'splitters' => $cabinet->splitter_count, 'lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude,
             ]], 201);
         }
@@ -484,6 +506,7 @@ class FtthController extends Controller
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
+            'parent_cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
             'address' => ['required', 'max:255'],
             'splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
@@ -492,6 +515,10 @@ class FtthController extends Controller
             'longitude' => $this->longitudeRules(),
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
+        $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
+        if ((int) ($data['parent_cabinet_id'] ?? 0) === (int) $cabinet->id) {
+            return back()->withErrors(['parent_cabinet_id' => 'Ormarić ne može napajati sam sebe.'])->withInput();
+        }
         if ($cabinet->houses()->count() > $data['splitter_count'] * $data['ports_per_splitter']) {
             return back()->withErrors(['splitter_count' => 'Novi kapacitet je manji od broja dodijeljenih kuća.'])->withInput();
         }
@@ -599,6 +626,27 @@ class FtthController extends Controller
         ]);
 
         $plan = json_decode($data['plan'], true);
+        Validator::make($plan ?? [], [
+            'odfs' => ['nullable', 'array'],
+            'odfs.*.lat' => $this->latitudeRules(true),
+            'odfs.*.lng' => $this->longitudeRules(true),
+            'cabinets' => ['nullable', 'array'],
+            'cabinets.*.lat' => $this->latitudeRules(true),
+            'cabinets.*.lng' => $this->longitudeRules(true),
+            'houses' => ['nullable', 'array'],
+            'houses.*.lat' => $this->latitudeRules(true),
+            'houses.*.lng' => $this->longitudeRules(true),
+            'routes' => ['nullable', 'array'],
+            'routes.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
+            'routes.*.cabinet_id' => ['nullable', 'integer', 'exists:cabinets,id'],
+            'routes.*.from_type' => ['nullable', 'in:odf,cabinet'],
+            'routes.*.from_id' => ['nullable', 'integer'],
+            'routes.*.path' => ['nullable', 'array'],
+            'routes.*.path.*' => ['array', 'size:2'],
+            'routes.*.path.*.0' => $this->latitudeRules(true),
+            'routes.*.path.*.1' => $this->longitudeRules(true),
+        ])->validate();
+
         $projectId = (int) $data['project_id'];
         $createdOdfs = [];
         $createdCabinets = [];
@@ -652,10 +700,38 @@ class FtthController extends Controller
             }
 
             foreach (($plan['routes'] ?? []) as $index => $route) {
+                $routeOdfId = isset($route['odf_index'], $createdOdfs[$route['odf_index']])
+                    ? $createdOdfs[$route['odf_index']]->id
+                    : ($route['odf_id'] ?? null);
+                $fromType = $route['from_type'] ?? ($routeOdfId ? 'odf' : null);
+                $fromId = $route['from_id'] ?? ($fromType === 'odf' ? $routeOdfId : null);
+
+                if ($routeOdfId) {
+                    $routeOdfId = Odf::query()
+                        ->where('project_id', $projectId)
+                        ->findOrFail($routeOdfId)
+                        ->id;
+                }
+                if ($fromType === 'odf' && $fromId) {
+                    $fromId = Odf::query()->where('project_id', $projectId)->findOrFail($fromId)->id;
+                    $routeOdfId = $fromId;
+                }
+                if ($fromType === 'cabinet' && $fromId) {
+                    $fromId = Cabinet::query()->where('project_id', $projectId)->findOrFail($fromId)->id;
+                }
+                $routeCabinetId = isset($route['cabinet_index'], $createdCabinets[$route['cabinet_index']])
+                    ? $createdCabinets[$route['cabinet_index']]->id
+                    : ($route['cabinet_id'] ?? null);
+                if ($routeCabinetId) {
+                    $routeCabinetId = Cabinet::query()->where('project_id', $projectId)->findOrFail($routeCabinetId)->id;
+                }
+
                 NetworkRoute::create([
                     'project_id' => $projectId,
-                    'odf_id' => isset($route['odf_index'], $createdOdfs[$route['odf_index']]) ? $createdOdfs[$route['odf_index']]->id : null,
-                    'cabinet_id' => isset($route['cabinet_index'], $createdCabinets[$route['cabinet_index']]) ? $createdCabinets[$route['cabinet_index']]->id : null,
+                    'odf_id' => $routeOdfId,
+                    'cabinet_id' => $routeCabinetId,
+                    'from_type' => $fromType,
+                    'from_id' => $fromId,
                     'name' => $route['name'] ?? 'Trasa '.($index + 1),
                     'route_type' => $route['route_type'] ?? 'distribution',
                     'installation_type' => $route['installation_type'] ?? 'underground',
@@ -809,6 +885,8 @@ class FtthController extends Controller
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
+            'from_type' => ['nullable', 'in:odf,cabinet'],
+            'from_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
             'route_type' => ['required', 'in:feeder,distribution,drop'],
@@ -824,6 +902,7 @@ class FtthController extends Controller
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
+        $this->normalizeRouteStart($data, (int) $data['project_id']);
 
         if (! empty($data['path'])) {
             $data['path'] = json_decode($data['path'], true);
@@ -832,6 +911,7 @@ class FtthController extends Controller
         }
 
         $route = NetworkRoute::create($data);
+        $fromLabel = $this->routeStartLabel($route);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -839,7 +919,7 @@ class FtthController extends Controller
                 'route' => [
                     'id' => $route->id,
                     'name' => $route->name,
-                    'from' => $route->odf?->name ?? '-',
+                    'from' => $fromLabel,
                     'to' => $route->cabinet?->name ?? '-',
                     'type' => $route->route_type,
                     'length' => $route->duct_length_m,
@@ -847,6 +927,9 @@ class FtthController extends Controller
                     'fibers' => $route->fiber_count,
                     'path' => $route->path,
                     'note' => $route->note,
+                    'from_type' => $route->from_type,
+                    'from_id' => $route->from_id,
+                    'odf_id' => $route->odf_id,
                     'cabinet_id' => $route->cabinet_id,
                 ],
             ], 201);
@@ -872,6 +955,8 @@ class FtthController extends Controller
             'name' => ['required', 'max:255'],
             'route_type' => ['required', 'in:feeder,distribution,drop'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
+            'from_type' => ['nullable', 'in:odf,cabinet'],
+            'from_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'microduct_type' => ['required', 'in:14/10,10/8'],
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
@@ -879,6 +964,7 @@ class FtthController extends Controller
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $route->project_id, 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $route->project_id, 'cabinet_id');
+        $this->normalizeRouteStart($data, (int) $route->project_id);
         $route->update($data);
         $route->load(['odf', 'cabinet']);
 
@@ -889,10 +975,10 @@ class FtthController extends Controller
         return response()->json([
             'message' => 'Podaci trase su sačuvani.',
             'route' => [
-                'id' => $route->id, 'name' => $route->name, 'from' => $route->odf?->name ?? '-',
+                'id' => $route->id, 'name' => $route->name, 'from' => $this->routeStartLabel($route),
                 'to' => $route->cabinet?->name ?? '-', 'type' => $route->route_type, 'length' => $route->duct_length_m,
                 'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'path' => $route->path,
-                'note' => $route->note, 'cabinet_id' => $route->cabinet_id,
+                'note' => $route->note, 'odf_id' => $route->odf_id, 'from_type' => $route->from_type, 'from_id' => $route->from_id, 'cabinet_id' => $route->cabinet_id,
             ],
         ]);
     }
@@ -1150,17 +1236,54 @@ class FtthController extends Controller
         DB::transaction(function () use ($data, $projectId, &$createdCount, &$linkedHouseCount, &$createdRouteCount): void {
             foreach ($data['cabinets'] as $cabinet) {
                 $this->ensureBelongsToProject(Odf::class, $cabinet['odf_id'] ?? null, $projectId, 'odf_id');
-                $createdCabinet = Cabinet::create([
-                    'project_id' => $projectId,
-                    'odf_id' => $cabinet['odf_id'] ?? null,
-                    'name' => $cabinet['name'],
-                    'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
-                    'splitter_count' => $cabinet['splitter_count'],
-                    'ports_per_splitter' => 4,
-                    'latitude' => $cabinet['latitude'],
-                    'longitude' => $cabinet['longitude'],
-                ]);
-                $createdCount++;
+                $houseIds = collect($cabinet['houses'] ?? [])->pluck('id')->filter()->values();
+                $assignedCabinetIds = $houseIds->isEmpty()
+                    ? collect()
+                    : House::query()
+                        ->where('project_id', $projectId)
+                        ->whereIn('id', $houseIds)
+                        ->whereNotNull('cabinet_id')
+                        ->pluck('cabinet_id')
+                        ->unique()
+                        ->values();
+
+                $createdCabinet = null;
+                if ($assignedCabinetIds->count() === 1) {
+                    $createdCabinet = Cabinet::query()
+                        ->where('project_id', $projectId)
+                        ->whereKey($assignedCabinetIds->first())
+                        ->first();
+                }
+
+                if (! $createdCabinet) {
+                    $createdCabinet = Cabinet::query()
+                        ->where('project_id', $projectId)
+                        ->where('name', $cabinet['name'])
+                        ->first();
+                }
+
+                if ($createdCabinet) {
+                    $createdCabinet->update([
+                        'odf_id' => $cabinet['odf_id'] ?? null,
+                        'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
+                        'splitter_count' => $cabinet['splitter_count'],
+                        'ports_per_splitter' => 4,
+                        'latitude' => $cabinet['latitude'],
+                        'longitude' => $cabinet['longitude'],
+                    ]);
+                } else {
+                    $createdCabinet = Cabinet::create([
+                        'project_id' => $projectId,
+                        'odf_id' => $cabinet['odf_id'] ?? null,
+                        'name' => $cabinet['name'],
+                        'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
+                        'splitter_count' => $cabinet['splitter_count'],
+                        'ports_per_splitter' => 4,
+                        'latitude' => $cabinet['latitude'],
+                        'longitude' => $cabinet['longitude'],
+                    ]);
+                    $createdCount++;
+                }
 
                 foreach ($cabinet['houses'] ?? [] as $index => $point) {
                     $house = ! empty($point['id'])
@@ -1171,6 +1294,10 @@ class FtthController extends Controller
                             ->where('longitude', $point['longitude'])
                             ->first();
                     if (! $house) {
+                        continue;
+                    }
+
+                    if ((int) $house->cabinet_id === (int) $createdCabinet->id) {
                         continue;
                     }
 
@@ -1211,6 +1338,42 @@ class FtthController extends Controller
     }
 
     // Shared validation helpers
+    private function normalizeRouteStart(array &$data, int $projectId): void
+    {
+        if (empty($data['from_type']) && ! empty($data['odf_id'])) {
+            $data['from_type'] = 'odf';
+            $data['from_id'] = $data['odf_id'];
+        }
+
+        if (($data['from_type'] ?? null) === 'odf') {
+            $data['from_id'] = Odf::query()->where('project_id', $projectId)->findOrFail(! empty($data['from_id']) ? $data['from_id'] : ($data['odf_id'] ?? null))->id;
+            $data['odf_id'] = $data['from_id'];
+            return;
+        }
+
+        if (($data['from_type'] ?? null) === 'cabinet') {
+            $data['from_id'] = Cabinet::query()->where('project_id', $projectId)->findOrFail(! empty($data['from_id']) ? $data['from_id'] : null)->id;
+            $data['odf_id'] = $data['odf_id'] ?? null;
+            return;
+        }
+
+        $data['from_type'] = null;
+        $data['from_id'] = null;
+    }
+
+    private function routeStartLabel(NetworkRoute $route): string
+    {
+        if ($route->from_type === 'cabinet' && $route->from_id) {
+            return Cabinet::query()->whereKey($route->from_id)->value('name') ?? '-';
+        }
+
+        if ($route->from_type === 'odf' && $route->from_id) {
+            return Odf::query()->whereKey($route->from_id)->value('name') ?? '-';
+        }
+
+        return $route->odf?->name ?? '-';
+    }
+
     private function ensureBelongsToProject(string $model, $id, $projectId, string $field): void
     {
         validator([$field => $id], [

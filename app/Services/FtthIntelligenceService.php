@@ -126,20 +126,63 @@ class FtthIntelligenceService
                     throw new InvalidArgumentException('Plan sadrzi ODF iz drugog projekta.');
                 }
 
-                $cabinet = Cabinet::create([
-                    'project_id' => $project->id,
-                    'odf_id' => $odfId,
-                    'name' => $this->confirmedCabinetName((string) $cabinetPlan['name']),
-                    'address' => 'Auto plan - '.$cabinetPlan['proposed_latitude'].','.$cabinetPlan['proposed_longitude'],
-                    'splitter_count' => $this->splitterCount($houses->count()),
-                    'ports_per_splitter' => 4,
-                    'latitude' => $cabinetPlan['proposed_latitude'],
-                    'longitude' => $cabinetPlan['proposed_longitude'],
-                ]);
-                $created++;
+                $assignedCabinetIds = House::query()
+                    ->where('project_id', $project->id)
+                    ->whereIn('id', $houseIds)
+                    ->whereNotNull('cabinet_id')
+                    ->pluck('cabinet_id')
+                    ->unique()
+                    ->values();
 
-                House::query()->where('project_id', $project->id)->whereIn('id', $houseIds)->update(['cabinet_id' => $cabinet->id]);
-                $linkedHouses += $houseIds->count();
+                $cabinet = null;
+                if ($assignedCabinetIds->count() === 1) {
+                    $cabinet = Cabinet::query()
+                        ->where('project_id', $project->id)
+                        ->whereKey($assignedCabinetIds->first())
+                        ->first();
+                }
+
+                $cabinetName = $this->confirmedCabinetName((string) $cabinetPlan['name']);
+                if (! $cabinet) {
+                    $cabinet = Cabinet::query()
+                        ->where('project_id', $project->id)
+                        ->where('name', $cabinetName)
+                        ->first();
+                }
+
+                if ($cabinet) {
+                    $cabinet->update([
+                        'odf_id' => $odfId,
+                        'address' => 'Auto plan - '.$cabinetPlan['proposed_latitude'].','.$cabinetPlan['proposed_longitude'],
+                        'splitter_count' => $this->splitterCount($houses->count()),
+                        'ports_per_splitter' => 4,
+                        'latitude' => $cabinetPlan['proposed_latitude'],
+                        'longitude' => $cabinetPlan['proposed_longitude'],
+                    ]);
+                } else {
+                    $cabinet = Cabinet::create([
+                        'project_id' => $project->id,
+                        'odf_id' => $odfId,
+                        'name' => $cabinetName,
+                        'address' => 'Auto plan - '.$cabinetPlan['proposed_latitude'].','.$cabinetPlan['proposed_longitude'],
+                        'splitter_count' => $this->splitterCount($houses->count()),
+                        'ports_per_splitter' => 4,
+                        'latitude' => $cabinetPlan['proposed_latitude'],
+                        'longitude' => $cabinetPlan['proposed_longitude'],
+                    ]);
+                    $created++;
+                }
+
+                $linkedHouses += House::query()
+                    ->where('project_id', $project->id)
+                    ->whereIn('id', $houseIds)
+                    ->where('cabinet_id', '!=', $cabinet->id)
+                    ->orWhere(function ($query) use ($project, $houseIds): void {
+                        $query->where('project_id', $project->id)
+                            ->whereIn('id', $houseIds)
+                            ->whereNull('cabinet_id');
+                    })
+                    ->update(['cabinet_id' => $cabinet->id]);
 
                 if ($createDropRoutes) {
                     if (empty($cabinetPlan['cable_type']) || empty($cabinetPlan['microduct_type'])) {

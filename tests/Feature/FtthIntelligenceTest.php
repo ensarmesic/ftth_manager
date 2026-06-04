@@ -44,6 +44,26 @@ class FtthIntelligenceTest extends TestCase
         $this->assertTrue(Cabinet::withCount('houses')->get()->every(fn (Cabinet $cabinet) => $cabinet->houses_count <= 12));
     }
 
+    public function test_confirming_same_auto_plan_twice_does_not_duplicate_cabinets(): void
+    {
+        $project = $this->projectWithHouses(10);
+        Odf::create(['project_id' => $project->id, 'name' => 'ODF-1', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4490, 'longitude' => 18.6490]);
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project))->json();
+
+        $this->postJson(route('projects.odo-plan.confirm', $project), ['plan' => $plan])
+            ->assertCreated()
+            ->assertJsonPath('linked_houses', 10);
+        $firstCabinetCount = Cabinet::where('project_id', $project->id)->count();
+
+        $this->postJson(route('projects.odo-plan.confirm', $project), ['plan' => $plan])
+            ->assertCreated()
+            ->assertJsonPath('created', 0)
+            ->assertJsonPath('linked_houses', 0);
+
+        $this->assertSame($firstCabinetCount, Cabinet::where('project_id', $project->id)->count());
+        $this->assertSame(10, House::whereNotNull('cabinet_id')->count());
+    }
+
     public function test_splitter_count_is_calculated_from_house_count(): void
     {
         $project = $this->projectWithHouses(9);
@@ -172,6 +192,46 @@ class FtthIntelligenceTest extends TestCase
         $this->assertSame($odf->id, $cabinet->odf_id);
         $this->assertSame($cabinet->id, $house->fresh()->cabinet_id);
         $this->assertSame($cabinet->id, $subscriber->fresh()->cabinet_id);
+    }
+
+    public function test_map_suggestion_save_reuses_existing_cabinet_by_name(): void
+    {
+        $project = $this->projectWithHouses(2);
+        $houses = $project->houses()->orderBy('label')->get();
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-1', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4490, 'longitude' => 18.6490]);
+
+        $payload = [
+            'project_id' => $project->id,
+            'cabinets' => [[
+                'name' => 'FTTH 1-1',
+                'latitude' => 44.4491,
+                'longitude' => 18.6491,
+                'splitter_count' => 1,
+                'odf_id' => $odf->id,
+                'houses' => $houses->map(fn (House $house) => [
+                    'id' => $house->id,
+                    'latitude' => (float) $house->latitude,
+                    'longitude' => (float) $house->longitude,
+                ])->all(),
+            ]],
+        ];
+
+        $this->postJson(route('map.suggestions.store'), $payload)
+            ->assertOk()
+            ->assertJsonPath('created', 1)
+            ->assertJsonPath('linked_houses', 2);
+
+        $payload['cabinets'][0]['latitude'] = 44.4492;
+        $payload['cabinets'][0]['longitude'] = 18.6492;
+
+        $this->postJson(route('map.suggestions.store'), $payload)
+            ->assertOk()
+            ->assertJsonPath('created', 0)
+            ->assertJsonPath('linked_houses', 0);
+
+        $this->assertSame(1, Cabinet::where('project_id', $project->id)->where('name', 'FTTH 1-1')->count());
+        $this->assertSame(2, House::whereNotNull('cabinet_id')->count());
+        $this->assertEquals(44.4492, (float) Cabinet::firstOrFail()->latitude);
     }
 
     public function test_houses_from_different_branches_are_never_mixed(): void

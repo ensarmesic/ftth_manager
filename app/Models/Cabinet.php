@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cabinet extends Model
 {
-    protected $fillable = ['project_id', 'odf_id', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude'];
+    protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude'];
 
     public function project(): BelongsTo { return $this->belongsTo(Project::class); }
     public function odf(): BelongsTo { return $this->belongsTo(Odf::class); }
+    public function parentCabinet(): BelongsTo { return $this->belongsTo(Cabinet::class, 'parent_cabinet_id'); }
+    public function childCabinets(): HasMany { return $this->hasMany(Cabinet::class, 'parent_cabinet_id'); }
     public function subscribers(): HasMany { return $this->hasMany(Subscriber::class); }
     public function houses(): HasMany { return $this->hasMany(House::class); }
 

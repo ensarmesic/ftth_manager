@@ -89,15 +89,75 @@ class MediaskyWorkflowTest extends TestCase
         $project = Project::create(['name' => 'Topologija', 'code' => 'TOP', 'location' => 'Test', 'status' => 'planning']);
         $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48]);
         $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 1-1', 'address' => 'Krak 1', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+        $childCabinet = Cabinet::create(['project_id' => $project->id, 'parent_cabinet_id' => $cabinet->id, 'name' => 'FTTH 1-1.1', 'address' => 'Izvod 1', 'splitter_count' => 1, 'ports_per_splitter' => 4]);
         House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'Kuca 1', 'status' => 'planned']);
+        House::create(['project_id' => $project->id, 'cabinet_id' => $childCabinet->id, 'label' => 'Kuca 2', 'status' => 'planned']);
 
         $this->get(route('fiber-schema.index'))
             ->assertOk()
             ->assertSee('FTTH Topologija')
             ->assertSee('ODF-01')
             ->assertSee('FTTH 1-1')
+            ->assertSee('FTTH 1-1.1')
+            ->assertSee('IZ FTTH 1-1')
             ->assertSee('Kuca 1')
+            ->assertSee('Kuca 2')
             ->assertSee('Fiber tracing');
+    }
+
+    public function test_cabinet_can_be_fed_from_parent_cabinet(): void
+    {
+        $project = Project::create(['name' => 'Parent ODO', 'code' => 'PODO', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48]);
+        $parent = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 2-1', 'address' => 'Krak 2', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+
+        $this->post(route('cabinets.store'), [
+            'project_id' => $project->id,
+            'odf_id' => null,
+            'parent_cabinet_id' => $parent->id,
+            'name' => 'FTTH 2-1.1',
+            'address' => 'Izvod',
+            'splitter_count' => 1,
+            'ports_per_splitter' => 4,
+            'latitude' => null,
+            'longitude' => null,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('cabinets', [
+            'project_id' => $project->id,
+            'parent_cabinet_id' => $parent->id,
+            'name' => 'FTTH 2-1.1',
+        ]);
+    }
+
+    public function test_route_can_start_from_existing_cabinet(): void
+    {
+        $project = Project::create(['name' => 'ODO start', 'code' => 'OST', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48]);
+        $parent = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 2-1', 'address' => 'Krak 2', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 44.451, 'longitude' => 18.651]);
+        $child = Cabinet::create(['project_id' => $project->id, 'parent_cabinet_id' => $parent->id, 'name' => 'FTTH 2-1.1', 'address' => 'Izvod', 'splitter_count' => 1, 'ports_per_splitter' => 4, 'latitude' => 44.452, 'longitude' => 18.652]);
+
+        $this->postJson(route('map.plan.store'), [
+            'project_id' => $project->id,
+            'plan' => json_encode(['routes' => [[
+                'name' => 'FTTH 2-1 do 2-1.1',
+                'route_type' => 'distribution',
+                'from_type' => 'cabinet',
+                'from_id' => $parent->id,
+                'cabinet_id' => $child->id,
+                'duct_length_m' => 22,
+                'fiber_length_m' => 22,
+                'path' => [[44.451, 18.651], [44.452, 18.652]],
+            ]]]),
+        ])->assertOk();
+
+        $this->assertDatabaseHas('routes', [
+            'project_id' => $project->id,
+            'name' => 'FTTH 2-1 do 2-1.1',
+            'from_type' => 'cabinet',
+            'from_id' => $parent->id,
+            'cabinet_id' => $child->id,
+        ]);
     }
 
     public function test_auto_odo_preview_works_after_map_draft_plan_is_saved(): void
@@ -149,6 +209,28 @@ class MediaskyWorkflowTest extends TestCase
         $this->assertNotNull($house->fresh()->cabinet_id);
         $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'route_type' => 'drop', 'fiber_count' => 4, 'microduct_type' => '10/8']);
         $this->assertCount(3, NetworkRoute::where('route_type', 'drop')->firstOrFail()->path);
+    }
+
+    public function test_confirming_same_cabinet_suggestion_twice_does_not_duplicate_cabinets(): void
+    {
+        $project = Project::create(['name' => 'Auto plan repeat', 'code' => 'AUTOR', 'location' => 'Test', 'status' => 'planning']);
+        $house = House::create(['project_id' => $project->id, 'label' => 'K-001', 'latitude' => 44.4493, 'longitude' => 18.6498, 'status' => 'planned']);
+        $payload = [
+            'project_id' => $project->id,
+            'cabinets' => [[
+                'name' => 'ODO-001',
+                'latitude' => 44.4495,
+                'longitude' => 18.6500,
+                'splitter_count' => 1,
+                'houses' => [['id' => $house->id, 'latitude' => 44.4493, 'longitude' => 18.6498]],
+            ]],
+        ];
+
+        $this->postJson(route('map.suggestions.store'), $payload)->assertOk()->assertJson(['created' => 1, 'linked_houses' => 1]);
+        $this->postJson(route('map.suggestions.store'), $payload)->assertOk()->assertJson(['created' => 0, 'linked_houses' => 0]);
+
+        $this->assertSame(1, Cabinet::where('project_id', $project->id)->count());
+        $this->assertSame($house->fresh()->cabinet_id, Cabinet::where('project_id', $project->id)->firstOrFail()->id);
     }
 
     public function test_route_drawn_on_map_is_measured_by_server_and_returned_as_json(): void
@@ -253,11 +335,8 @@ class MediaskyWorkflowTest extends TestCase
             'cabinets' => [['name' => 'ODO-1', 'lat' => 44.4495]],
         ];
 
-        try {
-            $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)]);
-        } catch (\Throwable) {
-            // The malformed payload must not leave the preceding ODF insert behind.
-        }
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])
+            ->assertUnprocessable();
 
         $this->assertDatabaseMissing('odfs', ['project_id' => $project->id, 'name' => 'ODF-1']);
     }

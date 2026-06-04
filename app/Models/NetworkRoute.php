@@ -21,4 +21,17 @@ class NetworkRoute extends Model
     public function project(): BelongsTo { return $this->belongsTo(Project::class); }
     public function odf(): BelongsTo { return $this->belongsTo(Odf::class); }
     public function cabinet(): BelongsTo { return $this->belongsTo(Cabinet::class); }
+
+    public function getFromLabelAttribute(): string
+    {
+        if ($this->from_type === 'cabinet' && $this->from_id) {
+            return Cabinet::query()->whereKey($this->from_id)->value('name') ?? '-';
+        }
+
+        if ($this->from_type === 'odf' && $this->from_id) {
+            return Odf::query()->whereKey($this->from_id)->value('name') ?? '-';
+        }
+
+        return $this->odf?->name ?? '-';
+    }
 }

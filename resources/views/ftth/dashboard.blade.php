@@ -38,7 +38,24 @@
    </div>
   </section>
   <div class="bottom-grid grid min-h-0 gap-2 md:grid-cols-2 lg:grid-cols-[1.16fr_.82fr_150px] xl:grid-cols-[1.16fr_.82fr_160px]">
-   <section class="panel bottom-card overflow-hidden"><div class="border-b px-4 py-3 text-xs font-bold">TRASE</div><div class="table-scroll overflow-auto"><table class="data-table w-full text-left tiny"><thead><tr class="text-slate-600"><th>#</th><th>Od</th><th>Do</th><th>Tip</th><th>Dužina</th><th>MC</th><th>Kabl</th></tr></thead><tbody id="dashboard-routes-body">@forelse($routes->take(5) as $route)<tr class="border-t"><td>{{ $loop->iteration }}</td><td>{{ $route->odf->name ?? '-' }}</td><td>{{ $route->cabinet->name ?? '-' }}</td><td>{{ $route->route_type }}</td><td>{{ number_format($route->duct_length_m) }} m</td><td>{{ $route->microduct_type }}</td><td>{{ $route->fiber_count }} niti</td></tr>@empty<tr data-empty-row class="border-t"><td colspan="7" class="px-4 py-6 text-center text-slate-400">Nema trasa.</td></tr>@endforelse</tbody></table></div><div class="p-3 text-center"><a href="{{ route('routes.index') }}" class="inline-block rounded border px-10 py-2 tiny font-semibold text-blue-600">Prikaži sve trase</a></div></section>
+   <section class="panel bottom-card overflow-hidden">
+    <div class="border-b px-4 py-3 text-xs font-bold">TRASE</div>
+    <div class="table-scroll overflow-auto">
+     <table class="data-table w-full text-left tiny">
+      <thead><tr class="text-slate-600"><th>#</th><th>Od</th><th>Do</th><th>Tip</th><th>Duzina</th><th>MC</th><th>Kabl</th><th>Akcije</th></tr></thead>
+      <tbody id="dashboard-routes-body">
+       @forelse($routes->take(5) as $route)
+        <tr class="border-t">
+         <td>{{ $loop->iteration }}</td><td>{{ $route->odf->name ?? '-' }}</td><td>{{ $route->cabinet->name ?? '-' }}</td><td>{{ $route->route_type }}</td><td>{{ number_format($route->duct_length_m) }} m</td><td>{{ $route->microduct_type }}</td><td>{{ $route->fiber_count }} niti</td><td><button type="button" class="route-row-action">Uredi</button></td>
+        </tr>
+       @empty
+        <tr data-empty-row class="border-t"><td colspan="8" class="px-4 py-6 text-center text-slate-400">Nema trasa.</td></tr>
+       @endforelse
+      </tbody>
+     </table>
+    </div>
+    <div class="p-3 text-center"><a href="{{ route('routes.index') }}" class="inline-block rounded border px-10 py-2 tiny font-semibold text-blue-600">Prikazi sve trase</a></div>
+   </section>
    <section class="panel bottom-card overflow-hidden"><div class="border-b px-4 py-3 text-xs font-bold">KORISNICI (ZADNJI DODANI)</div><div class="table-scroll overflow-auto"><table class="user-table w-full text-left tiny"><thead><tr><th class="px-4 py-2">#</th><th>Naziv</th><th>ODO</th><th>Adresa</th><th>Status</th></tr></thead><tbody>@forelse($subscribers as $subscriber)<tr class="border-t"><td class="px-4 py-2">{{ $loop->iteration }}</td><td>{{ $subscriber->name }}</td><td>{{ $subscriber->cabinet->name ?? '-' }}</td><td>{{ $subscriber->address }}</td><td class="text-green-600">{{ $subscriber->service_status }}</td></tr>@empty<tr class="border-t"><td colspan="5" class="px-4 py-6 text-center text-slate-400">Nema korisnika.</td></tr>@endforelse</tbody></table></div><div class="p-3 text-center"><a href="{{ route('subscribers.index') }}" class="inline-block rounded border px-10 py-2 tiny font-semibold text-blue-600">Svi korisnici</a></div></section>
    <section class="panel p-3 md:col-span-2 lg:col-span-1"><h2 class="mb-3 text-[11px] font-bold">BRZA AKCIJA</h2><div class="grid gap-2 text-[11px] font-semibold sm:grid-cols-2 lg:grid-cols-1"><a href="{{ route('map.dashboard') }}" class="rounded bg-blue-600 px-3 py-2.5 text-white">Otvori mapu</a><a href="#" data-quick-tool="add_odf" class="rounded border px-3 py-2.5 text-blue-700">Dodaj ODF</a><a href="#" data-quick-tool="add_odo" class="rounded bg-green-600 px-3 py-2.5 text-white">Dodaj ODO ormarić</a><a href="#" data-quick-tool="add_customer" class="rounded bg-orange-500 px-3 py-2.5 text-white">Dodaj kuću</a><a href="#" data-quick-tool="draw_route" class="rounded bg-violet-600 px-3 py-2.5 text-white">Nacrtaj trasu</a><a href="#" data-action="suggest-cabinets" class="rounded border px-3 py-2.5 text-violet-700">Predlozi ODO</a></div></section>
   </div>
@@ -49,7 +66,30 @@
             @if($selectedCabinet)<dl class="grid grid-cols-[90px_1fr] gap-y-1.5 px-3 tiny"><dt>Naziv:</dt><dd>{{ $selectedCabinet->name }}</dd><dt>Kod:</dt><dd>{{ $selectedCabinet->name }}</dd><dt>Povezan na:</dt><dd>{{ $selectedCabinet->odf->name ?? '-' }}</dd><dt>Lokacija:</dt><dd>{{ $activeProject->location ?? '-' }}</dd><dt>Korisnici:</dt><dd>{{ $selectedCabinet->houses_count }} / 12</dd><dt>Korištenje:</dt><dd class="flex items-center gap-2"><div class="h-2 flex-1 rounded bg-slate-100"><div class="h-2 rounded bg-green-500" style="width:{{ min($selectedCabinet->houses_count / 12 * 100,100) }}%"></div></div><b>{{ round($selectedCabinet->houses_count / 12 * 100) }}%</b></dd><dt>Splitteri:</dt><dd>{{ $selectedCabinet->splitter_count }} (1:4)</dd></dl>@else<p class="px-3 tiny text-slate-400">Dodaj ODO ormarić na mapu da se ovdje prikažu detalji.</p>@endif
    @if($selectedCabinet)<div class="mt-3 flex border-y tiny font-bold text-blue-600"><span class="border-b-2 border-blue-600 px-7 py-2">SPLITTERI</span><span class="px-5 py-2 text-slate-500">KORISNICI</span></div>@endif</div>
   </section>
-   <section class="panel project-stats overflow-hidden"><h2>STATISTIKA PROJEKTA</h2><div class="project-stats-list">@foreach([['routes_m','Ukupna dužina trasa',$stats['routes_m']],['microduct_14_10','Mikrocijev 14/10',$stats['microduct_14_10']],['microduct_10_8','Mikrocijev 10/8',$stats['microduct_10_8']],['fiber_4','Optički kabal 4 niti',$stats['fiber_4']],['fiber_12','Optički kabal 12 niti',$stats['fiber_12']]] as $item)<div><span>{{ $item[1] }}</span><b data-stat="{{ $item[0] }}" data-value="{{ $item[2] }}">{{ number_format($item[2]/1000, 2) }} km</b></div>@endforeach @foreach([['splitters','Splitteri (1:4)',$stats['splitters']],['cabinets','ODO ormarići',$cabinets->count()],['houses','Kuće',$houses->count()],['subscribers','Korisnici',$stats['subscribers']]] as $item)<div><span>{{ $item[1] }}</span><b data-count-stat="{{ $item[0] }}">{{ $item[2] }}</b></div>@endforeach</div><a href="{{ route('reports.index') }}">Detaljan izvještaj</a></section>
+   <section class="panel project-stats overflow-hidden">
+    <h2>STATISTIKA PROJEKTA</h2>
+    <div class="project-stats-list">
+     @foreach([
+      ['routes_m', 'Ukupna duzina trasa', $stats['routes_m']],
+      ['microduct_14_10', 'Mikrocijev 14/10', $stats['microduct_14_10']],
+      ['microduct_10_8', 'Mikrocijev 10/8', $stats['microduct_10_8']],
+      ['fiber_4', 'Opticki kabal 4 niti', $stats['fiber_4']],
+      ['fiber_12', 'Opticki kabal 12 niti', $stats['fiber_12']],
+      ['fiber_24', 'Opticki kabal 24 niti', $stats['fiber_24']],
+     ] as $item)
+      <div><span>{{ $item[1] }}</span><b data-stat="{{ $item[0] }}" data-value="{{ $item[2] }}">{{ number_format($item[2]/1000, 2) }} km</b></div>
+     @endforeach
+     @foreach([
+      ['splitters', 'Splitteri (1:4)', $stats['splitters']],
+      ['cabinets', 'ODO ormarici', $cabinets->count()],
+      ['houses', 'Kuce', $houses->count()],
+      ['subscribers', 'Korisnici', $stats['subscribers']],
+     ] as $item)
+      <div><span>{{ $item[1] }}</span><b data-count-stat="{{ $item[0] }}">{{ $item[2] }}</b></div>
+     @endforeach
+    </div>
+    <a href="{{ route('reports.index') }}">Detaljan izvjestaj</a>
+   </section>
  </aside>
 </div>
 <div id="suggestion-modal" class="route-modal hidden">
@@ -65,7 +105,9 @@
   <input type="hidden" name="route_id">
   <label>Naziv trase<input required name="name"></label>
   <label>Tip trase<select required name="route_type"><option value="feeder">Glavna</option><option value="distribution">Distribuciona</option><option value="drop">Drop</option></select></label>
-  <label>Od<select name="odf_id"><option value="">Nije odabrano</option>@foreach($odfs as $odf)<option value="{{ $odf->id }}">{{ $odf->name }}</option>@endforeach</select></label>
+  <label>Tip početka<select name="from_type"><option value="">Nije odabrano</option><option value="odf">ODF</option><option value="cabinet">ODO/FTTH</option></select></label>
+  <label>Početni ODF<select name="odf_id"><option value="">Nije odabrano</option>@foreach($odfs as $odf)<option value="{{ $odf->id }}">{{ $odf->name }}</option>@endforeach</select></label>
+  <label>Početni ODO<select name="from_id"><option value="">Nije odabrano</option>@foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}">{{ $cabinet->name }}</option>@endforeach</select></label>
   <label>Do<select name="cabinet_id"><option value="">Nije odabrano</option>@foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}">{{ $cabinet->name }}</option>@endforeach</select></label>
   <label>Mikrocijev<select required name="microduct_type"><option value="14/10">14/10</option><option value="10/8">10/8</option></select></label>
   <label>Kabal<select required name="fiber_count"><option value="4">4 niti</option><option value="12">12 niti</option><option value="24">24 niti</option><option value="48">48 niti</option></select></label>
@@ -105,3 +147,5 @@ window.ftthMapConfig = window.ftthConfig;
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{{ asset('js/ftth-map.js') }}"></script>
 @endsection
+
+

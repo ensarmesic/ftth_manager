@@ -1256,7 +1256,8 @@
         }
         const routeActions = `<button data-panel-action="edit-data">Uredi podatke</button><button data-panel-action="edit-geometry">Uredi geometriju</button><button data-panel-action="delete-element">Obrisi</button>`;
         const markerActions = `<button data-panel-action="move-marker">Pomjeri</button><button data-panel-action="delete-element">Obrisi</button>`;
-        details().innerHTML = `<dl class="grid grid-cols-[90px_1fr] gap-y-2 px-3 tiny"><dt>Tip:</dt><dd>${item.elementType}</dd><dt>Naziv:</dt><dd>${item.name || item.label}</dd>${item.elementType === "route" ? `<dt>Duzina:</dt><dd>${item.length} m</dd><dt>Tacke:</dt><dd>${normalizePoints(item.path).length}</dd><dt>Mikrocijev:</dt><dd>${item.microduct}</dd><dt>Kabal:</dt><dd>${item.fibers} niti</dd><dt>Napomena:</dt><dd>${item.note || "-"}</dd>` : ""}</dl><div class="property-actions">${item.elementType === "route" ? routeActions : markerActions}</div>`;
+        const cabinetFeed = item.elementType === "odo" ? `<dt>Napajanje:</dt><dd>${item.parent_cabinet ? `iz ODO ${item.parent_cabinet}` : item.fed_from || item.odf || "-"}</dd>` : "";
+        details().innerHTML = `<dl class="grid grid-cols-[90px_1fr] gap-y-2 px-3 tiny"><dt>Tip:</dt><dd>${item.elementType}</dd><dt>Naziv:</dt><dd>${item.name || item.label}</dd>${cabinetFeed}${item.elementType === "route" ? `<dt>Duzina:</dt><dd>${item.length} m</dd><dt>Tacke:</dt><dd>${normalizePoints(item.path).length}</dd><dt>Mikrocijev:</dt><dd>${item.microduct}</dd><dt>Kabal:</dt><dd>${item.fibers} niti</dd><dt>Napomena:</dt><dd>${item.note || "-"}</dd>` : ""}</dl><div class="property-actions">${item.elementType === "route" ? routeActions : markerActions}</div>`;
         details()
             .querySelector('[data-panel-action="edit-data"]')
             ?.addEventListener("click", () => openRouteModal(item));
@@ -1286,7 +1287,9 @@
         form.elements.name.value =
             route.name || `Trasa ${data().routes.length + 1}`;
         form.elements.route_type.value = route.type || "distribution";
+        form.elements.from_type.value = route.from_type || (route.odf_id ? "odf" : "");
         form.elements.odf_id.value = route.odf_id || "";
+        form.elements.from_id.value = route.from_type === "cabinet" ? route.from_id || "" : "";
         form.elements.cabinet_id.value = route.cabinet_id || "";
         form.elements.microduct_type.value = route.microduct || "14/10";
         form.elements.fiber_count.value = route.fibers || 12;
@@ -1316,6 +1319,8 @@
             project_id: config().projectId,
             name: values.name,
             route_type: values.route_type,
+            from_type: values.from_type || null,
+            from_id: values.from_type === "cabinet" ? values.from_id || null : values.odf_id || null,
             odf_id: values.odf_id || null,
             cabinet_id: values.cabinet_id || null,
             microduct_type: values.microduct_type,
@@ -1487,7 +1492,8 @@
         body.querySelector("[data-empty-row]")?.remove();
         const row = document.createElement("tr");
         row.className = "border-t";
-        row.innerHTML = `<td>${body.children.length + 1}</td><td>${route.from}</td><td>${route.to}</td><td>${route.type}</td><td>${route.length} m</td><td>${route.microduct}</td><td>${route.fibers} niti</td>`;
+        row.innerHTML = routeRowHtml(route, body.children.length);
+        row.addEventListener("click", () => openRouteModal(route));
         body.prepend(row);
         while (body.children.length > 5) body.lastElementChild.remove();
     }
@@ -1500,7 +1506,8 @@
                 (key === "microduct_14_10" && route.microduct === "14/10") ||
                 (key === "microduct_10_8" && route.microduct === "10/8") ||
                 (key === "fiber_4" && route.fibers === 4) ||
-                (key === "fiber_12" && route.fibers === 12)
+                (key === "fiber_12" && route.fibers === 12) ||
+                (key === "fiber_24" && route.fibers === 24)
             )
                 next += route.length;
             element.dataset.value = next;
@@ -1519,12 +1526,20 @@
             .routes.slice(0, 5)
             .forEach((route, index) => {
                 const row = document.createElement("tr");
-                row.className = "border-t";
-                const odfName = route.odf?.name || route.from || "-";
-                const cabinetName = route.cabinet?.name || route.to || "-";
-                row.innerHTML = `<td>${index + 1}</td><td>${odfName}</td><td>${cabinetName}</td><td>${route.route_type || route.type}</td><td>${route.duct_length_m || route.length || 0} m</td><td>${route.microduct_type || route.microduct}</td><td>${route.fiber_count || route.fibers} niti</td>`;
+                row.className = "border-t cursor-pointer";
+                row.innerHTML = routeRowHtml(route, index);
+                row.addEventListener("click", () => openRouteModal(route));
                 body.appendChild(row);
             });
+    }
+    function routeRowHtml(route, index) {
+        const odfName = route.odf?.name || route.from || "-";
+        const cabinetName = route.cabinet?.name || route.to || "-";
+        const type = route.route_type || route.type || "-";
+        const length = route.duct_length_m || route.length || 0;
+        const microduct = route.microduct_type || route.microduct || "-";
+        const fibers = route.fiber_count || route.fibers || "-";
+        return `<td>${index + 1}</td><td>${odfName}</td><td>${cabinetName}</td><td>${type}</td><td>${Number(length).toLocaleString()} m</td><td>${microduct}</td><td>${fibers} niti</td><td><button type="button" class="route-row-action" data-route-row-action="edit">Uredi</button></td>`;
     }
     function recalculateStats() {
         const stats = {};
@@ -1533,6 +1548,7 @@
         stats.microduct_10_8 = 0;
         stats.fiber_4 = 0;
         stats.fiber_12 = 0;
+        stats.fiber_24 = 0;
         data().routes.forEach((route) => {
             const length = route.duct_length_m || route.length || 0;
             stats.routes_m += length;
@@ -1542,6 +1558,7 @@
             if (microduct === "10/8") stats.microduct_10_8 += length;
             if (fibers === 4) stats.fiber_4 += length;
             if (fibers === 12) stats.fiber_12 += length;
+            if (fibers === 24) stats.fiber_24 += length;
         });
         document.querySelectorAll("[data-stat]").forEach((element) => {
             const key = element.dataset.stat;
@@ -1636,6 +1653,7 @@
         MapEditor.defaultHeading = heading().innerHTML;
         MapEditor.defaultDetails = details().innerHTML;
         renderAll();
+        refreshDashboardUi();
         setActiveTool("select");
     });
 })();
