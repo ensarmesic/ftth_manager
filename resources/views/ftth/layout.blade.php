@@ -10,6 +10,12 @@
     @else
         <script src="https://cdn.tailwindcss.com"></script>
     @endif
+    <style>
+        body { line-height: 1.4; }
+        .app-content table { font-size: .875rem; }
+        .app-content table th, .app-content table td { line-height: 1.25; }
+        .leaflet-popup-content, .leaflet-tooltip { font-size: .78rem; line-height: 1.2; }
+    </style>
 </head>
 @php
     $isWide = trim($__env->yieldContent('wide'));

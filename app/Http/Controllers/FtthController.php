@@ -205,6 +205,7 @@ class FtthController extends Controller
                 ]),
                 'cabinets' => $cabinets->map(fn (Cabinet $cabinet) => [
                     'id' => $cabinet->id,
+                    'project_id' => $cabinet->project_id,
                     'name' => $cabinet->name,
                     'project' => $cabinet->project->name,
                     'odf_id' => $cabinet->odf_id,
@@ -222,6 +223,7 @@ class FtthController extends Controller
                 ]),
                 'houses' => $houses->map(fn (House $house) => [
                     'id' => $house->id,
+                    'project_id' => $house->project_id,
                     'label' => $house->label,
                     'project' => $house->project->name,
                     'cabinet' => $house->cabinet->name ?? 'Nije dodijeljeno',
@@ -252,6 +254,7 @@ class FtthController extends Controller
                     'from_id' => $route->from_id,
                     'to_type' => $route->to_type,
                     'to_id' => $route->to_id,
+                    'occupancy' => $this->ftthIntelligence->routeOccupancy($route),
                     'status' => $route->status,
                     'note' => $route->note,
                     'path' => $route->path ?: ($route->odf && $route->cabinet ? [
@@ -300,6 +303,7 @@ class FtthController extends Controller
     public function fiberSchema(): View
     {
         $projects = Project::with([
+            'houses' => fn ($query) => $query->whereNull('cabinet_id')->orderBy('label'),
             'odfs.cabinets' => fn ($query) => $query
                 ->whereNull('parent_cabinet_id')
                 ->with([
@@ -602,6 +606,42 @@ class FtthController extends Controller
         return $this->updatePosition($request, House::findOrFail($id));
     }
 
+    public function connectCabinetHouses(Request $request, $id)
+    {
+        $cabinet = Cabinet::withCount('houses')->findOrFail($id);
+        $data = $request->validate(['house_ids' => ['required', 'array', 'min:1'], 'house_ids.*' => ['integer', 'distinct', 'exists:houses,id']]);
+        $houses = House::whereIn('id', $data['house_ids'])->get();
+
+        if ($houses->contains(fn (House $house) => $house->project_id !== $cabinet->project_id)) {
+            return response()->json(['message' => 'ODO i sve kuće moraju pripadati istom projektu.'], 422);
+        }
+        if ($houses->contains(fn (House $house) => $house->cabinet_id && $house->cabinet_id !== $cabinet->id)) {
+            return response()->json(['message' => 'Jedna ili više kuća već su povezane na drugi ODO.'], 422);
+        }
+        $newHouses = $houses->whereNull('cabinet_id');
+        if ($cabinet->houses_count + $newHouses->count() > 12) {
+            return response()->json(['message' => 'ODO ne može imati više od 12 kuća.'], 422);
+        }
+
+        $routes = DB::transaction(function () use ($cabinet, $newHouses) {
+            return $newHouses->map(function (House $house) use ($cabinet) {
+                $path = [[(float) $cabinet->latitude, (float) $cabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
+                $length = $this->polylineLength($path);
+                $house->update(['cabinet_id' => $cabinet->id]);
+
+                return NetworkRoute::create([
+                    'project_id' => $cabinet->project_id, 'cabinet_id' => $cabinet->id,
+                    'from_type' => 'cabinet', 'from_id' => $cabinet->id, 'to_type' => 'house', 'to_id' => $house->id,
+                    'name' => "Drop {$cabinet->name} - {$house->label}", 'route_type' => 'drop', 'installation_type' => 'underground',
+                    'duct_length_m' => $length, 'fiber_length_m' => $length, 'fiber_count' => 4,
+                    'microduct_count' => 1, 'microduct_type' => '10/8', 'status' => 'planned', 'path' => $path,
+                ]);
+            });
+        });
+
+        return response()->json(['message' => 'Kuće i drop trase su povezane.', 'routes' => $routes->values()]);
+    }
+
     private function updatePosition(Request $request, Model $element)
     {
         $position = $request->validate([
@@ -887,9 +927,11 @@ class FtthController extends Controller
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'from_type' => ['nullable', 'in:odf,cabinet'],
             'from_id' => ['nullable', 'integer'],
+            'to_type' => ['nullable', 'in:cabinet'],
+            'to_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
-            'route_type' => ['required', 'in:feeder,distribution,drop'],
+            'route_type' => ['required', 'in:backbone,feeder,distribution,drop'],
             'installation_type' => ['required', 'in:aerial,underground'],
             'duct_length_m' => ['required', 'integer', 'min:0'],
             'fiber_length_m' => ['required', 'integer', 'min:0'],
@@ -902,6 +944,7 @@ class FtthController extends Controller
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
+        $this->ensureBelongsToProject(Cabinet::class, $data['to_id'] ?? null, $data['project_id'], 'to_id');
         $this->normalizeRouteStart($data, (int) $data['project_id']);
 
         if (! empty($data['path'])) {
@@ -1007,6 +1050,35 @@ class FtthController extends Controller
                 'length' => $route->duct_length_m,
             ],
         ]);
+    }
+
+    public function joinRoutes($id, $otherId)
+    {
+        $route = NetworkRoute::findOrFail($id);
+        $other = NetworkRoute::findOrFail($otherId);
+        abort_if($route->project_id !== $other->project_id, 422, 'Trase moraju pripadati istom projektu.');
+        abort_if(count($route->path ?? []) < 2 || count($other->path ?? []) < 2, 422, 'Obje trase moraju imati najmanje dvije tačke.');
+
+        $a = $route->path;
+        $b = $other->path;
+        $options = [
+            [$a, $b, $this->pointDistance(end($a), reset($b))],
+            [$a, array_reverse($b), $this->pointDistance(end($a), end($b))],
+            [array_reverse($a), $b, $this->pointDistance(reset($a), reset($b))],
+            [array_reverse($a), array_reverse($b), $this->pointDistance(reset($a), end($b))],
+        ];
+        usort($options, fn ($left, $right) => $left[2] <=> $right[2]);
+        [$first, $second, $gap] = $options[0];
+        abort_if($gap > 18, 422, 'Krajevi trasa moraju biti udaljeni najviše 18 m.');
+
+        $path = array_merge($first, array_slice($second, 1));
+        $length = $this->polylineLength($path);
+        DB::transaction(function () use ($route, $other, $path, $length) {
+            $route->update(['path' => $path, 'duct_length_m' => $length, 'fiber_length_m' => $length]);
+            $other->delete();
+        });
+
+        return response()->json(['message' => 'Trase su spojene.', 'route' => ['id' => $route->id, 'path' => $path, 'length' => $length], 'deleted_route_id' => $other->id]);
     }
 
     public function importDxf(Request $request): RedirectResponse
@@ -1128,6 +1200,11 @@ class FtthController extends Controller
         }
 
         return (int) round($distance);
+    }
+
+    private function pointDistance(array $a, array $b): float
+    {
+        return $this->polylineLength([$a, $b]);
     }
 
     public function calculateMaterials(Project $project)

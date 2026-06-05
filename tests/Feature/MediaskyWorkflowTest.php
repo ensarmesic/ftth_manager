@@ -186,6 +186,40 @@ class MediaskyWorkflowTest extends TestCase
             ->assertJsonPath('branches.0.house_count', 2);
     }
 
+    public function test_auto_odo_preview_only_plans_unconnected_houses(): void
+    {
+        $project = Project::create(['name' => 'Incremental', 'code' => 'INC', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.45, 'longitude' => 18.65]);
+        $parent = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 1-2', 'address' => 'Krak', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 44.451, 'longitude' => 18.651]);
+        Cabinet::create(['project_id' => $project->id, 'parent_cabinet_id' => $parent->id, 'name' => 'FTTH-1-2.1', 'address' => 'Child', 'splitter_count' => 1, 'ports_per_splitter' => 4, 'latitude' => 44.452, 'longitude' => 18.652]);
+        House::create(['project_id' => $project->id, 'cabinet_id' => $parent->id, 'label' => 'Stara', 'latitude' => 44.4511, 'longitude' => 18.6511, 'status' => 'planned']);
+        House::create(['project_id' => $project->id, 'label' => 'Nova', 'latitude' => 44.453, 'longitude' => 18.653, 'status' => 'planned']);
+
+        $this->postJson(route('projects.odo-plan.preview', $project))
+            ->assertOk()
+            ->assertJsonPath('summary.houses_with_coordinates', 1)
+            ->assertJsonPath('cabinets.0.houses.0.label', 'Nova');
+
+        $this->assertDatabaseHas('cabinets', ['id' => $parent->id, 'name' => 'FTTH 1-2']);
+        $this->assertDatabaseHas('cabinets', ['parent_cabinet_id' => $parent->id, 'name' => 'FTTH-1-2.1']);
+    }
+
+    public function test_auto_odo_fills_existing_cabinet_before_proposing_new_one(): void
+    {
+        $project = Project::create(['name' => 'Fill existing', 'code' => 'FILL', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.45, 'longitude' => 18.65]);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 1-1', 'address' => 'Krak', 'splitter_count' => 2, 'ports_per_splitter' => 4, 'latitude' => 44.4505, 'longitude' => 18.6505]);
+        NetworkRoute::create(['project_id' => $project->id, 'name' => 'Krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 300, 'fiber_length_m' => 300, 'fiber_count' => 24, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.453, 18.653]]]);
+        foreach (range(1, 8) as $index) House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => "Stara-{$index}", 'latitude' => 44.4505, 'longitude' => 18.6505, 'status' => 'planned']);
+        foreach (range(1, 15) as $index) House::create(['project_id' => $project->id, 'label' => "Nova-{$index}", 'latitude' => 44.4505 + ($index * .00001), 'longitude' => 18.6505 + ($index * .00001), 'status' => 'planned']);
+
+        $response = $this->postJson(route('projects.odo-plan.preview', $project), ['max_house_to_odo_m' => 120])->assertOk();
+        $this->assertSame(2, count($response->json('cabinets')));
+        $this->assertSame($cabinet->id, $response->json('cabinets.0.existing_cabinet_id'));
+        $this->assertSame(12, $response->json('cabinets.0.house_count'));
+        $this->assertSame(11, $response->json('cabinets.1.house_count'));
+    }
+
     public function test_confirmed_cabinet_suggestion_links_house_and_creates_drop_route(): void
     {
         $project = Project::create(['name' => 'Auto plan', 'code' => 'AUTO', 'location' => 'Test', 'status' => 'planning']);
@@ -325,6 +359,74 @@ class MediaskyWorkflowTest extends TestCase
         $response->assertUnprocessable();
 
         $this->assertDatabaseMissing('routes', ['name' => 'Pogresna veza']);
+    }
+
+    public function test_odf_can_be_connected_to_cabinet_with_backbone_route(): void
+    {
+        $project = Project::create(['name' => 'Connect', 'code' => 'CONNECT', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.45, 'longitude' => 18.65]);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH-01', 'address' => 'Krak', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 44.451, 'longitude' => 18.651]);
+
+        $this->postJson(route('routes.store'), [
+            'project_id' => $project->id,
+            'odf_id' => $odf->id,
+            'cabinet_id' => $cabinet->id,
+            'from_type' => 'odf',
+            'from_id' => $odf->id,
+            'to_type' => 'cabinet',
+            'to_id' => $cabinet->id,
+            'name' => 'ODF-01 - FTTH-01',
+            'route_type' => 'backbone',
+            'installation_type' => 'underground',
+            'duct_length_m' => 0,
+            'fiber_length_m' => 0,
+            'fiber_count' => 24,
+            'microduct_count' => 1,
+            'microduct_type' => '14/10',
+            'status' => 'planned',
+            'path' => json_encode([[44.45, 18.65], [44.451, 18.651]]),
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('routes', [
+            'project_id' => $project->id,
+            'odf_id' => $odf->id,
+            'cabinet_id' => $cabinet->id,
+            'from_type' => 'odf',
+            'from_id' => $odf->id,
+            'to_type' => 'cabinet',
+            'to_id' => $cabinet->id,
+            'route_type' => 'backbone',
+            'fiber_count' => 24,
+        ]);
+    }
+
+    public function test_cabinet_can_connect_houses_and_create_drop_routes(): void
+    {
+        $project = Project::create(['name' => 'Drop connect', 'code' => 'DROP', 'location' => 'Test', 'status' => 'planning']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'name' => 'FTTH-01', 'address' => 'Krak', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 44.45, 'longitude' => 18.65]);
+        $house = House::create(['project_id' => $project->id, 'label' => 'K-001', 'latitude' => 44.451, 'longitude' => 18.651, 'status' => 'planned']);
+
+        $this->postJson(route('cabinets.houses.connect', $cabinet), ['house_ids' => [$house->id]])
+            ->assertOk()
+            ->assertJsonCount(1, 'routes');
+
+        $this->assertDatabaseHas('houses', ['id' => $house->id, 'cabinet_id' => $cabinet->id]);
+        $this->assertDatabaseHas('routes', ['cabinet_id' => $cabinet->id, 'to_type' => 'house', 'to_id' => $house->id, 'route_type' => 'drop', 'fiber_count' => 4]);
+    }
+
+    public function test_two_routes_with_near_endpoints_can_be_joined(): void
+    {
+        $project = Project::create(['name' => 'Join', 'code' => 'JOIN', 'location' => 'Test', 'status' => 'planning']);
+        $first = NetworkRoute::create(['project_id' => $project->id, 'name' => 'A', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651]]]);
+        $second = NetworkRoute::create(['project_id' => $project->id, 'name' => 'B', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.451, 18.651], [44.452, 18.652]]]);
+
+        $this->postJson(route('routes.join', [$first, $second]))
+            ->assertOk()
+            ->assertJsonPath('deleted_route_id', $second->id)
+            ->assertJsonCount(3, 'route.path');
+
+        $this->assertDatabaseMissing('routes', ['id' => $second->id]);
+        $this->assertCount(3, $first->fresh()->path);
     }
 
     public function test_plan_save_rolls_back_when_an_item_is_invalid(): void

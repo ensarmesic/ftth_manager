@@ -19,17 +19,19 @@ class FtthIntelligenceService
     {
         $params = $this->planningParameters($parameters);
         $housesWithCoordinates = $project->houses()
+            ->whereNull('cabinet_id')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->orderBy('label')
             ->get();
         $housesWithoutCoordinates = $project->houses()
+            ->whereNull('cabinet_id')
             ->where(fn ($query) => $query->whereNull('latitude')->orWhereNull('longitude'))
             ->orderBy('label')
             ->get();
 
         if ($housesWithCoordinates->isEmpty()) {
-            throw new InvalidArgumentException('Nema kuca sa koordinatama za automatsko planiranje.');
+            throw new InvalidArgumentException('Nema novih nepovezanih kuca sa koordinatama za automatsko planiranje.');
         }
 
         $odfs = $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->get();
@@ -49,10 +51,15 @@ class FtthIntelligenceService
         $cabinets = [];
         $branchSummaries = [];
         foreach ($assignments['branches'] as $branchKey => $branch) {
-            $groups = $this->groupsForBranch($branch['houses'], $branch, $params);
+            [$existingCabinetPlans, $remainingHouses] = $this->fillExistingCabinets($project, $branch['houses'], $branch, $odfs, $params);
+            $groups = $this->groupsForBranch($remainingHouses, $branch, $params);
             $branchCabinets = [];
+            foreach ($existingCabinetPlans as $cabinet) {
+                $cabinets[] = $cabinet;
+                $branchCabinets[] = $cabinet;
+            }
             foreach ($groups as $groupIndex => $houses) {
-                $cabinet = $this->cabinetPreview($project, $houses, $branch, $groupIndex + 1, $odfs, $params);
+                $cabinet = $this->cabinetPreview($project, $houses, $branch, count($existingCabinetPlans) + $groupIndex + 1, $odfs, $params);
                 $cabinets[] = $cabinet;
                 $branchCabinets[] = $cabinet;
             }
@@ -126,40 +133,24 @@ class FtthIntelligenceService
                     throw new InvalidArgumentException('Plan sadrzi ODF iz drugog projekta.');
                 }
 
-                $assignedCabinetIds = House::query()
-                    ->where('project_id', $project->id)
-                    ->whereIn('id', $houseIds)
-                    ->whereNotNull('cabinet_id')
-                    ->pluck('cabinet_id')
-                    ->unique()
-                    ->values();
-
-                $cabinet = null;
-                if ($assignedCabinetIds->count() === 1) {
-                    $cabinet = Cabinet::query()
-                        ->where('project_id', $project->id)
-                        ->whereKey($assignedCabinetIds->first())
-                        ->first();
-                }
-
                 $cabinetName = $this->confirmedCabinetName((string) $cabinetPlan['name']);
-                if (! $cabinet) {
-                    $cabinet = Cabinet::query()
-                        ->where('project_id', $project->id)
-                        ->where('name', $cabinetName)
-                        ->first();
+                $assignedCabinetIds = House::query()->where('project_id', $project->id)->whereIn('id', $houseIds)->whereNotNull('cabinet_id')->pluck('cabinet_id')->unique();
+                $cabinet = $assignedCabinetIds->count() === 1 ? Cabinet::find($assignedCabinetIds->first()) : null;
+                $targetExistingCabinet = ! empty($cabinetPlan['existing_cabinet_id'])
+                    ? Cabinet::query()->where('project_id', $project->id)->whereKey($cabinetPlan['existing_cabinet_id'])->first()
+                    : null;
+                $sameAutoCabinet = $cabinet && ! $cabinet->parent_cabinet_id && $cabinet->name === $cabinetName && str_starts_with((string) $cabinet->address, 'Auto plan - ');
+                if ($assignedCabinetIds->isNotEmpty() && ! $sameAutoCabinet) {
+                    throw new InvalidArgumentException('Plan sadrzi kucu koja je vec povezana na ODO. Ponovo pokreni Auto ODO.');
                 }
-
-                if ($cabinet) {
-                    $cabinet->update([
-                        'odf_id' => $odfId,
-                        'address' => 'Auto plan - '.$cabinetPlan['proposed_latitude'].','.$cabinetPlan['proposed_longitude'],
-                        'splitter_count' => $this->splitterCount($houses->count()),
-                        'ports_per_splitter' => 4,
-                        'latitude' => $cabinetPlan['proposed_latitude'],
-                        'longitude' => $cabinetPlan['proposed_longitude'],
-                    ]);
-                } else {
+                if ($targetExistingCabinet) {
+                    if ($targetExistingCabinet->houses()->count() + $houses->count() > 12) {
+                        throw new InvalidArgumentException('Postojeci ODO nema dovoljno slobodnih portova.');
+                    }
+                    $cabinet = $targetExistingCabinet;
+                    $cabinet->update(['splitter_count' => $this->splitterCount($cabinet->houses()->count() + $houses->count())]);
+                } elseif (! $sameAutoCabinet) {
+                    $cabinetName = $this->uniqueCabinetName($project, $cabinetName);
                     $cabinet = Cabinet::create([
                         'project_id' => $project->id,
                         'odf_id' => $odfId,
@@ -229,7 +220,7 @@ class FtthIntelligenceService
     public function validateProject(Project $project): array
     {
         $items = [];
-        $project->loadMissing(['odfs', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
+        $project->loadMissing(['odfs.cabinets', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
         $branchRoutes = $this->branchRoutes($project);
 
         if ($project->odfs->isEmpty()) {
@@ -241,10 +232,18 @@ class FtthIntelligenceService
         if ($project->houses->isEmpty()) {
             $items[] = $this->validationItem('info', 'Projekat nema kuce.', 'project', $project->id, 'Dodaj kuce iz mape ili liste.');
         }
+        foreach ($project->odfs as $odf) {
+            if ($odf->latitude === null || $odf->longitude === null) $items[] = $this->validationItem('error', "{$odf->name} nema koordinate.", 'odf', $odf->id, 'Postavi ODF na mapi.');
+            if ($odf->cabinets->isEmpty()) $items[] = $this->validationItem('warning', "{$odf->name} nema povezan ODO.", 'odf', $odf->id, 'Poveži najmanje jedan ODO na ODF.');
+        }
 
         foreach ($project->houses as $house) {
+            if ($house->latitude === null || $house->longitude === null) $items[] = $this->validationItem('error', "{$house->label} nema koordinate.", 'house', $house->id, 'Postavi kuću na mapi.');
             if (! $house->cabinet_id) {
                 $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kucu ODO ormaricu.');
+            }
+            if (! $project->routes->contains(fn (NetworkRoute $route) => $route->route_type === 'drop' && $route->to_type === 'house' && (int) $route->to_id === $house->id)) {
+                $items[] = $this->validationItem('warning', "{$house->label} nema drop trasu.", 'house', $house->id, 'Nacrtaj ili automatski kreiraj drop trasu.');
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
                 $distance = $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $house->cabinet->latitude, (float) $house->cabinet->longitude);
@@ -269,9 +268,12 @@ class FtthIntelligenceService
         foreach ($project->cabinets as $cabinet) {
             $houseCount = $cabinet->houses->count();
             $neededSplitters = $this->splitterCount($houseCount);
-            if (! $cabinet->odf_id) {
+            if (! $cabinet->odf_id && ! $cabinet->parent_cabinet_id) {
                 $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Povezi ODO sa najblizim ODF-om.');
             }
+            if ($cabinet->latitude === null || $cabinet->longitude === null) $items[] = $this->validationItem('error', "{$cabinet->name} nema koordinate.", 'cabinet', $cabinet->id, 'Postavi ODO na mapi.');
+            if ($cabinet->splitter_count > 3 || $cabinet->ports_per_splitter > 4) $items[] = $this->validationItem('error', "{$cabinet->name} ima neispravnu splitter konfiguraciju.", 'cabinet', $cabinet->id, 'Koristi najviše 3 splittera sa po 4 porta.');
+            if ($houseCount === 0) $items[] = $this->validationItem('info', "{$cabinet->name} nema povezanih kuća.", 'cabinet', $cabinet->id, 'Poveži kuće na ODO.');
             if ($houseCount > 12) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} ima vise od 12 kuca.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
             }
@@ -293,6 +295,13 @@ class FtthIntelligenceService
             if (! $route->microduct_type) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema mikrocijev.", 'route', $route->id, 'Unesi profil mikrocijevi.');
             }
+            if (! $route->installation_type) $items[] = $this->validationItem('warning', "{$route->name} nema tip polaganja.", 'route', $route->id, 'Odaberi podzemno ili zračno polaganje.');
+            if ($route->duct_length_m <= 0) $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
+            if ($route->route_type === 'drop' && ($route->to_type !== 'house' || ! $route->to_id)) $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.');
+            if (in_array($route->route_type, ['backbone', 'distribution'], true) && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.');
+            $occupancy = $this->routeOccupancy($route);
+            if ($occupancy['used_fibers'] > $occupancy['fiber_capacity']) $items[] = $this->validationItem('error', "{$route->name} ima više zauzetih vlakana od kapaciteta.", 'route', $route->id, 'Povećaj kapacitet kabla.');
+            elseif ($occupancy['utilization_percent'] > 80) $items[] = $this->validationItem('warning', "{$route->name} ima preko 80% zauzeća vlakana.", 'route', $route->id, 'Planiraj rezervni kapacitet.');
             if (! $route->path) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema geometriju.", 'route', $route->id, 'Uredi geometriju trase na mapi.');
             } elseif (count($route->path) < 2) {
@@ -303,7 +312,7 @@ class FtthIntelligenceService
         return $items ?: [$this->validationItem('ok', 'Projekat nema otvorenih FTTH upozorenja.', 'project', $project->id, 'Nastavi sa projektovanjem.')];
     }
 
-    public function materialSummary(Project $project): array
+    public function materialSummary(Project $project, int $reservePercent = 10): array
     {
         $routes = $project->routes;
         $summary = [
@@ -322,8 +331,24 @@ class FtthIntelligenceService
             'unclassified_routes' => $routes->filter(fn (NetworkRoute $route) => ! $route->microduct_type || ! $route->fiber_count)->count(),
         ];
         $summary['estimated_value'] = (float) $project->materials()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?: 0.0;
+        $summary['reserve_percent'] = $reservePercent;
+        $summary['lengths_with_reserve'] = collect($summary)->filter(fn ($value, $key) => is_numeric($value) && (str_ends_with($key, '_m') || $key === 'route_length_m'))->map(fn ($value) => [
+            'base' => $value, 'reserve' => (int) ceil($value * $reservePercent / 100), 'total' => (int) ceil($value * (1 + $reservePercent / 100)),
+        ])->all();
+        $summary['microduct_by_type'] = $routes->groupBy('microduct_type')->filter(fn ($group, $type) => filled($type))->map(fn ($group) => $group->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count))->all();
+        $summary['fiber_by_count'] = $routes->groupBy('fiber_count')->filter(fn ($group, $count) => filled($count))->map->sum('fiber_length_m')->all();
 
         return $summary;
+    }
+
+    public function routeOccupancy(NetworkRoute $route): array
+    {
+        $capacity = (int) ($route->fiber_count ?? 0);
+        $used = $route->route_type === 'drop'
+            ? ($route->to_type === 'house' && $route->to_id ? 1 : 0)
+            : ($route->cabinet_id ? House::where('cabinet_id', $route->cabinet_id)->count() : 0);
+
+        return ['fiber_capacity' => $capacity, 'used_fibers' => $used, 'free_fibers' => max($capacity - $used, 0), 'utilization_percent' => $capacity > 0 ? (int) round($used / $capacity * 100) : 0];
     }
 
     public function splitterCount(int $houseCount): int
@@ -484,6 +509,50 @@ class FtthIntelligenceService
         }
 
         return $groups;
+    }
+
+    private function fillExistingCabinets(Project $project, Collection $houses, array $branch, Collection $odfs, array $params): array
+    {
+        if (! $branch['route'] || $houses->isEmpty()) {
+            return [[], $houses];
+        }
+        $remaining = $houses->sortBy(fn (House $house) => (float) $house->getAttribute('chainage_m'))->values();
+        $plans = [];
+        $cabinets = $project->cabinets()->withCount('houses')->whereNotNull('latitude')->whereNotNull('longitude')->get()
+            ->filter(function (Cabinet $cabinet) use ($branch, $params) {
+                if ($cabinet->houses_count >= 12) return false;
+                $nearest = $this->nearestBranch((float) $cabinet->latitude, (float) $cabinet->longitude, collect([$branch['route']]));
+
+                return $nearest && $nearest['distance_m'] <= $params['max_branch_distance_m'];
+            })
+            ->sortByDesc(fn (Cabinet $cabinet) => $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $branch['route'])['chainage_m']);
+
+        foreach ($cabinets as $cabinet) {
+            $free = 12 - $cabinet->houses_count;
+            $selected = $remaining->filter(fn (House $house) => $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $cabinet->latitude, (float) $cabinet->longitude) <= $params['max_house_to_odo_m'])
+                ->sortBy(fn (House $house) => $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $cabinet->latitude, (float) $cabinet->longitude))
+                ->take($free)
+                ->values();
+            if ($selected->isEmpty()) continue;
+            $odoPoint = ['lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude, 'medoid' => $selected->first()];
+            $plan = $this->cabinetPreview($project, $selected, $branch, 0, $odfs, $params);
+            $plan['existing_cabinet_id'] = $cabinet->id;
+            $plan['name'] = $cabinet->name;
+            $plan['confirmed_name'] = $cabinet->name;
+            $plan['proposed_latitude'] = (float) $cabinet->latitude;
+            $plan['proposed_longitude'] = (float) $cabinet->longitude;
+            $plan['house_count'] = $cabinet->houses_count + $selected->count();
+            $plan['splitter_count'] = $this->splitterCount($plan['house_count']);
+            $plan['utilization_percent'] = round($plan['house_count'] / 12 * 100, 1);
+            $plan['utilization'] = $plan['utilization_percent'];
+            $plan['drop_preview'] = $selected->map(fn (House $house) => $this->dropPreviewForHouse($house, $odoPoint, $branch))->values()->all();
+            $plan['houses'] = $selected->map(fn (House $house) => $this->housePayload($house, $odoPoint))->values()->all();
+            $plans[] = $plan;
+            $selectedIds = $selected->pluck('id');
+            $remaining = $remaining->reject(fn (House $house) => $selectedIds->contains($house->id))->values();
+        }
+
+        return [$plans, $remaining];
     }
 
     private function cabinetPreview(Project $project, Collection $houses, array $branch, int $groupIndex, Collection $odfs, array $params): array
@@ -740,6 +809,21 @@ class FtthIntelligenceService
     private function confirmedCabinetName(string $name): string
     {
         return trim(str_replace(' PRIJEDLOG', '', $name));
+    }
+
+    private function uniqueCabinetName(Project $project, string $base): string
+    {
+        if (! Cabinet::where('project_id', $project->id)->where('name', $base)->exists()) {
+            return $base;
+        }
+        for ($suffix = 2; $suffix < 1000; $suffix++) {
+            $candidate = "{$base}-{$suffix}";
+            if (! Cabinet::where('project_id', $project->id)->where('name', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        throw new InvalidArgumentException('Nije moguće generisati jedinstven naziv novog ODO ormarića.');
     }
 
     private function planSummary(Collection $housesWithCoordinates, Collection $housesWithoutCoordinates, Collection $cabinets, array $warnings, Collection $unassigned): array

@@ -39,6 +39,7 @@ Route::get('/kuce', [FtthController::class, 'houses'])->name('houses.index');
 Route::post('/kuce', [FtthController::class, 'storeHouse'])->name('houses.store');
 Route::match(['put', 'patch'], '/kuce/{id}', [FtthController::class, 'updateHouse'])->name('houses.update');
 Route::patch('/kuce/{id}/pozicija', [FtthController::class, 'updateHousePosition'])->name('houses.position.update');
+Route::post('/ormarici/{id}/povezi-kuce', [FtthController::class, 'connectCabinetHouses'])->name('cabinets.houses.connect');
 Route::delete('/kuce/{id}', [FtthController::class, 'deleteHouse'])->name('houses.delete');
 
 Route::get('/korisnici', [FtthController::class, 'subscribers'])->name('subscribers.index');
@@ -50,6 +51,7 @@ Route::get('/trase', [FtthController::class, 'routes'])->name('routes.index');
 Route::post('/trase', [FtthController::class, 'storeRoute'])->name('routes.store');
 Route::match(['put', 'patch'], '/trase/{id}', [FtthController::class, 'updateRoute'])->name('routes.update');
 Route::patch('/trase/{id}/geometrija', [FtthController::class, 'updateRouteGeometry'])->name('routes.geometry.update');
+Route::post('/trase/{id}/join/{otherId}', [FtthController::class, 'joinRoutes'])->name('routes.join');
 Route::post('/trase/dxf', [FtthController::class, 'importDxf'])->name('routes.dxf.import');
 Route::delete('/trase/{id}', [FtthController::class, 'deleteRoute'])->name('routes.delete');
 

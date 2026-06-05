@@ -98,6 +98,14 @@
                 <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
                 <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuće</button>
                 <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
+                <button type="button" id="mode-connect" class="tool-btn rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">Poveži ODF-ODO</button>
+                <button type="button" id="mode-connect-houses" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Poveži ODO-kuće</button>
+                <button type="button" id="mode-trace" class="tool-btn rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800">Trace</button>
+                <button type="button" id="mode-join" class="tool-btn rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800">Join trase</button>
+                <div id="house-connect-actions" class="hidden items-center gap-2">
+                    <button type="button" id="finish-house-connect" class="action-btn rounded-md bg-violet-600 px-3 py-2 text-sm font-semibold text-white">Završi povezivanje</button>
+                    <button type="button" id="cancel-house-connect" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Otkaži</button>
+                </div>
                 <span class="mx-1 hidden h-8 w-px bg-zinc-200 sm:block"></span>
                 <button type="button" id="finish-branch" class="action-btn rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950">Završi krak</button>
                 <button type="button" id="undo-draw" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo tačka</button>
@@ -107,6 +115,11 @@
                 <button type="button" id="clear-draw" class="action-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Očisti trase</button>
                 <button type="button" id="cancel-draw" class="action-btn rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700">Ponisti crtanje</button>
                 <button type="button" id="quick-save-draft" class="action-btn rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sačuvaj nacrt</button>
+                <div id="route-edit-actions" class="hidden items-center gap-2">
+                    <button type="button" id="add-route-vertex" class="action-btn rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">Dodaj tačku</button>
+                    <button type="button" id="save-route-edit" class="action-btn rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Sačuvaj izmjene trase</button>
+                    <button type="button" id="cancel-route-edit" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Otkaži edit</button>
+                </div>
                 <button type="button" id="expand-map" class="action-btn ml-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
             </div>
             <p class="mt-2 text-xs text-zinc-500">Nacrt se čuva automatski. Desni klik na element: obriši ili premjesti.</p>
@@ -242,15 +255,13 @@
 
         <details class="control-panel rounded-md" open>
             <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Layer Manager</summary>
-            <div class="grid grid-cols-2 gap-2 border-t border-zinc-100 p-3 text-sm">
-                <label><input type="checkbox" data-layer-toggle="odf" checked> ODF</label>
-                <label><input type="checkbox" data-layer-toggle="odo" checked> ODO</label>
-                <label><input type="checkbox" data-layer-toggle="houses" checked> Kuce</label>
-                <label><input type="checkbox" data-layer-toggle="routes" checked> Trase</label>
-                <label><input type="checkbox" data-layer-toggle="preview" checked> Preview</label>
-                <label><input type="checkbox" data-layer-toggle="drops" checked> Drop veze</label>
-                <label><input type="checkbox" data-layer-toggle="measure" checked> Mjerenje</label>
-                <label><input type="checkbox" data-layer-toggle="trace" checked> Fiber tracing</label>
+            <div class="grid gap-1 border-t border-zinc-100 p-3 text-sm">
+                @foreach(['odf' => 'ODF', 'odo' => 'ODO', 'houses' => 'Kuće', 'backbone' => 'Backbone', 'distribution' => 'Distribution', 'drop' => 'Drop', 'dxf' => 'DXF', 'preview' => 'Preview', 'measure' => 'Mjerenje', 'trace' => 'Fiber tracing'] as $layer => $label)
+                    <div class="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-100 bg-white px-2 py-1">
+                        <label><input type="checkbox" data-layer-toggle="{{ $layer }}" checked> {{ $label }} <span data-layer-count="{{ $layer }}" class="text-xs text-zinc-400">0</span></label>
+                        <button type="button" data-layer-lock="{{ $layer }}" class="rounded border border-zinc-200 px-2 py-1 text-xs font-semibold">Otključan</button>
+                    </div>
+                @endforeach
             </div>
         </details>
 
@@ -333,6 +344,12 @@ let activeBranch = [];
 let activeBranchMarkers = [];
 let activeBranchLine = null;
 let previewBranchLine = null;
+let snapIndicator = null;
+let routeEdit = null;
+let connectOdf = null;
+let connectCabinet = null;
+let connectHouseIds = new Set();
+let joinRoutes = [];
 let branches = [];
 let branchLines = [];
 let branchMeta = [];
@@ -366,17 +383,21 @@ const redoStack = [];
 const odfMarkerById = {};
 const cabinetMarkerById = {};
 const routeLayerById = {};
+const routeLabelsById = {};
 let activeTraceHouseId = null;
 const layerRegistry = {
     odf: [],
     odo: [],
     houses: [],
-    routes: [],
+    backbone: [],
+    distribution: [],
+    drop: [],
+    dxf: [],
     preview: [],
-    drops: [],
     measure: [],
     trace: [],
 };
+const layerLocks = {};
 const draftsByProject = {};
 const deleteUrls = {
     odf: id => `{{ url('/odf') }}/${id}`,
@@ -434,14 +455,20 @@ data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
+    const occupancy = route.occupancy || {};
     const line = L.polyline(points, { color: route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type), weight: 4, opacity: .9 })
-        .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m`)
+        .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
     const labels = addRouteLabel(points, route.name, false);
     routeLayerById[route.id] = line;
-    trackLayer(line, 'routes');
-    labels?.forEach(label => trackLayer(label, 'routes'));
-    registerSavedContext([line, ...labels], route.name, deleteUrls.route(route.id));
+    routeLabelsById[route.id] = labels || [];
+    trackLayer(line, routeLayerType(route.type));
+    labels?.forEach(label => trackLayer(label, routeLayerType(route.type)));
+    registerSavedContext([line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
+        if (mode === 'join') selectJoinRoute(route, line);
+        else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
+        else startRouteEdit(route, line);
+    });
     points.forEach(p => bounds.push([p.lat, p.lng]));
 });
 data.odfs.forEach(odf => {
@@ -452,6 +479,12 @@ data.odfs.forEach(odf => {
         .bindPopup(`<b>ODF: ${odf.name}</b><br>${odf.address}<br>FTTH ormarića: ${connectedCabinets}`)
         .addTo(map);
     marker.on('click', event => {
+        if (layerLocked('odf')) return document.getElementById('cad-command').textContent = 'Layer ODF je zaključan.';
+        if (mode === 'connect') {
+            L.DomEvent.stop(event);
+            selectConnectOdf(odf);
+            return;
+        }
         if (mode === 'draw') {
             map.closePopup();
             addDrawPoint(event.latlng);
@@ -470,6 +503,17 @@ data.cabinets.forEach(c => {
         .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova<br>ODF: ${c.odf}`)
         .addTo(map);
     marker.on('click', event => {
+        if (layerLocked('odo')) return document.getElementById('cad-command').textContent = 'Layer ODO je zaključan.';
+        if (mode === 'connect-houses') {
+            L.DomEvent.stop(event);
+            selectHouseConnectCabinet(c);
+            return;
+        }
+        if (mode === 'connect') {
+            L.DomEvent.stop(event);
+            connectSelectedOdfToCabinet(c);
+            return;
+        }
         if (mode === 'draw') {
             map.closePopup();
             addDrawPoint(event.latlng);
@@ -493,12 +537,18 @@ function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).to
         houseDataByKey[key] = h;
         const marker = L.marker(p, { icon: icon('house', '', color), draggable: false }).bindPopup(`<b>${h.label}</b><br>ODO: ${h.cabinet}`).addTo(map);
         marker.on('click', event => {
+            if (layerLocked('houses')) return document.getElementById('cad-command').textContent = 'Layer kuće je zaključan.';
+            if (mode === 'connect-houses') {
+                L.DomEvent.stop(event);
+                toggleHouseConnect(h);
+                return;
+            }
             if (mode === 'draw') {
                 map.closePopup();
                 addDrawPoint(event.latlng);
                 return;
             }
-            showFiberTrace(h.id);
+            if (mode === 'trace') showFiberTrace(h.id);
         });
         registerSavedContext(marker, h.label, deleteUrls.house(h.id), positionUrls.house(h.id));
         trackLayer(marker, 'houses');
@@ -510,7 +560,12 @@ let savedHouseCount = housePoints.length;
 if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 }); else map.setView(defaultCenter, 17);
 
 function setMode(next) {
+    if (routeEdit && next !== 'pan') cancelRouteEdit();
     mode = next;
+    if (next !== 'connect') connectOdf = null;
+    if (next !== 'connect-houses') resetHouseConnect();
+    if (next !== 'join') resetJoinRoutes();
+    if (next !== 'draw') hideSnapIndicator();
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-zinc-900'));
     const button = document.getElementById(`mode-${next}`);
     if (button) button.classList.add('ring-2', 'ring-zinc-900');
@@ -520,26 +575,235 @@ function setMode(next) {
         cabinet: 'FTTH: klikni lokacije zelenih ormarića. Vezuju se na aktivni ODF.',
         house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
         draw: 'TRASA: klik po klik crtaj trasu. Blizu postojece trase/tacke automatski se spoji. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
+        connect: 'CONNECT: odaberi ODF',
+        'connect-houses': 'CONNECT HOUSES: odaberi ODO',
+        trace: 'TRACE: klikni kuću za prikaz optičkog puta',
+        join: 'JOIN: označi trase klikom, zatim pritisni ENTER',
     };
     document.getElementById('cad-command').textContent = labels[next];
     updateCommandBar();
 }
-['pan','odf','cabinet','house','draw'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
+['pan','odf','cabinet','house','draw','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
 
 function distance(points) { return Math.round(points.slice(1).reduce((sum, p, i) => sum + map.distance(points[i], p), 0)); }
 function draftNetworkPoints() { return [...branches, activeBranch].filter(b => b.length > 1); }
 function allNetworkPoints() { return [...savedRoutePoints, ...branches, activeBranch].filter(b => b.length > 1); }
 function allDistance() { return draftNetworkPoints().reduce((sum, b) => sum + distance(b), 0); }
 function routeTypeLabel(type) {
-    return type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
+    return type === 'backbone' ? 'Backbone' : type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
 }
 function routeColor(type) {
-    return type === 'feeder' ? '#308DCC' : type === 'drop' ? '#7BA9DA' : '#81C342';
+    return type === 'backbone' ? '#2563eb' : type === 'feeder' ? '#308DCC' : type === 'drop' ? '#7BA9DA' : '#81C342';
 }
 function nextRouteName(type) {
     const prefix = type === 'feeder' ? 'P' : type === 'drop' ? 'D' : 'S';
     const count = branchMeta.filter(meta => meta.route_type === type).length + 1;
     return `${prefix}-${String(count).padStart(2, '0')}`;
+}
+function selectConnectOdf(odf) {
+    connectOdf = odf;
+    document.getElementById('cad-command').textContent = `CONNECT: odaberi ODO za ${odf.name}`;
+}
+function selectHouseConnectCabinet(cabinet) {
+    resetHouseConnect();
+    connectCabinet = cabinet;
+    document.getElementById('house-connect-actions').classList.remove('hidden');
+    document.getElementById('house-connect-actions').classList.add('flex');
+    document.getElementById('cad-command').textContent = `CONNECT HOUSES: ${cabinet.name}, odaberi kuće`;
+}
+function toggleHouseConnect(house) {
+    if (!connectCabinet) return document.getElementById('cad-command').textContent = 'CONNECT HOUSES: prvo odaberi ODO';
+    if (Number(house.project_id) !== Number(connectCabinet.project_id)) return document.getElementById('cad-command').textContent = 'CONNECT HOUSES: kuća i ODO moraju biti u istom projektu.';
+    if (house.cabinet_id && Number(house.cabinet_id) !== Number(connectCabinet.id)) return document.getElementById('cad-command').textContent = `${house.label} je već povezana na drugi ODO.`;
+    const available = Math.max(12 - Number(connectCabinet.used_ports || 0), 0);
+    if (!connectHouseIds.has(house.id) && connectHouseIds.size >= available) return document.getElementById('cad-command').textContent = `${connectCabinet.name} nema više slobodnih portova.`;
+    const marker = houseMarkerByKey[pointKey(house.lat, house.lng)];
+    if (connectHouseIds.has(house.id)) {
+        connectHouseIds.delete(house.id);
+        marker?.setIcon(icon('house', '', savedHouseColorByKey[pointKey(house.lat, house.lng)] || null));
+    } else {
+        connectHouseIds.add(house.id);
+        marker?.setIcon(icon('house', '', '#a855f7'));
+    }
+    document.getElementById('cad-command').textContent = `CONNECT HOUSES: ${connectCabinet.name} | odabrano ${connectHouseIds.size}/${available}`;
+}
+function resetHouseConnect() {
+    connectHouseIds.forEach(id => {
+        const house = data.houses.find(item => Number(item.id) === Number(id));
+        if (house) houseMarkerByKey[pointKey(house.lat, house.lng)]?.setIcon(icon('house', '', savedHouseColorByKey[pointKey(house.lat, house.lng)] || null));
+    });
+    connectCabinet = null;
+    connectHouseIds = new Set();
+    document.getElementById('house-connect-actions')?.classList.add('hidden');
+    document.getElementById('house-connect-actions')?.classList.remove('flex');
+}
+async function finishHouseConnect() {
+    if (!connectCabinet || !connectHouseIds.size) return document.getElementById('cad-command').textContent = 'CONNECT HOUSES: odaberi ODO i najmanje jednu kuću.';
+    const cabinet = connectCabinet, houseIds = [...connectHouseIds];
+    const response = await fetch(`{{ url('/ormarici') }}/${cabinet.id}/povezi-kuce`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ house_ids: houseIds }),
+    });
+    const result = await readJsonResponse(response, 'ODO-kuće povezivanje nije uspjelo.');
+    result.routes.forEach(route => addSavedRouteToMap({ ...route, type: 'drop', length: route.duct_length_m }));
+    data.houses.filter(house => houseIds.includes(house.id)).forEach(house => { house.cabinet_id = cabinet.id; house.cabinet = cabinet.name; });
+    cabinet.used_ports = Number(cabinet.used_ports || 0) + result.routes.length;
+    resetHouseConnect();
+    document.getElementById('cad-command').textContent = `CONNECT HOUSES: kreirano ${result.routes.length} drop veza za ${cabinet.name}`;
+}
+async function connectSelectedOdfToCabinet(cabinet) {
+    if (!connectOdf) {
+        document.getElementById('cad-command').textContent = 'CONNECT: prvo odaberi ODF';
+        return;
+    }
+    if (Number(connectOdf.project_id) !== Number(cabinet.project_id)) {
+        document.getElementById('cad-command').textContent = 'CONNECT: ODF i ODO moraju pripadati istom projektu.';
+        return;
+    }
+    const points = [L.latLng(connectOdf.lat, connectOdf.lng), L.latLng(cabinet.lat, cabinet.lng)];
+    const length = distance(points);
+    const payload = {
+        project_id: connectOdf.project_id,
+        odf_id: connectOdf.id,
+        cabinet_id: cabinet.id,
+        from_type: 'odf',
+        from_id: connectOdf.id,
+        to_type: 'cabinet',
+        to_id: cabinet.id,
+        name: `${connectOdf.name} - ${cabinet.name}`,
+        route_type: 'backbone',
+        installation_type: 'underground',
+        duct_length_m: length,
+        fiber_length_m: length,
+        fiber_count: 24,
+        microduct_type: '14/10',
+        microduct_count: 1,
+        status: 'planned',
+        path: JSON.stringify(points.map(point => [Number(point.lat.toFixed(7)), Number(point.lng.toFixed(7))])),
+    };
+    document.getElementById('cad-command').textContent = `CONNECT: kreiram vezu ${connectOdf.name} → ${cabinet.name}`;
+    try {
+        const response = await fetch(`{{ route('routes.store') }}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(payload),
+        });
+        const result = await readJsonResponse(response, 'ODF-ODO veza nije kreirana.');
+        addSavedRouteToMap({
+            ...result.route,
+            project_id: connectOdf.project_id,
+            project: connectOdf.project,
+            cabinet_id: cabinet.id,
+            installation_type: 'underground',
+            fiber_count: 24,
+            duct_length_m: result.route.length,
+            fiber_length_m: result.route.length,
+        });
+        document.getElementById('cad-command').textContent = `CONNECT: kreirana veza ${connectOdf.name} → ${cabinet.name}`;
+        connectOdf = null;
+    } catch (error) {
+        document.getElementById('cad-command').textContent = `CONNECT: ${error.message}`;
+    }
+}
+function addSavedRouteToMap(route) {
+    const points = route.path.map(point => L.latLng(point[0], point[1]));
+    const line = L.polyline(points, { color: routeColor(route.type), weight: 4, opacity: .9 })
+        .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length} m`)
+        .addTo(map);
+    const labels = addRouteLabel(points, route.name, false);
+    data.routes.push(route);
+    savedRoutePoints.push(points);
+    routeLayerById[route.id] = line;
+    routeLabelsById[route.id] = labels || [];
+    trackLayer(line, routeLayerType(route.type));
+    labels?.forEach(label => trackLayer(label, routeLayerType(route.type)));
+    registerSavedContext([line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
+        if (mode === 'join') selectJoinRoute(route, line);
+        else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
+        else startRouteEdit(route, line);
+    });
+}
+function resetJoinRoutes() {
+    joinRoutes.forEach(item => item.line.setStyle({ color: item.route.cabinet_id ? cabinetColor(item.route.cabinet_id) : routeColor(item.route.type), weight: 4, opacity: .9 }));
+    joinRoutes = [];
+}
+function selectJoinRoute(route, line) {
+    const selectedIndex = joinRoutes.findIndex(item => Number(item.route.id) === Number(route.id));
+    if (selectedIndex >= 0) {
+        joinRoutes.splice(selectedIndex, 1);
+        line.setStyle({ color: route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type), weight: 4, opacity: .9 });
+        document.getElementById('cad-command').textContent = `JOIN: označeno ${joinRoutes.length} trasa. ENTER spaja.`;
+        return;
+    }
+    joinRoutes.push({ route, line });
+    line.setStyle({ color: joinRoutes.length === 1 ? '#e11d48' : '#fb7185', weight: 7, opacity: 1 });
+    document.getElementById('cad-command').textContent = `JOIN: označeno ${joinRoutes.length} trasa. Glavna: ${joinRoutes[0].route.name}. ENTER spaja.`;
+}
+async function joinSelectedRoutes() {
+    if (joinRoutes.length < 2) {
+        document.getElementById('cad-command').textContent = 'JOIN: označi najmanje dvije trase, zatim pritisni ENTER.';
+        return;
+    }
+    const first = joinRoutes[0];
+    const others = joinRoutes.slice(1);
+    for (const item of others) {
+      try {
+        const response = await fetch(`{{ url('/trase') }}/${first.route.id}/join/${item.route.id}`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const result = await readJsonResponse(response, 'Trase nisu spojene.');
+        const points = result.route.path.map(point => L.latLng(point[0], point[1]));
+        first.line.setLatLngs(points);
+        first.route.path = result.route.path;
+        first.route.length = result.route.length;
+        first.route.duct_length_m = result.route.length;
+        first.line.setPopupContent(`<b>${first.route.name}</b><br>${routeTypeLabel(first.route.type)}<br>${result.route.length} m`);
+        (routeLabelsById[first.route.id] || []).forEach(label => {
+            map.removeLayer(label);
+            untrackLayer(label);
+        });
+        routeLabelsById[first.route.id] = addRouteLabel(points, first.route.name, false);
+        routeLabelsById[first.route.id].forEach(label => trackLayer(label, routeLayerType(first.route.type)));
+        const removedLine = routeLayerById[result.deleted_route_id];
+        if (removedLine) map.removeLayer(removedLine);
+        (routeLabelsById[result.deleted_route_id] || []).forEach(label => {
+            map.removeLayer(label);
+            untrackLayer(label);
+        });
+        delete routeLayerById[result.deleted_route_id];
+        delete routeLabelsById[result.deleted_route_id];
+        data.routes = data.routes.filter(item => Number(item.id) !== Number(result.deleted_route_id));
+        const firstIndex = data.routes.findIndex(item => Number(item.id) === Number(first.route.id));
+        if (firstIndex >= 0) data.routes[firstIndex] = first.route;
+      } catch (error) {
+        document.getElementById('cad-command').textContent = `JOIN: ${error.message}`;
+        resetJoinRoutes();
+        return;
+      }
+    }
+    removeDraftBranchesOnPath(first.line.getLatLngs());
+    document.getElementById('cad-command').textContent = `JOIN: spojeno ${others.length + 1} trasa u ${first.route.name} (${first.route.length} m)`;
+    resetJoinRoutes();
+}
+function removeDraftBranchesOnPath(joinedPath) {
+    const matchesJoinedPath = branch => branch.length > 1 && branch.every(point => {
+        let nearest = Infinity;
+        for (let index = 1; index < joinedPath.length; index++) {
+            nearest = Math.min(nearest, map.distance(point, projectOnSegment(point, joinedPath[index - 1], joinedPath[index])));
+        }
+        return nearest <= 3;
+    });
+    branches.map((branch, index) => matchesJoinedPath(branch) ? index : -1)
+        .filter(index => index >= 0)
+        .reverse()
+        .forEach(removeBranchAt);
 }
 function currentRouteDraftMeta() {
     const type = document.getElementById('route-draw-type').value;
@@ -562,14 +826,19 @@ function currentRouteDraftMeta() {
 }
 function trackLayer(layer, type) {
     if (layerRegistry[type]) layerRegistry[type].push(layer);
+    layer._ftthLayerType = type;
     applyLayerVisibility(type);
+    updateLayerCount(type);
     return layer;
 }
 function untrackLayer(layer, type = null) {
     Object.entries(layerRegistry).forEach(([key, layers]) => {
         if (type && key !== type) return;
         const index = layers.indexOf(layer);
-        if (index >= 0) layers.splice(index, 1);
+        if (index >= 0) {
+            layers.splice(index, 1);
+            updateLayerCount(key);
+        }
     });
 }
 function layerVisible(type) {
@@ -585,6 +854,10 @@ function applyLayerVisibility(type) {
     });
 }
 function updateCommandBar(snap = '-') {
+    if (routeEdit) {
+        updateRouteEditStatus();
+        return;
+    }
     const metrics = document.getElementById('cad-metrics');
     if (!metrics) return;
     metrics.textContent = `Points: ${activeBranch.length} | Distance: ${distance(activeBranch)}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'}`;
@@ -611,6 +884,7 @@ function cancelActiveDrawing() {
     activeBranchMarkers.forEach(marker => map.removeLayer(marker));
     if (activeBranchLine) map.removeLayer(activeBranchLine);
     if (previewBranchLine) map.removeLayer(previewBranchLine);
+    hideSnapIndicator();
     activeBranch = [];
     activeBranchMarkers = [];
     activeBranchLine = null;
@@ -1039,7 +1313,7 @@ async function saveSavedPosition(marker, url) {
     marker.dragging?.disable();
     document.getElementById('cad-command').textContent = 'Nova pozicija je sačuvana.';
 }
-function registerSavedContext(layer, title, url, positionUrl = null) {
+function registerSavedContext(layer, title, url, positionUrl = null, clickAction = null) {
     const triggerLayer = Array.isArray(layer) ? layer[0] : layer;
     let savedPosition = triggerLayer.getLatLng?.();
     if (positionUrl) {
@@ -1056,6 +1330,10 @@ function registerSavedContext(layer, title, url, positionUrl = null) {
     }
     const openMenu = event => {
         L.DomEvent.stop(event);
+        if (layerLocked(triggerLayer._ftthLayerType)) {
+            document.getElementById('cad-command').textContent = `Layer ${triggerLayer._ftthLayerType} je zaključan.`;
+            return;
+        }
         const actions = [
             { label: 'Obrisi', run: () => deleteSavedElement(url, layer) },
         ];
@@ -1064,8 +1342,161 @@ function registerSavedContext(layer, title, url, positionUrl = null) {
     };
     triggerLayer.on('contextmenu', openMenu);
     triggerLayer.on('click', event => {
-        if (mode === 'pan') openMenu(event);
+        if (!['pan', 'join'].includes(mode)) return;
+        if (layerLocked(triggerLayer._ftthLayerType)) {
+            document.getElementById('cad-command').textContent = `Layer ${triggerLayer._ftthLayerType} je zaključan.`;
+            return;
+        }
+        if (clickAction) {
+            L.DomEvent.stop(event);
+            triggerLayer.closePopup?.();
+            clickAction(event);
+        } else {
+            openMenu(event);
+        }
     });
+}
+function routeLayerType(type) {
+    return ['backbone', 'drop'].includes(type) ? type : 'distribution';
+}
+function layerLocked(type) {
+    return Boolean(layerLocks[type]);
+}
+function updateLayerCount(type) {
+    const count = document.querySelector(`[data-layer-count="${type}"]`);
+    if (!count) return;
+    const objectCounts = {
+        odf: () => data.odfs.length + draftOdfs.length,
+        odo: () => data.cabinets.length + draftCabinets.length,
+        houses: () => data.houses.length + Math.max(houseMarkers.length - data.houses.length, 0),
+        backbone: () => data.routes.filter(route => route.type === 'backbone').length + branchMeta.filter(route => route.route_type === 'backbone').length,
+        distribution: () => data.routes.filter(route => !['backbone', 'drop'].includes(route.type)).length + branchMeta.filter(route => !['backbone', 'drop'].includes(route.route_type)).length,
+        drop: () => data.routes.filter(route => route.type === 'drop').length,
+        dxf: () => 0,
+    };
+    count.textContent = objectCounts[type] ? objectCounts[type]() : (layerRegistry[type]?.length || 0);
+}
+function routeEditVertexIcon() {
+    return L.divIcon({
+        className: 'ftth-label',
+        html: '<div style="width:14px;height:14px;border-radius:3px;background:#2563eb;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>',
+        iconAnchor: [7, 7],
+    });
+}
+function startRouteEdit(route, line) {
+    if (routeEdit?.route.id === route.id) return;
+    cancelRouteEdit();
+    const points = line.getLatLngs().map(point => L.latLng(point.lat, point.lng));
+    routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [] };
+    line.setStyle({ color: '#2563eb', weight: 6, opacity: 1 });
+    document.getElementById('route-edit-actions').classList.remove('hidden');
+    document.getElementById('route-edit-actions').classList.add('flex');
+    renderRouteEditVertices();
+}
+function renderRouteEditVertices() {
+    if (!routeEdit) return;
+    routeEdit.markers.forEach(marker => map.removeLayer(marker));
+    routeEdit.markers = routeEdit.points.map((point, index) => {
+        const marker = L.marker(point, { draggable: true, icon: routeEditVertexIcon(), zIndexOffset: 1000 }).addTo(map);
+        marker.on('drag', event => {
+            routeEdit.points[index] = event.target.getLatLng();
+            updateRouteEditLine();
+        });
+        marker.on('contextmenu', event => {
+            L.DomEvent.stop(event);
+            if (routeEdit.points.length <= 2) {
+                document.getElementById('cad-command').textContent = 'EDIT ROUTE: trasa mora imati najmanje 2 tačke.';
+                return;
+            }
+            routeEdit.points.splice(index, 1);
+            updateRouteEditLine();
+            renderRouteEditVertices();
+        });
+        return marker;
+    });
+    updateRouteEditStatus();
+}
+function updateRouteEditLine() {
+    if (!routeEdit) return;
+    routeEdit.line.setLatLngs(routeEdit.points);
+    updateRouteEditStatus();
+}
+function updateRouteEditStatus() {
+    if (!routeEdit) return;
+    const length = distance(routeEdit.points);
+    document.getElementById('cad-command').textContent = `EDIT ROUTE: ${routeEdit.route.name} | Points: ${routeEdit.points.length} | Length: ${length} m`;
+    document.getElementById('cad-metrics').textContent = `EDIT ROUTE: ${routeEdit.route.name} | Points: ${routeEdit.points.length} | Length: ${length} m`;
+}
+function nearestRouteEditSegment(latlng) {
+    if (!routeEdit || routeEdit.points.length < 2) return null;
+    let best = null;
+    for (let index = 1; index < routeEdit.points.length; index++) {
+        const point = projectOnSegment(latlng, routeEdit.points[index - 1], routeEdit.points[index]);
+        const distance = layerPixelDistance(latlng, point);
+        if (!best || distance < best.distance) best = { point, distance, insertAt: index };
+    }
+    return best;
+}
+function addRouteEditVertex(latlng = null) {
+    if (!routeEdit) return;
+    let target = latlng ? nearestRouteEditSegment(latlng) : null;
+    if (!target) {
+        let longest = null;
+        for (let index = 1; index < routeEdit.points.length; index++) {
+            const segmentLength = map.distance(routeEdit.points[index - 1], routeEdit.points[index]);
+            if (!longest || segmentLength > longest.segmentLength) longest = { index, segmentLength };
+        }
+        if (!longest) return;
+        const a = routeEdit.points[longest.index - 1], b = routeEdit.points[longest.index];
+        target = { insertAt: longest.index, point: L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2) };
+    }
+    routeEdit.points.splice(target.insertAt, 0, target.point);
+    updateRouteEditLine();
+    renderRouteEditVertices();
+}
+function cancelRouteEdit() {
+    if (!routeEdit) return;
+    routeEdit.line.setLatLngs(routeEdit.originalPoints);
+    routeEdit.line.setStyle({ color: routeEdit.route.cabinet_id ? cabinetColor(routeEdit.route.cabinet_id) : routeColor(routeEdit.route.type), weight: 4, opacity: .9 });
+    routeEdit.markers.forEach(marker => map.removeLayer(marker));
+    routeEdit = null;
+    document.getElementById('route-edit-actions').classList.add('hidden');
+    document.getElementById('route-edit-actions').classList.remove('flex');
+    updateCommandBar();
+}
+async function saveRouteEdit() {
+    if (!routeEdit) return;
+    if (routeEdit.points.length < 2) {
+        document.getElementById('cad-command').textContent = 'EDIT ROUTE: nije moguće snimiti trasu sa manje od 2 tačke.';
+        return;
+    }
+    const path = routeEdit.points.map(point => [Number(point.lat.toFixed(7)), Number(point.lng.toFixed(7))]);
+    const length = distance(routeEdit.points);
+    const response = await fetch(`{{ url('/trase') }}/${routeEdit.route.id}/geometrija`, {
+        method: 'PATCH',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ path, duct_length_m: length, fiber_length_m: length }),
+    });
+    const result = await readJsonResponse(response, 'Izmjene trase nisu sačuvane.');
+    const edited = routeEdit;
+    edited.route.path = result.route.path;
+    edited.route.duct_length_m = result.route.length;
+    const savedRouteIndex = data.routes.filter(route => route.path?.length).findIndex(route => route.id === edited.route.id);
+    if (savedRouteIndex >= 0) savedRoutePoints[savedRouteIndex] = edited.points.map(point => L.latLng(point.lat, point.lng));
+    edited.originalPoints = edited.points.map(point => L.latLng(point.lat, point.lng));
+    edited.line.setPopupContent(`<b>${edited.route.name}</b><br>${routeTypeLabel(edited.route.type)}<br>${result.route.length} m`);
+    edited.line.setStyle({ color: edited.route.cabinet_id ? cabinetColor(edited.route.cabinet_id) : routeColor(edited.route.type), weight: 4, opacity: .9 });
+    edited.markers.forEach(marker => map.removeLayer(marker));
+    routeEdit = null;
+    document.getElementById('route-edit-actions').classList.add('hidden');
+    document.getElementById('route-edit-actions').classList.remove('flex');
+    document.getElementById('cad-command').textContent = `Trasa ${edited.route.name} je sačuvana (${result.route.length} m).`;
+    updateCommandBar();
 }
 function refreshStats() {
     const d = allDistance();
@@ -1085,34 +1516,47 @@ function syncRoutePathInput() {
 }
 function redrawActiveBranch() {
     if (activeBranchLine) map.removeLayer(activeBranchLine);
-    if (activeBranch.length > 1) activeBranchLine = trackLayer(L.polyline(activeBranch, { color: '#f59e0b', weight: 5, opacity: .9 }).addTo(map), 'routes');
+    if (activeBranch.length > 1) activeBranchLine = trackLayer(L.polyline(activeBranch, { color: '#f59e0b', weight: 5, opacity: .9 }).addTo(map), 'distribution');
     refreshStats();
     syncRoutePathInput();
     updateCommandBar();
 }
 function redrawPreviewBranch(latlng = null) {
-    if (mode !== 'draw' || !latlng || !activeBranch.length) {
+    if (mode !== 'draw' || !latlng) {
         if (previewBranchLine) map.removeLayer(previewBranchLine);
         previewBranchLine = null;
+        hideSnapIndicator();
         return;
     }
-    const snapped = snapDrawPoint(applyOrthoPoint(latlng));
-    const points = [activeBranch[activeBranch.length - 1], snapped.point];
+    const orthoPoint = applyOrthoPoint(latlng);
+    const snapTarget = getSnapTarget(orthoPoint);
+    showSnapIndicator(snapTarget);
+    updateCommandBar(snapTarget?.label || '-');
+    if (!activeBranch.length) {
+        if (previewBranchLine) map.removeLayer(previewBranchLine);
+        previewBranchLine = null;
+        if (snapTarget) document.getElementById('cad-command').textContent = `SNAP: ${snapTarget.label}. Klik postavlja prvu tačku trase.`;
+        return;
+    }
+    const point = snapTarget?.latlng || orthoPoint;
+    const points = [activeBranch[activeBranch.length - 1], point];
     if (previewBranchLine) {
         previewBranchLine.setLatLngs(points);
     } else {
         previewBranchLine = L.polyline(points, { color: '#f59e0b', weight: 3, opacity: .65, dashArray: '4 8' }).addTo(map);
     }
-    updateCommandBar(snapped.kind || '-');
-    if (snapped.kind) document.getElementById('cad-command').textContent = `TRASA: spoj na ${snapped.kind}. Klik potvrduje tacku, ENTER/desni klik zavrsava krak.`;
+    if (snapTarget) document.getElementById('cad-command').textContent = `SNAP: ${snapTarget.label}. Klik potvrduje tacku, ENTER/desni klik zavrsava krak.`;
 }
 function addDrawPoint(latlng) {
     if (previewBranchLine) map.removeLayer(previewBranchLine);
     previewBranchLine = null;
-    const snapped = snapDrawPoint(applyOrthoPoint(latlng));
-    activeBranch.push(snapped.point);
+    const orthoPoint = applyOrthoPoint(latlng);
+    const snapTarget = getSnapTarget(orthoPoint);
+    const point = snapTarget?.latlng || orthoPoint;
+    hideSnapIndicator();
+    activeBranch.push(point);
     const index = activeBranch.length - 1;
-    const marker = L.marker(snapped.point, { draggable: true, icon: L.divIcon({ className: 'ftth-label', html: '<div style="width:12px;height:12px;border-radius:999px;background:#f59e0b;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)"></div>', iconAnchor: [6, 6] }) }).addTo(map);
+    const marker = L.marker(point, { draggable: true, icon: L.divIcon({ className: 'ftth-label', html: '<div style="width:12px;height:12px;border-radius:999px;background:#f59e0b;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)"></div>', iconAnchor: [6, 6] }) }).addTo(map);
     marker.on('drag', event => {
         activeBranch[index] = event.target.getLatLng();
         redrawActiveBranch();
@@ -1126,13 +1570,13 @@ function addDrawPoint(latlng) {
             redrawActiveBranch();
         },
         redo: () => {
-            activeBranch.push(snapped.point);
+            activeBranch.push(point);
             activeBranchMarkers.push(marker.addTo(map));
             redrawActiveBranch();
         },
     });
     redrawActiveBranch();
-    document.getElementById('cad-command').textContent = `TRASA: tacka ${activeBranch.length}${snapped.kind ? ` spojena na ${snapped.kind}` : ''}. Sljedeci klik nastavlja, ENTER/desni klik zavrsava krak.`;
+    document.getElementById('cad-command').textContent = `TRASA: tacka ${activeBranch.length}${snapTarget ? ` spojena na ${snapTarget.label}` : ''}. Sljedeci klik nastavlja, ENTER/desni klik zavrsava krak.`;
 }
 function finishBranch() {
     if (activeBranch.length > 1) {
@@ -1146,7 +1590,7 @@ function finishBranch() {
             path: activeBranch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
         });
         const odfLabel = meta.odf_index === null || meta.odf_index === undefined ? 'bez ODF' : `ODF-${String(meta.odf_index + 1).padStart(2, '0')}`;
-        const line = trackLayer(L.polyline(activeBranch, { color: routeColor(meta.route_type), weight: 4 }).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), 'routes');
+        const line = trackLayer(L.polyline(activeBranch, { color: routeColor(meta.route_type), weight: 4 }).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), routeLayerType(meta.route_type));
         branchLines.push(line);
         registerBranchContext(line);
         addRouteLabel(activeBranch, meta.name);
@@ -1157,9 +1601,10 @@ function finishBranch() {
     activeBranchMarkers.forEach(m => map.removeLayer(m));
     if (activeBranchLine) map.removeLayer(activeBranchLine);
     if (previewBranchLine) map.removeLayer(previewBranchLine);
+    hideSnapIndicator();
     activeBranch = []; activeBranchMarkers = []; activeBranchLine = null; previewBranchLine = null; refreshStats();
 }
-function clearDraw() { [...branchLines, ...branchLabels, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); if (previewBranchLine) map.removeLayer(previewBranchLine); branches=[]; branchLines=[]; branchLabels=[]; branchMeta=[]; activeBranch=[]; activeBranchMarkers=[]; activeBranchLine=null; previewBranchLine=null; renderBranchList(); refreshStats(); }
+function clearDraw() { [...branchLines, ...branchLabels, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); if (previewBranchLine) map.removeLayer(previewBranchLine); hideSnapIndicator(); branches=[]; branchLines=[]; branchLabels=[]; branchMeta=[]; activeBranch=[]; activeBranchMarkers=[]; activeBranchLine=null; previewBranchLine=null; renderBranchList(); refreshStats(); }
 function undoDraw() { const m = activeBranchMarkers.pop(); if (m) map.removeLayer(m); activeBranch.pop(); redrawActiveBranch(); }
 function undoBranch() {
     const line = branchLines.pop();
@@ -1178,34 +1623,44 @@ function undoBranch() {
 function layerPixelDistance(a, b) {
     return map.latLngToLayerPoint(a).distanceTo(map.latLngToLayerPoint(b));
 }
-function editableSnapPoints() {
-    const savedAssets = [
-        ...data.odfs.map(item => L.latLng(item.lat, item.lng)),
-        ...data.cabinets.map(item => L.latLng(item.lat, item.lng)),
-        ...data.houses.map(item => L.latLng(item.lat, item.lng)),
+function getSnapTarget(latlng) {
+    const candidates = [
+        ...data.odfs.map(item => ({ latlng: odfMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name })),
+        ...data.cabinets.map(item => ({ latlng: cabinetMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name })),
+        ...data.houses.map(item => ({ latlng: houseMarkerByKey[pointKey(item.lat, item.lng)]?.getLatLng() || L.latLng(item.lat, item.lng), label: `Kuća ${item.label}` })),
+        ...draftOdfs.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `ODF-${String(index + 1).padStart(2, '0')}` })),
+        ...draftCabinets.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `FTTH-${String(index + 1).padStart(2, '0')}` })),
+        ...houseMarkers.map((marker, index) => ({ latlng: marker.getLatLng(), label: `Kuća ${index + 1}` })),
     ];
-    const draftAssets = [
-        ...draftOdfs.map(item => item.marker.getLatLng()),
-        ...draftCabinets.map(item => item.marker.getLatLng()),
-        ...housePoints,
-    ];
-    const routeVertices = allNetworkPoints().flat();
-    return [...savedAssets, ...draftAssets, ...routeVertices];
+    [...savedRoutePoints, ...branches].forEach(route => {
+        route.forEach((vertex, index) => candidates.push({
+            latlng: vertex,
+            label: index === 0 ? 'Route start' : (index === route.length - 1 ? 'Route end' : 'Route vertex'),
+        }));
+    });
+    let best = null;
+    candidates.forEach(candidate => {
+        const distance = layerPixelDistance(latlng, candidate.latlng);
+        if (!best || distance < best.distance) best = { ...candidate, distance };
+    });
+    return best && best.distance <= snapPixelTolerance ? best : null;
 }
-function snapDrawPoint(point) {
-    let best = { point, distance: Infinity, kind: '' };
-    editableSnapPoints().forEach(candidate => {
-        const distance = layerPixelDistance(point, candidate);
-        if (distance < best.distance) best = { point: candidate, distance, kind: 'tacka' };
-    });
-    allNetworkPoints().forEach(branch => {
-        for (let i = 1; i < branch.length; i++) {
-            const projected = projectOnSegment(point, branch[i - 1], branch[i]);
-            const distance = layerPixelDistance(point, projected);
-            if (distance < best.distance) best = { point: projected, distance, kind: 'trasa' };
-        }
-    });
-    return best.distance <= snapPixelTolerance ? best : { point, distance: null, kind: '' };
+function showSnapIndicator(target) {
+    if (!target) {
+        hideSnapIndicator();
+        return;
+    }
+    if (!snapIndicator) {
+        snapIndicator = L.circleMarker(target.latlng, {
+            radius: 7, color: '#22c55e', weight: 2, fillColor: '#ffffff', fillOpacity: .85, interactive: false,
+        }).addTo(map);
+    } else {
+        snapIndicator.setLatLng(target.latlng);
+        if (!map.hasLayer(snapIndicator)) snapIndicator.addTo(map);
+    }
+}
+function hideSnapIndicator() {
+    if (snapIndicator && map.hasLayer(snapIndicator)) map.removeLayer(snapIndicator);
 }
 function projectOnSegment(point, a, b) {
     const p = map.latLngToLayerPoint(point), pa = map.latLngToLayerPoint(a), pb = map.latLngToLayerPoint(b);
@@ -1357,7 +1812,7 @@ function clearSuggestions() {
     suggestionLayers.forEach(l => map.removeLayer(l));
     suggestionLayers.forEach(l => {
         untrackLayer(l, 'preview');
-        untrackLayer(l, 'drops');
+        untrackLayer(l, 'drop');
     });
         Object.entries(houseMarkerByKey).forEach(([key, marker]) => marker.setIcon(icon('house', '', savedHouseColorByKey[key] || null)));
     suggestionLayers=[];
@@ -1470,7 +1925,7 @@ function renderAutoOdoPlan(plan) {
                 [drop.from.lat, drop.from.lng],
                 [drop.to.lat, drop.to.lng],
             ];
-            return trackLayer(L.polyline(path, { color, weight: 1.7, opacity: .75, dashArray: '5 7' }).addTo(map), 'drops');
+            return trackLayer(L.polyline(path, { color, weight: 1.7, opacity: .75, dashArray: '5 7' }).addTo(map), 'drop');
         });
         (cabinet.houses || []).forEach(house => {
             const houseMarker = houseMarkerByKey[pointKey(house.latitude, house.longitude)];
@@ -1998,6 +2453,18 @@ document.getElementById('clear-map-trace')?.addEventListener('click', clearFiber
 document.querySelectorAll('[data-layer-toggle]').forEach(input => {
     input.addEventListener('change', () => applyLayerVisibility(input.dataset.layerToggle));
 });
+document.querySelectorAll('[data-layer-lock]').forEach(button => {
+    button.addEventListener('click', () => {
+        const type = button.dataset.layerLock;
+        layerLocks[type] = !layerLocks[type];
+        button.textContent = layerLocks[type] ? 'Zaključan' : 'Otključan';
+        button.classList.toggle('border-red-200', layerLocks[type]);
+        button.classList.toggle('bg-red-50', layerLocks[type]);
+        button.classList.toggle('text-red-700', layerLocks[type]);
+        document.getElementById('cad-command').textContent = `Layer ${type}: ${layerLocks[type] ? 'zaključan' : 'otključan'}.`;
+    });
+});
+Object.keys(layerRegistry).forEach(updateLayerCount);
 
 async function saveMaterials() {
     const projectId = document.getElementById('active-project-id').value;
@@ -2143,6 +2610,22 @@ document.getElementById('expand-map').addEventListener('click', () => {
     }
     setTimeout(() => map.invalidateSize(), 100);
 });
+document.getElementById('add-route-vertex').addEventListener('click', () => addRouteEditVertex());
+document.getElementById('cancel-route-edit').addEventListener('click', cancelRouteEdit);
+document.getElementById('save-route-edit').addEventListener('click', async () => {
+    try {
+        await saveRouteEdit();
+    } catch (error) {
+        document.getElementById('cad-command').textContent = error.message;
+    }
+});
+document.getElementById('finish-house-connect').addEventListener('click', async () => {
+    try { await finishHouseConnect(); } catch (error) { document.getElementById('cad-command').textContent = error.message; }
+});
+document.getElementById('cancel-house-connect').addEventListener('click', () => {
+    resetHouseConnect();
+    document.getElementById('cad-command').textContent = 'CONNECT HOUSES: povezivanje otkazano.';
+});
 
 map.on('mousemove', e => {
     document.getElementById('cad-coordinates').textContent = `LAT ${e.latlng.lat.toFixed(7)}, LNG ${e.latlng.lng.toFixed(7)}`;
@@ -2168,6 +2651,10 @@ document.addEventListener('keydown', event => {
     if (['input', 'select', 'textarea'].includes(tag) || target?.isContentEditable) return;
 
     if (event.key === 'Escape') {
+        if (routeEdit) {
+            cancelRouteEdit();
+            return;
+        }
         if (mode === 'draw') {
             cancelActiveDrawing();
         }
@@ -2178,6 +2665,11 @@ document.addEventListener('keydown', event => {
     if (event.key === 'Enter' && mode === 'draw') {
         event.preventDefault();
         finishBranch();
+        return;
+    }
+    if (event.key === 'Enter' && mode === 'join') {
+        event.preventDefault();
+        joinSelectedRoutes();
         return;
     }
 
