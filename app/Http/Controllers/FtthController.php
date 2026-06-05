@@ -6,6 +6,7 @@ use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\MapDraft;
 use App\Models\Material;
+use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
@@ -17,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class FtthController extends Controller
@@ -304,6 +306,7 @@ class FtthController extends Controller
     {
         $projects = Project::with([
             'houses' => fn ($query) => $query->whereNull('cabinet_id')->orderBy('label'),
+            'branches' => fn ($query) => $query->with(['route', 'cabinets.houses', 'childBranches.route', 'childBranches.cabinets.houses'])->orderBy('sort_order'),
             'odfs.cabinets' => fn ($query) => $query
                 ->whereNull('parent_cabinet_id')
                 ->with([
@@ -316,6 +319,57 @@ class FtthController extends Controller
         ])->orderBy('name')->get();
 
         return view('ftth.fiber-schema', ['projects' => $projects]);
+    }
+
+    public function branches(): View
+    {
+        return view('ftth.branches', [
+            'branches' => NetworkBranch::with(['project', 'odf', 'parentBranch', 'route'])->withCount('cabinets')->orderBy('project_id')->orderBy('sort_order')->paginate(30),
+            'projects' => Project::orderBy('name')->get(),
+            'odfs' => Odf::with('project')->orderBy('name')->get(),
+            'parentBranches' => NetworkBranch::with('project')->orderBy('name')->get(),
+            'routes' => NetworkRoute::with('project')->whereIn('route_type', ['backbone', 'feeder', 'distribution'])->orderBy('name')->get(),
+        ]);
+    }
+
+    public function storeBranch(Request $request)
+    {
+        NetworkBranch::create($this->branchData($request));
+        return back()->with('success', 'Krak je kreiran.');
+    }
+
+    public function updateBranch(Request $request, $id)
+    {
+        NetworkBranch::findOrFail($id)->update($this->branchData($request, $id));
+        return back()->with('success', 'Krak je ažuriran.');
+    }
+
+    public function deleteBranch($id)
+    {
+        $branch = NetworkBranch::findOrFail($id);
+        $branch->cabinets()->update(['branch_id' => null, 'branch_order' => 0]);
+        $branch->childBranches()->update(['parent_branch_id' => null]);
+        $branch->delete();
+        return back()->with('success', 'Krak je obrisan.');
+    }
+
+    private function branchData(Request $request, ?int $branchId = null): array
+    {
+        $data = $request->validate([
+            'project_id' => ['required', 'exists:projects,id'], 'odf_id' => ['nullable', 'exists:odfs,id'],
+            'parent_branch_id' => ['nullable', 'exists:network_branches,id'],
+            'route_id' => ['nullable', 'exists:routes,id', Rule::unique('network_branches', 'route_id')->ignore($branchId)],
+            'name' => ['required', 'max:255'], 'code' => ['nullable', 'max:100'], 'type' => ['required', 'in:primary,secondary'],
+            'sort_order' => ['required', 'integer', 'min:0'],
+        ]);
+        if ($branchId && (int) ($data['parent_branch_id'] ?? 0) === $branchId) abort(422, 'Krak ne može biti sam sebi roditelj.');
+        $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
+        $this->ensureBelongsToProject(NetworkRoute::class, $data['route_id'] ?? null, $data['project_id'], 'route_id');
+        $this->ensureBelongsToProject(NetworkBranch::class, $data['parent_branch_id'] ?? null, $data['project_id'], 'parent_branch_id');
+        if ($branchId && $this->branchWouldCreateCycle($branchId, $data['parent_branch_id'] ?? null)) {
+            abort(422, 'Odabrani roditeljski krak bi napravio kruznu hijerarhiju.');
+        }
+        return $data;
     }
 
     public function projectCheck(): View
@@ -418,7 +472,20 @@ class FtthController extends Controller
 
     public function deleteOdf($id)
     {
-        Odf::findOrFail($id)->delete();
+        $odf = Odf::findOrFail($id);
+        NetworkRoute::query()->where('project_id', $odf->project_id)
+            ->where(fn ($query) => $query->where('odf_id', $odf->id)
+                ->orWhere(fn ($routeQuery) => $routeQuery->where('from_type', 'odf')->where('from_id', $odf->id)))
+            ->get()->each(function (NetworkRoute $route) use ($odf): void {
+                $updates = [];
+                if ((int) $route->odf_id === (int) $odf->id) $updates['odf_id'] = null;
+                if ($route->from_type === 'odf' && (int) $route->from_id === (int) $odf->id) {
+                    $updates['from_type'] = null;
+                    $updates['from_id'] = null;
+                }
+                if ($updates) $route->update($updates);
+            });
+        $odf->delete();
         if (request()->expectsJson()) {
             return response()->json(['message' => 'ODF lokacija je obrisana.']);
         }
@@ -451,8 +518,9 @@ class FtthController extends Controller
     public function cabinets(): View
     {
         return view('ftth.cabinets', [
-            'cabinets' => Cabinet::with(['project', 'odf', 'parentCabinet', 'childCabinets'])->withCount(['houses', 'subscribers'])->latest()->paginate(12),
+            'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses', 'subscribers'])->latest()->paginate(12),
             'parentCabinets' => Cabinet::with('project')->orderBy('name')->get(),
+            'branches' => NetworkBranch::with('project')->orderBy('sort_order')->orderBy('name')->get(),
             'projects' => Project::orderBy('name')->get(),
             'odfs' => Odf::with('project')->orderBy('name')->get(),
         ]);
@@ -465,6 +533,8 @@ class FtthController extends Controller
             'project_id' => ['required', 'exists:projects,id'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'parent_cabinet_id' => ['nullable', 'exists:cabinets,id'],
+            'branch_id' => ['nullable', 'exists:network_branches,id'],
+            'branch_order' => ['nullable', 'integer', 'min:0'],
             'name' => ['required', 'max:255'],
             'address' => ['required', 'max:255'],
             'splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
@@ -474,6 +544,7 @@ class FtthController extends Controller
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
+        $this->ensureBelongsToProject(NetworkBranch::class, $data['branch_id'] ?? null, $data['project_id'], 'branch_id');
         $cabinet = Cabinet::create($data);
 
         if ($request->expectsJson()) {
@@ -491,11 +562,27 @@ class FtthController extends Controller
     public function deleteCabinet($id)
     {
         $cabinet = Cabinet::findOrFail($id);
-        NetworkRoute::query()
-            ->where('cabinet_id', $cabinet->id)
-            ->where('route_type', 'drop')
-            ->delete();
+        $connectedRoutes = NetworkRoute::query()->where('project_id', $cabinet->project_id)
+            ->where(fn ($query) => $query->where('cabinet_id', $cabinet->id)
+                ->orWhere(fn ($routeQuery) => $routeQuery->where('from_type', 'cabinet')->where('from_id', $cabinet->id))
+                ->orWhere(fn ($routeQuery) => $routeQuery->where('to_type', 'cabinet')->where('to_id', $cabinet->id)))
+            ->get();
+        $connectedRoutes->where('route_type', 'drop')->each(fn (NetworkRoute $route) => $this->deleteRouteWithBranch($route));
+        $connectedRoutes->where('route_type', '!=', 'drop')->each(function (NetworkRoute $route) use ($cabinet): void {
+            $updates = [];
+            if ((int) $route->cabinet_id === (int) $cabinet->id) $updates['cabinet_id'] = null;
+            if ($route->from_type === 'cabinet' && (int) $route->from_id === (int) $cabinet->id) {
+                $updates['from_type'] = null;
+                $updates['from_id'] = null;
+            }
+            if ($route->to_type === 'cabinet' && (int) $route->to_id === (int) $cabinet->id) {
+                $updates['to_type'] = null;
+                $updates['to_id'] = null;
+            }
+            if ($updates) $route->update($updates);
+        });
         $cabinet->houses()->update(['cabinet_id' => null]);
+        $cabinet->childCabinets()->update(['parent_cabinet_id' => null]);
         $cabinet->delete();
         if (request()->expectsJson()) {
             return response()->json(['message' => 'Ormarić i njegove drop trase su obrisani.']);
@@ -511,6 +598,8 @@ class FtthController extends Controller
             'project_id' => ['required', 'exists:projects,id'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'parent_cabinet_id' => ['nullable', 'exists:cabinets,id'],
+            'branch_id' => ['nullable', 'exists:network_branches,id'],
+            'branch_order' => ['nullable', 'integer', 'min:0'],
             'name' => ['required', 'max:255'],
             'address' => ['required', 'max:255'],
             'splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
@@ -520,8 +609,12 @@ class FtthController extends Controller
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
+        $this->ensureBelongsToProject(NetworkBranch::class, $data['branch_id'] ?? null, $data['project_id'], 'branch_id');
         if ((int) ($data['parent_cabinet_id'] ?? 0) === (int) $cabinet->id) {
             return back()->withErrors(['parent_cabinet_id' => 'Ormarić ne može napajati sam sebe.'])->withInput();
+        }
+        if ($this->cabinetWouldCreateCycle($cabinet->id, $data['parent_cabinet_id'] ?? null)) {
+            return back()->withErrors(['parent_cabinet_id' => 'Odabrani roditeljski ormaric bi napravio kruzno napajanje.'])->withInput();
         }
         if ($cabinet->houses()->count() > $data['splitter_count'] * $data['ports_per_splitter']) {
             return back()->withErrors(['splitter_count' => 'Novi kapacitet je manji od broja dodijeljenih kuća.'])->withInput();
@@ -681,6 +774,8 @@ class FtthController extends Controller
             'routes.*.cabinet_id' => ['nullable', 'integer', 'exists:cabinets,id'],
             'routes.*.from_type' => ['nullable', 'in:odf,cabinet'],
             'routes.*.from_id' => ['nullable', 'integer'],
+            'routes.*.to_type' => ['nullable', 'in:cabinet'],
+            'routes.*.to_id' => ['nullable', 'integer', 'exists:cabinets,id'],
             'routes.*.path' => ['nullable', 'array'],
             'routes.*.path.*' => ['array', 'size:2'],
             'routes.*.path.*.0' => $this->latitudeRules(true),
@@ -765,13 +860,19 @@ class FtthController extends Controller
                 if ($routeCabinetId) {
                     $routeCabinetId = Cabinet::query()->where('project_id', $projectId)->findOrFail($routeCabinetId)->id;
                 }
+                $routeToId = $route['to_id'] ?? $routeCabinetId;
+                if ($routeToId) {
+                    $routeToId = Cabinet::query()->where('project_id', $projectId)->findOrFail($routeToId)->id;
+                }
 
-                NetworkRoute::create([
+                $createdRoute = NetworkRoute::create([
                     'project_id' => $projectId,
                     'odf_id' => $routeOdfId,
                     'cabinet_id' => $routeCabinetId,
                     'from_type' => $fromType,
                     'from_id' => $fromId,
+                    'to_type' => $route['to_type'] ?? ($routeToId ? 'cabinet' : null),
+                    'to_id' => $routeToId,
                     'name' => $route['name'] ?? 'Trasa '.($index + 1),
                     'route_type' => $route['route_type'] ?? 'distribution',
                     'installation_type' => $route['installation_type'] ?? 'underground',
@@ -783,6 +884,7 @@ class FtthController extends Controller
                     'status' => 'planned',
                     'path' => $route['path'] ?? null,
                 ]);
+                $this->createBranchForRoute($createdRoute);
             }
 
             MapDraft::where('project_id', $projectId)->delete();
@@ -954,6 +1056,7 @@ class FtthController extends Controller
         }
 
         $route = NetworkRoute::create($data);
+        $this->createBranchForRoute($route);
         $fromLabel = $this->routeStartLabel($route);
 
         if ($request->expectsJson()) {
@@ -983,7 +1086,7 @@ class FtthController extends Controller
 
     public function deleteRoute($id)
     {
-        NetworkRoute::findOrFail($id)->delete();
+        $this->deleteRouteWithBranch(NetworkRoute::findOrFail($id));
         if (request()->expectsJson()) {
             return response()->json(['message' => 'Trasa je obrisana.']);
         }
@@ -996,10 +1099,12 @@ class FtthController extends Controller
         $route = NetworkRoute::findOrFail($id);
         $data = $request->validate([
             'name' => ['required', 'max:255'],
-            'route_type' => ['required', 'in:feeder,distribution,drop'],
+            'route_type' => ['required', 'in:backbone,feeder,distribution,drop'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'from_type' => ['nullable', 'in:odf,cabinet'],
             'from_id' => ['nullable', 'integer'],
+            'to_type' => ['nullable', 'in:cabinet'],
+            'to_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'microduct_type' => ['required', 'in:14/10,10/8'],
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
@@ -1007,8 +1112,10 @@ class FtthController extends Controller
         ]);
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $route->project_id, 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $route->project_id, 'cabinet_id');
+        $this->ensureBelongsToProject(Cabinet::class, $data['to_id'] ?? null, $route->project_id, 'to_id');
         $this->normalizeRouteStart($data, (int) $route->project_id);
         $route->update($data);
+        $this->syncBranchForRoute($route);
         $route->load(['odf', 'cabinet']);
 
         if (! $request->expectsJson()) {
@@ -1075,6 +1182,17 @@ class FtthController extends Controller
         $length = $this->polylineLength($path);
         DB::transaction(function () use ($route, $other, $path, $length) {
             $route->update(['path' => $path, 'duct_length_m' => $length, 'fiber_length_m' => $length]);
+            $primaryBranch = NetworkBranch::query()->where('route_id', $route->id)->first();
+            $otherBranch = NetworkBranch::query()->where('route_id', $other->id)->first();
+            if ($otherBranch) {
+                if (! $primaryBranch) {
+                    $otherBranch->update(['route_id' => $route->id, 'name' => $route->name]);
+                } else {
+                    $otherBranch->cabinets()->update(['branch_id' => $primaryBranch->id]);
+                    $otherBranch->childBranches()->update(['parent_branch_id' => $primaryBranch->id]);
+                    $otherBranch->delete();
+                }
+            }
             $other->delete();
         });
 
@@ -1415,6 +1533,105 @@ class FtthController extends Controller
     }
 
     // Shared validation helpers
+    private function deleteRouteWithBranch(NetworkRoute $route): void
+    {
+        DB::transaction(function () use ($route): void {
+            $branch = NetworkBranch::query()->where('route_id', $route->id)->first();
+            if ($branch) {
+                $branch->cabinets()->update(['branch_id' => null, 'branch_order' => 0]);
+                $branch->childBranches()->update(['parent_branch_id' => null]);
+                $branch->delete();
+            }
+            $route->delete();
+        });
+    }
+
+    private function cabinetWouldCreateCycle(int $cabinetId, $parentCabinetId): bool
+    {
+        $visited = [];
+        while ($parentCabinetId) {
+            if ((int) $parentCabinetId === $cabinetId || isset($visited[$parentCabinetId])) {
+                return true;
+            }
+            $visited[$parentCabinetId] = true;
+            $parentCabinetId = Cabinet::query()->whereKey($parentCabinetId)->value('parent_cabinet_id');
+        }
+
+        return false;
+    }
+
+    private function branchWouldCreateCycle(int $branchId, $parentBranchId): bool
+    {
+        $visited = [];
+        while ($parentBranchId) {
+            if ((int) $parentBranchId === $branchId || isset($visited[$parentBranchId])) {
+                return true;
+            }
+            $visited[$parentBranchId] = true;
+            $parentBranchId = NetworkBranch::query()->whereKey($parentBranchId)->value('parent_branch_id');
+        }
+
+        return false;
+    }
+
+    private function createBranchForRoute(NetworkRoute $route): void
+    {
+        if ($route->route_type === 'drop' || NetworkBranch::query()->where('route_id', $route->id)->exists()) {
+            return;
+        }
+
+        $sourceCabinet = $route->from_type === 'cabinet' && $route->from_id
+            ? Cabinet::query()->where('project_id', $route->project_id)->find($route->from_id)
+            : null;
+
+        $branch = NetworkBranch::create([
+            'project_id' => $route->project_id,
+            'odf_id' => $route->odf_id ?? $sourceCabinet?->odf_id,
+            'parent_branch_id' => null,
+            'route_id' => $route->id,
+            'name' => $route->name,
+            'code' => preg_match('/(\d+(?:[.-]\d+)*)/', $route->name, $match) ? str_replace('-', '.', $match[1]) : null,
+            'type' => in_array($route->route_type, ['backbone', 'feeder'], true) ? 'primary' : 'secondary',
+            'sort_order' => (int) NetworkBranch::query()->where('project_id', $route->project_id)->max('sort_order') + 1,
+        ]);
+
+        if ($sourceCabinet && $route->cabinet_id) {
+            Cabinet::query()
+                ->where('project_id', $route->project_id)
+                ->whereKey($route->cabinet_id)
+                ->update([
+                    'branch_id' => $branch->id,
+                    'parent_cabinet_id' => $sourceCabinet->id,
+                    'odf_id' => $route->odf_id ?? $sourceCabinet->odf_id,
+                ]);
+        }
+    }
+
+    private function syncBranchForRoute(NetworkRoute $route): void
+    {
+        $branch = NetworkBranch::query()->where('route_id', $route->id)->first();
+        if ($route->route_type === 'drop') {
+            if ($branch) {
+                $branch->cabinets()->update(['branch_id' => null, 'branch_order' => 0]);
+                $branch->childBranches()->update(['parent_branch_id' => null]);
+                $branch->delete();
+            }
+            return;
+        }
+
+        if (! $branch) {
+            $this->createBranchForRoute($route);
+            return;
+        }
+
+        $branch->update([
+            'odf_id' => $route->odf_id,
+            'name' => $route->name,
+            'code' => preg_match('/(\d+(?:[.-]\d+)*)/', $route->name, $match) ? str_replace('-', '.', $match[1]) : null,
+            'type' => in_array($route->route_type, ['backbone', 'feeder'], true) ? 'primary' : 'secondary',
+        ]);
+    }
+
     private function normalizeRouteStart(array &$data, int $projectId): void
     {
         if (empty($data['from_type']) && ! empty($data['odf_id'])) {

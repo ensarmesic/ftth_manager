@@ -12,6 +12,10 @@ Route::post('/mapa/sugestije', [FtthController::class, 'storeSuggestedCabinets']
 Route::get('/izvjestaji', [FtthController::class, 'reports'])->name('reports.index');
 Route::get('/splitteri', [FtthController::class, 'splitters'])->name('splitters.index');
 Route::get('/fiber-sema', [FtthController::class, 'fiberSchema'])->name('fiber-schema.index');
+Route::get('/krakovi', [FtthController::class, 'branches'])->name('branches.index');
+Route::post('/krakovi', [FtthController::class, 'storeBranch'])->name('branches.store');
+Route::match(['put', 'patch'], '/krakovi/{id}', [FtthController::class, 'updateBranch'])->name('branches.update');
+Route::delete('/krakovi/{id}', [FtthController::class, 'deleteBranch'])->name('branches.delete');
 Route::get('/provjera-projekta', [FtthController::class, 'projectCheck'])->name('project-check.index');
 Route::get('/postavke', [FtthController::class, 'settings'])->name('settings.index');
 

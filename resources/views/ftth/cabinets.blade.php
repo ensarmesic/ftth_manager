@@ -38,6 +38,10 @@
                     @endforeach
                 </select>
             </label>
+            <div class="grid gap-3 sm:grid-cols-[1fr_110px]">
+                <label class="grid gap-1 text-sm"><span>Krak</span><select name="branch_id" class="rounded-md border border-zinc-300 px-3 py-2"><option value="">Neraspoređen ODO</option>@foreach($branches as $branch)<option value="{{ $branch->id }}">{{ $branch->project->name }} / {{ $branch->name }}</option>@endforeach</select></label>
+                <label class="grid gap-1 text-sm"><span>Redoslijed</span><input type="number" name="branch_order" value="0" min="0" class="rounded-md border border-zinc-300 px-3 py-2"></label>
+            </div>
 
             <label class="grid gap-1 text-sm"><span>Naziv ormarica</span><input name="name" value="{{ old('name') }}" class="rounded-md border border-zinc-300 px-3 py-2" required></label>
             <label class="grid gap-1 text-sm"><span>Adresa</span><input name="address" value="{{ old('address') }}" class="rounded-md border border-zinc-300 px-3 py-2" required></label>
@@ -61,7 +65,7 @@
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr><th class="px-4 py-3">Ormaric</th><th>Projekat</th><th>Napajanje</th><th>Kapacitet</th><th>Kuce</th><th>Status</th><th>Akcije</th></tr>
+                    <tr><th class="px-4 py-3">Ormaric</th><th>Projekat</th><th>Krak</th><th>Napajanje</th><th>Kapacitet</th><th>Kuce</th><th>Status</th><th>Akcije</th></tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100">
                     @forelse($cabinets as $cabinet)
@@ -73,6 +77,7 @@
                                 @endif
                             </td>
                             <td>{{ $cabinet->project->name }}</td>
+                            <td>{{ $cabinet->branch?->name ?? 'Neraspoređen' }}<br><small>#{{ $cabinet->branch_order }}</small></td>
                             <td>
                                 <div class="font-semibold text-slate-800">{{ $cabinet->parentCabinet->name ?? ($cabinet->odf->name ?? '-') }}</div>
                                 <div class="text-xs text-slate-500">{{ $cabinet->parentCabinet ? 'iz ODO ormara' : 'iz ODF-a' }}</div>

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Cabinet;
 use App\Models\House;
+use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
@@ -441,5 +442,68 @@ class MediaskyWorkflowTest extends TestCase
             ->assertUnprocessable();
 
         $this->assertDatabaseMissing('odfs', ['project_id' => $project->id, 'name' => 'ODF-1']);
+    }
+
+    public function test_deleting_route_removes_its_branch_and_releases_cabinets(): void
+    {
+        $project = Project::create(['name' => 'Delete route', 'code' => 'DEL', 'location' => 'Test', 'status' => 'planning']);
+        $route = NetworkRoute::create(['project_id' => $project->id, 'name' => 'Krak', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651]]]);
+        $branch = NetworkBranch::create(['project_id' => $project->id, 'route_id' => $route->id, 'name' => 'Krak', 'type' => 'secondary']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'branch_id' => $branch->id, 'name' => 'FTTH-1', 'address' => 'Test', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+
+        $this->deleteJson(route('routes.delete', $route))->assertOk();
+
+        $this->assertDatabaseMissing('network_branches', ['id' => $branch->id]);
+        $this->assertNull($cabinet->fresh()->branch_id);
+    }
+
+    public function test_join_routes_merges_branch_cabinets_into_primary_branch(): void
+    {
+        $project = Project::create(['name' => 'Join branches', 'code' => 'JOIN-B', 'location' => 'Test', 'status' => 'planning']);
+        $first = NetworkRoute::create(['project_id' => $project->id, 'name' => 'A', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651]]]);
+        $second = NetworkRoute::create(['project_id' => $project->id, 'name' => 'B', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.451, 18.651], [44.452, 18.652]]]);
+        $firstBranch = NetworkBranch::create(['project_id' => $project->id, 'route_id' => $first->id, 'name' => 'A', 'type' => 'secondary']);
+        $secondBranch = NetworkBranch::create(['project_id' => $project->id, 'route_id' => $second->id, 'name' => 'B', 'type' => 'secondary']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'branch_id' => $secondBranch->id, 'name' => 'FTTH-B', 'address' => 'Test', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+
+        $this->postJson(route('routes.join', [$first, $second]))->assertOk();
+
+        $this->assertDatabaseMissing('network_branches', ['id' => $secondBranch->id]);
+        $this->assertSame($firstBranch->id, $cabinet->fresh()->branch_id);
+    }
+
+    public function test_cabinet_parent_cycle_is_rejected(): void
+    {
+        $project = Project::create(['name' => 'Cycle', 'code' => 'CYCLE', 'location' => 'Test', 'status' => 'planning']);
+        $parent = Cabinet::create(['project_id' => $project->id, 'name' => 'Parent', 'address' => 'Test', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+        $child = Cabinet::create(['project_id' => $project->id, 'parent_cabinet_id' => $parent->id, 'name' => 'Child', 'address' => 'Test', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+
+        $this->patch(route('cabinets.update', $parent), [
+            'project_id' => $project->id,
+            'parent_cabinet_id' => $child->id,
+            'name' => $parent->name,
+            'address' => $parent->address,
+            'splitter_count' => 3,
+            'ports_per_splitter' => 4,
+        ])->assertSessionHasErrors('parent_cabinet_id');
+
+        $this->assertNull($parent->fresh()->parent_cabinet_id);
+    }
+
+    public function test_branch_parent_cycle_is_rejected(): void
+    {
+        $project = Project::create(['name' => 'Branch cycle', 'code' => 'BCYCLE', 'location' => 'Test', 'status' => 'planning']);
+        $parent = NetworkBranch::create(['project_id' => $project->id, 'name' => 'Parent', 'type' => 'primary']);
+        $child = NetworkBranch::create(['project_id' => $project->id, 'parent_branch_id' => $parent->id, 'name' => 'Child', 'type' => 'secondary']);
+
+        $this->patchJson(route('branches.update', $parent), [
+            'project_id' => $project->id,
+            'parent_branch_id' => $child->id,
+            'name' => $parent->name,
+            'type' => 'primary',
+            'sort_order' => 0,
+        ])->assertUnprocessable();
+
+        $this->assertNull($parent->fresh()->parent_branch_id);
     }
 }

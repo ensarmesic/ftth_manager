@@ -12,4 +12,5 @@ class Odf extends Model
 
     public function project(): BelongsTo { return $this->belongsTo(Project::class); }
     public function cabinets(): HasMany { return $this->hasMany(Cabinet::class); }
+    public function branches(): HasMany { return $this->hasMany(NetworkBranch::class); }
 }

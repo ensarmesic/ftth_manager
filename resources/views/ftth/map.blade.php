@@ -98,6 +98,7 @@
                 <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
                 <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuće</button>
                 <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
+                <button type="button" id="mode-branch-source" class="tool-btn rounded-md border border-orange-300 bg-orange-100 px-3 py-2 text-sm font-semibold text-orange-900">Novi krak iz ODO</button>
                 <button type="button" id="mode-connect" class="tool-btn rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">Poveži ODF-ODO</button>
                 <button type="button" id="mode-connect-houses" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Poveži ODO-kuće</button>
                 <button type="button" id="mode-trace" class="tool-btn rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800">Trace</button>
@@ -341,6 +342,8 @@ const defaultCenter = [44.4493, 18.6498];
 const map = L.map('network-map', { zoomSnap: 0.25 }).setView(defaultCenter, 17);
 let mode = 'pan';
 let activeBranch = [];
+let activeBranchSnapTargets = [];
+let quickBranchWorkflow = false;
 let activeBranchMarkers = [];
 let activeBranchLine = null;
 let previewBranchLine = null;
@@ -514,12 +517,21 @@ data.cabinets.forEach(c => {
             connectSelectedOdfToCabinet(c);
             return;
         }
+        if (mode === 'branch-source') {
+            L.DomEvent.stop(event);
+            startBranchFromCabinet(c);
+            return;
+        }
         if (mode === 'draw') {
             map.closePopup();
             addDrawPoint(event.latlng);
+            const source = document.getElementById('route-start-source')?.value || '';
+            if (source.startsWith('cabinet:') && Number(source.split(':')[1]) !== Number(c.id)) finishBranch();
         }
     });
-    registerSavedContext(marker, c.name, deleteUrls.cabinet(c.id), positionUrls.cabinet(c.id));
+    registerSavedContext(marker, c.name, deleteUrls.cabinet(c.id), positionUrls.cabinet(c.id), null, [
+        { label: 'Novi krak odavde', run: () => startBranchFromCabinet(c) },
+    ]);
     cabinetMarkerById[c.id] = marker;
     trackLayer(marker, 'odo');
     bounds.push([c.lat, c.lng]);
@@ -575,6 +587,7 @@ function setMode(next) {
         cabinet: 'FTTH: klikni lokacije zelenih ormarića. Vezuju se na aktivni ODF.',
         house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
         draw: 'TRASA: klik po klik crtaj trasu. Blizu postojece trase/tacke automatski se spoji. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
+        'branch-source': 'NOVI KRAK IZ ODO: klikni ormarić iz kojeg novi krak polazi.',
         connect: 'CONNECT: odaberi ODF',
         'connect-houses': 'CONNECT HOUSES: odaberi ODO',
         trace: 'TRACE: klikni kuću za prikaz optičkog puta',
@@ -583,7 +596,7 @@ function setMode(next) {
     document.getElementById('cad-command').textContent = labels[next];
     updateCommandBar();
 }
-['pan','odf','cabinet','house','draw','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
+['pan','odf','cabinet','house','draw','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
 
 function distance(points) { return Math.round(points.slice(1).reduce((sum, p, i) => sum + map.distance(points[i], p), 0)); }
 function draftNetworkPoints() { return [...branches, activeBranch].filter(b => b.length > 1); }
@@ -811,6 +824,7 @@ function currentRouteDraftMeta() {
     const odf = activeOdfPayload();
     const startSource = document.getElementById('route-start-source')?.value || '';
     const [fromType, fromId] = startSource ? startSource.split(':') : [null, null];
+    const sourceCabinet = fromType === 'cabinet' ? data.cabinets.find(cabinet => Number(cabinet.id) === Number(fromId)) : null;
     return {
         name: manualName || nextRouteName(type),
         route_type: type,
@@ -819,10 +833,31 @@ function currentRouteDraftMeta() {
         fiber_count: Number(document.getElementById('route-draw-fiber-count').value || 12),
         microduct_count: Math.max(1, Number(document.getElementById('route-draw-microducts').value || 1)),
         odf_index: fromType === 'odf' ? null : odf.odf_index,
-        odf_id: fromType === 'odf' ? Number(fromId) : odf.odf_id,
+        odf_id: fromType === 'odf' ? Number(fromId) : (sourceCabinet?.odf_id || odf.odf_id),
         from_type: fromType || null,
         from_id: fromId ? Number(fromId) : null,
     };
+}
+function nextCabinetBranchName(cabinet) {
+    const numberParts = String(cabinet.name || '').match(/\d+/g) || [cabinet.id];
+    const base = numberParts.join('-');
+    const prefix = `Sekundarni krak ${base}.`;
+    const used = [...data.routes, ...branchMeta]
+        .map(route => String(route.name || ''))
+        .filter(name => name.startsWith(prefix))
+        .map(name => Number(name.slice(prefix.length)))
+        .filter(Number.isFinite);
+    return `${prefix}${Math.max(0, ...used) + 1}`;
+}
+function startBranchFromCabinet(cabinet) {
+    cancelActiveDrawing();
+    quickBranchWorkflow = true;
+    document.getElementById('route-start-source').value = `cabinet:${cabinet.id}`;
+    document.getElementById('route-draw-type').value = 'distribution';
+    document.getElementById('route-draw-name').value = nextCabinetBranchName(cabinet);
+    setMode('draw');
+    addDrawPoint(cabinetMarkerById[cabinet.id]?.getLatLng() || L.latLng(cabinet.lat, cabinet.lng));
+    document.getElementById('cad-command').textContent = `NOVI KRAK: polazi iz ${cabinet.name}. Klikni dalje po trasi, ENTER završava krak.`;
 }
 function trackLayer(layer, type) {
     if (layerRegistry[type]) layerRegistry[type].push(layer);
@@ -881,11 +916,13 @@ function redoLast() {
     updateCommandBar();
 }
 function cancelActiveDrawing() {
+    quickBranchWorkflow = false;
     activeBranchMarkers.forEach(marker => map.removeLayer(marker));
     if (activeBranchLine) map.removeLayer(activeBranchLine);
     if (previewBranchLine) map.removeLayer(previewBranchLine);
     hideSnapIndicator();
     activeBranch = [];
+    activeBranchSnapTargets = [];
     activeBranchMarkers = [];
     activeBranchLine = null;
     previewBranchLine = null;
@@ -911,37 +948,41 @@ function traceRouteFor(type, house, cabinet, odf) {
         return data.routes.find(route => route.type === 'drop' && route.cabinet_id === cabinet.id && Number(route.to_id) === Number(house.id) && route.path?.length)
             || data.routes.find(route => route.type === 'drop' && route.cabinet_id === cabinet.id && route.path?.length && route.path.some(point => map.distance(L.latLng(point[0], point[1]), L.latLng(house.lat, house.lng)) < 8));
     }
-    return data.routes.find(route => route.type !== 'drop' && route.cabinet_id === cabinet.id && (!route.odf_id || route.odf_id === odf.id) && route.path?.length)
-        || data.routes.find(route => route.type !== 'drop' && route.cabinet_id === cabinet.id && route.path?.length);
+    return null;
 }
-function traceSpineRouteFor(cabinet, odf) {
-    const linked = data.routes.find(route => route.type !== 'drop' && route.cabinet_id === cabinet.id && (!route.odf_id || route.odf_id === odf.id) && route.path?.length)
-        || data.routes.find(route => route.type !== 'drop' && route.cabinet_id === cabinet.id && route.path?.length);
-    if (linked) return linked;
+function cabinetSupplyChain(cabinet) {
+    const chain = [], visited = new Set();
+    let current = cabinet;
+    while (current && !visited.has(Number(current.id))) {
+        chain.push(current);
+        visited.add(Number(current.id));
+        current = current.parent_cabinet_id
+            ? data.cabinets.find(item => Number(item.id) === Number(current.parent_cabinet_id))
+            : null;
+    }
+    return chain;
+}
+function supplyRouteToCabinet(cabinet, parentCabinet, odf) {
+    const exact = data.routes.find(route =>
+        route.type !== 'drop'
+        && Number(route.cabinet_id) === Number(cabinet.id)
+        && (parentCabinet
+            ? route.from_type === 'cabinet' && Number(route.from_id) === Number(parentCabinet.id)
+            : route.from_type === 'odf' && Number(route.from_id) === Number(odf.id))
+        && route.path?.length
+    );
+    if (exact || !parentCabinet) return exact || null;
+
     const cabinetPoint = L.latLng(cabinet.lat, cabinet.lng);
     return data.routes
-        .filter(route => route.type !== 'drop' && route.path?.length)
-        .map(route => ({ route, projection: routePointProjection(cabinetPoint, route) }))
-        .filter(item => item.projection)
-        .sort((a, b) => a.projection.distance - b.projection.distance)[0]?.route || null;
-}
-function traceDropSpineRouteFor(house, cabinet) {
-    const housePoint = L.latLng(house.lat, house.lng);
-    const cabinetPoint = L.latLng(cabinet.lat, cabinet.lng);
-    const candidates = data.routes
-        .filter(route => route.type !== 'drop' && route.path?.length)
-        .map(route => ({
-            route,
-            houseProjection: routePointProjection(housePoint, route),
-            cabinetProjection: routePointProjection(cabinetPoint, route),
-        }))
-        .filter(item => item.houseProjection && item.cabinetProjection)
-        .map(item => ({
-            ...item,
-            score: (item.cabinetProjection.distance * 1.5) + item.houseProjection.distance,
-        }))
-        .sort((a, b) => a.score - b.score);
-    return candidates[0]?.route || null;
+        .filter(route => route.type !== 'drop' && route.from_type === 'cabinet' && Number(route.from_id) === Number(parentCabinet.id) && route.path?.length)
+        .map(route => {
+            const start = L.latLng(route.path[0][0], route.path[0][1]);
+            const end = L.latLng(route.path[route.path.length - 1][0], route.path[route.path.length - 1][1]);
+            return { route, distance: Math.min(map.distance(cabinetPoint, start), map.distance(cabinetPoint, end)) };
+        })
+        .filter(item => item.distance <= 75)
+        .sort((a, b) => a.distance - b.distance)[0]?.route || null;
 }
 function addTraceMarker(latlng, label, type) {
     return trackLayer(L.circleMarker(latlng, {
@@ -1090,17 +1131,29 @@ function showFiberTrace(houseId) {
     const houseMarker = houseMarkerByKey[pointKey(house.lat, house.lng)];
     houseMarker?.setIcon(icon('house', '', '#f59e0b'));
     addTraceMarker(housePoint, house.label, 'house');
-    addTraceMarker(cabinetPoint, cabinet.name, 'cabinet');
     addTraceMarker(odfPoint, odf.name, 'odf');
 
     const physical = [];
     const missing = [];
-    const odfToCabinetPath = shortestTraceNetworkPath(odfPoint, cabinetPoint);
-    if (odfToCabinetPath?.length > 1) {
-        physical.push(addTraceLine(odfToCabinetPath, true));
-    } else {
-        missing.push('ODF -> FTTH');
-        physical.push(addTraceLine([odfPoint, cabinetPoint], false));
+    const supplyChain = cabinetSupplyChain(cabinet);
+    supplyChain.forEach(item => addTraceMarker(L.latLng(item.lat, item.lng), item.name, 'cabinet'));
+    for (let index = 0; index < supplyChain.length; index++) {
+        const child = supplyChain[index];
+        const parent = supplyChain[index + 1] || null;
+        const fromPoint = parent ? L.latLng(parent.lat, parent.lng) : odfPoint;
+        const toPoint = L.latLng(child.lat, child.lng);
+        const supplyRoute = supplyRouteToCabinet(child, parent, odf);
+        if (supplyRoute?.path?.length > 1) {
+            physical.push(addTraceLine(supplyRoute.path.map(point => L.latLng(point[0], point[1])), true));
+        } else {
+            const networkPath = shortestTraceNetworkPath(fromPoint, toPoint);
+            if (networkPath?.length > 1) {
+                physical.push(addTraceLine(networkPath, true));
+            } else {
+                missing.push(parent ? `${parent.name} -> ${child.name}` : `${odf.name} -> ${child.name}`);
+                physical.push(addTraceLine([fromPoint, toPoint], false));
+            }
+        }
     }
     const cabinetToHousePath = shortestTraceNetworkPath(cabinetPoint, housePoint);
     const dropRoute = traceRouteFor('drop', house, cabinet, odf);
@@ -1118,12 +1171,12 @@ function showFiberTrace(houseId) {
     output.innerHTML = `
         <div class="rounded-md bg-white p-2"><b>${house.label}</b><br>Kuca</div>
         <div class="text-center font-black text-slate-500">↓</div>
-        <div class="rounded-md bg-white p-2"><b>${cabinet.name}</b><br>FTTH ormaric</div>
+        ${supplyChain.map(item => `<div class="rounded-md bg-white p-2"><b>${item.name}</b><br>FTTH ormaric</div>`).join('<div class="text-center font-black text-slate-500">↓</div>')}
         <div class="text-center font-black text-slate-500">↓</div>
         <div class="rounded-md bg-white p-2"><b>${odf.name}</b><br>ODF</div>
         ${warning}
     `;
-    const bounds = L.latLngBounds([housePoint, cabinetPoint, odfPoint]);
+    const bounds = L.latLngBounds([housePoint, odfPoint, ...supplyChain.map(item => L.latLng(item.lat, item.lng))]);
     physical.forEach(line => line.getLatLngs().forEach(point => bounds.extend(point)));
     map.fitBounds(bounds, { padding: [70, 70], maxZoom: 19 });
 }
@@ -1313,7 +1366,7 @@ async function saveSavedPosition(marker, url) {
     marker.dragging?.disable();
     document.getElementById('cad-command').textContent = 'Nova pozicija je sačuvana.';
 }
-function registerSavedContext(layer, title, url, positionUrl = null, clickAction = null) {
+function registerSavedContext(layer, title, url, positionUrl = null, clickAction = null, customActions = []) {
     const triggerLayer = Array.isArray(layer) ? layer[0] : layer;
     let savedPosition = triggerLayer.getLatLng?.();
     if (positionUrl) {
@@ -1335,6 +1388,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
             return;
         }
         const actions = [
+            ...customActions,
             { label: 'Obrisi', run: () => deleteSavedElement(url, layer) },
         ];
         if (positionUrl) actions.push({ label: 'Pomjeri', run: () => triggerLayer.dragging?.enable() });
@@ -1555,6 +1609,7 @@ function addDrawPoint(latlng) {
     const point = snapTarget?.latlng || orthoPoint;
     hideSnapIndicator();
     activeBranch.push(point);
+    activeBranchSnapTargets.push(snapTarget || null);
     const index = activeBranch.length - 1;
     const marker = L.marker(point, { draggable: true, icon: L.divIcon({ className: 'ftth-label', html: '<div style="width:12px;height:12px;border-radius:999px;background:#f59e0b;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)"></div>', iconAnchor: [6, 6] }) }).addTo(map);
     marker.on('drag', event => {
@@ -1567,10 +1622,12 @@ function addDrawPoint(latlng) {
             const removedMarker = activeBranchMarkers.pop();
             if (removedMarker) map.removeLayer(removedMarker);
             activeBranch.pop();
+            activeBranchSnapTargets.pop();
             redrawActiveBranch();
         },
         redo: () => {
             activeBranch.push(point);
+            activeBranchSnapTargets.push(snapTarget || null);
             activeBranchMarkers.push(marker.addTo(map));
             redrawActiveBranch();
         },
@@ -1579,8 +1636,15 @@ function addDrawPoint(latlng) {
     document.getElementById('cad-command').textContent = `TRASA: tacka ${activeBranch.length}${snapTarget ? ` spojena na ${snapTarget.label}` : ''}. Sljedeci klik nastavlja, ENTER/desni klik zavrsava krak.`;
 }
 function finishBranch() {
+    const finishQuickBranch = quickBranchWorkflow;
     if (activeBranch.length > 1) {
         const meta = currentRouteDraftMeta();
+        const target = activeBranchSnapTargets[activeBranchSnapTargets.length - 1];
+        if (target?.type === 'cabinet' && Number(target.id) !== Number(meta.from_id)) {
+            meta.to_type = 'cabinet';
+            meta.to_id = Number(target.id);
+            meta.cabinet_id = Number(target.id);
+        }
         const meters = distance(activeBranch);
         branches.push([...activeBranch]);
         branchMeta.push({
@@ -1602,10 +1666,15 @@ function finishBranch() {
     if (activeBranchLine) map.removeLayer(activeBranchLine);
     if (previewBranchLine) map.removeLayer(previewBranchLine);
     hideSnapIndicator();
-    activeBranch = []; activeBranchMarkers = []; activeBranchLine = null; previewBranchLine = null; refreshStats();
+    activeBranch = []; activeBranchSnapTargets = []; activeBranchMarkers = []; activeBranchLine = null; previewBranchLine = null; refreshStats();
+    if (finishQuickBranch) {
+        quickBranchWorkflow = false;
+        document.getElementById('route-start-source').value = '';
+        setMode('pan');
+    }
 }
-function clearDraw() { [...branchLines, ...branchLabels, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); if (previewBranchLine) map.removeLayer(previewBranchLine); hideSnapIndicator(); branches=[]; branchLines=[]; branchLabels=[]; branchMeta=[]; activeBranch=[]; activeBranchMarkers=[]; activeBranchLine=null; previewBranchLine=null; renderBranchList(); refreshStats(); }
-function undoDraw() { const m = activeBranchMarkers.pop(); if (m) map.removeLayer(m); activeBranch.pop(); redrawActiveBranch(); }
+function clearDraw() { [...branchLines, ...branchLabels, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); if (previewBranchLine) map.removeLayer(previewBranchLine); hideSnapIndicator(); branches=[]; branchLines=[]; branchLabels=[]; branchMeta=[]; activeBranch=[]; activeBranchSnapTargets=[]; activeBranchMarkers=[]; activeBranchLine=null; previewBranchLine=null; renderBranchList(); refreshStats(); }
+function undoDraw() { const m = activeBranchMarkers.pop(); if (m) map.removeLayer(m); activeBranch.pop(); activeBranchSnapTargets.pop(); redrawActiveBranch(); }
 function undoBranch() {
     const line = branchLines.pop();
     if (line) map.removeLayer(line);
@@ -1625,8 +1694,8 @@ function layerPixelDistance(a, b) {
 }
 function getSnapTarget(latlng) {
     const candidates = [
-        ...data.odfs.map(item => ({ latlng: odfMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name })),
-        ...data.cabinets.map(item => ({ latlng: cabinetMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name })),
+        ...data.odfs.map(item => ({ latlng: odfMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type:'odf', id:item.id })),
+        ...data.cabinets.map(item => ({ latlng: cabinetMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type:'cabinet', id:item.id })),
         ...data.houses.map(item => ({ latlng: houseMarkerByKey[pointKey(item.lat, item.lng)]?.getLatLng() || L.latLng(item.lat, item.lng), label: `Kuća ${item.label}` })),
         ...draftOdfs.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `ODF-${String(index + 1).padStart(2, '0')}` })),
         ...draftCabinets.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `FTTH-${String(index + 1).padStart(2, '0')}` })),
@@ -2149,6 +2218,9 @@ function planPayload() {
             odf_id: meta.odf_id ?? null,
             from_type: meta.from_type ?? null,
             from_id: meta.from_id ?? null,
+            to_type: meta.to_type ?? null,
+            to_id: meta.to_id ?? null,
+            cabinet_id: meta.cabinet_id ?? null,
         };
     });
     const routes = drawnRoutes;

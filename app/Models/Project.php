@@ -14,5 +14,6 @@ class Project extends Model
     public function subscribers(): HasMany { return $this->hasMany(Subscriber::class); }
     public function houses(): HasMany { return $this->hasMany(House::class); }
     public function routes(): HasMany { return $this->hasMany(NetworkRoute::class); }
+    public function branches(): HasMany { return $this->hasMany(NetworkBranch::class); }
     public function materials(): HasMany { return $this->hasMany(Material::class); }
 }

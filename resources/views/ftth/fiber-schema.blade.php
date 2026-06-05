@@ -110,12 +110,19 @@
     .topology-node text { pointer-events: none; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 800; fill: #172033; }
     .topology-edge { fill: none; stroke: #64748b; stroke-width: 2.5; }
     .topology-edge.child { stroke: #65a845; stroke-dasharray: 6 4; }
+    .topology-edge.cabinet-branch { stroke: #16a34a; stroke-width: 3.5; }
     .topology-edge.drop { stroke: #a78bfa; stroke-width: 1.4; }
     .topology-minimap { position: absolute; right: .7rem; bottom: .7rem; width: 180px; height: 120px; overflow: hidden; border: 1px solid #94a3b8; border-radius: .4rem; background: rgb(255 255 255 / .94); box-shadow: 0 5px 16px rgb(15 23 42 / .18); }
     .topology-minimap svg { width: 100%; height: 100%; }
     .topology-controls { position: absolute; left: .7rem; top: .7rem; z-index: 3; display: flex; gap: .3rem; }
     .topology-controls button { border: 1px solid #cbd5e1; border-radius: .35rem; background: rgb(255 255 255 / .95); padding: .3rem .5rem; color: #334155; font-size: .68rem; font-weight: 900; box-shadow: 0 2px 6px rgb(15 23 42 / .12); }
     .topology-help { position: absolute; left: .7rem; bottom: .7rem; z-index: 3; border-radius: .35rem; background: rgb(255 255 255 / .9); padding: .3rem .45rem; color: #64748b; font-size: .6rem; font-weight: 800; }
+    .cad-fiber-shell { position: relative; margin: .65rem; height: min(78vh, 820px); min-height: 520px; overflow: hidden; border: 1px solid #cbd5e1; border-radius: .65rem; background: #fff; }
+    .cad-fiber-stage { position: absolute; inset: 0; transform-origin: 0 0; }
+    .cad-fiber-stage svg { overflow: visible; }
+    .cad-fiber-controls { position: absolute; left: .7rem; top: .7rem; z-index: 3; display: flex; gap: .3rem; }
+    .cad-fiber-controls button { border: 1px solid #cbd5e1; border-radius: .25rem; background: rgb(255 255 255 / .96); padding: .3rem .55rem; color: #334155; font-size: .68rem; font-weight: 900; }
+    .cad-fiber-help { position: absolute; left: .7rem; bottom: .7rem; z-index: 3; background: rgb(255 255 255 / .92); padding: .3rem .45rem; color: #64748b; font-size: .62rem; font-weight: 800; }
     @media (max-width: 920px) {
         .schema-row, .board-labels { grid-template-columns: 1fr; }
         .fiber-bus, .cabinet-node::before { display: none; }
@@ -155,7 +162,8 @@
         </div>
 
         <div class="schema-view-tabs">
-            <button type="button" class="schema-view-tab active" data-schema-view="topology">Topology View</button>
+            <button type="button" class="schema-view-tab active" data-schema-view="cad-fiber">CAD Fiber View</button>
+            <button type="button" class="schema-view-tab" data-schema-view="topology">Topology View</button>
             <button type="button" class="schema-view-tab" data-schema-view="rack">Fiber Rack View</button>
         </div>
         @php
@@ -164,13 +172,26 @@
                     'id' => $odf->id, 'name' => $odf->name, 'ports' => $odf->port_count, 'fibers' => $odf->fiber_capacity,
                 ])->values(),
                 'cabinets' => $allCabinets->map(fn ($cabinet) => [
-                    'id' => $cabinet->id, 'odf_id' => $cabinet->odf_id, 'parent_id' => $cabinet->parent_cabinet_id,
-                    'name' => $cabinet->name, 'used' => $cabinet->houses_count, 'capacity' => max($cabinet->capacity, 12),
+                    'id' => $cabinet->id, 'odf_id' => $cabinet->odf_id, 'parent_id' => $cabinet->parent_cabinet_id, 'branch_id' => $cabinet->branch_id, 'branch_order' => $cabinet->branch_order,
+                    'name' => $cabinet->name, 'used' => $cabinet->houses_count, 'capacity' => max($cabinet->capacity, 12), 'splitters' => $cabinet->splitter_count,
                     'houses' => $cabinet->houses->map(fn ($house) => ['id' => $house->id, 'label' => $house->label])->values(),
+                ])->values(),
+                'branches' => $project->branches->map(fn ($branch) => [
+                    'id' => $branch->id, 'odf_id' => $branch->odf_id, 'parent_id' => $branch->parent_branch_id,
+                    'from_cabinet_id' => $branch->route?->from_type === 'cabinet' ? $branch->route->from_id : null,
+                    'name' => $branch->name, 'code' => $branch->code, 'type' => $branch->type, 'order' => $branch->sort_order,
+                    'fibers' => $branch->route?->fiber_count ?? 12,
                 ])->values(),
             ];
         @endphp
-        <div data-schema-panel="topology">
+        <div data-schema-panel="cad-fiber">
+            <div class="cad-fiber-shell" data-cad-fiber='@json($topologyGraph)'>
+                <div class="cad-fiber-controls"><button data-cad-action="zoom-in">+</button><button data-cad-action="zoom-out">−</button><button data-cad-action="fit">Fit</button></div>
+                <div class="cad-fiber-stage"></div>
+                <div class="cad-fiber-help">ODF u centru · krakovi lijevo/desno · magenta linije prikazuju aktivne fiber grupe</div>
+            </div>
+        </div>
+        <div class="hidden" data-schema-panel="topology">
             <div class="topology-graph-shell" data-topology-graph='@json($topologyGraph)'>
                 <div class="topology-controls"><button data-topology-action="zoom-in">+</button><button data-topology-action="zoom-out">−</button><button data-topology-action="fit">Fit</button><button data-topology-action="collapse">Sažmi</button></div>
                 <div class="topology-graph-stage"></div>
@@ -336,36 +357,116 @@ document.querySelectorAll('.schema-project').forEach(project => {
         project.querySelectorAll('[data-schema-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.schemaPanel !== button.dataset.schemaView));
     }));
 });
+function cadFiberRenderer(shell) {
+    const data=JSON.parse(shell.dataset.cadFiber || '{"odfs":[],"cabinets":[],"branches":[]}');
+    const stage=shell.querySelector('.cad-fiber-stage');
+    let scale=1, panX=0, panY=0, dragging=false, start=null;
+    const drawnBranches=new Set();
+    const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
+    const odfX=1550, odfY=900, cabinetW=54, cabinetH=92, cabinetGap=115, branchGap=260;
+    function branchCabinets(branch) {
+        return data.cabinets.filter(c=>Number(c.branch_id)===Number(branch.id)).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0));
+    }
+    function render() {
+        const parts=[], labels=[], positions={};
+        data.odfs.forEach((odf,odfIndex)=>{
+            const centerX=odfX+(odfIndex*3300), centerY=odfY;
+            parts.push(`<g><rect x="${centerX-60}" y="${centerY-70}" width="120" height="140" fill="#fff" stroke="#475569" stroke-width="2"/><text x="${centerX}" y="${centerY-15}" text-anchor="middle" class="cad-title">${esc(odf.name)}</text><text x="${centerX}" y="${centerY+8}" text-anchor="middle" class="cad-meta">ODF / PATCH PANEL</text><text x="${centerX}" y="${centerY+30}" text-anchor="middle" class="cad-meta">${odf.ports}P · ${odf.fibers}F</text></g>`);
+            const roots=data.branches.filter(b=>Number(b.odf_id)===Number(odf.id)&&!b.from_cabinet_id).sort((a,b)=>a.order-b.order);
+            roots.forEach((branch,index)=>{
+                const side=index%2===0?1:-1, row=Math.floor(index/2), y=centerY+(row-(Math.ceil(roots.length/2)-1)/2)*branchGap;
+                drawBranch(branch,centerX,y,side,`odf-${odf.id}`,parts,labels,positions);
+            });
+            parts.push(`<line x1="${centerX}" y1="${centerY-210}" x2="${centerX}" y2="${centerY+210}" stroke="#3b82f6" stroke-width="3"/><line x1="${centerX+12}" y1="${centerY-210}" x2="${centerX+12}" y2="${centerY+210}" stroke="#6366f1" stroke-width="2"/>`);
+        });
+        const width=Math.max(3200,...Object.values(positions).map(p=>p.x+500)), height=Math.max(1800,...Object.values(positions).map(p=>p.y+400));
+        stage.innerHTML=`<svg width="${width}" height="${height}"><style>.cad-title{font:700 15px Arial;fill:#111827}.cad-branch{font:700 13px Arial;fill:#ef4444}.cad-meta{font:700 10px Arial;fill:#2563eb}.cad-port{font:700 8px Arial;fill:#d946ef}.cad-label-bg{fill:#fff;stroke:#fecaca;stroke-width:1}</style>${parts.join('')}${labels.join('')}</svg>`;
+    }
+    function drawBranch(branch,startX,y,side,parent,parts,labels,positions) {
+        if(drawnBranches.has(String(branch.id))) return;
+        drawnBranches.add(String(branch.id));
+        const cabinets=branchCabinets(branch), labelWidth=Math.max(150,String(branch.name||'').length*8+24);
+        const firstCabinetDistance=Math.max(cabinetGap,labelWidth+70);
+        const length=Math.max(280,firstCabinetDistance+Math.max(0,cabinets.length-1)*cabinetGap+130);
+        const fibers=Math.max(1,Number(branch.fibers)||12), lines=Math.max(cabinets.length,1), fiberStep=Math.max(1,Math.floor(fibers/lines));
+        cabinets.forEach((cabinet,index)=>{
+            const lineY=y+index*7, endX=startX+side*(firstCabinetDistance+index*cabinetGap);
+            const fiberFrom=index*fiberStep+1, fiberTo=index===lines-1?fibers:Math.min(fibers,(index+1)*fiberStep);
+            parts.push(`<line x1="${startX}" y1="${lineY}" x2="${endX}" y2="${lineY}" stroke="#f044e7" stroke-width="2"/><circle cx="${endX}" cy="${lineY}" r="4" fill="#f044e7"/><text x="${endX-side*8}" y="${lineY-5}" text-anchor="${side>0?'end':'start'}" class="cad-port">${fiberFrom}-${fiberTo}</text>`);
+        });
+        if(!cabinets.length) parts.push(`<line x1="${startX}" y1="${y}" x2="${startX+side*length}" y2="${y}" stroke="#f044e7" stroke-width="2"/>`);
+        const labelX=startX+side*(firstCabinetDistance/2), labelLeft=labelX-labelWidth/2, labelY=y-108;
+        labels.push(`<g><rect x="${labelLeft}" y="${labelY}" width="${labelWidth}" height="36" rx="4" class="cad-label-bg"/><text x="${labelX}" y="${labelY+15}" text-anchor="middle" class="cad-branch">${esc(branch.name)}</text><text x="${labelX}" y="${labelY+29}" text-anchor="middle" class="cad-meta">OPTIKA ${fibers} niti</text></g>`);
+        cabinets.forEach((cabinet,index)=>{
+            const x=startX+side*(firstCabinetDistance+index*cabinetGap), lineY=y+index*7;
+            positions[`cab-${cabinet.id}`]={x,y:lineY};
+            parts.push(`<rect x="${x-cabinetW/2}" y="${lineY-cabinetH/2}" width="${cabinetW}" height="${cabinetH}" fill="#fff" stroke="#64748b" stroke-width="2"/><text x="${x}" y="${lineY+cabinetH/2+18}" text-anchor="middle" class="cad-title">${esc(cabinet.name)}</text><text x="${x}" y="${lineY+5}" text-anchor="middle" class="cad-port">${cabinet.used}/${cabinet.capacity}</text>`);
+        });
+        data.branches.filter(child=>Number(child.from_cabinet_id)&&positions[`cab-${child.from_cabinet_id}`]&&Number(child.odf_id)===Number(branch.odf_id)&&!drawnBranches.has(String(child.id))).forEach((child,index)=>{
+            const anchor=positions[`cab-${child.from_cabinet_id}`], childY=anchor.y+(index+1)*145;
+            parts.push(`<line x1="${anchor.x}" y1="${anchor.y}" x2="${anchor.x}" y2="${childY}" stroke="#f044e7" stroke-width="2"/>`);
+            drawBranch(child,anchor.x,childY,side,`cab-${child.from_cabinet_id}`,parts,labels,positions);
+        });
+    }
+    function apply(){stage.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`}
+    function fit(){const svg=stage.querySelector('svg');if(!svg)return;scale=Math.min(.95,(shell.clientWidth-40)/svg.width.baseVal.value,(shell.clientHeight-40)/svg.height.baseVal.value);panX=(shell.clientWidth-svg.width.baseVal.value*scale)/2;panY=(shell.clientHeight-svg.height.baseVal.value*scale)/2;apply()}
+    shell.addEventListener('wheel',e=>{e.preventDefault();scale=Math.max(.15,Math.min(3,scale*(e.deltaY<0?1.12:.89)));apply()},{passive:false});
+    shell.addEventListener('pointerdown',e=>{if(e.target.closest('.cad-fiber-controls'))return;dragging=true;start={x:e.clientX-panX,y:e.clientY-panY};shell.setPointerCapture(e.pointerId)});
+    shell.addEventListener('pointermove',e=>{if(dragging){panX=e.clientX-start.x;panY=e.clientY-start.y;apply()}});
+    shell.addEventListener('pointerup',()=>dragging=false);
+    shell.querySelector('[data-cad-action="zoom-in"]').onclick=()=>{scale=Math.min(3,scale*1.2);apply()};
+    shell.querySelector('[data-cad-action="zoom-out"]').onclick=()=>{scale=Math.max(.15,scale/1.2);apply()};
+    shell.querySelector('[data-cad-action="fit"]').onclick=fit;
+    render(); setTimeout(fit,0);
+}
 function topologyRenderer(shell) {
     const data = JSON.parse(shell.dataset.topologyGraph || '{"odfs":[],"cabinets":[]}');
     const stage = shell.querySelector('.topology-graph-stage');
     const minimap = shell.querySelector('.topology-minimap');
     const expanded = new Set();
     let scale = 1, panX = 0, panY = 0, dragging = false, start = null;
-    const nodeW = 116, nodeH = 42, gapY = 78, gapX = 205;
+    const nodeW = 116, nodeH = 42, laneGap = 210, columnGap = 175;
     const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
     function graph() {
         const nodes = [], edges = [];
         data.odfs.forEach((odf, odfIndex) => {
-            const roots = data.cabinets.filter(c => Number(c.odf_id) === Number(odf.id) && !c.parent_id);
-            const centerY = Math.max(220, roots.length * gapY / 2 + 80);
-            nodes.push({ id:`odf-${odf.id}`, type:'odf', x:520 + odfIndex * 1100, y:centerY, label:odf.name, meta:`${odf.ports}P / ${odf.fibers}F` });
-            roots.forEach((cabinet, index) => {
-                const side = index % 2 === 0 ? 1 : -1;
-                const row = Math.floor(index / 2);
-                const x = 520 + odfIndex * 1100 + side * gapX;
-                const y = 90 + row * gapY;
-                addCabinet(cabinet, x, y, `odf-${odf.id}`, side, nodes, edges);
-            });
+            let roots = data.branches.filter(branch => Number(branch.odf_id) === Number(odf.id) && (!branch.parent_id || branch.from_cabinet_id))
+                .sort((a,b)=>Number(Boolean(a.from_cabinet_id))-Number(Boolean(b.from_cabinet_id)) || a.order-b.order);
+            const unassigned = data.cabinets.filter(c => Number(c.odf_id) === Number(odf.id) && !c.branch_id);
+            if (unassigned.length) roots.push({ id:`unassigned-${odf.id}`, name:'Neraspoređeni ODO', code:'?', type:'secondary', synthetic:true });
+            const baseX=80+odfIndex*1800;
+            const laneState={next:0, anchorBranches:{}};
+            roots.forEach(branch=>addBranchLane(branch,baseX+220,`odf-${odf.id}`,nodes,edges,unassigned,laneState));
+            nodes.push({ id:`odf-${odf.id}`, type:'odf', x:baseX, y:80+Math.max(0,laneState.next-1)*laneGap/2, label:odf.name, meta:`${odf.ports}P / ${odf.fibers}F` });
         });
         return {nodes, edges};
+    }
+    function addBranchLane(branch, x, parent, nodes, edges, unassigned=[], laneState={next:0}) {
+        laneState.anchorBranches ||= {};
+        let y=80+laneState.next*laneGap;
+        laneState.next++;
+        const anchorNode=branch.from_cabinet_id ? nodes.find(node=>node.id===`cab-${branch.from_cabinet_id}`) : null;
+        if (anchorNode) {
+            const anchorIndex=laneState.anchorBranches[branch.from_cabinet_id] || 0;
+            laneState.anchorBranches[branch.from_cabinet_id]=anchorIndex+1;
+            parent=anchorNode.id;
+            x=anchorNode.x;
+            y=anchorNode.y+95+(anchorIndex*95);
+        }
+        const branchNodeId=`branch-${branch.id}`;
+        nodes.push({ id:branchNodeId, type:'branch', x, y, label:branch.name, meta:branch.code || branch.type });
+        edges.push({ from:parent, to:branchNodeId, type:branch.from_cabinet_id ? 'cabinet-branch' : (branch.parent_id ? 'child' : '') });
+        const cabinets=(branch.synthetic ? unassigned : data.cabinets.filter(c=>Number(c.branch_id)===Number(branch.id) && (!c.parent_id || Number(c.parent_id)===Number(branch.from_cabinet_id)))).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0));
+        let previous=branchNodeId;
+        cabinets.forEach((cabinet,index)=>{addCabinet(cabinet,x+(index+1)*columnGap,y,previous,1,nodes,edges);previous=`cab-${cabinet.id}`;});
+        data.branches.filter(item=>Number(item.parent_id)===Number(branch.id) && !item.from_cabinet_id).sort((a,b)=>a.order-b.order).forEach(child=>addBranchLane(child,x+columnGap,branchNodeId,nodes,edges,unassigned,laneState));
     }
     function addCabinet(cabinet, x, y, parent, side, nodes, edges) {
         nodes.push({ id:`cab-${cabinet.id}`, type:'cabinet', x, y, label:cabinet.name, meta:`${cabinet.used}/${cabinet.capacity}`, cabinet });
         edges.push({ from:parent, to:`cab-${cabinet.id}`, type:cabinet.parent_id ? 'child' : '' });
-        data.cabinets.filter(c => Number(c.parent_id) === Number(cabinet.id)).forEach((child, index) => addCabinet(child, x + side * 175, y + index * 62, `cab-${cabinet.id}`, side, nodes, edges));
+        data.cabinets.filter(c => Number(c.parent_id) === Number(cabinet.id) && Number(c.branch_id)===Number(cabinet.branch_id)).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0)).forEach((child, index) => addCabinet(child, x + side * (index + 1) * columnGap, y, `cab-${cabinet.id}`, side, nodes, edges));
         if (expanded.has(cabinet.id)) cabinet.houses.forEach((house, index) => {
-            const hx = x + side * 165, hy = y - ((cabinet.houses.length - 1) * 24 / 2) + index * 24;
+            const hx = x + (index % 4) * 82, hy = y + 64 + Math.floor(index / 4) * 48;
             nodes.push({ id:`house-${house.id}`, type:'house', x:hx, y:hy, label:house.label, meta:'' });
             edges.push({ from:`cab-${cabinet.id}`, to:`house-${house.id}`, type:'drop' });
         });
@@ -380,7 +481,7 @@ function topologyRenderer(shell) {
             return `<path class="topology-edge ${edge.type}" d="M${ax} ${ay} C${mid} ${ay},${mid} ${by},${bx} ${by}"/>`;
         }).join('');
         const nodeSvg = nodes.map(node => {
-            const colors=node.type==='odf'?['#eff6ff','#2563eb']:node.type==='house'?['#fff7ed','#f97316']:['#f2faeb','#65a845'];
+            const colors=node.type==='odf'?['#eff6ff','#2563eb']:node.type==='branch'?['#f8fafc','#64748b']:node.type==='house'?['#fff7ed','#f97316']:['#f2faeb','#65a845'];
             return `<g class="topology-node" data-node-type="${node.type}" data-cabinet-id="${node.cabinet?.id||''}" transform="translate(${node.x},${node.y})"><rect width="${nodeW}" height="${nodeH}" rx="6" fill="${colors[0]}" stroke="${colors[1]}"/><text x="${nodeW/2}" y="18" text-anchor="middle">${esc(node.label)}</text><text x="${nodeW/2}" y="33" text-anchor="middle" style="font-size:9px;fill:#64748b">${esc(node.meta)}</text></g>`;
         }).join('');
         stage.innerHTML=`<svg width="${maxX}" height="${maxY}">${edgeSvg}${nodeSvg}</svg>`;
@@ -401,6 +502,7 @@ function topologyRenderer(shell) {
     render(); requestAnimationFrame(fit);
 }
 document.querySelectorAll('[data-topology-graph]').forEach(topologyRenderer);
+document.querySelectorAll('[data-cad-fiber]').forEach(cadFiberRenderer);
 document.querySelectorAll('[data-trace-house]').forEach(button => {
     button.addEventListener('click', () => {
         document.querySelectorAll('[data-trace-house]').forEach(item => item.classList.remove('active'));
