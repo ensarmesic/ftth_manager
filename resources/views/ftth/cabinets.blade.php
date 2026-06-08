@@ -1,7 +1,7 @@
 @extends('ftth.layout')
 
 @section('title', 'ODO ormarici')
-@section('subtitle', 'Distribucione tacke sa glavnim i izvedenim FTTH ormarima.')
+@section('subtitle', 'Distribucione tacke koje se planiraju na sekundarnim krakovima.')
 
 @section('content')
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
@@ -102,6 +102,8 @@
                                         <label class="grid gap-1 text-xs"><span>Projekat</span><select name="project_id" class="rounded-md border border-slate-300 px-2 py-1.5">@foreach($projects as $project)<option value="{{ $project->id }}" @selected($cabinet->project_id === $project->id)>{{ $project->name }}</option>@endforeach</select></label>
                                         <label class="grid gap-1 text-xs"><span>ODF</span><select name="odf_id" class="rounded-md border border-slate-300 px-2 py-1.5"><option value="">Bez direktne ODF veze</option>@foreach($odfs as $odf)<option value="{{ $odf->id }}" @selected($cabinet->odf_id === $odf->id)>{{ $odf->name }}</option>@endforeach</select></label>
                                         <label class="grid gap-1 text-xs"><span>Napaja se iz ODO</span><select name="parent_cabinet_id" class="rounded-md border border-slate-300 px-2 py-1.5"><option value="">Direktno iz ODF-a</option>@foreach($parentCabinets as $parentCabinet)@continue($parentCabinet->id === $cabinet->id)<option value="{{ $parentCabinet->id }}" @selected($cabinet->parent_cabinet_id === $parentCabinet->id)>{{ $parentCabinet->name }} - {{ $parentCabinet->project->name }}</option>@endforeach</select></label>
+                                        <label class="grid gap-1 text-xs"><span>Sekundarni krak</span><select name="branch_id" class="rounded-md border border-slate-300 px-2 py-1.5"><option value="">Nerasporeden ODO</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected($cabinet->branch_id === $branch->id)>{{ $branch->project->name }} / {{ $branch->name }}</option>@endforeach</select></label>
+                                        <label class="grid gap-1 text-xs"><span>Redoslijed</span><input type="number" name="branch_order" value="{{ $cabinet->branch_order }}" min="0" class="rounded-md border border-slate-300 px-2 py-1.5"></label>
                                         <label class="grid gap-1 text-xs"><span>Naziv</span><input name="name" value="{{ $cabinet->name }}" class="rounded-md border border-slate-300 px-2 py-1.5"></label>
                                         <label class="grid gap-1 text-xs"><span>Adresa</span><input name="address" value="{{ $cabinet->address }}" class="rounded-md border border-slate-300 px-2 py-1.5"></label>
                                         <div class="grid grid-cols-2 gap-2"><label class="grid gap-1 text-xs"><span>Splitteri</span><input type="number" name="splitter_count" value="{{ $cabinet->splitter_count }}" min="1" max="3" class="rounded-md border border-slate-300 px-2 py-1.5"></label><label class="grid gap-1 text-xs"><span>Portovi</span><input type="number" name="ports_per_splitter" value="{{ $cabinet->ports_per_splitter }}" min="1" max="4" class="rounded-md border border-slate-300 px-2 py-1.5"></label></div>

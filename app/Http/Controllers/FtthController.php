@@ -520,7 +520,7 @@ class FtthController extends Controller
         return view('ftth.cabinets', [
             'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses', 'subscribers'])->latest()->paginate(12),
             'parentCabinets' => Cabinet::with('project')->orderBy('name')->get(),
-            'branches' => NetworkBranch::with('project')->orderBy('sort_order')->orderBy('name')->get(),
+            'branches' => NetworkBranch::with('project')->where('type', 'secondary')->orderBy('sort_order')->orderBy('name')->get(),
             'projects' => Project::orderBy('name')->get(),
             'odfs' => Odf::with('project')->orderBy('name')->get(),
         ]);
@@ -545,6 +545,7 @@ class FtthController extends Controller
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
         $this->ensureBelongsToProject(NetworkBranch::class, $data['branch_id'] ?? null, $data['project_id'], 'branch_id');
+        $this->ensureSecondaryBranch($data['branch_id'] ?? null);
         $cabinet = Cabinet::create($data);
 
         if ($request->expectsJson()) {
@@ -610,6 +611,7 @@ class FtthController extends Controller
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
         $this->ensureBelongsToProject(NetworkBranch::class, $data['branch_id'] ?? null, $data['project_id'], 'branch_id');
+        $this->ensureSecondaryBranch($data['branch_id'] ?? null);
         if ((int) ($data['parent_cabinet_id'] ?? 0) === (int) $cabinet->id) {
             return back()->withErrors(['parent_cabinet_id' => 'Ormarić ne može napajati sam sebe.'])->withInput();
         }
@@ -1674,6 +1676,17 @@ class FtthController extends Controller
             $field => [function (string $attribute, $value, $fail) use ($model, $projectId): void {
                 if ($value && ! $model::query()->whereKey($value)->where('project_id', $projectId)->exists()) {
                     $fail('Odabrani zapis ne pripada projektu.');
+                }
+            }],
+        ])->validate();
+    }
+
+    private function ensureSecondaryBranch($branchId): void
+    {
+        validator(['branch_id' => $branchId], [
+            'branch_id' => [function (string $attribute, $value, $fail): void {
+                if ($value && ! NetworkBranch::query()->whereKey($value)->where('type', 'secondary')->exists()) {
+                    $fail('ODO ormaric se moze planirati samo na sekundarnom kraku.');
                 }
             }],
         ])->validate();

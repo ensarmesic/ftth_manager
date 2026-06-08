@@ -131,6 +131,38 @@ class MediaskyWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_cabinet_can_only_be_assigned_to_secondary_branch(): void
+    {
+        $project = Project::create(['name' => 'Sekundarni ODO', 'code' => 'SODO', 'location' => 'Test', 'status' => 'planning']);
+        $primary = NetworkBranch::create(['project_id' => $project->id, 'name' => 'Glavni krak', 'type' => 'primary']);
+        $secondary = NetworkBranch::create(['project_id' => $project->id, 'parent_branch_id' => $primary->id, 'name' => 'Sekundarni krak', 'type' => 'secondary']);
+
+        $payload = [
+            'project_id' => $project->id,
+            'branch_id' => $primary->id,
+            'branch_order' => 1,
+            'name' => 'FTTH S-1',
+            'address' => 'Krak S',
+            'splitter_count' => 1,
+            'ports_per_splitter' => 4,
+            'latitude' => null,
+            'longitude' => null,
+        ];
+
+        $this->from(route('cabinets.index'))->post(route('cabinets.store'), $payload)
+            ->assertRedirect(route('cabinets.index'))
+            ->assertSessionHasErrors('branch_id');
+
+        $this->post(route('cabinets.store'), array_merge($payload, ['branch_id' => $secondary->id]))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('cabinets', [
+            'project_id' => $project->id,
+            'branch_id' => $secondary->id,
+            'name' => 'FTTH S-1',
+        ]);
+    }
+
     public function test_route_can_start_from_existing_cabinet(): void
     {
         $project = Project::create(['name' => 'ODO start', 'code' => 'OST', 'location' => 'Test', 'status' => 'planning']);
