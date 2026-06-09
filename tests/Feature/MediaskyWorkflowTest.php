@@ -89,7 +89,13 @@ class MediaskyWorkflowTest extends TestCase
     {
         $project = Project::create(['name' => 'Topologija', 'code' => 'TOP', 'location' => 'Test', 'status' => 'planning']);
         $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48]);
-        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 1-1', 'address' => 'Krak 1', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+        $secondOdf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-02', 'address' => 'Drugi', 'fiber_capacity' => 144, 'port_count' => 48]);
+        $route = NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'S1-1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 100, 'fiber_length_m' => 100, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651]]]);
+        $branch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'route_id' => $route->id, 'name' => 'S1-1', 'type' => 'secondary']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $branch->id, 'name' => 'FTTH 1-1', 'address' => 'Krak 1', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+        $secondRoute = NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $secondOdf->id, 'name' => 'S2-1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 100, 'fiber_length_m' => 100, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.452, 18.652], [44.453, 18.653]]]);
+        $secondBranch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $secondOdf->id, 'route_id' => $secondRoute->id, 'name' => 'S2-1', 'type' => 'secondary']);
+        Cabinet::create(['project_id' => $project->id, 'odf_id' => $secondOdf->id, 'branch_id' => $secondBranch->id, 'name' => 'FTTH 2-1', 'address' => 'Krak 2', 'splitter_count' => 2, 'ports_per_splitter' => 4]);
         $childCabinet = Cabinet::create(['project_id' => $project->id, 'parent_cabinet_id' => $cabinet->id, 'name' => 'FTTH 1-1.1', 'address' => 'Izvod 1', 'splitter_count' => 1, 'ports_per_splitter' => 4]);
         House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'Kuca 1', 'status' => 'planned']);
         House::create(['project_id' => $project->id, 'cabinet_id' => $childCabinet->id, 'label' => 'Kuca 2', 'status' => 'planned']);
@@ -103,6 +109,12 @@ class MediaskyWorkflowTest extends TestCase
             ->assertSee('IZ FTTH 1-1')
             ->assertSee('Kuca 1')
             ->assertSee('Kuca 2')
+            ->assertSee('F 1-3')
+            ->assertSee('F 4')
+            ->assertSee('F 5-6')
+            ->assertSee('Magistralna optika / raspored iz 144')
+            ->assertSee('data-fiber-range="1-3"', false)
+            ->assertSee('data-fiber-range="4"', false)
             ->assertSee('Fiber tracing');
     }
 
@@ -129,6 +141,27 @@ class MediaskyWorkflowTest extends TestCase
             'parent_cabinet_id' => $parent->id,
             'name' => 'FTTH 2-1.1',
         ]);
+    }
+
+    public function test_fiber_schema_allocates_cabinet_branch_after_source_cabinet(): void
+    {
+        $project = Project::create(['name' => 'Branch child fibers', 'code' => 'BCF', 'location' => 'Test', 'status' => 'planning']);
+        $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48]);
+        $rootRoute = NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'S2', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 100, 'fiber_length_m' => 100, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651]]]);
+        $rootBranch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'route_id' => $rootRoute->id, 'name' => 'Sekundarni krak 2', 'type' => 'secondary']);
+        $parent = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $rootBranch->id, 'branch_order' => 1, 'name' => 'FTTH 2-8', 'address' => 'Krak', 'splitter_count' => 2, 'ports_per_splitter' => 4]);
+        Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $rootBranch->id, 'branch_order' => 2, 'name' => 'FTTH 2-9', 'address' => 'Krak', 'splitter_count' => 1, 'ports_per_splitter' => 4]);
+        $childRoute = NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'from_type' => 'cabinet', 'from_id' => $parent->id, 'name' => 'S2-8.1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 100, 'fiber_length_m' => 100, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.451, 18.651], [44.452, 18.652]]]);
+        $childBranch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'route_id' => $childRoute->id, 'name' => 'Sekundarni krak 2-8.1', 'type' => 'secondary']);
+        Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $childBranch->id, 'branch_order' => 1, 'name' => 'FTTH 2-8-1', 'address' => 'Izvod', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+
+        $this->get(route('fiber-schema.index'))
+            ->assertOk()
+            ->assertSee('FTTH 2-8')
+            ->assertSee('FTTH 2-8-1')
+            ->assertSee('F 1-2')
+            ->assertSee('F 3-5')
+            ->assertSee('F 6');
     }
 
     public function test_cabinet_can_only_be_assigned_to_secondary_branch(): void
@@ -241,8 +274,9 @@ class MediaskyWorkflowTest extends TestCase
     {
         $project = Project::create(['name' => 'Fill existing', 'code' => 'FILL', 'location' => 'Test', 'status' => 'planning']);
         $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-01', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.45, 'longitude' => 18.65]);
-        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'FTTH 1-1', 'address' => 'Krak', 'splitter_count' => 2, 'ports_per_splitter' => 4, 'latitude' => 44.4505, 'longitude' => 18.6505]);
-        NetworkRoute::create(['project_id' => $project->id, 'name' => 'Krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 300, 'fiber_length_m' => 300, 'fiber_count' => 24, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.453, 18.653]]]);
+        $route = NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'Krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 300, 'fiber_length_m' => 300, 'fiber_count' => 24, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.453, 18.653]]]);
+        $branch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'route_id' => $route->id, 'name' => 'Krak 1', 'type' => 'secondary']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $branch->id, 'name' => 'FTTH 1-1', 'address' => 'Krak', 'splitter_count' => 2, 'ports_per_splitter' => 4, 'latitude' => 44.4505, 'longitude' => 18.6505]);
         foreach (range(1, 8) as $index) House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => "Stara-{$index}", 'latitude' => 44.4505, 'longitude' => 18.6505, 'status' => 'planned']);
         foreach (range(1, 15) as $index) House::create(['project_id' => $project->id, 'label' => "Nova-{$index}", 'latitude' => 44.4505 + ($index * .00001), 'longitude' => 18.6505 + ($index * .00001), 'status' => 'planned']);
 

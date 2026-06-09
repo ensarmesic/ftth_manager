@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Cabinet;
 use App\Models\House;
+use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
@@ -42,7 +43,7 @@ class FtthIntelligenceService
 
         $warnings = [];
         if ($branchRoutes->isEmpty()) {
-            $warnings[] = $this->validationItem('warning', self::BRANCH_WARNING, 'project', $project->id, 'Nacrtaj glavne, sekundarne ili distribucione trase prije preciznog Auto ODO planiranja.');
+            $warnings[] = $this->validationItem('warning', self::BRANCH_WARNING, 'project', $project->id, 'Nacrtaj sekundarne trase prije preciznog Auto ODO planiranja.');
         }
         if ($odfs->isEmpty()) {
             $warnings[] = $this->validationItem('warning', 'Projekat nema ODF, predlozeni ODO ormarici nisu povezani na ODF.', 'project', $project->id, 'Dodaj barem jedan ODF sa koordinatama prije potvrde plana.');
@@ -64,7 +65,7 @@ class FtthIntelligenceService
                 $branchCabinets[] = $cabinet;
             }
             $branchSummaries[] = [
-                'branch_id' => $branch['route']?->id,
+                'branch_id' => $branch['branch']?->id,
                 'route_id' => $branch['route']?->id,
                 'branch_index' => $branch['branch_index'],
                 'name' => $branch['name'],
@@ -148,12 +149,16 @@ class FtthIntelligenceService
                         throw new InvalidArgumentException('Postojeci ODO nema dovoljno slobodnih portova.');
                     }
                     $cabinet = $targetExistingCabinet;
-                    $cabinet->update(['splitter_count' => $this->splitterCount($cabinet->houses()->count() + $houses->count())]);
+                    $cabinet->update([
+                        'branch_id' => ! empty($cabinetPlan['branch_id']) && (int) $cabinetPlan['branch_id'] > 0 ? (int) $cabinetPlan['branch_id'] : $cabinet->branch_id,
+                        'splitter_count' => $this->splitterCount($cabinet->houses()->count() + $houses->count()),
+                    ]);
                 } elseif (! $sameAutoCabinet) {
                     $cabinetName = $this->uniqueCabinetName($project, $cabinetName);
                     $cabinet = Cabinet::create([
                         'project_id' => $project->id,
                         'odf_id' => $odfId,
+                        'branch_id' => ! empty($cabinetPlan['branch_id']) && (int) $cabinetPlan['branch_id'] > 0 ? (int) $cabinetPlan['branch_id'] : null,
                         'name' => $cabinetName,
                         'address' => 'Auto plan - '.$cabinetPlan['proposed_latitude'].','.$cabinetPlan['proposed_longitude'],
                         'splitter_count' => $this->splitterCount($houses->count()),
@@ -380,12 +385,26 @@ class FtthIntelligenceService
 
     private function branchRoutes(Project $project): Collection
     {
-        $allowed = ['feeder', 'primarna', 'main', 'glavna', 'secondary', 'sekundarna', 'distribution', 'distribuciona'];
-
-        return $project->routes()
-            ->whereNotNull('path')
+        return NetworkBranch::query()
+            ->with('route')
+            ->where('project_id', $project->id)
+            ->where('type', 'secondary')
+            ->orderBy('sort_order')
+            ->orderBy('name')
             ->get()
-            ->filter(fn (NetworkRoute $route) => count($route->path ?? []) > 1 && in_array(strtolower((string) $route->route_type), $allowed, true))
+            ->map(function (NetworkBranch $branch): ?NetworkRoute {
+                $route = $branch->route;
+                if (! $route || count($route->path ?? []) < 2) {
+                    return null;
+                }
+                $route->setAttribute('planning_branch_id', $branch->id);
+                $route->setAttribute('planning_branch_name', $branch->name);
+                $route->setAttribute('planning_branch_code', $branch->code);
+                $route->setAttribute('planning_branch_sort_order', $branch->sort_order);
+
+                return $route;
+            })
+            ->filter()
             ->values();
     }
 
@@ -393,9 +412,11 @@ class FtthIntelligenceService
     {
         $branches = [];
         foreach ($routes->values() as $index => $route) {
-            $branches[$route->id] = [
+            $branchId = (int) $route->getAttribute('planning_branch_id');
+            $branches[$branchId] = [
+                'branch' => NetworkBranch::find($branchId),
                 'route' => $route,
-                'name' => $route->name,
+                'name' => $route->getAttribute('planning_branch_name') ?: $route->name,
                 'branch_index' => $this->branchIndex($route, $index + 1),
                 'houses' => collect(),
             ];
@@ -408,12 +429,14 @@ class FtthIntelligenceService
                 $unassigned->push($house);
                 continue;
             }
-            $house->setAttribute('branch_id', $nearest['route']->id);
-            $house->setAttribute('branch_name', $nearest['route']->name);
-            $house->setAttribute('branch_index', $branches[$nearest['route']->id]['branch_index']);
+            $branchId = (int) $nearest['route']->getAttribute('planning_branch_id');
+            $house->setAttribute('branch_id', $branchId);
+            $house->setAttribute('route_id', $nearest['route']->id);
+            $house->setAttribute('branch_name', $branches[$branchId]['name']);
+            $house->setAttribute('branch_index', $branches[$branchId]['branch_index']);
             $house->setAttribute('distance_to_branch_m', (int) round($nearest['distance_m']));
             $house->setAttribute('chainage_m', (int) round($nearest['chainage_m']));
-            $branches[$nearest['route']->id]['houses']->push($house);
+            $branches[$branchId]['houses']->push($house);
         }
 
         return [
@@ -436,6 +459,7 @@ class FtthIntelligenceService
             });
             $branches[] = [
                 'route' => null,
+                'branch' => null,
                 'name' => 'Fallback krak '.($index + 1),
                 'branch_index' => $index + 1,
                 'houses' => $group,
@@ -521,6 +545,7 @@ class FtthIntelligenceService
         $cabinets = $project->cabinets()->withCount('houses')->whereNotNull('latitude')->whereNotNull('longitude')->get()
             ->filter(function (Cabinet $cabinet) use ($branch, $params) {
                 if ($cabinet->houses_count >= 12) return false;
+                if ((int) $cabinet->branch_id !== (int) ($branch['branch']?->id ?? 0)) return false;
                 $nearest = $this->nearestBranch((float) $cabinet->latitude, (float) $cabinet->longitude, collect([$branch['route']]));
 
                 return $nearest && $nearest['distance_m'] <= $params['max_branch_distance_m'];
@@ -585,7 +610,7 @@ class FtthIntelligenceService
         return [
             'name' => $name.' PRIJEDLOG',
             'confirmed_name' => $name,
-            'branch_id' => $branch['route']?->id ?? (int) $houses->first()->getAttribute('branch_id'),
+            'branch_id' => $branch['branch']?->id ?? (int) $houses->first()->getAttribute('branch_id'),
             'route_id' => $branch['route']?->id,
             'branch_index' => $branch['branch_index'],
             'branch_name' => $branch['name'],
@@ -644,7 +669,7 @@ class FtthIntelligenceService
             'latitude' => (float) $house->latitude,
             'longitude' => (float) $house->longitude,
             'branch_id' => $house->getAttribute('branch_id'),
-            'route_id' => $house->getAttribute('branch_id') > 0 ? $house->getAttribute('branch_id') : null,
+            'route_id' => $house->getAttribute('route_id'),
             'branch_index' => $house->getAttribute('branch_index'),
             'branch_name' => $house->getAttribute('branch_name'),
             'distance_to_branch_m' => $house->getAttribute('distance_to_branch_m'),
@@ -799,7 +824,8 @@ class FtthIntelligenceService
 
     private function branchIndex(NetworkRoute $route, int $fallback): int
     {
-        if (preg_match('/\d+/', $route->name.' '.$route->route_type, $match)) {
+        $label = trim((string) $route->getAttribute('planning_branch_code').' '.(string) $route->getAttribute('planning_branch_name').' '.$route->name);
+        if (preg_match('/\d+/', $label, $match)) {
             return (int) $match[0];
         }
 

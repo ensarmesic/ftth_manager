@@ -146,6 +146,46 @@
         $totalHouses = $allCabinets->sum('houses_count');
         $totalCapacity = max($allCabinets->sum(fn ($cabinet) => max($cabinet->capacity, 12)), 1);
         $projectUtilization = min(100, round($totalHouses / $totalCapacity * 100));
+        $fiberAllocations = [];
+        $nextFiber = 1;
+        $odfOrder = $project->odfs->values()->mapWithKeys(fn ($odf, $index) => [$odf->id => $index + 1]);
+        $allocatedCabinetIds = [];
+        $branchesFromCabinet = $project->branches
+            ->filter(fn ($branch) => $branch->route?->from_type === 'cabinet' && $branch->route?->from_id)
+            ->groupBy(fn ($branch) => (int) $branch->route->from_id);
+        $childBranchIds = $branchesFromCabinet->flatten(1)->pluck('id')->all();
+        $allocateCabinetFibers = function ($cabinet) use (&$allocateCabinetFibers, &$fiberAllocations, &$nextFiber, &$allocatedCabinetIds, $branchesFromCabinet) {
+            if (isset($allocatedCabinetIds[$cabinet->id])) {
+                return;
+            }
+            $allocatedCabinetIds[$cabinet->id] = true;
+            $fiberCount = max(1, (int) $cabinet->splitter_count);
+            $fiberAllocations[$cabinet->id] = [
+                'from' => $nextFiber,
+                'to' => $nextFiber + $fiberCount - 1,
+                'count' => $fiberCount,
+            ];
+            $nextFiber += $fiberCount;
+
+            $cabinet->childCabinets
+                ->sortBy(fn ($child) => sprintf('%06d|%s', (int) ($child->branch_order ?? 0), (string) $child->name))
+                ->each(fn ($child) => $allocateCabinetFibers($child));
+
+            ($branchesFromCabinet[(int) $cabinet->id] ?? collect())
+                ->sortBy(fn ($branch) => sprintf('%06d|%s', (int) ($branch->sort_order ?? 0), (string) $branch->name))
+                ->flatMap->cabinets
+                ->sortBy(fn ($child) => sprintf('%06d|%s', (int) ($child->branch_order ?? 0), (string) $child->name))
+                ->each(fn ($child) => $allocateCabinetFibers($child));
+        };
+        $allCabinets
+            ->filter(fn ($cabinet) => $cabinet->odf_id && $cabinet->branch_id && ! $cabinet->parent_cabinet_id && ! in_array($cabinet->branch_id, $childBranchIds, true))
+            ->sortBy(fn ($cabinet) => sprintf(
+                '%06d|%06d|%s',
+                (int) ($odfOrder[$cabinet->odf_id] ?? PHP_INT_MAX),
+                (int) ($cabinet->branch_order ?? 0),
+                (string) $cabinet->name
+            ))
+            ->each(fn ($cabinet) => $allocateCabinetFibers($cabinet));
     @endphp
     <article class="schema-project">
         <div class="schema-head">
@@ -174,10 +214,11 @@
                 'cabinets' => $allCabinets->map(fn ($cabinet) => [
                     'id' => $cabinet->id, 'odf_id' => $cabinet->odf_id, 'parent_id' => $cabinet->parent_cabinet_id, 'branch_id' => $cabinet->branch_id, 'branch_order' => $cabinet->branch_order,
                     'name' => $cabinet->name, 'used' => $cabinet->houses_count, 'capacity' => max($cabinet->capacity, 12), 'splitters' => $cabinet->splitter_count,
+                    'fiber_from' => $fiberAllocations[$cabinet->id]['from'] ?? null, 'fiber_to' => $fiberAllocations[$cabinet->id]['to'] ?? null, 'fiber_count' => $fiberAllocations[$cabinet->id]['count'] ?? max(1, (int) $cabinet->splitter_count),
                     'houses' => $cabinet->houses->map(fn ($house) => ['id' => $house->id, 'label' => $house->label])->values(),
                 ])->values(),
                 'branches' => $project->branches->map(fn ($branch) => [
-                    'id' => $branch->id, 'odf_id' => $branch->odf_id, 'parent_id' => $branch->parent_branch_id,
+                    'id' => $branch->id, 'route_id' => $branch->route_id, 'odf_id' => $branch->odf_id, 'parent_id' => $branch->parent_branch_id,
                     'from_cabinet_id' => $branch->route?->from_type === 'cabinet' ? $branch->route->from_id : null,
                     'name' => $branch->name, 'code' => $branch->code, 'type' => $branch->type, 'order' => $branch->sort_order,
                     'fibers' => $branch->route?->fiber_count ?? 12,
@@ -236,6 +277,8 @@
                                 $used = $cabinet->houses_count;
                                 $utilization = min(100, round($used / max($capacity, 1) * 100));
                                 $state = $utilization >= 100 ? 'full' : ($utilization >= 80 ? 'warn' : '');
+                                $fiberRange = $fiberAllocations[$cabinet->id] ?? null;
+                                $fiberLabel = $fiberRange ? ($fiberRange['from'] === $fiberRange['to'] ? (string) $fiberRange['from'] : $fiberRange['from'].'-'.$fiberRange['to']) : '?';
                             @endphp
                             <div class="cabinet-node">
                                 <span class="connection-tag">OUT {{ $cabinetOrdinal }}</span>
@@ -246,7 +289,7 @@
                                     </div>
                                     <div class="mt-1 truncate text-[10px] font-semibold text-slate-500" title="{{ $cabinet->address ?: 'Bez adrese' }}">{{ $cabinet->address ?: 'Bez adrese' }}</div>
                                     <div class="util-bar"><div style="width: {{ $utilization }}%"></div></div>
-                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $cabinet->splitter_count }} x 1:4</div>
+                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $cabinet->splitter_count }} x 1:4 · F {{ $fiberLabel }}</div>
                                 </div>
                                 <div class="splitter-panel">
                                 @for($splitter = 1; $splitter <= max($cabinet->splitter_count, 1); $splitter++)
@@ -258,7 +301,7 @@
                                                 $house = $houses->get($absolutePort - 1);
                                             @endphp
                                             @if($house)
-                                                <button type="button" class="port" title="S{{ $splitter }} / P{{ $absolutePort }} -> {{ $house->label }}" data-trace-house="{{ $house->id }}" data-house-label="{{ $house->label }}" data-cabinet-name="{{ $cabinet->name }}" data-odf-name="{{ $odf->name }}" data-splitter="{{ $splitter }}" data-port="{{ $absolutePort }}" data-out="{{ $cabinetOrdinal }}">
+                                                <button type="button" class="port" title="S{{ $splitter }} / P{{ $absolutePort }} -> {{ $house->label }}" data-trace-house="{{ $house->id }}" data-house-label="{{ $house->label }}" data-cabinet-name="{{ $cabinet->name }}" data-odf-name="{{ $odf->name }}" data-fiber-range="{{ $fiberLabel }}" data-splitter="{{ $splitter }}" data-port="{{ $absolutePort }}" data-out="{{ $cabinetOrdinal }}">
                                                     <b>P{{ $absolutePort }}</b>{{ $house->label }}
                                                 </button>
                                             @else
@@ -277,6 +320,8 @@
                                                 $childUsed = $childCabinet->houses_count;
                                                 $childUtilization = min(100, round($childUsed / max($childCapacity, 1) * 100));
                                                 $childState = $childUtilization >= 100 ? 'full' : ($childUtilization >= 80 ? 'warn' : '');
+                                                $childFiberRange = $fiberAllocations[$childCabinet->id] ?? null;
+                                                $childFiberLabel = $childFiberRange ? ($childFiberRange['from'] === $childFiberRange['to'] ? (string) $childFiberRange['from'] : $childFiberRange['from'].'-'.$childFiberRange['to']) : '?';
                                             @endphp
                                             <div class="child-cabinet-node">
                                                 <div class="cabinet-box {{ $childState }}">
@@ -287,7 +332,7 @@
                                                     </div>
                                                     <div class="mt-1 truncate text-[10px] font-semibold text-slate-500" title="{{ $childCabinet->address ?: 'Bez adrese' }}">{{ $childCabinet->address ?: 'Bez adrese' }}</div>
                                                     <div class="util-bar"><div style="width: {{ $childUtilization }}%"></div></div>
-                                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $childCabinet->splitter_count }} x 1:4</div>
+                                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $childCabinet->splitter_count }} x 1:4 · F {{ $childFiberLabel }}</div>
                                                 </div>
                                                 <div class="splitter-panel">
                                                 @for($childSplitter = 1; $childSplitter <= max($childCabinet->splitter_count, 1); $childSplitter++)
@@ -299,7 +344,7 @@
                                                                 $childHouse = $childHouses->get($childAbsolutePort - 1);
                                                             @endphp
                                                             @if($childHouse)
-                                                                <button type="button" class="port" title="S{{ $childSplitter }} / P{{ $childAbsolutePort }} -> {{ $childHouse->label }}" data-trace-house="{{ $childHouse->id }}" data-house-label="{{ $childHouse->label }}" data-cabinet-name="{{ $childCabinet->name }}" data-parent-cabinet="{{ $cabinet->name }}" data-odf-name="{{ $odf->name }}" data-splitter="{{ $childSplitter }}" data-port="{{ $childAbsolutePort }}" data-out="{{ $cabinetOrdinal }}">
+                                                                <button type="button" class="port" title="S{{ $childSplitter }} / P{{ $childAbsolutePort }} -> {{ $childHouse->label }}" data-trace-house="{{ $childHouse->id }}" data-house-label="{{ $childHouse->label }}" data-cabinet-name="{{ $childCabinet->name }}" data-parent-cabinet="{{ $cabinet->name }}" data-odf-name="{{ $odf->name }}" data-fiber-range="{{ $childFiberLabel }}" data-splitter="{{ $childSplitter }}" data-port="{{ $childAbsolutePort }}" data-out="{{ $cabinetOrdinal }}">
                                                                     <b>P{{ $childAbsolutePort }}</b>{{ $childHouse->label }}
                                                                 </button>
                                                             @else
@@ -361,51 +406,129 @@ function cadFiberRenderer(shell) {
     const data=JSON.parse(shell.dataset.cadFiber || '{"odfs":[],"cabinets":[],"branches":[]}');
     const stage=shell.querySelector('.cad-fiber-stage');
     let scale=1, panX=0, panY=0, dragging=false, start=null;
-    const drawnBranches=new Set();
     const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
-    const odfX=1550, odfY=900, cabinetW=54, cabinetH=92, cabinetGap=115, branchGap=260;
+    const odfX=1550, odfY=560, odfGap=650, cabinetW=58, cabinetH=96, cabinetGap=126, branchGap=172, fiberPitch=8;
     function branchCabinets(branch) {
         return data.cabinets.filter(c=>Number(c.branch_id)===Number(branch.id)).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0));
     }
-    function render() {
-        const parts=[], labels=[], positions={};
-        data.odfs.forEach((odf,odfIndex)=>{
-            const centerX=odfX+(odfIndex*3300), centerY=odfY;
-            parts.push(`<g><rect x="${centerX-60}" y="${centerY-70}" width="120" height="140" fill="#fff" stroke="#475569" stroke-width="2"/><text x="${centerX}" y="${centerY-15}" text-anchor="middle" class="cad-title">${esc(odf.name)}</text><text x="${centerX}" y="${centerY+8}" text-anchor="middle" class="cad-meta">ODF / PATCH PANEL</text><text x="${centerX}" y="${centerY+30}" text-anchor="middle" class="cad-meta">${odf.ports}P · ${odf.fibers}F</text></g>`);
-            const roots=data.branches.filter(b=>Number(b.odf_id)===Number(odf.id)&&!b.from_cabinet_id).sort((a,b)=>a.order-b.order);
-            roots.forEach((branch,index)=>{
-                const side=index%2===0?1:-1, row=Math.floor(index/2), y=centerY+(row-(Math.ceil(roots.length/2)-1)/2)*branchGap;
-                drawBranch(branch,centerX,y,side,`odf-${odf.id}`,parts,labels,positions);
-            });
-            parts.push(`<line x1="${centerX}" y1="${centerY-210}" x2="${centerX}" y2="${centerY+210}" stroke="#3b82f6" stroke-width="3"/><line x1="${centerX+12}" y1="${centerY-210}" x2="${centerX+12}" y2="${centerY+210}" stroke="#6366f1" stroke-width="2"/>`);
-        });
-        const width=Math.max(3200,...Object.values(positions).map(p=>p.x+500)), height=Math.max(1800,...Object.values(positions).map(p=>p.y+400));
-        stage.innerHTML=`<svg width="${width}" height="${height}"><style>.cad-title{font:700 15px Arial;fill:#111827}.cad-branch{font:700 13px Arial;fill:#ef4444}.cad-meta{font:700 10px Arial;fill:#2563eb}.cad-port{font:700 8px Arial;fill:#d946ef}.cad-label-bg{fill:#fff;stroke:#fecaca;stroke-width:1}</style>${parts.join('')}${labels.join('')}</svg>`;
+    function cabinetFiberLabel(cabinet) {
+        const from=Number(cabinet.fiber_from)||0, to=Number(cabinet.fiber_to)||from;
+        if(!from) return 'F?';
+        return from===to ? `F${from}` : `F${from}-${to}`;
     }
-    function drawBranch(branch,startX,y,side,parent,parts,labels,positions) {
+    function fiberRangeText(cabinet) {
+        const from=Number(cabinet.fiber_from)||0, to=Number(cabinet.fiber_to)||from;
+        if(!from) return '?';
+        return from===to ? `${from}` : `${from}-${to}`;
+    }
+    function branchFiberRange(cabinets) {
+        const ranges=cabinets.filter(c=>Number(c.fiber_from)).map(c=>[Number(c.fiber_from),Number(c.fiber_to)||Number(c.fiber_from)]);
+        if(!ranges.length) return '?';
+        const from=Math.min(...ranges.map(range=>range[0])), to=Math.max(...ranges.map(range=>range[1]));
+        return from===to ? `${from}` : `${from}-${to}`;
+    }
+    function branchSide(branch, index) {
+        const label=String(branch.name||branch.code||'').toUpperCase();
+        const match=label.match(/(?:KRAK|S|I-|II-|III-)?\s*([IVX]+|\d+)/);
+        const token=match ? match[1] : '';
+        const roman={I:1,II:2,III:3,IV:4,V:5,VI:6,VII:7,VIII:8,IX:9,X:10};
+        const number=roman[token] || Number(token) || index+1;
+        return number%2 ? 1 : -1;
+    }
+    function drawFiberLedger(odf, x, y, parts) {
+        const cabinets=data.cabinets
+            .filter(cabinet=>Number(cabinet.odf_id)===Number(odf.id)&&cabinet.fiber_from)
+            .sort((a,b)=>(Number(a.fiber_from)||0)-(Number(b.fiber_from)||0));
+        const rowH=16, width=230, height=Math.max(58, 32+(cabinets.length+1)*rowH);
+        const left=x+86, top=y-height/2;
+        parts.push(`<g><rect x="${left}" y="${top}" width="${width}" height="${height}" rx="4" fill="#fff" stroke="#bfdbfe" stroke-width="1"/><text x="${left+8}" y="${top+16}" class="cad-meta">Magistralna optika / raspored iz 144</text>`);
+        cabinets.forEach((cabinet,index)=>{
+            const rowY=top+34+(index*rowH), over=Number(cabinet.fiber_to)>Number(odf.fibers);
+            parts.push(`<text x="${left+8}" y="${rowY}" class="${over?'cad-over':'cad-port'}">${cabinetFiberLabel(cabinet)}</text><text x="${left+58}" y="${rowY}" class="cad-meta">${esc(cabinet.name)} · ${Number(cabinet.splitters)||1} spl.</text>`);
+        });
+        const lastFiber=Math.max(0,...cabinets.map(c=>Number(c.fiber_to)||0));
+        const reserveFrom=lastFiber+1, reserveTo=Number(odf.fibers)||144;
+        if(reserveFrom<=reserveTo) parts.push(`<text x="${left+8}" y="${top+34+(cabinets.length*rowH)}" class="cad-free">REZERVA F${reserveFrom}-${reserveTo}</text>`);
+        parts.push(`</g>`);
+    }
+    function render() {
+        const parts=[], labels=[], positions={}, drawnBranches=new Set(), odfPositions={};
+        data.odfs.forEach((odf,odfIndex)=>{odfPositions[odf.id]={x:odfX,y:odfY+(odfIndex*odfGap)};});
+        const odfYs=Object.values(odfPositions).map(p=>p.y);
+        const trunkTop=Math.min(...odfYs,odfY)-290, trunkBottom=Math.max(...odfYs,odfY)+290;
+        const primaryBranches=data.branches.filter(branch=>branch.type==='primary').sort((a,b)=>a.order-b.order);
+        const primaryCount=Math.max(primaryBranches.length,2);
+        for(let index=0;index<primaryCount;index++){
+            const branch=primaryBranches[index] || null, x=odfX-18+(index*12);
+            parts.push(`<line x1="${x}" y1="${trunkTop}" x2="${x}" y2="${trunkBottom}" stroke="${index%2?'#6366f1':'#3b82f6'}" stroke-width="${index%2?2:3}"/>`);
+            if(branch){
+                const fibers=Math.max(1,Number(branch.fibers)||12);
+                labels.push(`<g><rect x="${x-62}" y="${trunkTop-50}" width="124" height="36" rx="4" class="cad-label-bg"/><text x="${x}" y="${trunkTop-35}" text-anchor="middle" class="cad-branch">${esc(branch.name)}</text><text x="${x}" y="${trunkTop-21}" text-anchor="middle" class="cad-meta">OPTIKA ${fibers} niti</text></g>`);
+            }
+        }
+        data.odfs.forEach((odf,odfIndex)=>{
+            const centerX=odfPositions[odf.id].x, centerY=odfPositions[odf.id].y;
+            parts.push(`<g><rect x="${centerX-60}" y="${centerY-70}" width="120" height="140" fill="#fff" stroke="#475569" stroke-width="2"/><text x="${centerX}" y="${centerY-15}" text-anchor="middle" class="cad-title">${esc(odf.name)}</text><text x="${centerX}" y="${centerY+8}" text-anchor="middle" class="cad-meta">ODF / PATCH PANEL</text><text x="${centerX}" y="${centerY+30}" text-anchor="middle" class="cad-meta">${odf.ports}P · ${odf.fibers}F</text></g>`);
+            const roots=data.branches.filter(b=>b.type==='secondary'&&Number(b.odf_id)===Number(odf.id)&&!b.from_cabinet_id).sort((a,b)=>a.order-b.order);
+            const sideSlots={1:0,'-1':0};
+            roots.forEach((branch,index)=>{
+                const side=branchSide(branch,index), slot=sideSlots[side]++, maxSide=Math.max(1,roots.filter((item,i)=>branchSide(item,i)===side).length);
+                const y=centerY+(slot-(maxSide-1)/2)*branchGap;
+                drawManualBranch(branch,centerX,y,side,`odf-${odf.id}`,parts,labels,positions,drawnBranches);
+            });
+        });
+        const width=Math.max(3200,...Object.values(positions).map(p=>p.x+500)), height=Math.max(1800,trunkBottom+260,...Object.values(positions).map(p=>p.y+400));
+        stage.innerHTML=`<svg width="${width}" height="${height}"><style>.cad-title{font:700 15px Arial;fill:#111827}.cad-branch{font:700 13px Arial;fill:#ef4444}.cad-meta{font:700 10px Arial;fill:#2563eb}.cad-port{font:700 8px Arial;fill:#d946ef}.cad-free{font:700 8px Arial;fill:#16a34a}.cad-over{font:700 8px Arial;fill:#dc2626}.cad-label-bg{fill:#fff;stroke:#fecaca;stroke-width:1}</style>${parts.join('')}${labels.join('')}</svg>`;
+    }
+    function drawManualBranch(branch,startX,y,side,parent,parts,labels,positions,drawnBranches) {
         if(drawnBranches.has(String(branch.id))) return;
         drawnBranches.add(String(branch.id));
-        const cabinets=branchCabinets(branch), labelWidth=Math.max(150,String(branch.name||'').length*8+24);
-        const firstCabinetDistance=Math.max(cabinetGap,labelWidth+70);
-        const length=Math.max(280,firstCabinetDistance+Math.max(0,cabinets.length-1)*cabinetGap+130);
-        const fibers=Math.max(1,Number(branch.fibers)||12), lines=Math.max(cabinets.length,1), fiberStep=Math.max(1,Math.floor(fibers/lines));
+        const cabinets=branchCabinets(branch), labelWidth=Math.max(170,String(branch.name||'').length*8+24);
+        const lineCount=Math.max(1,cabinets.length);
+        const busHeight=(lineCount-1)*fiberPitch, odfEdge=startX+side*72, firstCabinetDistance=Math.max(230,labelWidth+95);
+        const fibers=Math.max(1,Number(branch.fibers)||12), branchRange=branchFiberRange(cabinets);
+        parts.push(`<line x1="${startX+side*2}" y1="${y-busHeight/2-15}" x2="${odfEdge}" y2="${y-busHeight/2-15}" stroke="#94a3b8" stroke-width="1"/><line x1="${odfEdge}" y1="${y-busHeight/2-24}" x2="${odfEdge}" y2="${y+busHeight/2+24}" stroke="#94a3b8" stroke-width="2"/>`);
+        if(cabinets.length) parts.push(`<circle cx="${odfEdge}" cy="${y}" r="4" fill="#22c55e"/><text x="${odfEdge+side*10}" y="${y-12}" text-anchor="${side>0?'start':'end'}" class="cad-free">${branchRange}</text>`);
+        const labelX=startX+side*(firstCabinetDistance*.52), labelY=y-busHeight/2-70, labelFiber=branchRange!=='?' ? 'F'+branchRange : '';
+        labels.push(`<g><text x="${labelX}" y="${labelY+15}" text-anchor="middle" class="cad-branch">${esc(branch.name)}</text><text x="${labelX}" y="${labelY+31}" text-anchor="middle" class="cad-meta">OPTIKA ${fibers} niti ${labelFiber}</text></g>`);
         cabinets.forEach((cabinet,index)=>{
-            const lineY=y+index*7, endX=startX+side*(firstCabinetDistance+index*cabinetGap);
-            const fiberFrom=index*fiberStep+1, fiberTo=index===lines-1?fibers:Math.min(fibers,(index+1)*fiberStep);
-            parts.push(`<line x1="${startX}" y1="${lineY}" x2="${endX}" y2="${lineY}" stroke="#f044e7" stroke-width="2"/><circle cx="${endX}" cy="${lineY}" r="4" fill="#f044e7"/><text x="${endX-side*8}" y="${lineY-5}" text-anchor="${side>0?'end':'start'}" class="cad-port">${fiberFrom}-${fiberTo}</text>`);
+            const x=startX+side*(firstCabinetDistance+index*cabinetGap), tapY=y+(index-lineCount/2+.5)*fiberPitch;
+            const boxY=tapY+34, titleY=boxY+cabinetH+28, metaY=titleY+16;
+            positions[`cab-${cabinet.id}`]={x,y:tapY, boxY, bottomY:metaY+18};
+            parts.push(`<line x1="${odfEdge}" y1="${tapY}" x2="${x}" y2="${tapY}" stroke="#f044e7" stroke-width="2"/>`);
+            parts.push(`<circle cx="${x}" cy="${tapY}" r="4" fill="#f044e7"/><text x="${x-side*12}" y="${tapY-8}" text-anchor="${side>0?'end':'start'}" class="cad-port">${fiberRangeText(cabinet)}</text>`);
+            parts.push(`<rect x="${x-cabinetW/2}" y="${boxY}" width="${cabinetW}" height="${cabinetH}" fill="#fff" stroke="#64748b" stroke-width="2"/><line x1="${x}" y1="${tapY}" x2="${x}" y2="${boxY}" stroke="#f044e7" stroke-width="2"/><text x="${x}" y="${titleY}" text-anchor="middle" class="cad-title">${esc(cabinet.name)}</text><text x="${x}" y="${metaY}" text-anchor="middle" class="cad-meta">${cabinetFiberLabel(cabinet)} / ${cabinet.used}/${cabinet.capacity}</text>`);
         });
-        if(!cabinets.length) parts.push(`<line x1="${startX}" y1="${y}" x2="${startX+side*length}" y2="${y}" stroke="#f044e7" stroke-width="2"/>`);
-        const labelX=startX+side*(firstCabinetDistance/2), labelLeft=labelX-labelWidth/2, labelY=y-108;
-        labels.push(`<g><rect x="${labelLeft}" y="${labelY}" width="${labelWidth}" height="36" rx="4" class="cad-label-bg"/><text x="${labelX}" y="${labelY+15}" text-anchor="middle" class="cad-branch">${esc(branch.name)}</text><text x="${labelX}" y="${labelY+29}" text-anchor="middle" class="cad-meta">OPTIKA ${fibers} niti</text></g>`);
+        data.branches.filter(child=>Number(child.from_cabinet_id)&&positions[`cab-${child.from_cabinet_id}`]&&Number(child.odf_id)===Number(branch.odf_id)&&!drawnBranches.has(String(child.id))).forEach((child,index)=>{
+            const anchor=positions[`cab-${child.from_cabinet_id}`], childStartY=(anchor.boxY ? anchor.boxY+cabinetH : anchor.y), childY=(anchor.bottomY || childStartY)+150+(index*95);
+            parts.push(`<line x1="${anchor.x}" y1="${childStartY}" x2="${anchor.x}" y2="${childY}" stroke="#f044e7" stroke-width="2"/>`);
+            drawManualBranch(child,anchor.x,childY,side,`cab-${child.from_cabinet_id}`,parts,labels,positions,drawnBranches);
+        });
+    }
+    function drawBranch(branch,startX,y,side,parent,parts,labels,positions,drawnBranches) {
+        if(drawnBranches.has(String(branch.id))) return;
+        drawnBranches.add(String(branch.id));
+        const cabinets=branchCabinets(branch), labelWidth=Math.max(170,String(branch.name||'').length*8+24);
+        const lineCount=Math.max(1,cabinets.reduce((total,cabinet)=>total+Math.max(1,Number(cabinet.splitters)||1),0));
+        const busHeight=(lineCount-1)*fiberPitch, odfEdge=startX+side*72, busStart=odfEdge, firstCabinetDistance=Math.max(230,labelWidth+95);
+        const fibers=Math.max(1,Number(branch.fibers)||12);
+        const branchRange=branchFiberRange(cabinets);
+        parts.push(`<line x1="${startX+side*2}" y1="${y-busHeight/2-15}" x2="${odfEdge}" y2="${y-busHeight/2-15}" stroke="#94a3b8" stroke-width="1"/><line x1="${odfEdge}" y1="${y-busHeight/2-24}" x2="${odfEdge}" y2="${y+busHeight/2+24}" stroke="#94a3b8" stroke-width="2"/>`);
+        if(cabinets.length) {
+            parts.push(`<circle cx="${busStart}" cy="${y}" r="4" fill="#22c55e"/><text x="${busStart+side*10}" y="${y-12}" text-anchor="${side>0?'start':'end'}" class="cad-free">${branchRange}</text>`);
+        }
+        const labelX=startX+side*(firstCabinetDistance*.52), labelY=y-busHeight/2-70, labelFiber=branchRange!=='?' ? 'F'+branchRange : '';
+        labels.push(`<g><text x="${labelX}" y="${labelY+15}" text-anchor="middle" class="cad-branch">${esc(branch.name)}</text><text x="${labelX}" y="${labelY+31}" text-anchor="middle" class="cad-meta">OPTIKA ${fibers} niti ${labelFiber}</text></g>`);
         cabinets.forEach((cabinet,index)=>{
-            const x=startX+side*(firstCabinetDistance+index*cabinetGap), lineY=y+index*7;
-            positions[`cab-${cabinet.id}`]={x,y:lineY};
-            parts.push(`<rect x="${x-cabinetW/2}" y="${lineY-cabinetH/2}" width="${cabinetW}" height="${cabinetH}" fill="#fff" stroke="#64748b" stroke-width="2"/><text x="${x}" y="${lineY+cabinetH/2+18}" text-anchor="middle" class="cad-title">${esc(cabinet.name)}</text><text x="${x}" y="${lineY+5}" text-anchor="middle" class="cad-port">${cabinet.used}/${cabinet.capacity}</text>`);
+            const x=startX+side*(firstCabinetDistance+index*cabinetGap), splits=Math.max(1,Number(cabinet.splitters)||1), tapY=y+((Math.min(splits,lineCount)-1)-lineCount/2+.5)*fiberPitch;
+            positions[`cab-${cabinet.id}`]={x,y:tapY};
+            parts.push(`<circle cx="${x}" cy="${tapY}" r="4" fill="#f044e7"/><text x="${x-side*12}" y="${tapY-8}" text-anchor="${side>0?'end':'start'}" class="cad-port">${fiberRangeText(cabinet)}</text>`);
+            parts.push(`<rect x="${x-cabinetW/2}" y="${tapY+20}" width="${cabinetW}" height="${cabinetH}" fill="#fff" stroke="#64748b" stroke-width="2"/><line x1="${x}" y1="${tapY}" x2="${x}" y2="${tapY+20}" stroke="#f044e7" stroke-width="2"/><text x="${x}" y="${tapY+cabinetH+40}" text-anchor="middle" class="cad-title">${esc(cabinet.name)}</text><text x="${x}" y="${tapY+cabinetH+56}" text-anchor="middle" class="cad-meta">${cabinetFiberLabel(cabinet)} · ${cabinet.used}/${cabinet.capacity}</text>`);
         });
         data.branches.filter(child=>Number(child.from_cabinet_id)&&positions[`cab-${child.from_cabinet_id}`]&&Number(child.odf_id)===Number(branch.odf_id)&&!drawnBranches.has(String(child.id))).forEach((child,index)=>{
             const anchor=positions[`cab-${child.from_cabinet_id}`], childY=anchor.y+(index+1)*145;
             parts.push(`<line x1="${anchor.x}" y1="${anchor.y}" x2="${anchor.x}" y2="${childY}" stroke="#f044e7" stroke-width="2"/>`);
-            drawBranch(child,anchor.x,childY,side,`cab-${child.from_cabinet_id}`,parts,labels,positions);
+            drawBranch(child,anchor.x,childY,side,`cab-${child.from_cabinet_id}`,parts,labels,positions,drawnBranches);
         });
     }
     function apply(){stage.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`}
@@ -462,7 +585,8 @@ function topologyRenderer(shell) {
         data.branches.filter(item=>Number(item.parent_id)===Number(branch.id) && !item.from_cabinet_id).sort((a,b)=>a.order-b.order).forEach(child=>addBranchLane(child,x+columnGap,branchNodeId,nodes,edges,unassigned,laneState));
     }
     function addCabinet(cabinet, x, y, parent, side, nodes, edges) {
-        nodes.push({ id:`cab-${cabinet.id}`, type:'cabinet', x, y, label:cabinet.name, meta:`${cabinet.used}/${cabinet.capacity}`, cabinet });
+        const fiberLabel=cabinet.fiber_from ? (Number(cabinet.fiber_from)===Number(cabinet.fiber_to) ? `F${cabinet.fiber_from}` : `F${cabinet.fiber_from}-${cabinet.fiber_to}`) : 'F?';
+        nodes.push({ id:`cab-${cabinet.id}`, type:'cabinet', x, y, label:cabinet.name, meta:`${cabinet.used}/${cabinet.capacity} / ${fiberLabel}`, cabinet });
         edges.push({ from:parent, to:`cab-${cabinet.id}`, type:cabinet.parent_id ? 'child' : '' });
         data.cabinets.filter(c => Number(c.parent_id) === Number(cabinet.id) && Number(c.branch_id)===Number(cabinet.branch_id)).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0)).forEach((child, index) => addCabinet(child, x + side * (index + 1) * columnGap, y, `cab-${cabinet.id}`, side, nodes, edges));
         if (expanded.has(cabinet.id)) cabinet.houses.forEach((house, index) => {
@@ -515,7 +639,7 @@ document.querySelectorAll('[data-trace-house]').forEach(button => {
             : '';
         output.innerHTML = `
             <div class="trace-step"><b>${button.dataset.odfName}</b><span>ODF OUT ${button.dataset.out} / patch panel</span></div>
-            <div class="trace-step"><b>Magistralni kabl</b><span>SM FO feeder prema FTTH ormaricu</span></div>
+            <div class="trace-step"><b>Magistralni kabl</b><span>SM FO vlakna ${button.dataset.fiberRange || '?'} prema FTTH ormaricu</span></div>
             ${parentStep}
             <div class="trace-step"><b>${button.dataset.cabinetName}</b><span>FTTH ormaric / splitter blok</span></div>
             <div class="trace-step"><b>Splitter ${button.dataset.splitter} / P${button.dataset.port}</b><span>1:4 izlaz prema korisniku</span></div>

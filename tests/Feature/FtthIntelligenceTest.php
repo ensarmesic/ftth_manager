@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Cabinet;
 use App\Models\House;
+use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
@@ -239,6 +240,7 @@ class FtthIntelligenceTest extends TestCase
         $project = Project::create(['name' => 'Krakovi', 'code' => 'KR', 'location' => 'Test', 'status' => 'planning']);
         $routeA = $this->branchRoute($project, 'Sekundarni krak 1', [[44.4490, 18.6400], [44.4510, 18.6400]]);
         $routeB = $this->branchRoute($project, 'Sekundarni krak 2', [[44.4490, 18.6700], [44.4510, 18.6700]]);
+        $branchIds = NetworkBranch::whereIn('route_id', [$routeA->id, $routeB->id])->pluck('id')->all();
         foreach ([18.64005, 18.67005] as $zone => $longitude) {
             for ($i = 0; $i < 6; $i++) {
                 House::create(['project_id' => $project->id, 'label' => 'B'.($zone + 1).'-'.$i, 'latitude' => 44.4491 + ($i * 0.0001), 'longitude' => $longitude, 'status' => 'planned']);
@@ -250,7 +252,8 @@ class FtthIntelligenceTest extends TestCase
         $this->assertCount(2, $plan['cabinets']);
         foreach ($plan['cabinets'] as $cabinet) {
             $this->assertCount(1, collect($cabinet['houses'])->pluck('branch_id')->unique());
-            $this->assertContains($cabinet['branch_id'], [$routeA->id, $routeB->id]);
+            $this->assertContains($cabinet['branch_id'], $branchIds);
+            $this->assertContains($cabinet['route_id'], [$routeA->id, $routeB->id]);
         }
     }
 
@@ -258,13 +261,49 @@ class FtthIntelligenceTest extends TestCase
     {
         $project = Project::create(['name' => 'Limit', 'code' => 'LIM', 'location' => 'Test', 'status' => 'planning']);
         $route = $this->branchRoute($project, 'Krak 7', [[44.4490, 18.6400], [44.4510, 18.6400]]);
+        $branch = NetworkBranch::where('route_id', $route->id)->firstOrFail();
         House::create(['project_id' => $project->id, 'label' => 'Blizu', 'latitude' => 44.4495, 'longitude' => 18.6401, 'status' => 'planned']);
         House::create(['project_id' => $project->id, 'label' => 'Daleko', 'latitude' => 44.4495, 'longitude' => 18.6450, 'status' => 'planned']);
 
         $plan = $this->postJson(route('projects.odo-plan.preview', $project), ['max_branch_distance_m' => 60])->assertOk()->json();
 
-        $this->assertSame($route->id, $plan['cabinets'][0]['branch_id']);
+        $this->assertSame($branch->id, $plan['cabinets'][0]['branch_id']);
+        $this->assertSame($route->id, $plan['cabinets'][0]['route_id']);
         $this->assertSame(['Daleko'], collect($plan['unassigned_houses'])->pluck('label')->all());
+    }
+
+    public function test_auto_odo_uses_only_secondary_routes_even_when_primary_is_closer(): void
+    {
+        $project = Project::create(['name' => 'Samo sekundarni', 'code' => 'SS', 'location' => 'Test', 'status' => 'planning']);
+        $primary = NetworkRoute::create([
+            'project_id' => $project->id,
+            'name' => 'Primarni kabal',
+            'route_type' => 'primarna',
+            'installation_type' => 'underground',
+            'duct_length_m' => 100,
+            'fiber_length_m' => 100,
+            'fiber_count' => 48,
+            'microduct_count' => 1,
+            'microduct_type' => '14/10',
+            'status' => 'planned',
+            'path' => [[44.4490, 18.6400], [44.4510, 18.6400]],
+        ]);
+        $secondary = $this->branchRoute($project, 'Sekundarni kabal', [[44.4490, 18.6410], [44.4510, 18.6410]]);
+        $secondaryBranch = NetworkBranch::where('route_id', $secondary->id)->firstOrFail();
+        House::create(['project_id' => $project->id, 'label' => 'Kuca', 'latitude' => 44.4495, 'longitude' => 18.6401, 'status' => 'planned']);
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project), ['max_branch_distance_m' => 120])->assertOk()->json();
+
+        $this->assertSame($secondaryBranch->id, $plan['cabinets'][0]['branch_id']);
+        $this->assertSame($secondary->id, $plan['cabinets'][0]['route_id']);
+        $this->assertNotSame($primary->id, $plan['cabinets'][0]['route_id']);
+        $this->assertEqualsWithDelta(18.6410, $plan['cabinets'][0]['proposed_longitude'], 0.00001);
+
+        $this->postJson(route('projects.odo-plan.confirm', $project), ['plan' => $plan])->assertCreated();
+
+        $cabinet = Cabinet::where('project_id', $project->id)->firstOrFail();
+        $this->assertSame($secondaryBranch->id, $cabinet->branch_id);
+        $this->assertEqualsWithDelta(18.6410, (float) $cabinet->longitude, 0.00001);
     }
 
     public function test_houses_are_sorted_by_chainage_and_gap_creates_new_group(): void
@@ -382,10 +421,10 @@ class FtthIntelligenceTest extends TestCase
 
     private function branchRoute(Project $project, string $name, array $path): NetworkRoute
     {
-        return NetworkRoute::create([
+        $route = NetworkRoute::create([
             'project_id' => $project->id,
             'name' => $name,
-            'route_type' => 'distribution',
+            'route_type' => 'secondary',
             'installation_type' => 'underground',
             'duct_length_m' => 100,
             'fiber_length_m' => 100,
@@ -395,5 +434,14 @@ class FtthIntelligenceTest extends TestCase
             'status' => 'planned',
             'path' => $path,
         ]);
+
+        NetworkBranch::create([
+            'project_id' => $project->id,
+            'route_id' => $route->id,
+            'name' => $name,
+            'type' => 'secondary',
+        ]);
+
+        return $route;
     }
 }
