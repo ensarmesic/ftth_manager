@@ -7,19 +7,19 @@
 <section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Kuce ukupno</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $houses->total() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $houseStats['total'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Povezane na ODO</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $houses->whereNotNull('cabinet_id')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $houseStats['connected'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Bez ormarica</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $houses->whereNull('cabinet_id')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $houseStats['unassigned'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Raspolozivi ODO</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $cabinets->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $houseStats['cabinets'] }}</div>
     </article>
 </section>
 

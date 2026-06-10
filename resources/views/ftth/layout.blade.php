@@ -22,18 +22,18 @@
     $isDashboard = request()->routeIs('dashboard', 'map.dashboard');
     $sidebarItems = [
         ['dashboard', 'Pregled', 'P'], ['projects.index', 'Projekti', 'PR'], ['map.dashboard', 'Mapa', 'M'],
-        ['odfs.index', 'ODF-ovi', 'OF'], ['cabinets.index', 'ODO ormarići', 'OO'], ['houses.index', 'Kuće', 'KU'], ['subscribers.index', 'Korisnici', 'K'],
-        ['routes.index', 'Trase', 'T'], ['materials.index', 'Materijali', 'MT'], ['reports.index', 'Izvještaji', 'IZ'],
-        ['splitters.index', 'Splitteri', 'S'], ['fiber-schema.index', 'Fiber šema', 'FS'],
+        ['odfs.index', 'ODF-ovi', 'OF'], ['cabinets.index', 'ODO ormarici', 'OO'], ['houses.index', 'Kuce', 'KU'], ['subscribers.index', 'Korisnici', 'K'],
+        ['routes.index', 'Trase', 'T'], ['materials.index', 'Materijali', 'MT'], ['reports.index', 'Izvjestaji', 'IZ'],
+        ['splitters.index', 'Splitteri', 'S'], ['fiber-schema.index', 'Fiber sema', 'FS'],
         ['project-check.index', 'Provjera projekta', 'OK'], ['settings.index', 'Postavke', 'PS'],
     ];
     $headerNotifications = collect();
     $unlinkedHouses = \App\Models\House::whereNull('cabinet_id')->count();
     $unlinkedCabinets = \App\Models\Cabinet::whereNull('odf_id')->count();
     $incompleteRoutes = \App\Models\NetworkRoute::where(function ($query) { $query->whereNull('microduct_type')->orWhereNull('fiber_count'); })->count();
-    if ($unlinkedHouses) $headerNotifications->push("$unlinkedHouses kuća nema dodijeljeni ODO.");
-    if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarića nema povezani ODF.");
-    if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehničke podatke.");
+    if ($unlinkedHouses) $headerNotifications->push("$unlinkedHouses kuca nema dodijeljeni ODO.");
+    if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarica nema povezani ODF.");
+    if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehnicke podatke.");
 @endphp
 <body class="{{ $isWide ? 'min-h-screen lg:h-screen lg:overflow-hidden' : 'min-h-screen' }} overflow-x-hidden bg-slate-100 font-sans text-slate-950 antialiased">
 <div class="{{ $isWide ? 'flex min-h-screen lg:h-screen lg:overflow-hidden' : 'flex min-h-screen' }}">
@@ -49,7 +49,7 @@
         @if($isDashboard && isset($odfs, $cabinets, $stats, $routes))
             <div class="mx-5 mt-1 border-t border-slate-700/70 pt-2 text-[10px] xl:pt-3 xl:text-[11px]">
                 <b class="mb-2 block text-slate-300">BRZI PREGLED</b>
-                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarići', $cabinets->count()], ['Korisnici', $stats['subscribers']], ['Trase', $routes->count()], ['Ukupna dužina', number_format($stats['routes_m'] / 1000, 2).' km']] as $quick)
+                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarici', $cabinets->count()], ['Korisnici', $stats['subscribers']], ['Trase', $routes->count()], ['Ukupna duzina', number_format($stats['routes_m'] / 1000, 2).' km']] as $quick)
                     <div class="flex justify-between py-1 text-slate-300 xl:py-1.5"><span>{{ $quick[0] }}</span><b class="text-white">{{ $quick[1] }}</b></div>
                 @endforeach
             </div>
@@ -65,12 +65,12 @@
                 <div class="hidden min-w-0 max-w-[315px] items-center gap-3 rounded-md border border-slate-200 px-3 py-2 sm:flex sm:min-w-[220px] xl:min-w-[315px]"><b>Stranica:</b><span class="truncate">@yield('title')</span></div>
             </div>
             <div class="relative flex items-center gap-1 text-sm xl:gap-2">
-                <button type="button" data-header-action="search" class="rounded-md p-2 text-slate-600 hover:bg-slate-100">Traži</button>
+                <button type="button" data-header-action="search" class="rounded-md p-2 text-slate-600 hover:bg-slate-100">Trazi</button>
                 <button type="button" data-header-action="fullscreen" class="hidden rounded-md p-2 text-slate-600 hover:bg-slate-100 sm:inline">Ekran</button>
                 <button type="button" data-header-action="notifications" class="relative rounded-md p-2 text-slate-600 hover:bg-slate-100"><span class="hidden sm:inline">Obavijesti</span><span class="sm:hidden">Obav.</span> @if($headerNotifications->count())<b data-notification-badge class="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-[9px] text-white">{{ $headerNotifications->count() }}</b>@endif</button>
                 <button type="button" data-header-action="profile" class="flex items-center gap-2 rounded-md p-1 hover:bg-slate-100"><span class="grid h-9 w-9 place-items-center rounded-full bg-slate-200 font-bold">EM</span><span class="hidden xl:inline text-left"><b>Ensar Mesic</b><small class="block text-[11px] text-slate-500">Administrator</small></span></button>
                 <div id="notification-menu" class="absolute right-0 top-12 z-[1200] hidden w-[min(20rem,calc(100vw-1rem))] rounded-lg border border-slate-200 bg-white p-3 shadow-xl"><h3 class="text-xs font-bold uppercase text-slate-500">Obavijesti</h3><div class="mt-2 grid gap-2">@forelse($headerNotifications as $notification)<div class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">{{ $notification }}</div>@empty<div class="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">Nema otvorenih upozorenja.</div>@endforelse</div><a href="{{ route('project-check.index') }}" class="mt-3 block text-center text-xs font-bold text-blue-600">Otvori provjeru projekta</a></div>
-                <div id="profile-menu" class="absolute right-0 top-12 z-[1200] hidden w-52 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"><div class="px-3 py-2 text-xs text-slate-500">Administrator</div><a href="{{ route('settings.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Postavke</a><a href="{{ route('reports.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Izvještaji</a></div>
+                <div id="profile-menu" class="absolute right-0 top-12 z-[1200] hidden w-52 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"><div class="px-3 py-2 text-xs text-slate-500">Administrator</div><a href="{{ route('settings.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Postavke</a><a href="{{ route('reports.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Izvjestaji</a></div>
             </div>
         </header>
         @unless($isDashboard)
@@ -95,7 +95,7 @@
 </aside>
 <div id="global-search" class="fixed inset-0 z-[1300] hidden place-items-start bg-slate-950/40 px-4 pt-24">
     <div class="mx-auto w-full max-w-xl rounded-xl bg-white p-4 shadow-2xl">
-        <div class="flex gap-2"><input id="global-search-input" class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2" placeholder="Pretraži meni..."><button type="button" data-header-action="close-search" class="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold">Zatvori</button></div>
+        <div class="flex gap-2"><input id="global-search-input" class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2" placeholder="Pretrazi meni..."><button type="button" data-header-action="close-search" class="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold">Zatvori</button></div>
         <div id="global-search-results" class="mt-3 grid gap-1"></div>
     </div>
 </div>
@@ -104,17 +104,17 @@
         <h2 class="text-base font-semibold text-slate-950">Potvrdi brisanje</h2>
         <p id="delete-confirmation-message" class="mt-2 text-sm text-slate-600">Sigurno obrisati ovaj zapis?</p>
         <div class="mt-5 flex justify-end gap-2">
-            <button type="button" data-delete-modal-action="cancel" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Poništi</button>
-            <button type="button" data-delete-modal-action="confirm" class="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">Obriši</button>
+            <button type="button" data-delete-modal-action="cancel" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Ponisti</button>
+            <button type="button" data-delete-modal-action="confirm" class="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">Obrisi</button>
         </div>
     </div>
 </div>
 <script>
 const ftthMenuItems = [
     ['Pregled', @json(route('dashboard'))], ['Projekti', @json(route('projects.index'))], ['Mapa', @json(route('map.dashboard'))],
-    ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarići', @json(route('cabinets.index'))], ['Kuće', @json(route('houses.index'))], ['Korisnici', @json(route('subscribers.index'))],
-    ['Trase', @json(route('routes.index'))], ['Materijali', @json(route('materials.index'))], ['Izvještaji', @json(route('reports.index'))],
-    ['Splitteri', @json(route('splitters.index'))], ['Fiber šema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
+    ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarici', @json(route('cabinets.index'))], ['Kuce', @json(route('houses.index'))], ['Korisnici', @json(route('subscribers.index'))],
+    ['Trase', @json(route('routes.index'))], ['Materijali', @json(route('materials.index'))], ['Izvjestaji', @json(route('reports.index'))],
+    ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
     ['Postavke', @json(route('settings.index'))],
 ];
 function closeHeaderMenus(except = '') { ['notification-menu', 'profile-menu'].forEach(id => { if (id !== except) document.getElementById(id)?.classList.add('hidden'); }); }

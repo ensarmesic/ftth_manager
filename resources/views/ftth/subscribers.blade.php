@@ -7,19 +7,19 @@
 <section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Korisnici</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $subscribers->total() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $subscriberStats['total'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">U servisu</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $subscribers->where('service_status', 'in_service')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $subscriberStats['in_service'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Planirani</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $subscribers->where('service_status', 'planned')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $subscriberStats['planned'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Ormarići</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $cabinets->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $subscriberStats['cabinets'] }}</div>
     </article>
 </section>
 

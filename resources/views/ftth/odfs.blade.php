@@ -7,19 +7,19 @@
 <section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">ODF lokacije</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $odfs->total() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $odfStats['total'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Ukupno portova</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $odfs->sum('port_count') }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $odfStats['ports'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Kapacitet vlakana</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $odfs->sum('fiber_capacity') }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $odfStats['fibers'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Projekti</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $projects->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $odfStats['projects'] }}</div>
     </article>
 </section>
 

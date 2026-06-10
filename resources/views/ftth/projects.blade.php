@@ -7,19 +7,19 @@
 <section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Projekti ukupno</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $projects->total() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projectStats['total'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Aktivni</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $projects->where('status', 'active')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projectStats['active'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Planiranje</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $projects->where('status', 'planning')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projectStats['planning'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Završeni</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $projects->where('status', 'completed')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projectStats['completed'] }}</div>
     </article>
 </section>
 

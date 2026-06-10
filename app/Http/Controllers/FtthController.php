@@ -85,7 +85,15 @@ class FtthController extends Controller
 
     public function projects(): View
     {
-        return view('ftth.projects', ['projects' => Project::latest()->paginate(12)]);
+        return view('ftth.projects', [
+            'projects' => Project::latest()->paginate(12),
+            'projectStats' => [
+                'total' => Project::count(),
+                'active' => Project::where('status', 'active')->count(),
+                'planning' => Project::where('status', 'planning')->count(),
+                'completed' => Project::where('status', 'completed')->count(),
+            ],
+        ]);
     }
 
     // Projects
@@ -324,12 +332,20 @@ class FtthController extends Controller
 
     public function branches(): View
     {
+        $branchStats = [
+            'total' => NetworkBranch::count(),
+            'primary' => NetworkBranch::where('type', 'primary')->count(),
+            'secondary' => NetworkBranch::where('type', 'secondary')->count(),
+            'cabinets' => Cabinet::whereNotNull('branch_id')->count(),
+        ];
+
         return view('ftth.branches', [
             'branches' => NetworkBranch::with(['project', 'odf', 'parentBranch', 'route'])->withCount('cabinets')->orderBy('project_id')->orderBy('sort_order')->paginate(30),
             'projects' => Project::orderBy('name')->get(),
             'odfs' => Odf::with('project')->orderBy('name')->get(),
             'parentBranches' => NetworkBranch::with('project')->orderBy('name')->get(),
             'routes' => NetworkRoute::with('project')->whereIn('route_type', ['backbone', 'feeder', 'distribution'])->orderBy('name')->get(),
+            'branchStats' => $branchStats,
         ]);
     }
 
@@ -444,6 +460,12 @@ class FtthController extends Controller
         return view('ftth.odfs', [
             'odfs' => Odf::with('project')->latest()->paginate(12),
             'projects' => Project::orderBy('name')->get(),
+            'odfStats' => [
+                'total' => Odf::count(),
+                'ports' => Odf::sum('port_count'),
+                'fibers' => Odf::sum('fiber_capacity'),
+                'projects' => Project::count(),
+            ],
         ]);
     }
 
@@ -518,12 +540,23 @@ class FtthController extends Controller
 
     public function cabinets(): View
     {
+        $cabinetStats = Cabinet::withCount('houses')->get()->reduce(function (array $stats, Cabinet $cabinet): array {
+            $stats['capacity'] += $cabinet->capacity;
+            $stats['used_ports'] += $cabinet->houses_count;
+            if ($cabinet->houses_count >= $cabinet->capacity) {
+                $stats['full']++;
+            }
+
+            return $stats;
+        }, ['total' => Cabinet::count(), 'capacity' => 0, 'used_ports' => 0, 'full' => 0]);
+
         return view('ftth.cabinets', [
             'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses', 'subscribers'])->latest()->paginate(12),
             'parentCabinets' => Cabinet::with('project')->orderBy('name')->get(),
             'branches' => NetworkBranch::with('project')->where('type', 'secondary')->orderBy('sort_order')->orderBy('name')->get(),
             'projects' => Project::orderBy('name')->get(),
             'odfs' => Odf::with('project')->orderBy('name')->get(),
+            'cabinetStats' => $cabinetStats,
         ]);
     }
 
@@ -633,6 +666,12 @@ class FtthController extends Controller
             'houses' => House::with(['project', 'cabinet'])->latest()->paginate(12),
             'projects' => Project::orderBy('name')->get(),
             'cabinets' => Cabinet::with(['project'])->withCount('houses')->orderBy('name')->get(),
+            'houseStats' => [
+                'total' => House::count(),
+                'connected' => House::whereNotNull('cabinet_id')->count(),
+                'unassigned' => House::whereNull('cabinet_id')->count(),
+                'cabinets' => Cabinet::count(),
+            ],
         ]);
     }
 
@@ -939,6 +978,12 @@ class FtthController extends Controller
             'subscribers' => Subscriber::with(['project', 'cabinet'])->latest()->paginate(12),
             'projects' => Project::orderBy('name')->get(),
             'cabinets' => Cabinet::withCount('subscribers')->orderBy('name')->get(),
+            'subscriberStats' => [
+                'total' => Subscriber::count(),
+                'in_service' => Subscriber::where('service_status', 'in_service')->count(),
+                'planned' => Subscriber::where('service_status', 'planned')->count(),
+                'cabinets' => Cabinet::count(),
+            ],
         ]);
     }
 
@@ -1372,9 +1417,21 @@ class FtthController extends Controller
     // Materials
     public function materials(): View
     {
+        $materialTotals = Material::query()
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('COALESCE(SUM(planned_quantity * unit_price), 0) as planned_cost')
+            ->selectRaw('COALESCE(SUM(used_quantity * unit_price), 0) as used_cost')
+            ->first();
+
         return view('ftth.materials', [
             'materials' => Material::with('project')->latest()->paginate(12),
             'projects' => Project::orderBy('name')->get(),
+            'materialStats' => [
+                'total' => (int) $materialTotals->total,
+                'planned_cost' => (float) $materialTotals->planned_cost,
+                'used_cost' => (float) $materialTotals->used_cost,
+                'projects' => Project::count(),
+            ],
         ]);
     }
 

@@ -5,24 +5,21 @@
 
 @section('content')
 <section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    @php($totalCapacity = $cabinets->sum(fn ($cabinet) => $cabinet->capacity))
-    @php($usedPorts = $cabinets->sum('houses_count'))
-    @php($fullCabinets = $cabinets->filter(fn ($cabinet) => $cabinet->houses_count >= $cabinet->capacity)->count())
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Ukupno ODO</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $cabinets->total() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $cabinetStats['total'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Portovi zauzeti</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $usedPorts }}/{{ $totalCapacity }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $cabinetStats['used_ports'] }}/{{ $cabinetStats['capacity'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Popunjeni ormarici</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $fullCabinets }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $cabinetStats['full'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Slobodni portovi</div>
-        <div class="mt-2 text-2xl font-semibold">{{ max($totalCapacity - $usedPorts, 0) }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ max($cabinetStats['capacity'] - $cabinetStats['used_ports'], 0) }}</div>
     </article>
 </section>
 

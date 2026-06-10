@@ -7,19 +7,19 @@
 <section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Krakovi ukupno</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branches->total() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['total'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Primarni</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branches->where('type', 'primary')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['primary'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">Sekundarni</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branches->where('type', 'secondary')->count() }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['secondary'] }}</div>
     </article>
     <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div class="text-sm text-slate-500">ODO na krakovima</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branches->sum('cabinets_count') }}</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['cabinets'] }}</div>
     </article>
 </section>
 
