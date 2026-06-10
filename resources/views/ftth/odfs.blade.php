@@ -4,6 +4,25 @@
 @section('subtitle', 'Centralne optičke distribucione tačke iz kojih se napaja mreža.')
 
 @section('content')
+<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">ODF lokacije</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $odfs->total() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Ukupno portova</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $odfs->sum('port_count') }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Kapacitet vlakana</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $odfs->sum('fiber_capacity') }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Projekti</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projects->count() }}</div>
+    </article>
+</section>
+
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
     <form method="POST" action="{{ route('odfs.store') }}" class="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
         @csrf

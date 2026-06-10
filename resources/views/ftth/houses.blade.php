@@ -4,6 +4,25 @@
 @section('subtitle', 'Evidencija kuća i priključnih tačaka povezanih na projekat i ODO ormarić.')
 
 @section('content')
+<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Kuce ukupno</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $houses->total() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Povezane na ODO</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $houses->whereNotNull('cabinet_id')->count() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Bez ormarica</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $houses->whereNull('cabinet_id')->count() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Raspolozivi ODO</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $cabinets->count() }}</div>
+    </article>
+</section>
+
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
     <form method="POST" action="{{ route('houses.store') }}" class="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
         @csrf

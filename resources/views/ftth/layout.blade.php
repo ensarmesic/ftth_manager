@@ -76,7 +76,7 @@
         @unless($isDashboard)
             <div class="shrink-0 border-b bg-white px-3 py-3 sm:px-5"><h1 class="text-lg font-semibold sm:text-xl">@yield('title')</h1><p class="mt-1 text-xs text-slate-500">@yield('subtitle')</p></div>
         @endunless
-        <div class="app-content {{ $isWide ? 'flex h-full min-h-0 flex-1 flex-col p-1.5 sm:p-2 lg:overflow-hidden xl:p-2.5' : 'mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6' }}">
+        <div class="app-content {{ $isWide ? 'flex h-full min-h-0 flex-1 flex-col p-1.5 sm:p-2 lg:overflow-hidden xl:p-2.5' : 'mx-auto w-full max-w-[min(1880px,calc(100vw-2rem))] px-3 py-4 sm:px-5 sm:py-6 xl:px-7' }}">
             @if (session('success'))<div class="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div>@endif
             @if ($errors->any())<div class="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>@endif
             @yield('content')

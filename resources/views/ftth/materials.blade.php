@@ -4,6 +4,25 @@
 @section('subtitle', 'Planirane i utrošene količine materijala po projektu.')
 
 @section('content')
+<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Stavke materijala</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $materials->total() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Planirano KM</div>
+        <div class="mt-2 text-2xl font-semibold">{{ number_format($materials->sum(fn ($material) => $material->planned_quantity * $material->unit_price), 2) }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Utrošeno KM</div>
+        <div class="mt-2 text-2xl font-semibold">{{ number_format($materials->sum(fn ($material) => $material->used_quantity * $material->unit_price), 2) }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Projekti</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projects->count() }}</div>
+    </article>
+</section>
+
 <section class="mb-6 rounded-md border border-emerald-200 bg-emerald-50 p-4">
     <h2 class="font-semibold text-emerald-950">Automatski obračun</h2>
     <p class="mt-1 text-sm text-emerald-800">Generiše mikrocijevi 14/10 i 10/8, optičke kablove po broju niti, ODF, ODO i splittere.</p>

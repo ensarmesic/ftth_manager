@@ -4,6 +4,25 @@
 @section('subtitle', 'Evidencija korisnika, priključka, splittera i porta u ormariću.')
 
 @section('content')
+<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Korisnici</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $subscribers->total() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">U servisu</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $subscribers->where('service_status', 'in_service')->count() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Planirani</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $subscribers->where('service_status', 'planned')->count() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Ormarići</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $cabinets->count() }}</div>
+    </article>
+</section>
+
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
     <form method="POST" action="{{ route('subscribers.store') }}" class="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
         @csrf

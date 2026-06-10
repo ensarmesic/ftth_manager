@@ -4,6 +4,25 @@
 @section('subtitle', 'Kreiranje i praćenje FTTH projekata po lokaciji i statusu.')
 
 @section('content')
+<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Projekti ukupno</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projects->total() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Aktivni</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projects->where('status', 'active')->count() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Planiranje</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projects->where('status', 'planning')->count() }}</div>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="text-sm text-slate-500">Završeni</div>
+        <div class="mt-2 text-2xl font-semibold">{{ $projects->where('status', 'completed')->count() }}</div>
+    </article>
+</section>
+
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
     <form method="POST" action="{{ route('projects.store') }}" class="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
         @csrf
