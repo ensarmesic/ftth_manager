@@ -15,6 +15,7 @@ use App\Services\FtthIntelligenceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -787,8 +788,10 @@ class FtthController extends Controller
         $projectId = (int) $data['project_id'];
         $createdOdfs = [];
         $createdCabinets = [];
+        $createdHouses = collect();
+        $createdSecondaryBranches = collect();
 
-        DB::transaction(function () use ($plan, $projectId, &$createdOdfs, &$createdCabinets): void {
+        DB::transaction(function () use ($plan, $projectId, &$createdOdfs, &$createdCabinets, &$createdHouses, &$createdSecondaryBranches): void {
             foreach (($plan['odfs'] ?? []) as $index => $odf) {
                 $createdOdfs[$index] = Odf::create([
                     'project_id' => $projectId,
@@ -825,7 +828,7 @@ class FtthController extends Controller
             }
 
             foreach (($plan['houses'] ?? []) as $index => $house) {
-                House::create([
+                $createdHouses->push(House::create([
                     'project_id' => $projectId,
                     'cabinet_id' => isset($house['cabinet_index'], $createdCabinets[$house['cabinet_index']]) ? $createdCabinets[$house['cabinet_index']]->id : null,
                     'label' => $house['label'] ?? 'K-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
@@ -833,7 +836,7 @@ class FtthController extends Controller
                     'latitude' => $house['lat'],
                     'longitude' => $house['lng'],
                     'status' => 'planned',
-                ]);
+                ]));
             }
 
             foreach (($plan['routes'] ?? []) as $index => $route) {
@@ -886,8 +889,13 @@ class FtthController extends Controller
                     'status' => 'planned',
                     'path' => $route['path'] ?? null,
                 ]);
-                $this->createBranchForRoute($createdRoute);
+                $createdBranch = $this->createBranchForRoute($createdRoute);
+                if ($createdBranch && $createdBranch->type === 'secondary' && count($createdRoute->path ?? []) > 1) {
+                    $createdSecondaryBranches->push(['branch' => $createdBranch, 'route' => $createdRoute]);
+                }
             }
+
+            $this->assignCreatedHousesToDraftBranches($createdHouses, $createdSecondaryBranches);
 
             MapDraft::where('project_id', $projectId)->delete();
         });
@@ -1576,10 +1584,10 @@ class FtthController extends Controller
         return false;
     }
 
-    private function createBranchForRoute(NetworkRoute $route): void
+    private function createBranchForRoute(NetworkRoute $route): ?NetworkBranch
     {
         if ($route->route_type === 'drop' || NetworkBranch::query()->where('route_id', $route->id)->exists()) {
-            return;
+            return null;
         }
 
         $sourceCabinet = $route->from_type === 'cabinet' && $route->from_id
@@ -1607,6 +1615,66 @@ class FtthController extends Controller
                     'odf_id' => $route->odf_id ?? $sourceCabinet->odf_id,
                 ]);
         }
+
+        return $branch;
+    }
+
+    private function assignCreatedHousesToDraftBranches(Collection $houses, Collection $branches): void
+    {
+        if ($houses->isEmpty() || $branches->isEmpty()) {
+            return;
+        }
+
+        foreach ($houses as $house) {
+            $nearest = $branches
+                ->map(fn (array $item) => [
+                    'branch' => $item['branch'],
+                    'distance_m' => $this->distanceToRoute((float) $house->latitude, (float) $house->longitude, $item['route']->path ?? []),
+                ])
+                ->sortBy('distance_m')
+                ->first();
+
+            if ($nearest && is_finite($nearest['distance_m'])) {
+                $house->update(['branch_id' => $nearest['branch']->id]);
+            }
+        }
+    }
+
+    private function distanceToRoute(float $lat, float $lng, array $points): float
+    {
+        $best = INF;
+        for ($i = 1; $i < count($points); $i++) {
+            $best = min($best, $this->distanceToSegment($lat, $lng, $points[$i - 1], $points[$i]));
+        }
+
+        return $best;
+    }
+
+    private function distanceToSegment(float $lat, float $lng, array $start, array $end): float
+    {
+        [$aLat, $aLng] = $start;
+        [$bLat, $bLng] = $end;
+        $originLat = $lat;
+        $originLng = $lng;
+        $a = $this->toLocalMeters((float) $aLat, (float) $aLng, $originLat, $originLng);
+        $b = $this->toLocalMeters((float) $bLat, (float) $bLng, $originLat, $originLng);
+        $p = $this->toLocalMeters($lat, $lng, $originLat, $originLng);
+        $abx = $b['x'] - $a['x'];
+        $aby = $b['y'] - $a['y'];
+        $ab2 = max(0.000001, ($abx ** 2) + ($aby ** 2));
+        $t = max(0, min(1, ((($p['x'] - $a['x']) * $abx) + (($p['y'] - $a['y']) * $aby)) / $ab2));
+        $x = $a['x'] + ($abx * $t);
+        $y = $a['y'] + ($aby * $t);
+
+        return sqrt((($p['x'] - $x) ** 2) + (($p['y'] - $y) ** 2));
+    }
+
+    private function toLocalMeters(float $lat, float $lng, float $originLat, float $originLng): array
+    {
+        return [
+            'x' => ($lng - $originLng) * 111320 * cos(deg2rad($originLat)),
+            'y' => ($lat - $originLat) * 111320,
+        ];
     }
 
     private function syncBranchForRoute(NetworkRoute $route): void

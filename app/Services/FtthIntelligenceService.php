@@ -76,7 +76,7 @@ class FtthIntelligenceService
         }
 
         foreach ($assignments['unassigned'] as $house) {
-            $warnings[] = $this->validationItem('warning', "{$house->label} nije dodijeljena kraku.", 'house', $house->id, 'Provjeri udaljenost kuce od trase ili povecaj max_branch_distance_m.');
+            $warnings[] = $this->validationItem('warning', "{$house->label} nije dodijeljena kraku.", 'house', $house->id, 'Provjeri da li je kuca vezana za sekundarni krak.');
         }
 
         $summary = $this->planSummary($housesWithCoordinates, $housesWithoutCoordinates, collect($cabinets), $warnings, $assignments['unassigned']);
@@ -374,7 +374,7 @@ class FtthIntelligenceService
     private function planningParameters(array $parameters): array
     {
         return [
-            'max_branch_distance_m' => max(1, (int) ($parameters['max_branch_distance_m'] ?? 60)),
+            'max_branch_distance_m' => max(1, (int) ($parameters['max_branch_distance_m'] ?? 120)),
             'max_houses_per_odo' => min(12, max(1, (int) ($parameters['max_houses_per_odo'] ?? 12))),
             'max_house_to_odo_m' => max(20, (int) ($parameters['max_house_to_odo_m'] ?? ($parameters['max_distance_m'] ?? 120))),
             'max_gap_m' => max(10, (int) ($parameters['max_gap_m'] ?? 100)),
@@ -424,8 +424,13 @@ class FtthIntelligenceService
         $unassigned = collect();
 
         foreach ($houses as $house) {
-            $nearest = $this->nearestBranch((float) $house->latitude, (float) $house->longitude, $routes);
-            if (! $nearest || $nearest['distance_m'] > $params['max_branch_distance_m']) {
+            $preferredBranchId = (int) ($house->branch_id ?? 0);
+            $hasPreferredBranch = $preferredBranchId && isset($branches[$preferredBranchId]);
+            $candidateRoutes = $hasPreferredBranch
+                ? $routes->filter(fn (NetworkRoute $route) => (int) $route->getAttribute('planning_branch_id') === $preferredBranchId)->values()
+                : $routes;
+            $nearest = $this->nearestBranch((float) $house->latitude, (float) $house->longitude, $candidateRoutes);
+            if (! $nearest || (! $hasPreferredBranch && $nearest['distance_m'] > $params['max_branch_distance_m'])) {
                 $unassigned->push($house);
                 continue;
             }
@@ -605,7 +610,8 @@ class FtthIntelligenceService
             $warnings[] = 'Drop trase su samo preview i nece biti snimljene bez create_drop_routes=true.';
         }
 
-        $name = "FTTH {$branch['branch_index']}-{$groupIndex}";
+        $branchPrefix = $this->branchCabinetPrefix($branch);
+        $name = "FTTH {$branchPrefix}-{$groupIndex}";
 
         return [
             'name' => $name.' PRIJEDLOG',
@@ -830,6 +836,16 @@ class FtthIntelligenceService
         }
 
         return $fallback;
+    }
+
+    private function branchCabinetPrefix(array $branch): string
+    {
+        $label = trim((string) ($branch['branch']?->code ?? '').' '.(string) ($branch['name'] ?? '').' '.(string) ($branch['route']?->name ?? ''));
+        if (preg_match('/(\d+(?:[.-]\d+)*)/', $label, $match)) {
+            return str_replace('.', '-', str_replace('--', '-', str_replace('_', '-', $match[1])));
+        }
+
+        return (string) $branch['branch_index'];
     }
 
     private function confirmedCabinetName(string $name): string
