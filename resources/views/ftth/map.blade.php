@@ -41,6 +41,8 @@
     .ftth-tag.cabinet { min-width: 38px; height: 18px; border-radius: 5px; background: #65A845; }
     .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #81C342; font-size: 0; }
     .ftth-tag.suggest { min-width: 46px; height: 20px; border-radius: 5px; background: #f59e0b; color: #111827; }
+    .ftth-tag.manhole { width: 22px; height: 22px; border-radius: 6px; background: #334155; font-size: 9px; }
+    .ftth-tag.boring { min-width: 42px; height: 20px; border-radius: 999px; background: #dc2626; font-size: 9px; }
     .cad-popup .leaflet-popup-content-wrapper { border-radius: 6px; padding: 0; }
     .cad-popup .leaflet-popup-content { width: 92px !important; margin: 0; }
     .cad-popup .leaflet-popup-close-button { width: 16px; height: 16px; padding: 0; font-size: 14px; line-height: 14px; }
@@ -98,6 +100,8 @@
                 <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
                 <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuće</button>
                 <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
+                <button type="button" id="mode-manhole" class="tool-btn rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800">Saht</button>
+                <button type="button" id="mode-boring-fi-130" class="tool-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">Raketa FI130</button>
                 <button type="button" id="mode-branch-source" class="tool-btn rounded-md border border-orange-300 bg-orange-100 px-3 py-2 text-sm font-semibold text-orange-900">Novi krak iz ODO</button>
                 <button type="button" id="mode-connect" class="tool-btn rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">Poveži ODF-ODO</button>
                 <button type="button" id="mode-connect-houses" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Poveži ODO-kuće</button>
@@ -157,7 +161,7 @@
             @csrf
             <div class="grid gap-1">
                 <h2 class="font-semibold text-zinc-950">Plan projekta</h2>
-                <span id="bulk-plan-summary" class="text-sm text-emerald-700">Draft: 0 ODF, 0 FTTH, 0 kuća, 0 trasa.</span>
+                <span id="bulk-plan-summary" class="text-sm text-emerald-700">Draft: 0 ODF, 0 FTTH, 0 kuca, 0 trasa, 0 stavki.</span>
             </div>
             <div class="mt-3 grid gap-2">
                 <select id="active-project-id" name="project_id" class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
@@ -367,6 +371,7 @@ let draftCabinetCount = 0;
 let draftElements = [];
 let draftOdfs = [];
 let draftCabinets = [];
+let draftAppendixItems = [];
 let suggestedCabinets = [];
 let expandedMap = false;
 let activeDraftOdfIndex = null;
@@ -448,7 +453,7 @@ cabinetLegend.onAdd = () => {
 cabinetLegend.addTo(map);
 
 function icon(type, text = '', color = null) {
-    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : 'house';
+    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : 'house';
     const style = color ? ` style="background:${color}"` : '';
     return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
@@ -568,6 +573,18 @@ function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).to
     housePoints.push(p);
     bounds.push([h.lat, h.lng]);
 });
+data.appendix_items?.forEach(item => {
+    const p = L.latLng(item.lat, item.lng);
+    const markerType = item.type === 'manhole' ? 'manhole' : 'boring';
+    const markerText = item.type === 'manhole' ? 'S' : 'FI130';
+    const title = item.type === 'manhole' ? 'Prolazni saht' : 'Podbusivanje raketom FI 130';
+    const marker = L.marker(p, { icon: icon(markerType, markerText), draggable: false })
+        .bindTooltip(`${title}: ${item.quantity} ${item.unit}`, { direction: 'top', offset: [0, -10] })
+        .bindPopup(`<b>${title}</b><br>${item.quantity} ${item.unit}${item.note ? `<br>${item.note}` : ''}`)
+        .addTo(map);
+    trackLayer(marker, 'preview');
+    bounds.push([item.lat, item.lng]);
+});
 let savedHouseCount = housePoints.length;
 if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 }); else map.setView(defaultCenter, 17);
 
@@ -587,6 +604,8 @@ function setMode(next) {
         cabinet: 'FTTH: klikni lokacije zelenih ormarića. Vezuju se na aktivni ODF.',
         house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
         draw: 'TRASA: klik po klik crtaj trasu. Blizu postojece trase/tacke automatski se spoji. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
+        manhole: 'SAHT: klikni lokaciju prolaznog sahta.',
+        'boring-fi-130': 'RAKETA FI130: klikni lokaciju podbusivanja ispod ceste.',
         'branch-source': 'NOVI KRAK IZ ODO: klikni ormarić iz kojeg novi krak polazi.',
         connect: 'CONNECT: odaberi ODF',
         'connect-houses': 'CONNECT HOUSES: odaberi ODO',
@@ -596,7 +615,7 @@ function setMode(next) {
     document.getElementById('cad-command').textContent = labels[next];
     updateCommandBar();
 }
-['pan','odf','cabinet','house','draw','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
+['pan','odf','cabinet','house','draw','manhole','boring-fi-130','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
 
 function distance(points) { return Math.round(points.slice(1).reduce((sum, p, i) => sum + map.distance(points[i], p), 0)); }
 function draftNetworkPoints() { return [...branches, activeBranch].filter(b => b.length > 1); }
@@ -1266,6 +1285,9 @@ function removeDraftElement(marker) {
         activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
     }
     if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== marker);
+    if (item.type === 'manhole' || item.type === 'boring_fi_130') {
+        draftAppendixItems = draftAppendixItems.filter(entry => entry.marker !== marker);
+    }
     refreshDraftTooltips();
     refreshPlanSummary();
 }
@@ -2224,13 +2246,23 @@ function planPayload() {
         };
     });
     const routes = drawnRoutes;
-    return { odfs, cabinets, houses, routes };
+    const appendix_items = draftAppendixItems.map(item => {
+        const p = item.marker.getLatLng();
+        return {
+            type: item.type,
+            lat: Number(p.lat.toFixed(7)),
+            lng: Number(p.lng.toFixed(7)),
+            quantity: item.quantity || 1,
+            note: item.note || '',
+        };
+    });
+    return { odfs, cabinets, houses, routes, appendix_items };
 }
 
 function refreshPlanSummary() {
     const payload = planPayload();
     document.getElementById('bulk-plan-json').value = JSON.stringify(payload);
-    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuća, ${payload.routes.length} trasa.`;
+    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa, ${payload.appendix_items.length} stavki.`;
     scheduleDraftAutosave();
 }
 
@@ -2238,7 +2270,7 @@ async function persistDraftPlanForAutoOdo() {
     if (activeBranch.length > 1) finishBranch();
     refreshPlanSummary();
     const payload = planPayload();
-    if (!payload.houses.length && !payload.routes.length && !payload.odfs.length) return false;
+    if (!payload.houses.length && !payload.routes.length && !payload.odfs.length && !payload.appendix_items.length) return false;
 
     const projectId = document.getElementById('active-project-id').value;
     const form = document.getElementById('bulk-plan-form');
@@ -2258,6 +2290,7 @@ async function persistDraftPlanForAutoOdo() {
     savedHouseCount += payload.houses.length;
     draftOdfs = [];
     draftCabinets = [];
+    draftAppendixItems = [];
     draftElements = [];
     branches = [];
     branchMeta = [];
@@ -2291,6 +2324,16 @@ function draftPayload() {
             odf_id: cabinet.odf_id ?? null,
             houseKeys: cabinet.houseKeys || [],
         })),
+        appendix_items: draftAppendixItems.map(item => {
+            const p = item.marker.getLatLng();
+            return {
+                type: item.type,
+                lat: Number(p.lat.toFixed(7)),
+                lng: Number(p.lng.toFixed(7)),
+                quantity: item.quantity || 1,
+                note: item.note || '',
+            };
+        }),
     };
 }
 
@@ -2305,6 +2348,7 @@ function restoreDraft(payload) {
     draftElements = [];
     draftOdfs = [];
     draftCabinets = [];
+    draftAppendixItems = [];
     activeDraftOdfIndex = null;
     activeOdfSelection = null;
     clearSuggestions();
@@ -2383,6 +2427,20 @@ function restoreDraft(payload) {
         draftCabinets.push(item);
         draftElements.push({ type: 'cabinet', marker });
         draftCabinetCount = Math.max(draftCabinetCount, index + 1);
+    });
+
+    (payload.appendix_items || []).forEach(item => {
+        const latLng = L.latLng(item.lat, item.lng);
+        const isManhole = item.type === 'manhole';
+        const draftItem = { type: item.type, quantity: item.quantity || 1, note: item.note || '', marker: null };
+        const marker = L.marker(latLng, { icon: icon(isManhole ? 'manhole' : 'boring', isManhole ? 'S' : 'FI130'), draggable: true })
+            .bindTooltip(isManhole ? 'Prolazni saht' : 'Podbusivanje raketom FI 130', { direction: 'top', offset: [0, -10] })
+            .addTo(map);
+        draftItem.marker = marker;
+        marker.on('drag', refreshPlanSummary);
+        registerDraftContext(marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
+        draftAppendixItems.push(draftItem);
+        draftElements.push({ type: item.type, marker });
     });
 
     refreshDraftTooltips();
@@ -2466,6 +2524,9 @@ document.getElementById('undo-element').addEventListener('click', () => {
         activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
     }
     if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== item.marker);
+    if (item.type === 'manhole' || item.type === 'boring_fi_130') {
+        draftAppendixItems = draftAppendixItems.filter(entry => entry.marker !== item.marker);
+    }
     refreshDraftTooltips();
     refreshPlanSummary();
 });
@@ -2788,6 +2849,28 @@ map.on('click', e => {
         houseMarkers.push(marker);
         document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); return;
     }
+    if (mode === 'manhole' || mode === 'boring-fi-130') {
+        const isManhole = mode === 'manhole';
+        const item = {
+            type: isManhole ? 'manhole' : 'boring_fi_130',
+            marker: null,
+            quantity: 1,
+            note: '',
+        };
+        const marker = L.marker(e.latlng, { icon: icon(isManhole ? 'manhole' : 'boring', isManhole ? 'S' : 'FI130'), draggable: true })
+            .addTo(map)
+            .bindTooltip(isManhole ? 'Prolazni saht' : 'Podbusivanje raketom FI 130', { direction: 'top', offset: [0, -10] })
+            .bindPopup(isManhole ? 'Prolazni saht' : 'Podbusivanje raketom FI 130')
+            .openPopup();
+        item.marker = marker;
+        marker.on('drag', refreshPlanSummary);
+        marker.on('click', () => marker.openPopup());
+        draftAppendixItems.push(item);
+        draftElements.push({ type: item.type, marker });
+        registerDraftContext(marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
+        refreshPlanSummary();
+        return;
+    }
     if (mode === 'odf') {
         if (selectedDraftElement?.item.pending) closeDraftElementEditor();
         const item = { marker: null, name: '', pending: true };
@@ -2854,6 +2937,7 @@ document.getElementById('active-project-id').addEventListener('change', (e) => {
         draftElements = [];
         draftOdfs = [];
         draftCabinets = [];
+        draftAppendixItems = [];
         activeDraftOdfIndex = null;
         activeOdfSelection = null;
         clearSuggestions();
@@ -2886,4 +2970,3 @@ if (pendingTraceHouseId) {
 }
 </script>
 @endsection
-

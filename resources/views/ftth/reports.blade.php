@@ -54,8 +54,11 @@
                         <h2 class="text-lg font-semibold">{{ $project->name }}</h2>
                         <p class="text-sm text-zinc-500">{{ $project->code }} / {{ $project->location }} / {{ $project->status }}</p>
                     </div>
-                    <div class="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
-                        {{ $usedPorts }}/{{ $capacity }} portova
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="{{ route('reports.project-appendix', $project) }}" class="rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">Prilog 3</a>
+                        <div class="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                            {{ $usedPorts }}/{{ $capacity }} portova
+                        </div>
                     </div>
                 </div>
             </div>
@@ -65,6 +68,37 @@
                 <div><div class="text-sm text-zinc-500">Slobodno</div><div class="text-xl font-semibold">{{ $freePorts }}</div></div>
                 <div><div class="text-sm text-zinc-500">Kuće</div><div class="text-xl font-semibold">{{ $project->houses_count }}</div></div>
                 <div><div class="text-sm text-zinc-500">Materijal</div><div class="text-xl font-semibold">{{ number_format($projectMaterialCost, 2) }} KM</div></div>
+            </div>
+            <div class="border-t border-zinc-100 p-5">
+                <h3 class="font-semibold">Stavke za Prilog 3</h3>
+                <form method="POST" action="{{ route('reports.appendix-items.store', $project) }}" class="mt-3 grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1.3fr_.7fr_1.5fr_auto]">
+                    @csrf
+                    <select name="type" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" required>
+                        <option value="manhole">Prolazni sahtovi</option>
+                        <option value="boring_fi_130">Podbusivanje raketom FI 130</option>
+                    </select>
+                    <input type="number" step="0.01" min="0" name="quantity" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Kolicina" required>
+                    <input name="note" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Napomena">
+                    <button class="rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white">Dodaj</button>
+                </form>
+                <div class="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                    @forelse($project->appendixItems as $item)
+                        <div class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+                            <div>
+                                <b>{{ $item->type === 'manhole' ? 'Prolazni sahtovi' : 'Podbusivanje raketom FI 130' }}</b>
+                                <span class="text-slate-500">- {{ number_format($item->quantity, 2, ',', '.') }} {{ $item->unit }}</span>
+                                @if($item->note)<div class="text-xs text-slate-500">{{ $item->note }}</div>@endif
+                            </div>
+                            <form method="POST" action="{{ route('reports.appendix-items.delete', $item) }}" data-confirm-delete="Obrisati stavku Priloga 3?">
+                                @csrf
+                                @method('DELETE')
+                                <button class="rounded-md bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700">Obrisi</button>
+                            </form>
+                        </div>
+                    @empty
+                        <div class="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">Nema dodatnih stavki za Prilog 3.</div>
+                    @endforelse
+                </div>
             </div>
             <div class="border-t border-zinc-100 px-5 py-4 text-sm text-zinc-600">
                 Trase: {{ number_format($project->routes->sum('duct_length_m')) }} m mikrocijevi,

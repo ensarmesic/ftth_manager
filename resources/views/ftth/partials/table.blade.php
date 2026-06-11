@@ -58,7 +58,7 @@
                                                     @endif
                                                 </label>
                                             @endforeach
-                                            <button class="rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white">Sačuvaj izmjene</button>
+                                            <button class="rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white">Sacuvaj izmjene</button>
                                         </form>
                                     </details>
                                 @endif
@@ -66,7 +66,7 @@
                                 <form method="POST" action="{{ $deleteRoute($row->id) }}" style="display:inline;" data-confirm-delete="Sigurno obrisati ovaj zapis?">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="rounded-md bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Obriši</button>
+                                    <button type="submit" class="rounded-md bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Obrisi</button>
                                 </form>
                                 @endif
                             </td>

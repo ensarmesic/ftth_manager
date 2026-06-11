@@ -16,4 +16,5 @@ class Project extends Model
     public function routes(): HasMany { return $this->hasMany(NetworkRoute::class); }
     public function branches(): HasMany { return $this->hasMany(NetworkBranch::class); }
     public function materials(): HasMany { return $this->hasMany(Material::class); }
+    public function appendixItems(): HasMany { return $this->hasMany(ProjectAppendixItem::class); }
 }
