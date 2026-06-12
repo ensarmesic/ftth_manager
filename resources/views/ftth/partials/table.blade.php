@@ -18,6 +18,8 @@
                             <td class="whitespace-nowrap px-4 py-3 text-slate-700">
                                 @if (str_contains((string) $key, 'status'))
                                     @include('ftth.partials.badge', ['value' => data_get($row, $key)])
+                                @elseif (is_bool(data_get($row, $key)))
+                                    {{ data_get($row, $key) ? 'Da' : 'Ne' }}
                                 @else
                                     {{ data_get($row, $key) ?? '-' }}
                                 @endif
@@ -29,7 +31,8 @@
                                     <summary class="cursor-pointer rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Pregled</summary>
                                     <div class="absolute z-20 mt-2 grid min-w-64 gap-1 rounded-md border border-slate-200 bg-white p-3 text-xs shadow-xl">
                                         @foreach ($columns as $key => $label)
-                                            <div class="grid grid-cols-[110px_1fr] gap-2"><b class="text-slate-500">{{ $label }}</b><span>{{ data_get($row, $key) ?? '-' }}</span></div>
+                                            @php $value = data_get($row, $key); @endphp
+                                            <div class="grid grid-cols-[110px_1fr] gap-2"><b class="text-slate-500">{{ $label }}</b><span>{{ is_bool($value) ? ($value ? 'Da' : 'Ne') : ($value ?? '-') }}</span></div>
                                         @endforeach
                                     </div>
                                 </details>
@@ -53,6 +56,12 @@
                                                                 <option value="{{ $value }}" @selected((string) data_get($row, $field) === (string) $value)>{{ $optionLabel }}</option>
                                                             @endforeach
                                                         </select>
+                                                    @elseif ($type === 'checkbox')
+                                                        <input type="hidden" name="{{ $field }}" value="0">
+                                                        <label class="flex items-center gap-2 rounded-md border border-slate-200 px-2 py-1.5">
+                                                            <input name="{{ $field }}" type="checkbox" value="1" @checked((bool) data_get($row, $field))>
+                                                            <span>{{ $config['text'] ?? 'Da' }}</span>
+                                                        </label>
                                                     @else
                                                         <input name="{{ $field }}" type="{{ $type }}" value="{{ data_get($row, $field) }}" class="rounded-md border border-slate-300 px-2 py-1.5">
                                                     @endif

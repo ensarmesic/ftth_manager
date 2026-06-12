@@ -41,8 +41,10 @@
             $capacity = $project->cabinets->sum(fn ($cabinet) => $cabinet->capacity);
             $freePorts = max($capacity - $usedPorts, 0);
             $projectMaterialCost = $project->materials->sum(fn ($material) => $material->planned_quantity * $material->unit_price);
-            $duct1410 = $project->routes->where('microduct_type', '14/10')->sum(fn ($route) => $route->duct_length_m * $route->microduct_count);
-            $duct108 = $project->routes->where('microduct_type', '10/8')->sum(fn ($route) => $route->duct_length_m * $route->microduct_count);
+            $materialRoutes = $project->routes->where('route_type', '!=', 'trench');
+            $duct1410 = $materialRoutes->where('microduct_type', '14/10')->sum(fn ($route) => $route->duct_length_m * $route->microduct_count);
+            $duct108 = $materialRoutes->where('microduct_type', '10/8')->sum(fn ($route) => $route->duct_length_m * $route->microduct_count);
+            $physicalTrench = $project->routes->sum(fn ($route) => $route->trenchLengthForReport());
             $insight = $projectInsights[$project->id] ?? ['validation' => [], 'materials' => []];
             $validation = collect($insight['validation']);
             $materials = $insight['materials'];
@@ -101,7 +103,8 @@
                 </div>
             </div>
             <div class="border-t border-zinc-100 px-5 py-4 text-sm text-zinc-600">
-                Trase: {{ number_format($project->routes->sum('duct_length_m')) }} m mikrocijevi,
+                Glavni rov: {{ number_format($physicalTrench) }} m,
+                mikrocijevi: {{ number_format($duct1410 + $duct108) }} m,
                 {{ number_format($project->routes->sum('fiber_length_m')) }} m optičkog kabla.
                 Preporučena rezerva za kabl: {{ number_format(ceil($project->routes->sum('fiber_length_m') * 1.1)) }} m.
             </div>

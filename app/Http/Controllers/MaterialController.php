@@ -99,6 +99,9 @@ class MaterialController extends Controller
         ];
 
         foreach ($routes as $route) {
+            if ($route->route_type === 'trench') {
+                continue;
+            }
             $ductKey = 'Mikrocijev '.$route->microduct_type;
             $fiberKey = 'Opticki kabl '.$route->fiber_count.' niti';
             $specs[$ductKey]['quantity'] += $route->duct_length_m * $route->microduct_count;

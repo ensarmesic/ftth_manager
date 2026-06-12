@@ -71,15 +71,20 @@ class ReportController extends Controller
         $subscriberCount = max($project->subscribers->count(), $project->houses->count());
         $distributionRoutes = $routes->whereIn('route_type', ['distribution', 'secondary']);
         $dropRoutes = $routes->where('route_type', 'drop');
-        $totalDuct = (float) $routes->sum('duct_length_m');
+        $totalDuct = (float) $routes
+            ->sum(fn (NetworkRoute $route) => $route->trenchLengthForReport());
         $totalFiber = (float) $routes->sum('fiber_length_m');
-        $microduct1410 = (float) $routes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * max((int) $route->microduct_count, 1));
-        $microduct107 = (float) $routes->whereIn('microduct_type', ['10/7', '10/8'])->sum(fn (NetworkRoute $route) => $route->duct_length_m * max((int) $route->microduct_count, 1));
+        $materialRoutes = $routes->where('route_type', '!=', 'trench');
+        $microduct1410 = (float) $materialRoutes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * max((int) $route->microduct_count, 1));
+        $microduct107 = (float) $materialRoutes->whereIn('microduct_type', ['10/7', '10/8'])->sum(fn (NetworkRoute $route) => $route->duct_length_m * max((int) $route->microduct_count, 1));
         $fiberByCount = fn (int $count) => (float) $routes->where('fiber_count', $count)->sum('fiber_length_m');
         $splitter14 = (int) $project->cabinets->sum('splitter_count');
         $userInstall = $subscriberCount * 50;
         $userFiber = $userInstall * 1.1;
         $appendixQuantity = fn (string $type) => (float) $project->appendixItems->where('type', $type)->sum('quantity');
+        $boringFi130Length = (float) $project->appendixItems
+            ->where('type', 'boring_fi_130')
+            ->sum(fn (ProjectAppendixItem $item) => $item->length_m ?? $item->quantity);
 
         $segments = [
             ['label' => 'ODF ormari na betonskoj stopi a*b*h / 40*80*100', 'quantity' => $project->odfs->count(), 'unit' => 'KOMADA', 'strong' => true],
@@ -87,7 +92,7 @@ class ReportController extends Controller
             ['label' => 'SPLITERI 1/16', 'quantity' => 0, 'unit' => 'KOMADA', 'strong' => true],
             ['label' => 'SPLITERI 1/4 (FTTH*3)', 'quantity' => $splitter14, 'unit' => 'KOMADA', 'strong' => true],
             ['label' => 'PROLAZNI SAHTOVI', 'quantity' => $appendixQuantity('manhole'), 'unit' => 'KOMADA', 'strong' => true],
-            ['label' => 'BUSENJE PNEUMATSKOM RAKETOM fi 130 ispod ceste', 'quantity' => $appendixQuantity('boring_fi_130'), 'unit' => 'KOMADA', 'strong' => true],
+            ['label' => 'BUSENJE PNEUMATSKOM RAKETOM fi 130 ispod ceste', 'quantity' => $boringFi130Length, 'unit' => 'metara', 'strong' => true],
             ['label' => 'BUSENJE PNEUMATSKOM RAKETOM FI 75 ispod ceste', 'quantity' => 0, 'unit' => 'KOMADA', 'strong' => true],
         ];
 
@@ -101,7 +106,7 @@ class ReportController extends Controller
             ['label' => 'OPTIKA TOSM 03 12 niti', 'quantity' => $fiberByCount(12), 'unit' => 'metara'],
             ['label' => 'OPTIKA TOSM 03 6 niti', 'quantity' => $fiberByCount(6), 'unit' => 'metara'],
             ['label' => 'OPTIKA TOSM 03 4 niti', 'quantity' => $fiberByCount(4), 'unit' => 'metara'],
-            ['label' => 'PVC CIJEV fi 110', 'quantity' => 0, 'unit' => 'metara'],
+            ['label' => 'PVC CIJEV fi 110', 'quantity' => $boringFi130Length, 'unit' => 'metara'],
             ['label' => 'PVC CIJEV fi 75', 'quantity' => 0, 'unit' => 'metara'],
             ['label' => 'KORISNICKE INSTALACIJE MIKRO CIJEV HDPE phi 10/7', 'quantity' => $userInstall, 'unit' => 'metara'],
             ['label' => 'KORISNICKA OPTIKA FTTH Fiber Optic 2 niti', 'quantity' => $userFiber, 'unit' => 'metara'],
@@ -129,7 +134,7 @@ class ReportController extends Controller
             'note' => ['nullable', 'max:255'],
         ]);
 
-        $unit = $data['type'] === 'boring_fi_130' ? 'KOMADA' : 'KOMADA';
+        $unit = $data['type'] === 'boring_fi_130' ? 'metara' : 'KOMADA';
 
         ProjectAppendixItem::create([
             'project_id' => $project->id,

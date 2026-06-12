@@ -42,7 +42,34 @@
     .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #81C342; font-size: 0; }
     .ftth-tag.suggest { min-width: 46px; height: 20px; border-radius: 5px; background: #f59e0b; color: #111827; }
     .ftth-tag.manhole { width: 22px; height: 22px; border-radius: 6px; background: #334155; font-size: 9px; }
-    .ftth-tag.boring { min-width: 42px; height: 20px; border-radius: 999px; background: #dc2626; font-size: 9px; }
+    .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
+    .boring-grip { border: 0; background: transparent; }
+    .boring-grip span {
+        display: grid;
+        width: 8px;
+        height: 8px;
+        place-items: center;
+        border: 1.5px solid #fff;
+        border-radius: 2px;
+        background: #f59e0b;
+        color: #111827;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, .28);
+        font-size: 0;
+        transform: rotate(45deg);
+    }
+    .boring-length-label { border: 0; background: transparent; pointer-events: none; }
+    .boring-length-label span {
+        display: block;
+        transform: translate(-50%, -50%);
+        white-space: nowrap;
+        border: 1px solid #fecaca;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, .95);
+        color: #991b1b;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, .16);
+        padding: 2px 6px;
+        font: 800 11px/1.2 system-ui, sans-serif;
+    }
     .cad-popup .leaflet-popup-content-wrapper { border-radius: 6px; padding: 0; }
     .cad-popup .leaflet-popup-content { width: 92px !important; margin: 0; }
     .cad-popup .leaflet-popup-close-button { width: 16px; height: 16px; padding: 0; font-size: 14px; line-height: 14px; }
@@ -100,6 +127,7 @@
                 <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
                 <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuće</button>
                 <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
+                <button type="button" id="mode-trench-draw" class="tool-btn rounded-md border border-zinc-400 bg-zinc-100 px-3 py-2 text-sm font-semibold text-zinc-900">Glavni rov</button>
                 <button type="button" id="mode-manhole" class="tool-btn rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800">Saht</button>
                 <button type="button" id="mode-boring-fi-130" class="tool-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">Raketa FI130</button>
                 <button type="button" id="mode-branch-source" class="tool-btn rounded-md border border-orange-300 bg-orange-100 px-3 py-2 text-sm font-semibold text-orange-900">Novi krak iz ODO</button>
@@ -183,6 +211,15 @@
                     </label>
                     <div id="odf-link-status" class="mt-2 text-xs text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
                 </div>
+                <div class="rounded-md border border-amber-300 bg-amber-50 p-3 shadow-sm">
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <div class="text-sm font-semibold text-amber-950">Obracun rova</div>
+                            <div class="text-xs text-amber-800">Prvo nacrtaj Glavni rov, zatim posebno mikrocijevi/krakove.</div>
+                        </div>
+                        <span id="route-trench-status" class="rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white">tip trase odlucuje</span>
+                    </div>
+                </div>
                 <details class="rounded-md border border-amber-100 bg-amber-50">
                     <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-amber-950">Postavke trase</summary>
                 <div class="border-t border-amber-100 p-3">
@@ -204,6 +241,7 @@
 	                    <div class="grid grid-cols-2 gap-2">
                         <label class="grid gap-1 text-xs text-amber-900">Tip
                             <select id="route-draw-type" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800">
+                                <option value="trench">Glavni rov</option>
                                 <option value="feeder">Primarni</option>
                                 <option value="distribution">Sekundarni</option>
                                 <option value="drop">Drop</option>
@@ -457,6 +495,14 @@ function icon(type, text = '', color = null) {
     const style = color ? ` style="background:${color}"` : '';
     return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
+function boringGripIcon(text) {
+    return L.divIcon({
+        className: 'boring-grip',
+        html: `<span>${text}</span>`,
+        iconSize: [8, 8],
+        iconAnchor: [4, 4],
+    });
+}
 
 const bounds = [];
 data.routes.forEach(route => {
@@ -575,14 +621,15 @@ function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).to
 });
 data.appendix_items?.forEach(item => {
     const p = L.latLng(item.lat, item.lng);
-    const markerType = item.type === 'manhole' ? 'manhole' : 'boring';
-    const markerText = item.type === 'manhole' ? 'S' : 'FI130';
-    const title = item.type === 'manhole' ? 'Prolazni saht' : 'Podbusivanje raketom FI 130';
-    const marker = L.marker(p, { icon: icon(markerType, markerText), draggable: false })
-        .bindTooltip(`${title}: ${item.quantity} ${item.unit}`, { direction: 'top', offset: [0, -10] })
-        .bindPopup(`<b>${title}</b><br>${item.quantity} ${item.unit}${item.note ? `<br>${item.note}` : ''}`)
-        .addTo(map);
-    trackLayer(marker, 'preview');
+    if (item.type === 'boring_fi_130') {
+        drawSavedBoring(item);
+    } else {
+        const marker = L.marker(p, { icon: icon('manhole', 'S'), draggable: false })
+            .bindTooltip(`Prolazni saht: ${item.quantity} ${item.unit}`, { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>Prolazni saht</b><br>${item.quantity} ${item.unit}${item.note ? `<br>${item.note}` : ''}`)
+            .addTo(map);
+        trackLayer(marker, 'preview');
+    }
     bounds.push([item.lat, item.lng]);
 });
 let savedHouseCount = housePoints.length;
@@ -615,20 +662,165 @@ function setMode(next) {
     document.getElementById('cad-command').textContent = labels[next];
     updateCommandBar();
 }
-['pan','odf','cabinet','house','draw','manhole','boring-fi-130','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => setMode(m)));
+['pan','odf','cabinet','house','draw','manhole','boring-fi-130','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
+    if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
+        document.getElementById('route-draw-type').value = 'distribution';
+        refreshTrenchGroupStatus();
+    }
+    setMode(m);
+}));
+document.getElementById('mode-trench-draw').addEventListener('click', () => {
+    document.getElementById('route-draw-type').value = 'trench';
+    document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName('trench')}`;
+    refreshTrenchGroupStatus();
+    setMode('draw');
+    document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
+});
 
 function distance(points) { return Math.round(points.slice(1).reduce((sum, p, i) => sum + map.distance(points[i], p), 0)); }
+function normalizeAngle(deg) {
+    return ((deg % 360) + 360) % 360;
+}
+function metersOffset(origin, eastMeters, northMeters) {
+    const latRad = origin.lat * Math.PI / 180;
+    const lat = origin.lat + (northMeters / 111320);
+    const lng = origin.lng + (eastMeters / (111320 * Math.max(Math.cos(latRad), 0.00001)));
+    return L.latLng(lat, lng);
+}
+function boringGeometry(center, lengthM = 12, angleDeg = 0, widthM = 1.8) {
+    const angle = normalizeAngle(angleDeg) * Math.PI / 180;
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    const nx = -dy;
+    const ny = dx;
+    const halfLength = Math.max(Number(lengthM) || 0, 1) / 2;
+    const halfWidth = Math.max(Number(widthM) || 0, 1) / 2;
+    const edge = (side, end) => metersOffset(center, dx * halfLength * end + nx * halfWidth * side, dy * halfLength * end + ny * halfWidth * side);
+    return {
+        top: [edge(1, -1), edge(1, 1)],
+        bottom: [edge(-1, -1), edge(-1, 1)],
+        labelPoint: metersOffset(center, nx * (halfWidth + 4.5), ny * (halfWidth + 4.5)),
+        lengthHandle: metersOffset(center, dx * (halfLength + 2), dy * (halfLength + 2)),
+        rotateHandle: metersOffset(center, -nx * (halfWidth + 5), -ny * (halfWidth + 5)),
+    };
+}
+function angleFromCenter(center, point) {
+    const latRad = center.lat * Math.PI / 180;
+    const east = (point.lng - center.lng) * 111320 * Math.max(Math.cos(latRad), 0.00001);
+    const north = (point.lat - center.lat) * 111320;
+    return normalizeAngle(Math.atan2(north, east) * 180 / Math.PI);
+}
+function formatMeters(value) {
+    return `${Number(value || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
+}
+function boringTitle(item) {
+    return `Podbusivanje FI130: ${formatMeters(item.length_m)} / ${Math.round(normalizeAngle(item.angle_deg || 0))}°`;
+}
+function boringLengthIcon(lengthM) {
+    return L.divIcon({
+        className: 'boring-length-label',
+        html: `<span>${formatMeters(lengthM)}</span>`,
+        iconSize: [1, 1],
+        iconAnchor: [0, 0],
+    });
+}
+function drawSavedBoring(item) {
+    const center = L.latLng(item.lat, item.lng);
+    const lengthM = item.length_m || item.quantity || 12;
+    const geometry = boringGeometry(center, lengthM, item.angle_deg || 0, item.width_m || 1.8);
+    const popup = `<b>Podbusivanje raketom FI 130</b><br>Duzina: ${formatMeters(item.length_m || item.quantity || 0)}<br>Ugao: ${Math.round(normalizeAngle(item.angle_deg || 0))}°${item.note ? `<br>${item.note}` : ''}`;
+    const top = L.polyline(geometry.top, { color: '#dc2626', weight: 4, opacity: .95 }).bindPopup(popup).addTo(map);
+    const bottom = L.polyline(geometry.bottom, { color: '#dc2626', weight: 4, opacity: .95 }).bindPopup(popup).addTo(map);
+    const label = L.marker(center, { icon: icon('boring', 'FI130'), draggable: false })
+        .bindTooltip(boringTitle({ length_m: item.length_m || item.quantity || 0, angle_deg: item.angle_deg || 0 }), { direction: 'top', offset: [0, -10] })
+        .bindPopup(popup)
+        .addTo(map);
+    const lengthLabel = L.marker(geometry.labelPoint, { icon: boringLengthIcon(lengthM), interactive: false }).addTo(map);
+    trackLayer(top, 'preview');
+    trackLayer(bottom, 'preview');
+    trackLayer(label, 'preview');
+    trackLayer(lengthLabel, 'preview');
+}
+function updateBoringDraft(item) {
+    const center = item.marker.getLatLng();
+    const geometry = boringGeometry(center, item.length_m, item.angle_deg, item.width_m);
+    item.lines[0].setLatLngs(geometry.top);
+    item.lines[1].setLatLngs(geometry.bottom);
+    item.lengthLabel.setLatLng(geometry.labelPoint);
+    item.lengthLabel.setIcon(boringLengthIcon(item.length_m));
+    item.lengthHandle.setLatLng(geometry.lengthHandle);
+    item.rotateHandle.setLatLng(geometry.rotateHandle);
+    item.marker.setTooltipContent(boringTitle(item));
+    item.marker.setPopupContent(`<b>Podbusivanje raketom FI 130</b><br>Duzina: ${formatMeters(item.length_m)}<br>Ugao: ${Math.round(normalizeAngle(item.angle_deg))}°`);
+}
+function createBoringDraft(center, options = {}) {
+    const item = {
+        type: 'boring_fi_130',
+        marker: null,
+        lines: [],
+        lengthLabel: null,
+        lengthHandle: null,
+        rotateHandle: null,
+        quantity: Number(options.length_m ?? options.quantity ?? 12),
+        length_m: Number(options.length_m ?? options.quantity ?? 12),
+        angle_deg: normalizeAngle(Number(options.angle_deg ?? 0)),
+        width_m: Number(options.width_m ?? 1.8),
+        note: options.note || '',
+    };
+    const geometry = boringGeometry(center, item.length_m, item.angle_deg, item.width_m);
+    item.lines = [
+        L.polyline(geometry.top, { color: '#dc2626', weight: 4, opacity: .95 }).addTo(map),
+        L.polyline(geometry.bottom, { color: '#dc2626', weight: 4, opacity: .95 }).addTo(map),
+    ];
+    item.marker = L.marker(center, { icon: icon('boring', 'FI130'), draggable: true })
+        .bindTooltip(boringTitle(item), { direction: 'top', offset: [0, -10] })
+        .bindPopup('')
+        .addTo(map);
+    item.lengthLabel = L.marker(geometry.labelPoint, { icon: boringLengthIcon(item.length_m), interactive: false }).addTo(map);
+    item.lengthHandle = L.marker(geometry.lengthHandle, { icon: boringGripIcon('L'), draggable: true })
+        .bindTooltip('Povuci za duzinu', { direction: 'top', offset: [0, -10] })
+        .addTo(map);
+    item.rotateHandle = L.marker(geometry.rotateHandle, { icon: boringGripIcon('R'), draggable: true })
+        .bindTooltip('Povuci za rotaciju 360°', { direction: 'top', offset: [0, -10] })
+        .addTo(map);
+    item.marker.on('drag', () => {
+        updateBoringDraft(item);
+        refreshPlanSummary();
+    });
+    item.lengthHandle.on('drag', event => {
+        const centerPoint = item.marker.getLatLng();
+        const handlePoint = event.target.getLatLng();
+        item.angle_deg = angleFromCenter(centerPoint, handlePoint);
+        item.length_m = Math.max(1, Math.round(map.distance(centerPoint, handlePoint) * 2 - 4));
+        item.quantity = item.length_m;
+        updateBoringDraft(item);
+        refreshPlanSummary();
+    });
+    item.rotateHandle.on('drag', event => {
+        item.angle_deg = angleFromCenter(item.marker.getLatLng(), event.target.getLatLng()) + 90;
+        updateBoringDraft(item);
+        refreshPlanSummary();
+    });
+    updateBoringDraft(item);
+    return item;
+}
+function removeAppendixDraftItem(item) {
+    if (!item) return;
+    [item.marker, item.lengthLabel, item.lengthHandle, item.rotateHandle, ...(item.lines || [])].forEach(layer => {
+        if (layer && map.hasLayer(layer)) map.removeLayer(layer);
+    });
+}
 function draftNetworkPoints() { return [...branches, activeBranch].filter(b => b.length > 1); }
 function allNetworkPoints() { return [...savedRoutePoints, ...branches, activeBranch].filter(b => b.length > 1); }
 function allDistance() { return draftNetworkPoints().reduce((sum, b) => sum + distance(b), 0); }
 function routeTypeLabel(type) {
-    return type === 'backbone' ? 'Backbone' : type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
+    return type === 'trench' ? 'Glavni rov' : type === 'backbone' ? 'Backbone' : type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
 }
 function routeColor(type) {
-    return type === 'backbone' ? '#2563eb' : type === 'feeder' ? '#308DCC' : type === 'drop' ? '#7BA9DA' : '#81C342';
+    return type === 'trench' ? '#111827' : type === 'backbone' ? '#2563eb' : type === 'feeder' ? '#308DCC' : type === 'drop' ? '#7BA9DA' : '#81C342';
 }
 function nextRouteName(type) {
-    const prefix = type === 'feeder' ? 'P' : type === 'drop' ? 'D' : 'S';
+    const prefix = type === 'trench' ? 'R' : type === 'feeder' ? 'P' : type === 'drop' ? 'D' : 'S';
     const count = branchMeta.filter(meta => meta.route_type === type).length + 1;
     return `${prefix}-${String(count).padStart(2, '0')}`;
 }
@@ -844,13 +1036,16 @@ function currentRouteDraftMeta() {
     const startSource = document.getElementById('route-start-source')?.value || '';
     const [fromType, fromId] = startSource ? startSource.split(':') : [null, null];
     const sourceCabinet = fromType === 'cabinet' ? data.cabinets.find(cabinet => Number(cabinet.id) === Number(fromId)) : null;
+    const isTrench = type === 'trench';
     return {
         name: manualName || nextRouteName(type),
         route_type: type,
         installation_type: document.getElementById('route-draw-installation').value,
-        microduct_type: document.getElementById('route-draw-microduct-type').value,
-        fiber_count: Number(document.getElementById('route-draw-fiber-count').value || 12),
-        microduct_count: Math.max(1, Number(document.getElementById('route-draw-microducts').value || 1)),
+        counts_as_trench: isTrench,
+        trench_length_m: null,
+        microduct_type: isTrench ? null : document.getElementById('route-draw-microduct-type').value,
+        fiber_count: isTrench ? 4 : Number(document.getElementById('route-draw-fiber-count').value || 12),
+        microduct_count: isTrench ? 0 : Math.max(1, Number(document.getElementById('route-draw-microducts').value || 1)),
         odf_index: fromType === 'odf' ? null : odf.odf_index,
         odf_id: fromType === 'odf' ? Number(fromId) : (sourceCabinet?.odf_id || odf.odf_id),
         from_type: fromType || null,
@@ -1214,6 +1409,20 @@ function refreshRouteOdfStatus() {
         ? 'Krak nije vezan na ODF. Odaberi/postavi aktivni ODF prije crtanja.'
         : `Novi krakovi se vežu na ODF-${String(activeDraftOdfIndex + 1).padStart(2, '0')}.`;
 }
+function refreshTrenchGroupStatus() {
+    const input = document.getElementById('route-draw-type');
+    const status = document.getElementById('route-trench-status');
+    if (!input || !status) return;
+    const isTrench = input.value === 'trench';
+    status.textContent = isTrench ? 'crtanje rova' : 'crtanje mikrocijevi';
+    status.className = isTrench
+        ? 'rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white'
+        : 'rounded bg-white px-2 py-1 text-xs font-bold text-amber-800';
+    ['route-draw-microducts', 'route-draw-microduct-type', 'route-draw-fiber-count'].forEach(id => {
+        const field = document.getElementById(id);
+        if (field) field.disabled = isTrench;
+    });
+}
 function routeLabelPoint(points, position = .5) {
     if (!points.length) return null;
     if (points.length === 1) return points[0];
@@ -1273,7 +1482,9 @@ function removeDraftElement(marker) {
     const item = draftElements.find(entry => entry.marker === marker);
     if (!item) return;
     if (selectedDraftElement?.item.marker === marker) closeDraftElementEditor();
-    map.removeLayer(marker);
+    const appendixItem = draftAppendixItems.find(entry => entry.marker === marker);
+    if (appendixItem) removeAppendixDraftItem(appendixItem);
+    else map.removeLayer(marker);
     draftElements = draftElements.filter(entry => entry.marker !== marker);
     if (item.type === 'odf') {
         const removedIndex = draftOdfs.findIndex(entry => entry.marker === marker);
@@ -1676,7 +1887,8 @@ function finishBranch() {
             path: activeBranch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
         });
         const odfLabel = meta.odf_index === null || meta.odf_index === undefined ? 'bez ODF' : `ODF-${String(meta.odf_index + 1).padStart(2, '0')}`;
-        const line = trackLayer(L.polyline(activeBranch, { color: routeColor(meta.route_type), weight: 4 }).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), routeLayerType(meta.route_type));
+        const lineWeight = meta.route_type === 'trench' ? 6 : 4;
+        const line = trackLayer(L.polyline(activeBranch, { color: routeColor(meta.route_type), weight: lineWeight }).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), routeLayerType(meta.route_type));
         branchLines.push(line);
         registerBranchContext(line);
         addRouteLabel(activeBranch, meta.name);
@@ -2230,12 +2442,14 @@ function planPayload() {
             name: meta.name || `Trasa ${index+1}`,
             route_type: meta.route_type || 'distribution',
             installation_type: meta.installation_type || 'underground',
-            microduct_type: meta.microduct_type || '14/10',
-            fiber_count: meta.fiber_count || 12,
+            counts_as_trench: (meta.route_type || 'distribution') === 'trench',
+            trench_length_m: null,
+            microduct_type: (meta.route_type || 'distribution') === 'trench' ? null : (meta.microduct_type || '14/10'),
+            fiber_count: (meta.route_type || 'distribution') === 'trench' ? 4 : (meta.fiber_count || 12),
             odf_index: meta.odf_index ?? null,
             duct_length_m: meters,
             fiber_length_m: meters,
-            microduct_count: meta.microduct_count || 1,
+            microduct_count: (meta.route_type || 'distribution') === 'trench' ? 0 : (meta.microduct_count || 1),
             path: branch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
             odf_id: meta.odf_id ?? null,
             from_type: meta.from_type ?? null,
@@ -2252,7 +2466,10 @@ function planPayload() {
             type: item.type,
             lat: Number(p.lat.toFixed(7)),
             lng: Number(p.lng.toFixed(7)),
-            quantity: item.quantity || 1,
+            quantity: item.type === 'boring_fi_130' ? Number((item.length_m || item.quantity || 1).toFixed(2)) : (item.quantity || 1),
+            length_m: item.type === 'boring_fi_130' ? Number((item.length_m || item.quantity || 1).toFixed(2)) : null,
+            angle_deg: item.type === 'boring_fi_130' ? Number(normalizeAngle(item.angle_deg || 0).toFixed(2)) : null,
+            width_m: item.type === 'boring_fi_130' ? Number((item.width_m || 1.8).toFixed(2)) : null,
             note: item.note || '',
         };
     });
@@ -2262,7 +2479,10 @@ function planPayload() {
 function refreshPlanSummary() {
     const payload = planPayload();
     document.getElementById('bulk-plan-json').value = JSON.stringify(payload);
-    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa, ${payload.appendix_items.length} stavki.`;
+    const boringMeters = payload.appendix_items
+        .filter(item => item.type === 'boring_fi_130')
+        .reduce((sum, item) => sum + Number(item.length_m || item.quantity || 0), 0);
+    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa, ${payload.appendix_items.length} stavki, FI130 ${Math.round(boringMeters)} m.`;
     scheduleDraftAutosave();
 }
 
@@ -2330,7 +2550,10 @@ function draftPayload() {
                 type: item.type,
                 lat: Number(p.lat.toFixed(7)),
                 lng: Number(p.lng.toFixed(7)),
-                quantity: item.quantity || 1,
+                quantity: item.type === 'boring_fi_130' ? Number((item.length_m || item.quantity || 1).toFixed(2)) : (item.quantity || 1),
+                length_m: item.type === 'boring_fi_130' ? Number((item.length_m || item.quantity || 1).toFixed(2)) : null,
+                angle_deg: item.type === 'boring_fi_130' ? Number(normalizeAngle(item.angle_deg || 0).toFixed(2)) : null,
+                width_m: item.type === 'boring_fi_130' ? Number((item.width_m || 1.8).toFixed(2)) : null,
                 note: item.note || '',
             };
         }),
@@ -2344,7 +2567,10 @@ function restoreDraft(payload) {
     houseMarkers.forEach(marker => map.removeLayer(marker));
     houseMarkers = [];
     housePoints = data.houses.map(h => L.latLng(h.lat, h.lng));
-    draftElements.forEach(item => map.removeLayer(item.marker));
+    draftAppendixItems.forEach(removeAppendixDraftItem);
+    draftElements.forEach(item => {
+        if (!draftAppendixItems.some(appendixItem => appendixItem.marker === item.marker)) map.removeLayer(item.marker);
+    });
     draftElements = [];
     draftOdfs = [];
     draftCabinets = [];
@@ -2361,7 +2587,9 @@ function restoreDraft(payload) {
         const normalizedMeta = {
             name: meta.name || `Trasa ${index + 1}`,
             route_type: meta.route_type || 'distribution',
-            microduct_count: meta.microduct_count || 1,
+            microduct_count: (meta.route_type || 'distribution') === 'trench' ? 0 : (meta.microduct_count || 1),
+            counts_as_trench: (meta.route_type || 'distribution') === 'trench',
+            trench_length_m: null,
             odf_index: meta.odf_index ?? null,
             odf_id: meta.odf_id ?? null,
             from_type: meta.from_type ?? null,
@@ -2432,15 +2660,19 @@ function restoreDraft(payload) {
     (payload.appendix_items || []).forEach(item => {
         const latLng = L.latLng(item.lat, item.lng);
         const isManhole = item.type === 'manhole';
-        const draftItem = { type: item.type, quantity: item.quantity || 1, note: item.note || '', marker: null };
-        const marker = L.marker(latLng, { icon: icon(isManhole ? 'manhole' : 'boring', isManhole ? 'S' : 'FI130'), draggable: true })
-            .bindTooltip(isManhole ? 'Prolazni saht' : 'Podbusivanje raketom FI 130', { direction: 'top', offset: [0, -10] })
-            .addTo(map);
-        draftItem.marker = marker;
-        marker.on('drag', refreshPlanSummary);
-        registerDraftContext(marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
+        const draftItem = isManhole
+            ? { type: item.type, quantity: item.quantity || 1, note: item.note || '', marker: null }
+            : createBoringDraft(latLng, item);
+        if (isManhole) {
+            const marker = L.marker(latLng, { icon: icon('manhole', 'S'), draggable: true })
+                .bindTooltip('Prolazni saht', { direction: 'top', offset: [0, -10] })
+                .addTo(map);
+            draftItem.marker = marker;
+            marker.on('drag', refreshPlanSummary);
+        }
+        registerDraftContext(draftItem.marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
         draftAppendixItems.push(draftItem);
-        draftElements.push({ type: item.type, marker });
+        draftElements.push({ type: item.type, marker: draftItem.marker });
     });
 
     refreshDraftTooltips();
@@ -2507,13 +2739,16 @@ document.getElementById('clear-draw').addEventListener('click', clearDraw);
 document.getElementById('route-draw-type').addEventListener('change', event => {
     document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName(event.target.value)}`;
     document.getElementById('cad-command').textContent = `TRASA: aktivan tip ${routeTypeLabel(event.target.value)}. Klikni tačke na mapi.`;
+    refreshTrenchGroupStatus();
 });
 document.getElementById('undo-house').addEventListener('click', () => { const m = houseMarkers.pop(); if(m) map.removeLayer(m); housePoints.pop(); refreshStats(); });
 document.getElementById('undo-element').addEventListener('click', () => {
     const item = draftElements.pop();
     if (!item) return;
     if (selectedDraftElement?.item.marker === item.marker) closeDraftElementEditor();
-    map.removeLayer(item.marker);
+    const appendixItem = draftAppendixItems.find(entry => entry.marker === item.marker);
+    if (appendixItem) removeAppendixDraftItem(appendixItem);
+    else map.removeLayer(item.marker);
     if (item.type === 'odf') {
         const removedIndex = draftOdfs.findIndex(entry => entry.marker === item.marker);
         draftOdfs = draftOdfs.filter(entry => entry.marker !== item.marker);
@@ -2851,23 +3086,24 @@ map.on('click', e => {
     }
     if (mode === 'manhole' || mode === 'boring-fi-130') {
         const isManhole = mode === 'manhole';
-        const item = {
-            type: isManhole ? 'manhole' : 'boring_fi_130',
-            marker: null,
-            quantity: 1,
-            note: '',
-        };
-        const marker = L.marker(e.latlng, { icon: icon(isManhole ? 'manhole' : 'boring', isManhole ? 'S' : 'FI130'), draggable: true })
-            .addTo(map)
-            .bindTooltip(isManhole ? 'Prolazni saht' : 'Podbusivanje raketom FI 130', { direction: 'top', offset: [0, -10] })
-            .bindPopup(isManhole ? 'Prolazni saht' : 'Podbusivanje raketom FI 130')
-            .openPopup();
-        item.marker = marker;
-        marker.on('drag', refreshPlanSummary);
-        marker.on('click', () => marker.openPopup());
+        const item = isManhole
+            ? { type: 'manhole', marker: null, quantity: 1, note: '' }
+            : createBoringDraft(e.latlng, { length_m: 12, angle_deg: 0, width_m: 1.8 });
+        if (isManhole) {
+            const marker = L.marker(e.latlng, { icon: icon('manhole', 'S'), draggable: true })
+                .addTo(map)
+                .bindTooltip('Prolazni saht', { direction: 'top', offset: [0, -10] })
+                .bindPopup('Prolazni saht')
+                .openPopup();
+            item.marker = marker;
+            marker.on('drag', refreshPlanSummary);
+            marker.on('click', () => marker.openPopup());
+        } else {
+            item.marker.openPopup();
+        }
         draftAppendixItems.push(item);
-        draftElements.push({ type: item.type, marker });
-        registerDraftContext(marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
+        draftElements.push({ type: item.type, marker: item.marker });
+        registerDraftContext(item.marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
         refreshPlanSummary();
         return;
     }
@@ -2933,7 +3169,10 @@ document.getElementById('active-project-id').addEventListener('change', (e) => {
         houseMarkers.forEach(m => map.removeLayer(m));
         houseMarkers = [];
         housePoints = data.houses.map(h => L.latLng(h.lat, h.lng));
-        draftElements.forEach(item => map.removeLayer(item.marker));
+        draftAppendixItems.forEach(removeAppendixDraftItem);
+        draftElements.forEach(item => {
+            if (!draftAppendixItems.some(appendixItem => appendixItem.marker === item.marker)) map.removeLayer(item.marker);
+        });
         draftElements = [];
         draftOdfs = [];
         draftCabinets = [];
@@ -2968,5 +3207,6 @@ if (pendingTraceHouseId) {
     localStorage.removeItem('ftthTraceHouseId');
     setTimeout(() => showFiberTrace(pendingTraceHouseId), 350);
 }
+refreshTrenchGroupStatus();
 </script>
 @endsection

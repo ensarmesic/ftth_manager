@@ -30,7 +30,8 @@ class RouteController extends Controller
     public function routes(): View
     {
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->latest()->paginate(12);
-        $totalDuct = NetworkRoute::sum('duct_length_m');
+        $allRoutes = NetworkRoute::query()->get();
+        $totalDuct = $allRoutes->sum(fn (NetworkRoute $route) => $route->trenchLengthForReport());
         $effectiveMicroduct = NetworkRoute::query()->selectRaw('SUM(duct_length_m * microduct_count) as total')->value('total') ?? 0;
         $totalFiber = NetworkRoute::sum('fiber_length_m');
 
@@ -62,17 +63,28 @@ class RouteController extends Controller
             'to_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
-            'route_type' => ['required', 'in:backbone,feeder,distribution,drop'],
+            'route_type' => ['required', 'in:trench,backbone,feeder,distribution,drop'],
             'installation_type' => ['required', 'in:aerial,underground'],
+            'trench_group' => ['nullable', 'string', 'max:80'],
+            'counts_as_trench' => ['nullable', 'boolean'],
+            'trench_length_m' => ['nullable', 'integer', 'min:0'],
             'duct_length_m' => ['required', 'integer', 'min:0'],
             'fiber_length_m' => ['required', 'integer', 'min:0'],
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
-            'microduct_count' => ['required', 'integer', 'min:1'],
-            'microduct_type' => ['required', 'in:14/10,10/8'],
+            'microduct_count' => ['required', 'integer', 'min:0'],
+            'microduct_type' => ['nullable', 'in:14/10,10/8'],
             'status' => ['required', 'in:planned,in_progress,built'],
             'path' => ['nullable', 'json'],
             'note' => ['nullable', 'string'],
         ]);
+        $data['counts_as_trench'] = $data['route_type'] === 'trench';
+        $data['trench_length_m'] = null;
+        if ($data['route_type'] === 'trench') {
+            $data['microduct_count'] = 0;
+            $data['microduct_type'] = null;
+            $data['fiber_length_m'] = 0;
+            $data['fiber_count'] = 4;
+        }
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['to_id'] ?? null, $data['project_id'], 'to_id');
@@ -128,17 +140,26 @@ class RouteController extends Controller
         $route = NetworkRoute::findOrFail($id);
         $data = $request->validate([
             'name' => ['required', 'max:255'],
-            'route_type' => ['required', 'in:backbone,feeder,distribution,drop'],
+            'route_type' => ['required', 'in:trench,backbone,feeder,distribution,drop'],
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'from_type' => ['nullable', 'in:odf,cabinet'],
             'from_id' => ['nullable', 'integer'],
             'to_type' => ['nullable', 'in:cabinet'],
             'to_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
-            'microduct_type' => ['required', 'in:14/10,10/8'],
+            'microduct_type' => ['nullable', 'in:14/10,10/8'],
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
+            'trench_group' => ['nullable', 'string', 'max:80'],
+            'counts_as_trench' => ['nullable', 'boolean'],
+            'trench_length_m' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string'],
         ]);
+        $data['counts_as_trench'] = $data['route_type'] === 'trench';
+        $data['trench_length_m'] = null;
+        if ($data['route_type'] === 'trench') {
+            $data['microduct_type'] = null;
+            $data['fiber_count'] = 4;
+        }
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $route->project_id, 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $route->project_id, 'cabinet_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['to_id'] ?? null, $route->project_id, 'to_id');

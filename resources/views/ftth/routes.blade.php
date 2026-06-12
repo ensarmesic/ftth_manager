@@ -15,7 +15,7 @@
 </details>
 
 <section class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <article class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm"><div class="text-sm text-zinc-500">Trase ukupno</div><div class="mt-2 text-2xl font-semibold">{{ number_format($routeStats['duct']) }} m</div></article>
+    <article class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm"><div class="text-sm text-zinc-500">Glavni rov fizicki</div><div class="mt-2 text-2xl font-semibold">{{ number_format($routeStats['duct']) }} m</div></article>
     <article class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm"><div class="text-sm text-zinc-500">Mikrocijev efektivno</div><div class="mt-2 text-2xl font-semibold">{{ number_format($routeStats['effective_microduct']) }} m</div><div class="text-xs text-zinc-500">sa 10%: {{ number_format($routeStats['microduct_with_reserve']) }} m</div></article>
     <article class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm"><div class="text-sm text-zinc-500">Opticki kabl</div><div class="mt-2 text-2xl font-semibold">{{ number_format($routeStats['fiber']) }} m</div><div class="text-xs text-zinc-500">sa 10%: {{ number_format($routeStats['fiber_with_reserve']) }} m</div></article>
     <article class="rounded-md border border-zinc-200 bg-white p-4 shadow-sm"><div class="text-sm text-zinc-500">Ormarici / splitteri</div><div class="mt-2 text-2xl font-semibold">{{ $routeStats['planned_cabinets'] }} / {{ $routeStats['planned_splitters'] }}</div></article>
@@ -32,7 +32,7 @@
             <label class="grid gap-1 text-sm"><span>Pocetni ODO</span><select name="from_id" class="rounded-md border border-zinc-300 px-3 py-2"><option value="">Bez ODO pocetka</option>@foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}">{{ $cabinet->name }}</option>@endforeach</select></label>
             <label class="grid gap-1 text-sm"><span>Krajnji ormaric</span><select name="cabinet_id" class="rounded-md border border-zinc-300 px-3 py-2"><option value="">Bez ormarica</option>@foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}">{{ $cabinet->name }}</option>@endforeach</select></label>
             <label class="grid gap-1 text-sm"><span>Naziv trase</span><input name="name" value="{{ old('name') }}" class="rounded-md border border-zinc-300 px-3 py-2" required></label>
-            <label class="grid gap-1 text-sm"><span>Tip trase</span><select name="route_type" class="rounded-md border border-zinc-300 px-3 py-2"><option value="feeder">Feeder</option><option value="distribution">Distribucija</option><option value="drop">Drop</option></select></label>
+            <label class="grid gap-1 text-sm"><span>Tip trase</span><select name="route_type" class="rounded-md border border-zinc-300 px-3 py-2"><option value="trench">Glavni rov</option><option value="feeder">Feeder</option><option value="distribution">Distribucija</option><option value="drop">Drop</option></select></label>
             <label class="grid gap-1 text-sm"><span>Polaganje</span><select name="installation_type" class="rounded-md border border-zinc-300 px-3 py-2"><option value="underground">Podzemna</option><option value="aerial">Zracna</option></select></label>
             <div class="grid gap-3 sm:grid-cols-3">
                 <label class="grid gap-1 text-sm"><span>Mikrocijev m</span><input type="number" name="duct_length_m" value="{{ old('duct_length_m', 0) }}" min="0" class="rounded-md border border-zinc-300 px-3 py-2" required></label>
@@ -48,9 +48,9 @@
         </div>
     </form>
 
-    @include('ftth.partials.table', ['rows' => $routes, 'columns' => ['name' => 'Trasa', 'project.name' => 'Projekat', 'from_label' => 'Od', 'cabinet.name' => 'Do ODO', 'installation_type' => 'Polaganje', 'microduct_type' => 'Mikrocijev', 'duct_length_m' => 'Duzina m', 'fiber_count' => 'Niti', 'status' => 'Status'], 'editRoute' => fn($id) => route('routes.update', $id), 'deleteRoute' => fn($id) => route('routes.delete', $id), 'editFields' => [
+    @include('ftth.partials.table', ['rows' => $routes, 'columns' => ['name' => 'Trasa', 'project.name' => 'Projekat', 'from_label' => 'Od', 'cabinet.name' => 'Do ODO', 'route_type' => 'Tip', 'installation_type' => 'Polaganje', 'microduct_type' => 'Mikrocijev', 'duct_length_m' => 'Duzina m', 'fiber_count' => 'Niti', 'status' => 'Status'], 'editRoute' => fn($id) => route('routes.update', $id), 'deleteRoute' => fn($id) => route('routes.delete', $id), 'editFields' => [
         'name' => 'Trasa',
-        'route_type' => ['label' => 'Tip', 'type' => 'select', 'options' => ['feeder' => 'Feeder', 'distribution' => 'Distribucija', 'drop' => 'Drop']],
+        'route_type' => ['label' => 'Tip', 'type' => 'select', 'options' => ['trench' => 'Glavni rov', 'feeder' => 'Feeder', 'distribution' => 'Distribucija', 'drop' => 'Drop']],
         'from_type' => ['label' => 'Pocetak', 'type' => 'select', 'options' => ['' => 'Bez pocetka', 'odf' => 'ODF', 'cabinet' => 'ODO/FTTH']],
         'odf_id' => ['label' => 'Pocetni ODF', 'type' => 'select', 'options' => ['' => 'Bez ODF veze'] + $odfs->pluck('name', 'id')->all()],
         'from_id' => ['label' => 'Pocetni ODO', 'type' => 'select', 'options' => ['' => 'Bez ODO pocetka'] + $cabinets->pluck('name', 'id')->all()],

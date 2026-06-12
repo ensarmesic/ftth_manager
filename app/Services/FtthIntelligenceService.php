@@ -294,6 +294,10 @@ class FtthIntelligenceService
         }
 
         foreach ($project->routes as $route) {
+            if ($route->route_type === 'trench') {
+                if ($route->duct_length_m <= 0) $items[] = $this->validationItem('error', "{$route->name} nema ispravnu duÅ¾inu.", 'route', $route->id, 'Uredi geometriju trase.');
+                continue;
+            }
             if (! $route->fiber_count) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema kabal.", 'route', $route->id, 'Unesi broj niti kabla.');
             }
