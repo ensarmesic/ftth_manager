@@ -301,9 +301,9 @@ trait ManagesFtthData
             $query->whereKeyNot($exceptHouseId);
         }
 
-        if ($query->count() >= 12) {
+        if ($query->count() >= $cabinet->capacity) {
             validator(['cabinet_id' => $cabinetId], [
-                'cabinet_id' => [fn ($attribute, $value, $fail) => $fail('ODO ormaric ne moze imati vise od 12 kuca.')],
+                'cabinet_id' => [fn ($attribute, $value, $fail) => $fail("ODO ormaric ne moze imati vise od {$cabinet->capacity} kuca.")],
             ])->validate();
         }
     }

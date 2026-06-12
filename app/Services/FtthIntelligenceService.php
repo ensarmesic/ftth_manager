@@ -562,7 +562,7 @@ class FtthIntelligenceService
             ->sortByDesc(fn (Cabinet $cabinet) => $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $branch['route'])['chainage_m']);
 
         foreach ($cabinets as $cabinet) {
-            $free = 12 - $cabinet->houses_count;
+            $free = max(12 - $cabinet->houses_count, 0);
             $selected = $remaining->filter(fn (House $house) => $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $cabinet->latitude, (float) $cabinet->longitude) <= $params['max_house_to_odo_m'])
                 ->sortBy(fn (House $house) => $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $cabinet->latitude, (float) $cabinet->longitude))
                 ->take($free)

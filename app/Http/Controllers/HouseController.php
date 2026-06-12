@@ -115,8 +115,8 @@ class HouseController extends Controller
             return response()->json(['message' => 'Jedna ili vise kuca vec su povezane na drugi ODO.'], 422);
         }
         $newHouses = $houses->whereNull('cabinet_id');
-        if ($cabinet->houses_count + $newHouses->count() > 12) {
-            return response()->json(['message' => 'ODO ne moze imati vise od 12 kuca.'], 422);
+        if ($cabinet->houses_count + $newHouses->count() > $cabinet->capacity) {
+            return response()->json(['message' => "ODO ne moze imati vise od {$cabinet->capacity} kuca."], 422);
         }
 
         $routes = DB::transaction(function () use ($cabinet, $newHouses) {
