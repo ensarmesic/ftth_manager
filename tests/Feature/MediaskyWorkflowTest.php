@@ -50,6 +50,96 @@ class MediaskyWorkflowTest extends TestCase
         $this->get(route('map.index'))->assertRedirect(route('dashboard'));
     }
 
+    public function test_map_plan_saves_trench_route_without_fiber_or_microduct(): void
+    {
+        $project = Project::create(['name' => 'Rov mapa', 'code' => 'ROV-MAPA', 'location' => 'Test', 'status' => 'planning']);
+        $plan = ['routes' => [[
+            'name' => 'R-01',
+            'route_type' => 'trench',
+            'duct_length_m' => 42,
+            'fiber_length_m' => 42,
+            'microduct_count' => 1,
+            'microduct_type' => '14/10',
+            'path' => [[44.4493, 18.6498], [44.4500, 18.6505]],
+        ]]];
+
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+
+        $this->assertDatabaseHas('routes', [
+            'project_id' => $project->id,
+            'name' => 'R-01',
+            'route_type' => 'trench',
+            'fiber_length_m' => 0,
+            'microduct_count' => 0,
+            'microduct_type' => null,
+        ]);
+    }
+
+    public function test_map_plan_generates_odo_and_route_names_when_missing(): void
+    {
+        $project = Project::create(['name' => 'Auto nazivi', 'code' => 'AUTO-NAZIVI', 'location' => 'Test', 'status' => 'planning']);
+        $plan = [
+            'cabinets' => [[
+                'lat' => 44.451,
+                'lng' => 18.651,
+                'splitter_count' => 2,
+            ]],
+            'routes' => [[
+                'route_type' => 'distribution',
+                'duct_length_m' => 42,
+                'path' => [[44.4493, 18.6498], [44.4500, 18.6505]],
+            ], [
+                'route_type' => 'trench',
+                'duct_length_m' => 30,
+                'path' => [[44.4500, 18.6505], [44.4510, 18.6515]],
+            ]],
+        ];
+
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+
+        $this->assertDatabaseHas('cabinets', ['project_id' => $project->id, 'name' => 'FTTH 1-1-1']);
+        $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'Sekundarni krak 1', 'route_type' => 'distribution']);
+        $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'Glavni rov 1', 'route_type' => 'trench', 'microduct_type' => null]);
+    }
+
+    public function test_project_geojson_export_contains_points_and_routes(): void
+    {
+        $project = Project::create(['name' => 'Geo export', 'code' => 'GEO', 'location' => 'Test', 'status' => 'planning']);
+        Odf::create(['project_id' => $project->id, 'name' => 'ODF-1', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4490, 'longitude' => 18.6490]);
+        NetworkRoute::create(['project_id' => $project->id, 'name' => 'Sekundarni krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.4490, 18.6490], [44.4500, 18.6500]]]);
+
+        $this->getJson(route('projects.geojson', $project))
+            ->assertOk()
+            ->assertJsonPath('type', 'FeatureCollection')
+            ->assertJsonPath('features.0.geometry.type', 'Point')
+            ->assertJsonPath('features.1.geometry.type', 'LineString');
+    }
+
+    public function test_project_dxf_export_contains_polyline_and_labels(): void
+    {
+        $project = Project::create(['name' => 'DXF export', 'code' => 'DXFE', 'location' => 'Test', 'status' => 'planning']);
+        Odf::create(['project_id' => $project->id, 'name' => 'ODF-1', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4490, 'longitude' => 18.6490]);
+        NetworkRoute::create(['project_id' => $project->id, 'name' => 'Sekundarni krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.4490, 18.6490], [44.4500, 18.6500]]]);
+
+        $this->get(route('projects.dxf', $project))
+            ->assertOk()
+            ->assertSee('POLYLINE', false)
+            ->assertSee('FTTH_SECONDARY', false)
+            ->assertSee('Sekundarni krak 1', false);
+    }
+
+    public function test_project_print_view_renders_summary(): void
+    {
+        $project = Project::create(['name' => 'Print projekt', 'code' => 'PRINT', 'location' => 'Test', 'status' => 'planning']);
+        NetworkRoute::create(['project_id' => $project->id, 'name' => 'Sekundarni krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.4490, 18.6490], [44.4500, 18.6500]]]);
+
+        $this->get(route('projects.print', $project))
+            ->assertOk()
+            ->assertSee('Print projekt')
+            ->assertSee('Materijalni sazetak')
+            ->assertSee('Sekundarni krak 1');
+    }
+
     public function test_map_workspace_renders_cad_and_auto_odo_controls(): void
     {
         $this->get(route('map.dashboard'))
@@ -402,6 +492,8 @@ class MediaskyWorkflowTest extends TestCase
     public function test_route_metadata_can_be_updated_without_changing_geometry(): void
     {
         $project = Project::create(['name' => 'Meta', 'code' => 'META', 'location' => 'Test', 'status' => 'planning']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'name' => 'FTTH-01', 'address' => 'Krak', 'splitter_count' => 3, 'ports_per_splitter' => 4]);
+        $house = House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'K-001', 'status' => 'planned']);
         $route = NetworkRoute::create(['project_id' => $project->id, 'name' => 'Stari naziv', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 25, 'fiber_length_m' => 25, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.4493, 18.6498], [44.4494, 18.6499]]]);
 
         $this->patchJson(route('routes.update', $route), [
@@ -409,9 +501,14 @@ class MediaskyWorkflowTest extends TestCase
             'route_type' => 'drop',
             'microduct_type' => '10/8',
             'fiber_count' => 4,
+            'from_type' => 'cabinet',
+            'from_id' => $cabinet->id,
+            'to_type' => 'house',
+            'to_id' => $house->id,
+            'cabinet_id' => $cabinet->id,
         ])->assertOk()->assertJsonPath('route.name', 'Novi naziv');
 
-        $this->assertDatabaseHas('routes', ['id' => $route->id, 'name' => 'Novi naziv', 'route_type' => 'drop', 'fiber_count' => 4]);
+        $this->assertDatabaseHas('routes', ['id' => $route->id, 'name' => 'Novi naziv', 'route_type' => 'drop', 'fiber_count' => 4, 'to_type' => 'house', 'to_id' => $house->id]);
         $this->assertSame([[44.4493, 18.6498], [44.4494, 18.6499]], $route->fresh()->path);
     }
 
@@ -491,6 +588,24 @@ class MediaskyWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('houses', ['id' => $house->id, 'cabinet_id' => $cabinet->id]);
         $this->assertDatabaseHas('routes', ['cabinet_id' => $cabinet->id, 'to_type' => 'house', 'to_id' => $house->id, 'route_type' => 'drop', 'fiber_count' => 4]);
+    }
+
+    public function test_project_can_fill_missing_drop_routes_from_existing_branch_geometry(): void
+    {
+        $project = Project::create(['name' => 'Drop fill', 'code' => 'FILL', 'location' => 'Test', 'status' => 'planning']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'name' => 'FTTH-01', 'address' => 'Krak', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 44.45, 'longitude' => 18.65]);
+        $house = House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'K-001', 'latitude' => 44.452, 'longitude' => 18.652, 'status' => 'planned']);
+        NetworkRoute::create(['project_id' => $project->id, 'name' => 'Sekundarni krak 1.1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 300, 'fiber_length_m' => 300, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651], [44.452, 18.652]]]);
+
+        $this->postJson(route('projects.drop-routes.fill', $project))
+            ->assertOk()
+            ->assertJsonPath('created', 1)
+            ->assertJsonCount(1, 'routes')
+            ->assertJsonPath('routes.0.to_type', 'house');
+
+        $drop = NetworkRoute::where('route_type', 'drop')->firstOrFail();
+        $this->assertSame($house->id, $drop->to_id);
+        $this->assertGreaterThanOrEqual(3, count($drop->path));
     }
 
     public function test_two_routes_with_near_endpoints_can_be_joined(): void

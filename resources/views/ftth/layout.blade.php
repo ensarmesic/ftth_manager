@@ -54,11 +54,10 @@
                 @endforeach
             </div>
         @endif
-        <div class="mt-auto px-7 pb-7 text-slate-300"><b class="text-lg tracking-wider text-white">mediasky</b><small class="block tracking-[.35em] text-blue-400">telecom</small></div>
     </aside>
 
     <main class="{{ $isWide ? 'flex min-h-0 flex-1 flex-col lg:overflow-hidden' : '' }} min-w-0 flex-1">
-        <header class="flex h-[56px] shrink-0 items-center justify-between gap-2 border-b bg-white px-2 shadow-sm sm:h-[60px] sm:px-4 xl:px-5">
+        <header class="relative z-[1300] flex h-[56px] shrink-0 items-center justify-between gap-2 border-b bg-white px-2 shadow-sm sm:h-[60px] sm:px-4 xl:px-5">
             <div class="flex min-w-0 items-center gap-2 text-sm xl:gap-5">
                 <button type="button" data-header-action="mobile-menu" class="rounded-md p-2 text-slate-700 hover:bg-slate-100 lg:hidden" aria-label="Otvori meni">Meni</button>
                 <span class="text-sm font-black text-blue-600">FT</span>
@@ -67,10 +66,9 @@
             <div class="relative flex items-center gap-1 text-sm xl:gap-2">
                 <button type="button" data-header-action="search" class="rounded-md p-2 text-slate-600 hover:bg-slate-100">Trazi</button>
                 <button type="button" data-header-action="fullscreen" class="hidden rounded-md p-2 text-slate-600 hover:bg-slate-100 sm:inline">Ekran</button>
-                <button type="button" data-header-action="notifications" class="relative rounded-md p-2 text-slate-600 hover:bg-slate-100"><span class="hidden sm:inline">Obavijesti</span><span class="sm:hidden">Obav.</span> @if($headerNotifications->count())<b data-notification-badge class="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-[9px] text-white">{{ $headerNotifications->count() }}</b>@endif</button>
+                <a href="{{ route('project-check.index') }}" data-header-action="notifications" class="relative rounded-md p-2 text-slate-600 hover:bg-slate-100"><span class="hidden sm:inline">Obavijesti</span><span class="sm:hidden">Obav.</span> @if($headerNotifications->count())<b data-notification-badge class="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-[9px] text-white">{{ $headerNotifications->count() }}</b>@endif</a>
                 <button type="button" data-header-action="profile" class="flex items-center gap-2 rounded-md p-1 hover:bg-slate-100"><span class="grid h-9 w-9 place-items-center rounded-full bg-slate-200 font-bold">EM</span><span class="hidden xl:inline text-left"><b>Ensar Mesic</b><small class="block text-[11px] text-slate-500">Administrator</small></span></button>
-                <div id="notification-menu" class="absolute right-0 top-12 z-[1200] hidden w-[min(20rem,calc(100vw-1rem))] rounded-lg border border-slate-200 bg-white p-3 shadow-xl"><h3 class="text-xs font-bold uppercase text-slate-500">Obavijesti</h3><div class="mt-2 grid gap-2">@forelse($headerNotifications as $notification)<div class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">{{ $notification }}</div>@empty<div class="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">Nema otvorenih upozorenja.</div>@endforelse</div><a href="{{ route('project-check.index') }}" class="mt-3 block text-center text-xs font-bold text-blue-600">Otvori provjeru projekta</a></div>
-                <div id="profile-menu" class="absolute right-0 top-12 z-[1200] hidden w-52 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"><div class="px-3 py-2 text-xs text-slate-500">Administrator</div><a href="{{ route('settings.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Postavke</a><a href="{{ route('reports.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Izvjestaji</a></div>
+                <div id="profile-menu" class="fixed right-2 top-14 z-[2200] hidden w-52 rounded-lg border border-slate-200 bg-white p-2 shadow-xl sm:right-4 sm:top-16"><div class="px-3 py-2 text-xs text-slate-500">Administrator</div><a href="{{ route('settings.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Postavke</a><a href="{{ route('reports.index') }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Izvjestaji</a></div>
             </div>
         </header>
         @unless($isDashboard)
@@ -81,7 +79,7 @@
             @if ($errors->any())<div class="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>@endif
             @yield('content')
         </div>
-        @if($isDashboard)<footer class="flex min-h-8 shrink-0 flex-wrap items-center justify-center gap-x-3 border-t bg-white px-2 py-1 text-center text-[10px] text-slate-500">&copy; 2026 Mediasky Telecom - FTTH Manager <span>Verzija 1.0.0</span></footer>@endif
+        @if($isDashboard)<footer class="flex min-h-8 shrink-0 flex-wrap items-center justify-center gap-x-3 border-t bg-white px-2 py-1 text-center text-[10px] text-slate-500">&copy; 2026 Mediasky · FTTH Manager <span>v1.0.0</span></footer>@endif
     </main>
 </div>
 <div id="mobile-sidebar-backdrop" class="fixed inset-0 z-[1350] hidden bg-slate-950/50 lg:hidden"></div>
@@ -117,15 +115,31 @@ const ftthMenuItems = [
     ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
     ['Postavke', @json(route('settings.index'))],
 ];
-function closeHeaderMenus(except = '') { ['notification-menu', 'profile-menu'].forEach(id => { if (id !== except) document.getElementById(id)?.classList.add('hidden'); }); }
-function toggleHeaderMenu(id) { const menu = document.getElementById(id); const opening = menu?.classList.contains('hidden'); closeHeaderMenus(id); menu?.classList.toggle('hidden', !opening); }
+function closeHeaderMenus(except = '') {
+    ['notification-menu', 'profile-menu'].forEach(id => {
+        if (id === except) return;
+        document.getElementById(id)?.classList.add('hidden');
+    });
+    document.querySelector('[data-header-action="notifications"]')?.setAttribute('aria-expanded', 'false');
+}
+function toggleHeaderMenu(id) {
+    const menu = document.getElementById(id);
+    if (!menu) return;
+    const opening = menu.classList.contains('hidden');
+    closeHeaderMenus(id);
+    menu.classList.toggle('hidden', !opening);
+    if (id === 'notification-menu') {
+        document.querySelector('[data-header-action="notifications"]')?.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    }
+}
 function renderGlobalSearch(value = '') { const results = ftthMenuItems.filter(([label]) => label.toLowerCase().includes(value.toLowerCase())); document.getElementById('global-search-results').innerHTML = results.map(([label, url]) => `<a class="rounded-md px-3 py-2 text-sm hover:bg-slate-100" href="${url}">${label}</a>`).join(''); }
 document.querySelector('[data-header-action="search"]')?.addEventListener('click', () => { const modal = document.getElementById('global-search'); modal.classList.remove('hidden'); modal.classList.add('grid'); renderGlobalSearch(); document.getElementById('global-search-input').focus(); });
 document.querySelector('[data-header-action="close-search"]')?.addEventListener('click', () => document.getElementById('global-search').classList.add('hidden'));
 document.getElementById('global-search-input')?.addEventListener('input', event => renderGlobalSearch(event.target.value));
 document.querySelector('[data-header-action="fullscreen"]')?.addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
-document.querySelector('[data-header-action="notifications"]')?.addEventListener('click', () => toggleHeaderMenu('notification-menu'));
-document.querySelector('[data-header-action="profile"]')?.addEventListener('click', () => toggleHeaderMenu('profile-menu'));
+document.querySelector('[data-header-action="profile"]')?.addEventListener('click', event => { event.stopPropagation(); toggleHeaderMenu('profile-menu'); });
+document.getElementById('profile-menu')?.addEventListener('click', event => event.stopPropagation());
+document.addEventListener('click', () => closeHeaderMenus());
 function toggleMobileSidebar(open) { document.getElementById('mobile-sidebar')?.classList.toggle('hidden', !open); document.getElementById('mobile-sidebar-backdrop')?.classList.toggle('hidden', !open); }
 document.querySelector('[data-header-action="mobile-menu"]')?.addEventListener('click', () => toggleMobileSidebar(true));
 document.querySelector('[data-header-action="close-mobile-menu"]')?.addEventListener('click', () => toggleMobileSidebar(false));

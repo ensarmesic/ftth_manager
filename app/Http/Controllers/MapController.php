@@ -35,7 +35,7 @@ class MapController extends Controller
             ->whereNotNull('longitude')
             ->get();
 
-        $cabinets = Cabinet::with(['project', 'odf', 'parentCabinet'])
+        $cabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])
             ->withCount(['houses', 'subscribers'])
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
@@ -95,6 +95,9 @@ class MapController extends Controller
                     'project' => $cabinet->project->name,
                     'odf_id' => $cabinet->odf_id,
                     'parent_cabinet_id' => $cabinet->parent_cabinet_id,
+                    'branch_id' => $cabinet->branch_id,
+                    'branch_name' => $cabinet->branch?->name,
+                    'branch_code' => $cabinet->branch?->code,
                     'odf' => $cabinet->odf->name ?? 'Nije povezano',
                     'parent_cabinet' => $cabinet->parentCabinet?->name,
                     'fed_from' => $cabinet->parentCabinet?->name ?? ($cabinet->odf->name ?? 'Nije povezano'),
@@ -188,6 +191,7 @@ class MapController extends Controller
             'houses.*.lat' => $this->latitudeRules(true),
             'houses.*.lng' => $this->longitudeRules(true),
             'routes' => ['nullable', 'array'],
+            'routes.*.route_type' => ['nullable', 'in:trench,backbone,feeder,distribution,drop'],
             'routes.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
             'routes.*.cabinet_id' => ['nullable', 'integer', 'exists:cabinets,id'],
             'routes.*.from_type' => ['nullable', 'in:odf,cabinet'],
@@ -242,10 +246,12 @@ class MapController extends Controller
                         ->id;
                 }
 
+                $cabinetName = $cabinet['name'] ?? $this->nextFtthCabinetNameForProject($projectId);
+
                 $createdCabinets[$index] = Cabinet::create([
                     'project_id' => $projectId,
                     'odf_id' => $odfId,
-                    'name' => $cabinet['name'] ?? 'FTTH-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
+                    'name' => $this->uniqueProjectName(Cabinet::class, $projectId, $cabinetName),
                     'address' => $cabinet['address'] ?? 'Sa mape',
                     'splitter_count' => $cabinet['splitter_count'] ?? 3,
                     'ports_per_splitter' => 4,
@@ -267,6 +273,7 @@ class MapController extends Controller
             }
 
             foreach (($plan['routes'] ?? []) as $index => $route) {
+                $routeType = $route['route_type'] ?? 'distribution';
                 $routeOdfId = isset($route['odf_index'], $createdOdfs[$route['odf_index']])
                     ? $createdOdfs[$route['odf_index']]->id
                     : ($route['odf_id'] ?? null);
@@ -297,6 +304,8 @@ class MapController extends Controller
                     $routeToId = Cabinet::query()->where('project_id', $projectId)->findOrFail($routeToId)->id;
                 }
 
+                $routeName = $route['name'] ?? $this->nextRouteNameForProject($projectId, $routeType);
+
                 $createdRoute = NetworkRoute::create([
                     'project_id' => $projectId,
                     'odf_id' => $routeOdfId,
@@ -305,17 +314,17 @@ class MapController extends Controller
                     'from_id' => $fromId,
                     'to_type' => $route['to_type'] ?? ($routeToId ? 'cabinet' : null),
                     'to_id' => $routeToId,
-                    'name' => $route['name'] ?? 'Trasa '.($index + 1),
-                    'route_type' => $route['route_type'] ?? 'distribution',
+                    'name' => $this->uniqueProjectName(NetworkRoute::class, $projectId, $routeName),
+                    'route_type' => $routeType,
                     'installation_type' => $route['installation_type'] ?? 'underground',
                     'trench_group' => $route['trench_group'] ?? null,
-                    'counts_as_trench' => ($route['route_type'] ?? null) === 'trench',
+                    'counts_as_trench' => $routeType === 'trench',
                     'trench_length_m' => null,
                     'duct_length_m' => $route['duct_length_m'] ?? 0,
-                    'fiber_length_m' => ($route['route_type'] ?? null) === 'trench' ? 0 : ($route['fiber_length_m'] ?? 0),
+                    'fiber_length_m' => $routeType === 'trench' ? 0 : ($route['fiber_length_m'] ?? 0),
                     'fiber_count' => $route['fiber_count'] ?? 12,
-                    'microduct_count' => ($route['route_type'] ?? null) === 'trench' ? 0 : ($route['microduct_count'] ?? 1),
-                    'microduct_type' => ($route['route_type'] ?? null) === 'trench' ? null : ($route['microduct_type'] ?? '14/10'),
+                    'microduct_count' => $routeType === 'trench' ? 0 : ($route['microduct_count'] ?? 1),
+                    'microduct_type' => $routeType === 'trench' ? null : ($route['microduct_type'] ?? '14/10'),
                     'status' => 'planned',
                     'path' => $route['path'] ?? null,
                 ]);

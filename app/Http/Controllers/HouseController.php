@@ -121,14 +121,15 @@ class HouseController extends Controller
 
         $routes = DB::transaction(function () use ($cabinet, $newHouses) {
             return $newHouses->map(function (House $house) use ($cabinet) {
-                $path = [[(float) $cabinet->latitude, (float) $cabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
+                $path = $this->dropPathForHouse($cabinet, $house);
                 $length = $this->polylineLength($path);
                 $house->update(['cabinet_id' => $cabinet->id]);
+                $dropName = $this->uniqueProjectName(NetworkRoute::class, $cabinet->project_id, "Drop {$cabinet->name}-{$house->label}");
 
                 return NetworkRoute::create([
                     'project_id' => $cabinet->project_id, 'cabinet_id' => $cabinet->id,
                     'from_type' => 'cabinet', 'from_id' => $cabinet->id, 'to_type' => 'house', 'to_id' => $house->id,
-                    'name' => "Drop {$cabinet->name} - {$house->label}", 'route_type' => 'drop', 'installation_type' => 'underground',
+                    'name' => $dropName, 'route_type' => 'drop', 'installation_type' => 'underground',
                     'duct_length_m' => $length, 'fiber_length_m' => $length, 'fiber_count' => 4,
                     'microduct_count' => 1, 'microduct_type' => '10/8', 'status' => 'planned', 'path' => $path,
                 ]);
@@ -136,6 +137,39 @@ class HouseController extends Controller
         });
 
         return response()->json(['message' => 'Kuce i drop trase su povezane.', 'routes' => $routes->values()]);
+    }
+
+    private function dropPathForHouse(Cabinet $cabinet, House $house): array
+    {
+        $directPath = [
+            [(float) $cabinet->latitude, (float) $cabinet->longitude],
+            [(float) $house->latitude, (float) $house->longitude],
+        ];
+
+        $route = NetworkRoute::query()
+            ->where('project_id', $cabinet->project_id)
+            ->whereNotIn('route_type', ['trench', 'drop'])
+            ->whereNotNull('path')
+            ->get()
+            ->filter(fn (NetworkRoute $route) => count($route->path ?? []) >= 2)
+            ->sortBy(fn (NetworkRoute $route) => $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route)['distance_m'])
+            ->first();
+
+        if (! $route) {
+            return $directPath;
+        }
+
+        $cabinetProjection = $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route);
+        $houseProjection = $this->projectPointToRoute((float) $house->latitude, (float) $house->longitude, $route);
+        if ($cabinetProjection['distance_m'] > 35 || $houseProjection['distance_m'] > 90) {
+            return $directPath;
+        }
+
+        return $this->compactPath(array_merge(
+            [[(float) $cabinet->latitude, (float) $cabinet->longitude], [$cabinetProjection['lat'], $cabinetProjection['lng']]],
+            array_slice($this->routePathBetween($route, $cabinetProjection, $houseProjection), 1),
+            [[(float) $house->latitude, (float) $house->longitude]]
+        ));
     }
 
     public function subscribers(): View

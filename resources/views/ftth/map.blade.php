@@ -21,8 +21,30 @@
     .control-panel {
         background: var(--panel-bg);
         border: 1px solid rgba(15, 23, 42, .10);
-        box-shadow: 0 18px 45px rgba(15, 23, 42, .08);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, .07);
         backdrop-filter: blur(14px);
+    }
+    .side-section {
+        border-top: 1px solid rgba(15, 23, 42, .08);
+        padding-top: .65rem;
+    }
+    .side-section:first-child {
+        border-top: 0;
+        padding-top: 0;
+    }
+    .side-kicker {
+        color: #64748b;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+    .soft-panel {
+        border: 1px solid rgba(15, 23, 42, .10);
+        background: #f8fafc;
+    }
+    .layer-row {
+        min-height: 30px;
     }
     .metric-card {
         border: 1px solid rgba(15, 23, 42, .08);
@@ -33,15 +55,52 @@
     }
     .tool-btn:hover, .action-btn:hover {
         transform: translateY(-1px);
-        box-shadow: 0 10px 24px rgba(15, 23, 42, .10);
+        box-shadow: 0 7px 18px rgba(15, 23, 42, .08);
+    }
+    .cad-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        border-top: 1px solid rgba(15,23,42,.08);
+        padding-top: 8px;
+    }
+    .cad-toolbar .tool-btn,
+    .cad-toolbar .action-btn {
+        border: 1px solid rgba(15,23,42,.22) !important;
+        border-radius: 2px !important;
+        background: rgba(255,255,255,.92) !important;
+        color: #0f172a !important;
+        box-shadow: none !important;
+        font: 800 11px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        padding: 7px 9px !important;
+    }
+    .cad-toolbar .tool-btn:hover,
+    .cad-toolbar .action-btn:hover {
+        border-color: #0f172a !important;
+        transform: none;
+    }
+    .cad-toolbar .ring-2 {
+        outline: 2px solid #0f172a;
+        outline-offset: 1px;
+    }
+    .cad-toolbar-sep {
+        width: 1px;
+        align-self: stretch;
+        background: rgba(15,23,42,.18);
+        margin: 0 3px;
     }
     .ftth-label { border: 0; background: transparent; }
-    .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); box-shadow: 0 7px 20px rgba(0,0,0,.35); border: 1.5px solid #fff; color: #fff; font: 700 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
-    .ftth-tag.odf { min-width: 30px; height: 18px; border-radius: 999px; background: #308DCC; }
-    .ftth-tag.cabinet { min-width: 38px; height: 18px; border-radius: 5px; background: #65A845; }
-    .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #81C342; font-size: 0; }
-    .ftth-tag.suggest { min-width: 46px; height: 20px; border-radius: 5px; background: #f59e0b; color: #111827; }
-    .ftth-tag.manhole { width: 22px; height: 22px; border-radius: 6px; background: #334155; font-size: 9px; }
+    .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
+    .ftth-tag.odf { width: 18px; height: 18px; border: 2px solid #fff; border-radius: 2px; background: #0f5fa8; box-shadow: 0 0 0 1px #0f172a; }
+    .ftth-tag.cabinet { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 2px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
+    .ftth-tag.cabinet.ftth-cabinet-tag { width: auto; height: auto; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none; display: flex; align-items: center; gap: 4px; transform: translate(-8px, -50%); }
+    .ftth-cabinet-symbol { display: block; width: 13px; height: 13px; flex: 0 0 auto; border: 2px solid #fff; border-radius: 2px; box-shadow: 0 0 0 1px #0f172a; }
+    .ftth-cabinet-text { display: grid; gap: 1px; padding: 1px 3px; background: rgba(255,255,255,.82); color: #0f172a; text-shadow: 0 1px 0 #fff; border: 1px solid rgba(15,23,42,.35); }
+    .ftth-cabinet-title { display: block; font-size: 8px; font-weight: 900; line-height: 1; letter-spacing: 0; }
+    .ftth-cabinet-code { display: block; font-size: 10px; font-weight: 900; line-height: 1.05; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .ftth-tag.house { width: 10px; height: 10px; border: 2px solid #fff; border-radius: 999px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
+    .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
+    .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }
     .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
     .boring-grip { border: 0; background: transparent; }
     .boring-grip span {
@@ -81,16 +140,45 @@
     }
     .route-label span {
         display: block;
-        border: 1px solid rgba(255, 255, 255, .75);
-        border-radius: 4px;
-        background: rgba(15, 23, 42, .76);
-        box-shadow: 0 4px 12px rgba(15, 23, 42, .2);
-        color: #fff;
-        font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        color: #000;
+        font: 900 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         letter-spacing: 0;
-        padding: 3px 5px;
+        padding: 0 2px;
+        text-shadow:
+            -1px -1px 0 #fff,
+            1px -1px 0 #fff,
+            -1px 1px 0 #fff,
+            1px 1px 0 #fff,
+            0 0 3px #fff,
+            0 0 5px #fff;
         white-space: nowrap;
     }
+    #map-workspace.zoom-high .route-label span {
+        font-size: 13px;
+        padding: 0 2px;
+        background: transparent;
+    }
+    #map-workspace.zoom-low .route-label span {
+        font-size: 10px;
+        padding: 0 2px;
+    }
+    .cad-map-legend {
+        border: 1px solid rgba(15,23,42,.45);
+        background: rgba(255,255,255,.78);
+        color: #0f172a;
+        font: 800 9px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        padding: 5px 6px;
+    }
+    .cad-map-legend b { display: block; margin-bottom: 4px; font-size: 9px; }
+    .cad-map-legend div { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 5px; margin-top: 3px; white-space: nowrap; }
+    .cad-line-sample { height: 0; border-top: 2px solid currentColor; }
+    .cad-line-sample.dashed { border-top-style: dashed; }
+    .cad-point-sample { width: 10px; height: 10px; border: 2px solid #fff; box-shadow: 0 0 0 1px #0f172a; justify-self: start; }
+    .cad-point-sample.circle { border-radius: 999px; }
     .cad-status {
         border-top: 1px solid rgba(15, 23, 42, .12);
         background: #0f172a;
@@ -100,6 +188,13 @@
     .cad-chip {
         border: 1px solid rgba(148, 163, 184, .35);
         background: rgba(15, 23, 42, .8);
+    }
+    #map-workspace.gis-view .route-label span,
+    #map-workspace.gis-view .ftth-cabinet-text {
+        background: rgba(15,23,42,.78);
+        border-color: rgba(255,255,255,.75);
+        color: #fff;
+        text-shadow: none;
     }
     #network-map { min-height: 620px; }
     @media (min-width: 1280px) {
@@ -121,7 +216,7 @@
                     <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">FTTH</span><strong id="cabinet-count" class="text-sm text-emerald-700">0</strong></div>
                 </div>
             </div>
-            <div class="mt-3 flex flex-wrap items-center gap-2">
+            <div class="cad-toolbar mt-3">
                 <button type="button" id="mode-pan" class="tool-btn rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white">Pomjeraj</button>
                 <button type="button" id="mode-odf" class="tool-btn rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800">ODF</button>
                 <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
@@ -139,7 +234,7 @@
                     <button type="button" id="finish-house-connect" class="action-btn rounded-md bg-violet-600 px-3 py-2 text-sm font-semibold text-white">Završi povezivanje</button>
                     <button type="button" id="cancel-house-connect" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Otkaži</button>
                 </div>
-                <span class="mx-1 hidden h-8 w-px bg-zinc-200 sm:block"></span>
+                <span class="cad-toolbar-sep"></span>
                 <button type="button" id="finish-branch" class="action-btn rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950">Završi krak</button>
                 <button type="button" id="undo-draw" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo tačka</button>
                 <button type="button" id="undo-branch" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo krak</button>
@@ -153,7 +248,8 @@
                     <button type="button" id="save-route-edit" class="action-btn rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Sačuvaj izmjene trase</button>
                     <button type="button" id="cancel-route-edit" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Otkaži edit</button>
                 </div>
-                <button type="button" id="expand-map" class="action-btn ml-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
+                <button type="button" id="toggle-map-view" class="action-btn ml-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">CAD prikaz</button>
+                <button type="button" id="expand-map" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
             </div>
             <p class="mt-2 text-xs text-zinc-500">Nacrt se čuva automatski. Desni klik na element: obriši ili premjesti.</p>
         </div>
@@ -166,7 +262,7 @@
         </div>
     </div>
 
-    <aside class="grid min-h-0 gap-2 xl:max-h-full xl:overflow-y-auto">
+    <aside class="grid min-h-0 gap-1.5 xl:max-h-full xl:overflow-y-auto">
         <details class="control-panel rounded-md" open>
             <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Novi projekat</summary>
             <form id="quick-project-form" class="grid gap-2 border-t border-zinc-100 p-3">
@@ -185,44 +281,44 @@
             <button type="button" id="save-element-name" class="mt-2 w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj naziv</button>
             <div id="element-editor-status" class="mt-2 text-xs font-semibold text-emerald-700"></div>
         </div>
-        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="control-panel rounded-md p-3">
+        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="control-panel rounded-md p-2.5">
             @csrf
             <div class="grid gap-1">
                 <h2 class="font-semibold text-zinc-950">Plan projekta</h2>
-                <span id="bulk-plan-summary" class="text-sm text-emerald-700">Draft: 0 ODF, 0 FTTH, 0 kuca, 0 trasa, 0 stavki.</span>
+                <span id="bulk-plan-summary" class="text-xs leading-5 text-slate-600">Draft: 0 ODF, 0 FTTH, 0 kuca, 0 trasa, 0 stavki.</span>
             </div>
-            <div class="mt-3 grid gap-2">
+            <div class="mt-2 grid gap-2">
                 <select id="active-project-id" name="project_id" class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
-                <div class="grid gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-2">
+                <div class="side-section grid gap-2">
+                    <div class="side-kicker">Tok rada</div>
                     <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
-                        <button type="button" data-guide-mode="odf" class="guide-step rounded bg-cyan-100 px-2 py-2 text-cyan-800">1 ODF</button>
-                        <button type="button" data-guide-mode="draw" class="guide-step rounded bg-amber-100 px-2 py-2 text-amber-800">2 Trasa</button>
-                        <button type="button" data-guide-mode="house" class="guide-step rounded bg-violet-100 px-2 py-2 text-violet-800">3 Kuće</button>
-                        <button type="button" id="guide-suggest" class="guide-step rounded bg-emerald-100 px-2 py-2 text-emerald-800">4 FTTH</button>
+                        <button type="button" data-guide-mode="odf" class="guide-step rounded-md border border-cyan-200 bg-white px-2 py-1.5 text-cyan-800">1 ODF</button>
+                        <button type="button" data-guide-mode="draw" class="guide-step rounded-md border border-amber-200 bg-white px-2 py-1.5 text-amber-800">2 Trasa</button>
+                        <button type="button" data-guide-mode="house" class="guide-step rounded-md border border-violet-200 bg-white px-2 py-1.5 text-violet-800">3 Kuće</button>
+                        <button type="button" id="guide-suggest" class="guide-step rounded-md border border-emerald-200 bg-white px-2 py-1.5 text-emerald-800">4 FTTH</button>
                     </div>
-                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">5 Sačuvaj na mapi</button>
                 </div>
-                <div class="rounded-md border border-cyan-100 bg-cyan-50 p-3">
+                <div class="side-section grid gap-2">
+                    <div class="side-kicker">Aktivni ODF</div>
                     <label class="grid gap-1 text-xs font-semibold text-cyan-900">
-                        Aktivni ODF za nove ormariće
                         <select id="active-odf-index" class="rounded-md border border-cyan-200 bg-white px-3 py-2 text-sm font-normal text-zinc-800">
                             <option value="">Prvo postavi ODF</option>
                         </select>
                     </label>
-                    <div id="odf-link-status" class="mt-2 text-xs text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
+                    <div id="odf-link-status" class="text-xs leading-5 text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
                 </div>
-                <div class="rounded-md border border-amber-300 bg-amber-50 p-3 shadow-sm">
+                <div class="soft-panel rounded-md px-2.5 py-2">
                     <div class="flex items-center justify-between gap-2">
                         <div>
                             <div class="text-sm font-semibold text-amber-950">Obracun rova</div>
-                            <div class="text-xs text-amber-800">Prvo nacrtaj Glavni rov, zatim posebno mikrocijevi/krakove.</div>
+                            <div class="text-xs leading-5 text-amber-800">Prvo nacrtaj Glavni rov, zatim posebno mikrocijevi/krakove.</div>
                         </div>
-                        <span id="route-trench-status" class="rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white">tip trase odlucuje</span>
+                        <span id="route-trench-status" class="rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">tip trase odlucuje</span>
                     </div>
                 </div>
-                <details class="rounded-md border border-amber-100 bg-amber-50">
+                <details class="rounded-md border border-slate-200 bg-white">
                     <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-amber-950">Postavke trase</summary>
-                <div class="border-t border-amber-100 p-3">
+                <div class="border-t border-slate-100 p-2.5">
 	                    <div class="mb-2 flex items-center justify-between gap-2">
 	                        <h3 class="text-sm font-semibold text-amber-950">Aktivni krak trase</h3>
 	                        <span id="route-branch-count" class="text-xs font-semibold text-amber-700">0 krakova</span>
@@ -271,12 +367,63 @@
                 </details>
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">Sačuvaj radnu verziju</button>
+                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-800">Sačuvaj radnu verziju</button>
                     <button class="action-btn rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sačuvaj na mapi</button>
                 </div>
             </div>
-            <div id="bulk-plan-status" class="mt-2 text-sm font-semibold text-emerald-800"></div>
+                <div class="mb-2 grid grid-cols-3 gap-2">
+                    <a id="export-geojson" href="#" class="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800">Export GeoJSON</a>
+                    <a id="export-dxf" href="#" class="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800">Export DXF</a>
+                    <a id="print-project" href="#" class="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800">Print/PDF</a>
+                </div>
+                <div id="bulk-plan-status" class="mt-2 text-sm font-semibold text-emerald-800"></div>
         </form>
+
+        <details class="control-panel rounded-md" open>
+            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Provjera projekta</summary>
+            <div class="grid gap-2 border-t border-zinc-100 p-3">
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="run-project-check" class="action-btn rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">Provjeri</button>
+                    <button type="button" id="fill-missing-drops" class="action-btn rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Popuni dropove</button>
+                </div>
+                <div id="project-check-summary" class="text-xs font-semibold text-slate-600">Odaberi projekat i pokreni provjeru.</div>
+                <div id="project-check-panel" class="grid max-h-64 gap-1 overflow-y-auto text-xs"></div>
+            </div>
+        </details>
+
+        <div id="route-attribute-panel" class="control-panel hidden rounded-md border-2 border-blue-300 p-3">
+            <div class="flex items-center justify-between gap-2">
+                <div><h2 class="font-semibold">Trasa</h2><p id="route-attribute-status" class="text-xs text-zinc-500">Odabrana trasa</p></div>
+                <button type="button" id="close-route-attribute-panel" class="rounded px-2 py-1 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Zatvori</button>
+            </div>
+            <div class="mt-3 grid gap-2">
+                <input id="route-attr-name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv trase">
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="route-attr-type" class="rounded-md border border-zinc-300 px-2 py-2 text-sm">
+                        <option value="trench">Glavni rov</option>
+                        <option value="backbone">Backbone</option>
+                        <option value="feeder">Primarni</option>
+                        <option value="distribution">Sekundarni</option>
+                        <option value="drop">Drop</option>
+                    </select>
+                    <select id="route-attr-microduct" class="rounded-md border border-zinc-300 px-2 py-2 text-sm">
+                        <option value="">Bez mikrocijevi</option>
+                        <option value="14/10">14/10</option>
+                        <option value="10/8">10/8</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="route-attr-fibers" class="rounded-md border border-zinc-300 px-2 py-2 text-sm">
+                        <option value="4">4F</option>
+                        <option value="12">12F</option>
+                        <option value="24">24F</option>
+                        <option value="48">48F</option>
+                    </select>
+                    <input id="route-attr-note" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Napomena">
+                </div>
+                <button type="button" id="save-route-attributes" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj podatke trase</button>
+            </div>
+        </div>
 
         <details class="control-panel rounded-md">
             <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Automatski raspored FTTH</summary>
@@ -298,11 +445,11 @@
 
         <details class="control-panel rounded-md" open>
             <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Layer Manager</summary>
-            <div class="grid gap-1 border-t border-zinc-100 p-3 text-sm">
-                @foreach(['odf' => 'ODF', 'odo' => 'ODO', 'houses' => 'Kuće', 'backbone' => 'Backbone', 'distribution' => 'Distribution', 'drop' => 'Drop', 'dxf' => 'DXF', 'preview' => 'Preview', 'measure' => 'Mjerenje', 'trace' => 'Fiber tracing'] as $layer => $label)
-                    <div class="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-100 bg-white px-2 py-1">
+            <div class="grid gap-1 border-t border-zinc-100 p-2 text-sm">
+                @foreach(['odf' => 'ODF', 'odo' => 'ODO', 'houses' => 'Kuće', 'trench' => 'Glavni rov', 'backbone' => 'Backbone', 'distribution' => 'Distribution', 'drop' => 'Drop', 'dxf' => 'DXF', 'preview' => 'Preview', 'measure' => 'Mjerenje', 'trace' => 'Fiber tracing'] as $layer => $label)
+                    <div class="layer-row grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-100 bg-white px-2 py-0.5">
                         <label><input type="checkbox" data-layer-toggle="{{ $layer }}" checked> {{ $label }} <span data-layer-count="{{ $layer }}" class="text-xs text-zinc-400">0</span></label>
-                        <button type="button" data-layer-lock="{{ $layer }}" class="rounded border border-zinc-200 px-2 py-1 text-xs font-semibold">Otključan</button>
+                        <button type="button" data-layer-lock="{{ $layer }}" class="rounded border border-zinc-200 px-2 py-0.5 text-xs font-semibold">Otključan</button>
                     </div>
                 @endforeach
             </div>
@@ -336,7 +483,7 @@
                     <select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
                     <select name="odf_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><option value="">Povezani ODF</option>@foreach($odfsForSelect as $odf)<option value="{{ $odf->id }}">{{ $odf->name }} - {{ $odf->project->name }}</option>@endforeach</select>
                     <select name="parent_cabinet_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><option value="">Napaja se direktno iz ODF-a</option>@foreach($cabinetsForSelect as $parentCabinet)<option value="{{ $parentCabinet->id }}">Iz ODO: {{ $parentCabinet->name }} - {{ $parentCabinet->project->name }}</option>@endforeach</select>
-                    <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv, npr. FTTH-001" required>
+                    <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv, npr. FTTH 1-2-3" required>
                     <input name="address" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Adresa" required>
                     <div class="grid grid-cols-2 gap-2"><input type="number" name="splitter_count" value="3" min="1" max="3" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><input type="number" name="ports_per_splitter" value="4" min="1" max="4" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"></div>
                     <div class="grid grid-cols-2 gap-2"><input id="cabinet-lat" name="latitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lat" required><input id="cabinet-lng" name="longitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lng" required></div>
@@ -377,12 +524,18 @@ window.ftthMapConfig = {
     endpoints: {
         autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),
         autoOdoConfirmBaseUrl: @json(url('/projekti/__ID__/odo-plan/confirm')),
+        projectValidationBaseUrl: @json(url('/projekti/__ID__/validacija')),
+        projectDropFillBaseUrl: @json(url('/projekti/__ID__/drop-trase/popuni')),
+        projectGeoJsonBaseUrl: @json(url('/projekti/__ID__/geojson')),
+        projectDxfBaseUrl: @json(url('/projekti/__ID__/dxf')),
+        projectPrintBaseUrl: @json(url('/projekti/__ID__/print')),
     },
     data,
 };
 const defaultCenter = [44.4493, 18.6498];
 const map = L.map('network-map', { zoomSnap: 0.25 }).setView(defaultCenter, 17);
 let mode = 'pan';
+let mapViewMode = 'cad';
 let activeBranch = [];
 let activeBranchSnapTargets = [];
 let quickBranchWorkflow = false;
@@ -391,18 +544,22 @@ let activeBranchLine = null;
 let previewBranchLine = null;
 let snapIndicator = null;
 let routeEdit = null;
+let selectedAttributeRoute = null;
 let connectOdf = null;
 let connectCabinet = null;
 let connectHouseIds = new Set();
 let joinRoutes = [];
+let validationHighlightLayers = [];
 let branches = [];
 let branchLines = [];
 let branchMeta = [];
 let branchLabels = [];
+let branchLabelGroups = [];
 let trenchLines = [];
 let housePoints = [];
 let houseMarkers = [];
 let houseMarkerByKey = {};
+let houseMarkerById = {};
 let suggestionLayers = [];
 let draftOdfCount = 0;
 let draftCabinetCount = 0;
@@ -435,6 +592,7 @@ const layerRegistry = {
     odf: [],
     odo: [],
     houses: [],
+    trench: [],
     backbone: [],
     distribution: [],
     drop: [],
@@ -480,20 +638,67 @@ const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/service
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap' });
 L.control.layers({ 'Satelit': imagery, 'OpenStreetMap': osm }, {}, { position: 'bottomleft' }).addTo(map);
 
-const cabinetPalette = ['#308DCC', '#65A845', '#7BA9DA', '#81C342', '#00659E', '#A3D06E'];
+const cabinetPalette = [
+    '#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#7c3aed', '#0891b2', '#db2777',
+    '#65a30d', '#ea580c', '#0f766e', '#9333ea', '#be123c', '#4f46e5', '#ca8a04',
+];
 function cabinetColor(id) { return cabinetPalette[(Math.max(Number(id) || 1, 1) - 1) % cabinetPalette.length]; }
-const cabinetLegend = L.control({ position: 'bottomright' });
-cabinetLegend.onAdd = () => {
-    const box = L.DomUtil.create('div', 'rounded-md bg-white/95 p-2 text-xs shadow');
-    box.innerHTML = `<b>ODO boje</b>${data.cabinets.map(c => `<div class="mt-1 flex items-center gap-1"><span style="width:10px;height:10px;border-radius:3px;background:${cabinetColor(c.id)}"></span>${c.name}</div>`).join('') || '<div class="mt-1 text-zinc-500">Nema spremljenih ODO</div>'}`;
+const mapLegend = L.control({ position: 'bottomright' });
+mapLegend.onAdd = () => {
+    const box = L.DomUtil.create('div', 'cad-map-legend');
+    box.innerHTML = `
+        <b>CAD LEGENDA</b>
+        <div style="color:${routeColor('trench')}"><span class="cad-line-sample dashed"></span><span>Glavni rov</span></div>
+        <div style="color:${routeColor('distribution')}"><span class="cad-line-sample"></span><span>Sekundarni krak</span></div>
+        <div style="color:${routeColor('drop')}"><span class="cad-line-sample dashed"></span><span>Drop trasa</span></div>
+        <div><span class="cad-point-sample" style="background:#0f5fa8"></span><span>ODF</span></div>
+        <div><span class="cad-point-sample" style="background:#16a34a"></span><span>FTTH</span></div>
+        <div><span class="cad-point-sample circle" style="background:#16a34a"></span><span>Kuca</span></div>
+    `;
     return box;
 };
-cabinetLegend.addTo(map);
+mapLegend.addTo(map);
 
 function icon(type, text = '', color = null) {
     const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : 'house';
     const style = color ? ` style="background:${color}"` : '';
+    if (type === 'cabinet') {
+        const match = String(text || '').trim().match(/^FTTH\s+(.+)$/i);
+        const title = match ? 'FTTH' : String(text || '').trim();
+        const code = match ? normalizeFtthDisplayCode(match[1]) : '';
+        const html = code
+            ? `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}></span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span><span class="ftth-cabinet-code">${code}</span></span></div>`
+            : `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}></span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span></span></div>`;
+        return L.divIcon({ className: 'ftth-label', html, iconSize: [2, 2], iconAnchor: [1, 1] });
+    }
     return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
+}
+function normalizeFtthDisplayCode(code) {
+    const raw = String(code || '').trim();
+    const chunks = raw.split('-').filter(Boolean);
+    if (chunks.length < 3) return raw;
+
+    let cabinetNo = chunks.pop();
+    const branchChunks = [...chunks];
+
+    // Legacy names like 1-6-3.1-1-2 include the parent cabinet number (3)
+    // and sometimes an automatic duplicate suffix (-2). Display them as 1-6.1-1.
+    if (branchChunks.length >= 3 && branchChunks[2].includes('.')) {
+        if (chunks.length >= 4 && /^\d+$/.test(cabinetNo)) {
+            cabinetNo = branchChunks.pop();
+        }
+        const [, childCode] = branchChunks[2].split('.', 2);
+        branchChunks.splice(2, 1, childCode);
+    }
+
+    const branchCode = normalizeBranchCode(branchChunks.join('-'));
+    const parts = branchCode.split('.').filter(Boolean);
+    if (parts.length < 2) return `${branchCode}-${cabinetNo}`;
+
+    const root = `${parts[0]}-${parts[1]}`;
+    const children = parts.slice(2);
+
+    return `${children.length ? `${root}.${children.join('.')}` : root}-${cabinetNo}`;
 }
 function boringGripIcon(text) {
     return L.divIcon({
@@ -510,10 +715,10 @@ data.routes.forEach(route => {
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
     const occupancy = route.occupancy || {};
-    const line = L.polyline(points, { color: route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type), weight: 4, opacity: .9 })
+    const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
-    const labels = addRouteLabel(points, route.name, false);
+    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false);
     routeLayerById[route.id] = line;
     routeLabelsById[route.id] = labels || [];
     trackLayer(line, routeLayerType(route.type));
@@ -521,7 +726,10 @@ data.routes.forEach(route => {
     registerSavedContext([line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
         if (mode === 'join') selectJoinRoute(route, line);
         else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
-        else startRouteEdit(route, line);
+        else {
+            openRouteAttributePanel(route);
+            startRouteEdit(route, line);
+        }
     });
     points.forEach(p => bounds.push([p.lat, p.lng]));
 });
@@ -616,6 +824,7 @@ function pointKey(lat, lng) { return `${Number(lat).toFixed(7)},${Number(lng).to
         registerSavedContext(marker, h.label, deleteUrls.house(h.id), positionUrls.house(h.id));
         trackLayer(marker, 'houses');
         houseMarkerByKey[key] = marker;
+        houseMarkerById[h.id] = marker;
     housePoints.push(p);
     bounds.push([h.lat, h.lng]);
 });
@@ -663,11 +872,10 @@ function setMode(next) {
     updateCommandBar();
 }
 ['pan','odf','cabinet','house','draw','manhole','boring-fi-130','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
-    if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
-        document.getElementById('route-draw-type').value = 'distribution';
-        refreshTrenchGroupStatus();
-    }
     setMode(m);
+    if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
+        document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
+    }
 }));
 document.getElementById('mode-trench-draw').addEventListener('click', () => {
     document.getElementById('route-draw-type').value = 'trench';
@@ -817,12 +1025,65 @@ function routeTypeLabel(type) {
     return type === 'trench' ? 'Glavni rov' : type === 'backbone' ? 'Backbone' : type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
 }
 function routeColor(type) {
-    return type === 'trench' ? '#111827' : type === 'backbone' ? '#2563eb' : type === 'feeder' ? '#308DCC' : type === 'drop' ? '#7BA9DA' : '#81C342';
+    return type === 'trench' ? '#111827' : type === 'backbone' ? '#1d4ed8' : type === 'feeder' ? '#0e7490' : type === 'drop' ? '#f59e0b' : '#16a34a';
+}
+function routeWeight(type) {
+    return type === 'trench' ? 4 : type === 'drop' ? 2 : 3;
+}
+function routeDashArray(type) {
+    return type === 'trench' ? '10 8' : type === 'drop' ? '4 6' : null;
+}
+function routeLineStyle(type, color = routeColor(type)) {
+    if (mapViewMode === 'gis') {
+        return {
+            color,
+            weight: type === 'trench' ? 6 : type === 'drop' ? 3 : 5,
+            opacity: .9,
+            dashArray: type === 'trench' ? '12 8' : (type === 'drop' ? '5 7' : null),
+            lineCap: type === 'trench' ? 'butt' : 'round',
+            lineJoin: 'round',
+        };
+    }
+
+    return {
+        color,
+        weight: routeWeight(type),
+        opacity: type === 'drop' ? .85 : .95,
+        dashArray: routeDashArray(type),
+        lineCap: type === 'trench' ? 'butt' : 'round',
+        lineJoin: 'round',
+    };
+}
+function routeLineColor(route) {
+    return route.type === 'trench' ? routeColor('trench') : (route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type));
+}
+function usedRouteNames(type = null) {
+    return [...data.routes, ...branchMeta]
+        .filter(route => !type || (route.type || route.route_type) === type)
+        .map(route => String(route.name || '').trim())
+        .filter(Boolean);
+}
+function nextNumberedName(prefix, usedNames) {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^${escaped}\\s+(\\d+)$`, 'i');
+    const used = usedNames
+        .map(name => name.match(pattern))
+        .filter(Boolean)
+        .map(match => Number(match[1]))
+        .filter(Number.isFinite);
+
+    return `${prefix} ${Math.max(0, ...used) + 1}`;
 }
 function nextRouteName(type) {
-    const prefix = type === 'trench' ? 'R' : type === 'feeder' ? 'P' : type === 'drop' ? 'D' : 'S';
-    const count = branchMeta.filter(meta => meta.route_type === type).length + 1;
-    return `${prefix}-${String(count).padStart(2, '0')}`;
+    const labels = {
+        trench: 'Glavni rov',
+        feeder: 'Primarni krak',
+        backbone: 'Backbone',
+        drop: 'Drop trasa',
+        distribution: 'Sekundarni krak',
+    };
+
+    return nextNumberedName(labels[type] || 'Trasa', usedRouteNames(type));
 }
 function selectConnectOdf(odf) {
     connectOdf = odf;
@@ -937,10 +1198,10 @@ async function connectSelectedOdfToCabinet(cabinet) {
 }
 function addSavedRouteToMap(route) {
     const points = route.path.map(point => L.latLng(point[0], point[1]));
-    const line = L.polyline(points, { color: routeColor(route.type), weight: 4, opacity: .9 })
+    const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length} m`)
         .addTo(map);
-    const labels = addRouteLabel(points, route.name, false);
+    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false);
     data.routes.push(route);
     savedRoutePoints.push(points);
     routeLayerById[route.id] = line;
@@ -954,14 +1215,14 @@ function addSavedRouteToMap(route) {
     });
 }
 function resetJoinRoutes() {
-    joinRoutes.forEach(item => item.line.setStyle({ color: item.route.cabinet_id ? cabinetColor(item.route.cabinet_id) : routeColor(item.route.type), weight: 4, opacity: .9 }));
+    joinRoutes.forEach(item => item.line.setStyle(routeLineStyle(item.route.type, routeLineColor(item.route))));
     joinRoutes = [];
 }
 function selectJoinRoute(route, line) {
     const selectedIndex = joinRoutes.findIndex(item => Number(item.route.id) === Number(route.id));
     if (selectedIndex >= 0) {
         joinRoutes.splice(selectedIndex, 1);
-        line.setStyle({ color: route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type), weight: 4, opacity: .9 });
+        line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
         document.getElementById('cad-command').textContent = `JOIN: označeno ${joinRoutes.length} trasa. ENTER spaja.`;
         return;
     }
@@ -993,7 +1254,7 @@ async function joinSelectedRoutes() {
             map.removeLayer(label);
             untrackLayer(label);
         });
-        routeLabelsById[first.route.id] = addRouteLabel(points, first.route.name, false);
+        routeLabelsById[first.route.id] = first.route.type === 'trench' ? [] : addRouteLabel(points, first.route.name, false);
         routeLabelsById[first.route.id].forEach(label => trackLayer(label, routeLayerType(first.route.type)));
         const removedLine = routeLayerById[result.deleted_route_id];
         if (removedLine) map.removeLayer(removedLine);
@@ -1053,15 +1314,71 @@ function currentRouteDraftMeta() {
     };
 }
 function nextCabinetBranchName(cabinet) {
-    const numberParts = String(cabinet.name || '').match(/\d+/g) || [cabinet.id];
-    const base = numberParts.join('-');
+    const base = cabinetBranchCode(cabinet);
     const prefix = `Sekundarni krak ${base}.`;
     const used = [...data.routes, ...branchMeta]
         .map(route => String(route.name || ''))
-        .filter(name => name.startsWith(prefix))
-        .map(name => Number(name.slice(prefix.length)))
+        .map(name => branchCodeFromLabel(name))
+        .filter(code => code && code.startsWith(`${base}.`))
+        .map(code => code.slice(base.length + 1))
+        .filter(rest => /^\d+$/.test(rest))
+        .map(Number)
         .filter(Number.isFinite);
     return `${prefix}${Math.max(0, ...used) + 1}`;
+}
+function cabinetBranchCode(cabinet) {
+    const ftthCode = branchCodeFromFtthName(cabinet.name);
+    if (ftthCode) return ftthCode;
+
+    const label = [cabinet.branch_code, cabinet.branch_name].filter(Boolean).join(' ');
+    const code = branchCodeFromLabel(label);
+    if (code) return code;
+
+    return '1.1';
+}
+function branchCodeFromLabel(label) {
+    const match = String(label || '').match(/(\d+(?:[.-]\d+)*)/);
+    return match ? normalizeBranchCode(match[1]) : null;
+}
+function branchCodeFromFtthName(name) {
+    const match = String(name || '').trim().match(/^FTTH\s+(.+)$/i);
+    if (!match) return null;
+    const chunks = match[1].split('-').filter(Boolean);
+    if (chunks.length < 3) return null;
+    chunks.pop();
+
+    return normalizeBranchCode(chunks.join('-'));
+}
+function normalizeBranchCode(code) {
+    return String(code || '')
+        .trim()
+        .replace(/-/g, '.')
+        .replace(/\.+/g, '.')
+        .replace(/^\.|\.$/g, '');
+}
+function nextCabinetName() {
+    const usedNames = [
+        ...data.cabinets.map(cabinet => cabinet.name),
+        ...draftCabinets.map(item => item.name),
+        ...suggestedCabinets.map(cabinet => cabinet.name),
+    ].map(name => String(name || '').trim()).filter(Boolean);
+    const used = usedNames
+        .map(name => name.match(/^FTTH\s+1-1-(\d+)$/i))
+        .filter(Boolean)
+        .map(match => Number(match[1]))
+        .filter(Number.isFinite);
+
+    return `FTTH 1-1-${Math.max(0, ...used) + 1}`;
+}
+function draftCabinetName(index) {
+    const savedNumbers = data.cabinets
+        .map(cabinet => String(cabinet.name || '').match(/^FTTH\s+1-1-(\d+)$/i))
+        .filter(Boolean)
+        .map(match => Number(match[1]))
+        .filter(Number.isFinite);
+    const base = Math.max(0, ...savedNumbers);
+
+    return `FTTH 1-1-${base + index + 1}`;
 }
 function startBranchFromCabinet(cabinet) {
     cancelActiveDrawing();
@@ -1102,14 +1419,20 @@ function applyLayerVisibility(type) {
         }
     });
 }
-function updateCommandBar(snap = '-') {
+function updateCommandBar(snap = '-', previewPoint = null) {
     if (routeEdit) {
         updateRouteEditStatus();
         return;
     }
     const metrics = document.getElementById('cad-metrics');
     if (!metrics) return;
-    metrics.textContent = `Points: ${activeBranch.length} | Distance: ${distance(activeBranch)}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'}`;
+    let total = distance(activeBranch);
+    let segment = 0;
+    if (previewPoint && activeBranch.length) {
+        segment = Math.round(map.distance(activeBranch[activeBranch.length - 1], previewPoint));
+        total += segment;
+    }
+    metrics.textContent = `Points: ${activeBranch.length} | Total: ${total}m | Segment: ${segment}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'}`;
 }
 function pushUndo(action) {
     undoStack.push(action);
@@ -1416,16 +1739,16 @@ function refreshTrenchGroupStatus() {
     const isTrench = input.value === 'trench';
     status.textContent = isTrench ? 'crtanje rova' : 'crtanje mikrocijevi';
     status.className = isTrench
-        ? 'rounded bg-emerald-600 px-2 py-1 text-xs font-bold text-white'
-        : 'rounded bg-white px-2 py-1 text-xs font-bold text-amber-800';
+        ? 'rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white'
+        : 'rounded bg-white px-2 py-1 text-[10px] font-bold text-amber-800';
     ['route-draw-microducts', 'route-draw-microduct-type', 'route-draw-fiber-count'].forEach(id => {
         const field = document.getElementById(id);
         if (field) field.disabled = isTrench;
     });
 }
-function routeLabelPoint(points, position = .5) {
+function routeLabelPlacement(points, position = .5) {
     if (!points.length) return null;
-    if (points.length === 1) return points[0];
+    if (points.length === 1) return { latlng: points[0], angle: 0 };
     const total = distance(points);
     const target = total * position;
     let walked = 0;
@@ -1433,33 +1756,59 @@ function routeLabelPoint(points, position = .5) {
         const segment = map.distance(points[i - 1], points[i]);
         if (walked + segment >= target) {
             const ratio = segment ? (target - walked) / segment : 0;
-            return L.latLng(
+            const latlng = L.latLng(
                 points[i - 1].lat + (points[i].lat - points[i - 1].lat) * ratio,
                 points[i - 1].lng + (points[i].lng - points[i - 1].lng) * ratio
             );
+            const a = map.latLngToLayerPoint(points[i - 1]);
+            const b = map.latLngToLayerPoint(points[i]);
+            let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+            if (angle > 90 || angle < -90) angle += 180;
+
+            return { latlng, angle };
         }
         walked += segment;
     }
-    return points[Math.floor(points.length / 2)];
+    return { latlng: points[Math.floor(points.length / 2)], angle: 0 };
 }
 function addRouteLabel(points, name, track = true) {
+    const labelName = normalizeRouteDisplayName(name);
     const markers = [];
-    [.08, .5, .92].forEach(position => {
-        const labelPoint = routeLabelPoint(points, position);
-        if (!labelPoint) return;
-        const marker = L.marker(labelPoint, {
+    const total = distance(points);
+    const positions = total > 250 ? [.12, .5, .88] : (total > 90 ? [.25, .75] : [.5]);
+    positions.forEach(position => {
+        const placement = routeLabelPlacement(points, position);
+        if (!placement) return;
+        const marker = L.marker(placement.latlng, {
             interactive: false,
             keyboard: false,
             icon: L.divIcon({
                 className: 'route-label',
-                html: `<span>${name}</span>`,
-                iconAnchor: [16, 8],
+                html: `<span style="transform: rotate(${placement.angle.toFixed(1)}deg)">${labelName}</span>`,
+                iconAnchor: [12, 18],
         }),
     }).addTo(map);
-        if (track) branchLabels.push(marker);
         markers.push(marker);
     });
+    if (track) {
+        branchLabelGroups.push(markers);
+        branchLabels.push(...markers);
+    }
     return markers;
+}
+function normalizeRouteDisplayName(name) {
+    return String(name || '').replace(/\b(Sekundarni krak|Primarni krak|Glavni rov)\s+(\d+(?:[.-]\d+)*)/gi, (full, prefix, code) => {
+        return `${prefix} ${normalizeRouteCodeDisplay(code)}`;
+    });
+}
+function normalizeRouteCodeDisplay(code) {
+    const raw = String(code || '').trim();
+    const match = raw.match(/^(.+)-(\d+)$/);
+    if (match && match[1].includes('.')) {
+        return `${normalizeBranchCode(match[1])}-${match[2]}`;
+    }
+
+    return normalizeBranchCode(raw);
 }
 function showCadContext(latlng, title, actions) {
     cadContext = actions;
@@ -1542,10 +1891,11 @@ function removeBranchAt(index) {
     branchLines.splice(index, 1);
     branches.splice(index, 1);
     branchMeta.splice(index, 1);
-    for (let i = 0; i < 3; i++) {
-        const label = branchLabels.splice(index * 3, 1)[0];
+    const labels = branchLabelGroups.splice(index, 1)[0] || [];
+    labels.forEach(label => {
         if (label) map.removeLayer(label);
-    }
+        branchLabels = branchLabels.filter(item => item !== label);
+    });
     renderBranchList();
     refreshStats();
 }
@@ -1644,7 +1994,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
     });
 }
 function routeLayerType(type) {
-    return ['backbone', 'drop'].includes(type) ? type : 'distribution';
+    return ['trench', 'backbone', 'drop'].includes(type) ? type : 'distribution';
 }
 function layerLocked(type) {
     return Boolean(layerLocks[type]);
@@ -1656,8 +2006,9 @@ function updateLayerCount(type) {
         odf: () => data.odfs.length + draftOdfs.length,
         odo: () => data.cabinets.length + draftCabinets.length,
         houses: () => data.houses.length + Math.max(houseMarkers.length - data.houses.length, 0),
+        trench: () => data.routes.filter(route => route.type === 'trench').length + branchMeta.filter(route => route.route_type === 'trench').length,
         backbone: () => data.routes.filter(route => route.type === 'backbone').length + branchMeta.filter(route => route.route_type === 'backbone').length,
-        distribution: () => data.routes.filter(route => !['backbone', 'drop'].includes(route.type)).length + branchMeta.filter(route => !['backbone', 'drop'].includes(route.route_type)).length,
+        distribution: () => data.routes.filter(route => !['trench', 'backbone', 'drop'].includes(route.type)).length + branchMeta.filter(route => !['trench', 'backbone', 'drop'].includes(route.route_type)).length,
         drop: () => data.routes.filter(route => route.type === 'drop').length,
         dxf: () => 0,
     };
@@ -1666,8 +2017,8 @@ function updateLayerCount(type) {
 function routeEditVertexIcon() {
     return L.divIcon({
         className: 'ftth-label',
-        html: '<div style="width:14px;height:14px;border-radius:3px;background:#2563eb;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>',
-        iconAnchor: [7, 7],
+        html: '<div style="width:9px;height:9px;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 1px #0f172a"></div>',
+        iconAnchor: [5, 5],
     });
 }
 function startRouteEdit(route, line) {
@@ -1675,10 +2026,86 @@ function startRouteEdit(route, line) {
     cancelRouteEdit();
     const points = line.getLatLngs().map(point => L.latLng(point.lat, point.lng));
     routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [] };
-    line.setStyle({ color: '#2563eb', weight: 6, opacity: 1 });
+    line.setStyle({ color: '#2563eb', weight: 4, opacity: 1, dashArray: '2 4' });
     document.getElementById('route-edit-actions').classList.remove('hidden');
     document.getElementById('route-edit-actions').classList.add('flex');
     renderRouteEditVertices();
+}
+
+function openRouteAttributePanel(route) {
+    selectedAttributeRoute = route;
+    document.getElementById('route-attribute-panel').classList.remove('hidden');
+    document.getElementById('route-attribute-status').textContent = `${route.name} | ${route.length ?? route.duct_length_m ?? 0} m`;
+    document.getElementById('route-attr-name').value = route.name || '';
+    document.getElementById('route-attr-type').value = route.type || 'distribution';
+    document.getElementById('route-attr-microduct').value = route.microduct_type || route.microduct || '';
+    document.getElementById('route-attr-fibers').value = route.fiber_count || route.fibers || 12;
+    document.getElementById('route-attr-note').value = route.note || '';
+}
+
+function closeRouteAttributePanel() {
+    selectedAttributeRoute = null;
+    document.getElementById('route-attribute-panel').classList.add('hidden');
+}
+
+async function saveRouteAttributes() {
+    if (!selectedAttributeRoute) return;
+    const route = selectedAttributeRoute;
+    const oldLayerType = routeLayerType(route.type);
+    const response = await fetch(`{{ url('/trase') }}/${route.id}`, {
+        method: 'PATCH',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+            name: document.getElementById('route-attr-name').value.trim(),
+            route_type: document.getElementById('route-attr-type').value,
+            microduct_type: document.getElementById('route-attr-microduct').value || null,
+            fiber_count: Number(document.getElementById('route-attr-fibers').value || 12),
+            note: document.getElementById('route-attr-note').value,
+            odf_id: route.odf_id || null,
+            from_type: route.from_type || null,
+            from_id: route.from_id || null,
+            to_type: route.to_type || null,
+            to_id: route.to_id || null,
+            cabinet_id: route.cabinet_id || null,
+        }),
+    });
+    const result = await readJsonResponse(response, 'Podaci trase nisu sacuvani.');
+    Object.assign(route, result.route, {
+        type: result.route.type,
+        microduct_type: result.route.microduct,
+        fiber_count: result.route.fibers,
+    });
+    const line = routeLayerById[route.id];
+    if (line) {
+        untrackLayer(line, oldLayerType);
+        trackLayer(line, routeLayerType(route.type));
+        line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+        line.setPopupContent(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length} m`);
+    }
+    refreshRouteLabels(route, oldLayerType);
+    document.getElementById('route-attribute-status').textContent = 'Podaci trase su sacuvani.';
+    document.getElementById('cad-command').textContent = `TRASA: ${route.name} sacuvana.`;
+}
+
+function refreshRouteLabels(route, oldLayerType = null) {
+    (routeLabelsById[route.id] || []).forEach(label => {
+        untrackLayer(label, oldLayerType);
+        map.removeLayer(label);
+    });
+
+    if (route.type === 'trench' || !route.path?.length) {
+        routeLabelsById[route.id] = [];
+        return;
+    }
+
+    const points = route.path.map(point => L.latLng(point[0], point[1]));
+    routeLabelsById[route.id] = addRouteLabel(points, route.name, false);
+    routeLabelsById[route.id].forEach(label => trackLayer(label, routeLayerType(route.type)));
 }
 function renderRouteEditVertices() {
     if (!routeEdit) return;
@@ -1744,7 +2171,7 @@ function addRouteEditVertex(latlng = null) {
 function cancelRouteEdit() {
     if (!routeEdit) return;
     routeEdit.line.setLatLngs(routeEdit.originalPoints);
-    routeEdit.line.setStyle({ color: routeEdit.route.cabinet_id ? cabinetColor(routeEdit.route.cabinet_id) : routeColor(routeEdit.route.type), weight: 4, opacity: .9 });
+    routeEdit.line.setStyle(routeLineStyle(routeEdit.route.type, routeLineColor(routeEdit.route)));
     routeEdit.markers.forEach(marker => map.removeLayer(marker));
     routeEdit = null;
     document.getElementById('route-edit-actions').classList.add('hidden');
@@ -1777,7 +2204,7 @@ async function saveRouteEdit() {
     if (savedRouteIndex >= 0) savedRoutePoints[savedRouteIndex] = edited.points.map(point => L.latLng(point.lat, point.lng));
     edited.originalPoints = edited.points.map(point => L.latLng(point.lat, point.lng));
     edited.line.setPopupContent(`<b>${edited.route.name}</b><br>${routeTypeLabel(edited.route.type)}<br>${result.route.length} m`);
-    edited.line.setStyle({ color: edited.route.cabinet_id ? cabinetColor(edited.route.cabinet_id) : routeColor(edited.route.type), weight: 4, opacity: .9 });
+    edited.line.setStyle(routeLineStyle(edited.route.type, routeLineColor(edited.route)));
     edited.markers.forEach(marker => map.removeLayer(marker));
     routeEdit = null;
     document.getElementById('route-edit-actions').classList.add('hidden');
@@ -1802,8 +2229,15 @@ function syncRoutePathInput() {
     document.getElementById('route-path').value = JSON.stringify(merged);
 }
 function redrawActiveBranch() {
-    if (activeBranchLine) map.removeLayer(activeBranchLine);
-    if (activeBranch.length > 1) activeBranchLine = trackLayer(L.polyline(activeBranch, { color: '#f59e0b', weight: 5, opacity: .9 }).addTo(map), 'distribution');
+    if (activeBranchLine) {
+        untrackLayer(activeBranchLine);
+        map.removeLayer(activeBranchLine);
+    }
+    const type = document.getElementById('route-draw-type').value;
+    if (activeBranch.length > 1) {
+        const style = type === 'trench' ? routeLineStyle('trench') : { color: '#f59e0b', weight: 3, opacity: .95 };
+        activeBranchLine = trackLayer(L.polyline(activeBranch, style).addTo(map), routeLayerType(type));
+    }
     refreshStats();
     syncRoutePathInput();
     updateCommandBar();
@@ -1818,19 +2252,24 @@ function redrawPreviewBranch(latlng = null) {
     const orthoPoint = applyOrthoPoint(latlng);
     const snapTarget = getSnapTarget(orthoPoint);
     showSnapIndicator(snapTarget);
-    updateCommandBar(snapTarget?.label || '-');
+    const point = snapTarget?.latlng || orthoPoint;
+    updateCommandBar(snapTarget?.label || '-', point);
     if (!activeBranch.length) {
         if (previewBranchLine) map.removeLayer(previewBranchLine);
         previewBranchLine = null;
         if (snapTarget) document.getElementById('cad-command').textContent = `SNAP: ${snapTarget.label}. Klik postavlja prvu tačku trase.`;
         return;
     }
-    const point = snapTarget?.latlng || orthoPoint;
     const points = [activeBranch[activeBranch.length - 1], point];
+    const type = document.getElementById('route-draw-type').value;
+    const previewStyle = type === 'trench'
+        ? { ...routeLineStyle('trench'), weight: 4, opacity: .65 }
+        : { color: '#f59e0b', weight: 2, opacity: .75, dashArray: '4 7' };
     if (previewBranchLine) {
         previewBranchLine.setLatLngs(points);
+        previewBranchLine.setStyle(previewStyle);
     } else {
-        previewBranchLine = L.polyline(points, { color: '#f59e0b', weight: 3, opacity: .65, dashArray: '4 8' }).addTo(map);
+        previewBranchLine = L.polyline(points, previewStyle).addTo(map);
     }
     if (snapTarget) document.getElementById('cad-command').textContent = `SNAP: ${snapTarget.label}. Klik potvrduje tacku, ENTER/desni klik zavrsava krak.`;
 }
@@ -1844,7 +2283,7 @@ function addDrawPoint(latlng) {
     activeBranch.push(point);
     activeBranchSnapTargets.push(snapTarget || null);
     const index = activeBranch.length - 1;
-    const marker = L.marker(point, { draggable: true, icon: L.divIcon({ className: 'ftth-label', html: '<div style="width:12px;height:12px;border-radius:999px;background:#f59e0b;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)"></div>', iconAnchor: [6, 6] }) }).addTo(map);
+    const marker = L.marker(point, { draggable: true, icon: L.divIcon({ className: 'ftth-label', html: '<div style="width:8px;height:8px;background:#f59e0b;border:2px solid #fff;box-shadow:0 0 0 1px #0f172a"></div>', iconAnchor: [4, 4] }) }).addTo(map);
     marker.on('drag', event => {
         activeBranch[index] = event.target.getLatLng();
         redrawActiveBranch();
@@ -1883,15 +2322,14 @@ function finishBranch() {
         branchMeta.push({
             ...meta,
             duct_length_m: meters,
-            fiber_length_m: meters,
+            fiber_length_m: (meta.route_type || 'distribution') === 'trench' ? 0 : meters,
             path: activeBranch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
         });
         const odfLabel = meta.odf_index === null || meta.odf_index === undefined ? 'bez ODF' : `ODF-${String(meta.odf_index + 1).padStart(2, '0')}`;
-        const lineWeight = meta.route_type === 'trench' ? 6 : 4;
-        const line = trackLayer(L.polyline(activeBranch, { color: routeColor(meta.route_type), weight: lineWeight }).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), routeLayerType(meta.route_type));
+        const line = trackLayer(L.polyline(activeBranch, routeLineStyle(meta.route_type)).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), routeLayerType(meta.route_type));
         branchLines.push(line);
         registerBranchContext(line);
-        addRouteLabel(activeBranch, meta.name);
+        if (meta.route_type !== 'trench') addRouteLabel(activeBranch, meta.name);
         document.getElementById('route-draw-name').value = '';
         renderBranchList();
         document.getElementById('cad-command').textContent = `TRASA: ${meta.name} zavrsena (${meters} m). Nastavi novi krak ili promijeni alat.`;
@@ -1907,15 +2345,16 @@ function finishBranch() {
         setMode('pan');
     }
 }
-function clearDraw() { [...branchLines, ...branchLabels, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); if (previewBranchLine) map.removeLayer(previewBranchLine); hideSnapIndicator(); branches=[]; branchLines=[]; branchLabels=[]; branchMeta=[]; activeBranch=[]; activeBranchSnapTargets=[]; activeBranchMarkers=[]; activeBranchLine=null; previewBranchLine=null; renderBranchList(); refreshStats(); }
+function clearDraw() { [...branchLines, ...branchLabels, ...activeBranchMarkers].forEach(l => map.removeLayer(l)); if (activeBranchLine) map.removeLayer(activeBranchLine); if (previewBranchLine) map.removeLayer(previewBranchLine); hideSnapIndicator(); branches=[]; branchLines=[]; branchLabels=[]; branchLabelGroups=[]; branchMeta=[]; activeBranch=[]; activeBranchSnapTargets=[]; activeBranchMarkers=[]; activeBranchLine=null; previewBranchLine=null; renderBranchList(); refreshStats(); }
 function undoDraw() { const m = activeBranchMarkers.pop(); if (m) map.removeLayer(m); activeBranch.pop(); activeBranchSnapTargets.pop(); redrawActiveBranch(); }
 function undoBranch() {
     const line = branchLines.pop();
     if (line) map.removeLayer(line);
-    for (let i = 0; i < 3; i++) {
-        const label = branchLabels.pop();
+    const labels = branchLabelGroups.pop() || [];
+    labels.forEach(label => {
         if (label) map.removeLayer(label);
-    }
+        branchLabels = branchLabels.filter(item => item !== label);
+    });
     branches.pop();
     branchMeta.pop();
     renderBranchList();
@@ -1932,7 +2371,7 @@ function getSnapTarget(latlng) {
         ...data.cabinets.map(item => ({ latlng: cabinetMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type:'cabinet', id:item.id })),
         ...data.houses.map(item => ({ latlng: houseMarkerByKey[pointKey(item.lat, item.lng)]?.getLatLng() || L.latLng(item.lat, item.lng), label: `Kuća ${item.label}` })),
         ...draftOdfs.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `ODF-${String(index + 1).padStart(2, '0')}` })),
-        ...draftCabinets.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `FTTH-${String(index + 1).padStart(2, '0')}` })),
+        ...draftCabinets.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || draftCabinetName(index) })),
         ...houseMarkers.map((marker, index) => ({ latlng: marker.getLatLng(), label: `Kuća ${index + 1}` })),
     ];
     [...savedRoutePoints, ...branches].forEach(route => {
@@ -1955,7 +2394,7 @@ function showSnapIndicator(target) {
     }
     if (!snapIndicator) {
         snapIndicator = L.circleMarker(target.latlng, {
-            radius: 7, color: '#22c55e', weight: 2, fillColor: '#ffffff', fillOpacity: .85, interactive: false,
+            radius: 5, color: '#22c55e', weight: 2, fillColor: '#ffffff', fillOpacity: .3, interactive: false,
         }).addTo(map);
     } else {
         snapIndicator.setLatLng(target.latlng);
@@ -2310,7 +2749,7 @@ function activeOdfLabel() {
 }
 
 function defaultDraftName(type, index) {
-    return type === 'odf' ? `ODF-${String(index + 1).padStart(2, '0')}` : `FTTH-M-${String(index + 1).padStart(3, '0')}`;
+    return type === 'odf' ? `ODF-${String(index + 1).padStart(2, '0')}` : draftCabinetName(index);
 }
 function selectDraftElement(type, item) {
     selectedDraftElement = { type, item };
@@ -2448,7 +2887,7 @@ function planPayload() {
             fiber_count: (meta.route_type || 'distribution') === 'trench' ? 4 : (meta.fiber_count || 12),
             odf_index: meta.odf_index ?? null,
             duct_length_m: meters,
-            fiber_length_m: meters,
+            fiber_length_m: (meta.route_type || 'distribution') === 'trench' ? 0 : meters,
             microduct_count: (meta.route_type || 'distribution') === 'trench' ? 0 : (meta.microduct_count || 1),
             path: branch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
             odf_id: meta.odf_id ?? null,
@@ -2479,10 +2918,11 @@ function planPayload() {
 function refreshPlanSummary() {
     const payload = planPayload();
     document.getElementById('bulk-plan-json').value = JSON.stringify(payload);
+    const trenchCount = payload.routes.filter(route => route.route_type === 'trench').length;
     const boringMeters = payload.appendix_items
         .filter(item => item.type === 'boring_fi_130')
         .reduce((sum, item) => sum + Number(item.length_m || item.quantity || 0), 0);
-    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa, ${payload.appendix_items.length} stavki, FI130 ${Math.round(boringMeters)} m.`;
+    document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa (${trenchCount} glavni rov), ${payload.appendix_items.length} stavki, FI130 ${Math.round(boringMeters)} m.`;
     scheduleDraftAutosave();
 }
 
@@ -2513,6 +2953,9 @@ async function persistDraftPlanForAutoOdo() {
     draftAppendixItems = [];
     draftElements = [];
     branches = [];
+    branchLines = [];
+    branchLabels = [];
+    branchLabelGroups = [];
     branchMeta = [];
     draftsByProject[projectId] = null;
     document.getElementById('bulk-plan-status').textContent = `${result.message} Sada racunam Auto ODO.`;
@@ -2595,16 +3038,16 @@ function restoreDraft(payload) {
             from_type: meta.from_type ?? null,
             from_id: meta.from_id ?? null,
             duct_length_m: meters,
-            fiber_length_m: meters,
+            fiber_length_m: normalizedMeta.route_type === 'trench' ? 0 : meters,
             path,
         };
         branches.push(points);
         branchMeta.push(normalizedMeta);
         const odfLabel = normalizedMeta.odf_index === null || normalizedMeta.odf_index === undefined ? 'bez ODF' : `ODF-${String(normalizedMeta.odf_index + 1).padStart(2, '0')}`;
-        const line = L.polyline(points, { color: routeColor(normalizedMeta.route_type), weight: 4 }).bindPopup(`<b>${normalizedMeta.name}</b><br>${routeTypeLabel(normalizedMeta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map);
+        const line = trackLayer(L.polyline(points, routeLineStyle(normalizedMeta.route_type)).bindPopup(`<b>${normalizedMeta.name}</b><br>${routeTypeLabel(normalizedMeta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), routeLayerType(normalizedMeta.route_type));
         branchLines.push(line);
         registerBranchContext(line);
-        addRouteLabel(points, normalizedMeta.name);
+        if (normalizedMeta.route_type !== 'trench') addRouteLabel(points, normalizedMeta.name);
     });
     renderBranchList();
 
@@ -2722,11 +3165,7 @@ async function saveDraft({ quiet = false } = {}) {
 
 function commitTrenchLines() {
     allNetworkPoints().forEach(branch => {
-        const trench = L.polyline(branch, {
-            color: '#111827',
-            weight: 5,
-            opacity: .9,
-        }).bindPopup(`<b>Rov / spremljena trasa</b><br>${distance(branch)} m`).addTo(map);
+        const trench = L.polyline(branch, routeLineStyle('trench')).bindPopup(`<b>Rov / spremljena trasa</b><br>${distance(branch)} m`).addTo(map);
         trenchLines.push(trench);
     });
 }
@@ -2962,6 +3401,35 @@ document.getElementById('bulk-plan-form').addEventListener('submit', async event
         status.textContent = error.message;
     }
 });
+function applyMapViewMode() {
+    const workspace = document.getElementById('map-workspace');
+    const btn = document.getElementById('toggle-map-view');
+    workspace.classList.toggle('gis-view', mapViewMode === 'gis');
+    if (btn) btn.textContent = mapViewMode === 'cad' ? 'CAD prikaz' : 'GIS prikaz';
+    data.routes.forEach(route => {
+        const line = routeLayerById[route.id];
+        if (line?.setStyle) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+    });
+    branchLines.forEach((line, index) => {
+        const meta = branchMeta[index] || {};
+        if (line?.setStyle) line.setStyle(routeLineStyle(meta.route_type || 'distribution'));
+    });
+    if (activeBranchLine) redrawActiveBranch();
+}
+function applyMapZoomClass() {
+    const workspace = document.getElementById('map-workspace');
+    const zoom = map.getZoom();
+    workspace.classList.toggle('zoom-high', zoom >= 19);
+    workspace.classList.toggle('zoom-low', zoom <= 16);
+}
+document.getElementById('toggle-map-view').addEventListener('click', () => {
+    mapViewMode = mapViewMode === 'cad' ? 'gis' : 'cad';
+    applyMapViewMode();
+    document.getElementById('cad-command').textContent = `VIEW: ${mapViewMode.toUpperCase()} prikaz aktivan.`;
+});
+applyMapViewMode();
+applyMapZoomClass();
+map.on('zoomend', applyMapZoomClass);
 document.getElementById('expand-map').addEventListener('click', () => {
     expandedMap = !expandedMap;
     const workspace = document.getElementById('map-workspace');
@@ -2976,6 +3444,7 @@ document.getElementById('expand-map').addEventListener('click', () => {
         sidebar.classList.remove('hidden');
         btn.textContent = 'Velika mapa';
     }
+    applyMapViewMode();
     setTimeout(() => map.invalidateSize(), 100);
 });
 document.getElementById('add-route-vertex').addEventListener('click', () => addRouteEditVertex());
@@ -2987,12 +3456,172 @@ document.getElementById('save-route-edit').addEventListener('click', async () =>
         document.getElementById('cad-command').textContent = error.message;
     }
 });
+document.getElementById('close-route-attribute-panel').addEventListener('click', closeRouteAttributePanel);
+document.getElementById('save-route-attributes').addEventListener('click', async () => {
+    try {
+        await saveRouteAttributes();
+    } catch (error) {
+        document.getElementById('route-attribute-status').textContent = error.message;
+        document.getElementById('cad-command').textContent = error.message;
+    }
+});
 document.getElementById('finish-house-connect').addEventListener('click', async () => {
     try { await finishHouseConnect(); } catch (error) { document.getElementById('cad-command').textContent = error.message; }
 });
 document.getElementById('cancel-house-connect').addEventListener('click', () => {
     resetHouseConnect();
     document.getElementById('cad-command').textContent = 'CONNECT HOUSES: povezivanje otkazano.';
+});
+
+async function runProjectCheck() {
+    const projectId = document.getElementById('active-project-id').value;
+    const panel = document.getElementById('project-check-panel');
+    const summary = document.getElementById('project-check-summary');
+    if (!projectId) {
+        summary.textContent = 'Prvo odaberi projekat.';
+        panel.innerHTML = '';
+        return;
+    }
+
+    summary.textContent = 'Provjeravam projekat...';
+    panel.innerHTML = '';
+    const response = await fetch(appConfig.projectValidationBaseUrl.replace('__ID__', projectId), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const result = await readJsonResponse(response, 'Provjera projekta nije uspjela.');
+    const items = result.items || [];
+    const problems = items.filter(item => item.level !== 'ok');
+    const counts = {
+        error: problems.filter(item => item.level === 'error').length,
+        warning: problems.filter(item => item.level === 'warning').length,
+        info: problems.filter(item => item.level === 'info').length,
+    };
+    summary.textContent = problems.length
+        ? `${counts.error} gresaka, ${counts.warning} upozorenja, ${counts.info} info stavki`
+        : 'Projekat nema otvorenih problema.';
+    panel.innerHTML = items.map((item, index) => projectCheckItemHtml(item, index)).join('');
+    highlightValidationItems(items);
+    panel.querySelectorAll('[data-check-index]').forEach(button => {
+        button.addEventListener('click', () => focusValidationItem(items[Number(button.dataset.checkIndex)]));
+    });
+}
+
+async function fillMissingDropRoutes() {
+    const projectId = document.getElementById('active-project-id').value;
+    const summary = document.getElementById('project-check-summary');
+    if (!projectId) {
+        summary.textContent = 'Prvo odaberi projekat.';
+        return;
+    }
+
+    summary.textContent = 'Popunjavam nedostajuce drop trase...';
+    const response = await fetch(appConfig.projectDropFillBaseUrl.replace('__ID__', projectId), {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+    const result = await readJsonResponse(response, 'Drop trase nisu kreirane.');
+    (result.routes || []).forEach(route => addSavedRouteToMap({ ...route, type: 'drop', length: route.duct_length_m ?? route.length }));
+    summary.textContent = result.created
+        ? `Kreirano ${result.created} nedostajucih drop trasa.`
+        : 'Nema nedostajucih drop trasa za kuce koje imaju ODO.';
+    await runProjectCheck();
+}
+
+function projectCheckItemHtml(item, index) {
+    const color = item.level === 'error'
+        ? 'border-red-300 bg-red-50 text-red-900'
+        : item.level === 'warning'
+            ? 'border-amber-300 bg-amber-50 text-amber-950'
+            : item.level === 'ok'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                : 'border-slate-200 bg-slate-50 text-slate-800';
+
+    return `<button type="button" data-check-index="${index}" class="grid gap-1 rounded-md border px-2 py-2 text-left ${color}">
+        <span class="font-bold uppercase">${item.level} · ${item.element_type || 'project'}</span>
+        <span>${item.message || ''}</span>
+        <small>${item.recommendation || ''}</small>
+    </button>`;
+}
+
+function focusValidationItem(item) {
+    if (!item) return;
+    const id = Number(item.element_id);
+    let layer = null;
+    if (item.element_type === 'odf') layer = odfMarkerById[id];
+    if (item.element_type === 'cabinet') layer = cabinetMarkerById[id];
+    if (item.element_type === 'house') layer = houseMarkerById[id];
+    if (item.element_type === 'route') layer = routeLayerById[id];
+
+    if (layer?.getLatLng) {
+        map.setView(layer.getLatLng(), Math.max(map.getZoom(), 20));
+        layer.openPopup?.();
+        document.getElementById('cad-command').textContent = `CHECK: ${item.message}`;
+        return;
+    }
+    if (layer?.getBounds) {
+        map.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 20 });
+        layer.openPopup?.();
+        document.getElementById('cad-command').textContent = `CHECK: ${item.message}`;
+        return;
+    }
+
+    document.getElementById('cad-command').textContent = `CHECK: ${item.message}`;
+}
+
+function clearValidationHighlights() {
+    validationHighlightLayers.forEach(layer => {
+        if (layer && map.hasLayer(layer)) map.removeLayer(layer);
+    });
+    validationHighlightLayers = [];
+    data.routes.forEach(route => {
+        const line = routeLayerById[route.id];
+        if (line?.setStyle) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+    });
+}
+
+function highlightValidationItems(items) {
+    clearValidationHighlights();
+    items.filter(item => ['error', 'warning'].includes(item.level)).forEach(item => {
+        const color = item.level === 'error' ? '#dc2626' : '#f59e0b';
+        const id = Number(item.element_id);
+        let layer = null;
+        if (item.element_type === 'odf') layer = odfMarkerById[id];
+        if (item.element_type === 'cabinet') layer = cabinetMarkerById[id];
+        if (item.element_type === 'house') layer = houseMarkerById[id];
+        if (item.element_type === 'route') layer = routeLayerById[id];
+
+        if (layer?.getLatLng) {
+            validationHighlightLayers.push(L.circleMarker(layer.getLatLng(), {
+                radius: 13,
+                color,
+                weight: 3,
+                fill: false,
+                interactive: false,
+                pane: 'markerPane',
+            }).addTo(map));
+        } else if (layer?.setStyle) {
+            layer.setStyle({ color, weight: 6, opacity: 1 });
+        }
+    });
+}
+
+document.getElementById('run-project-check').addEventListener('click', async () => {
+    try {
+        await runProjectCheck();
+    } catch (error) {
+        document.getElementById('project-check-summary').textContent = error.message;
+    }
+});
+document.getElementById('fill-missing-drops').addEventListener('click', async () => {
+    try {
+        await fillMissingDropRoutes();
+    } catch (error) {
+        document.getElementById('project-check-summary').textContent = error.message;
+    }
 });
 
 map.on('mousemove', e => {
@@ -3137,7 +3766,7 @@ map.on('click', e => {
         draftElements.push({ type: 'cabinet', marker });
         draftCabinets.push(item);
         marker.on('click', () => selectDraftElement('cabinet', item));
-        registerDraftContext(marker, `FTTH-${draftCabinetCount}`);
+        registerDraftContext(marker, item.name);
         refreshDraftTooltips();
         selectDraftElement('cabinet', item);
         document.getElementById('cabinet-lat').value=lat; document.getElementById('cabinet-lng').value=lng;
@@ -3151,8 +3780,32 @@ data.drafts.forEach(draft => {
 });
 autosaveReady = true;
 
+function updateProjectExportLink(projectId = document.getElementById('active-project-id').value) {
+    const links = [
+        ['export-geojson', appConfig.projectGeoJsonBaseUrl],
+        ['export-dxf', appConfig.projectDxfBaseUrl],
+        ['print-project', appConfig.projectPrintBaseUrl],
+    ];
+    if (!projectId) {
+        links.forEach(([id]) => {
+            const link = document.getElementById(id);
+            if (!link) return;
+            link.classList.add('hidden');
+            link.href = '#';
+        });
+        return;
+    }
+    links.forEach(([id, baseUrl]) => {
+        const link = document.getElementById(id);
+        if (!link) return;
+        link.href = baseUrl.replace('__ID__', projectId);
+        link.classList.remove('hidden');
+    });
+}
+
 document.getElementById('active-project-id').addEventListener('change', (e) => {
     const projectId = e.target.value;
+    updateProjectExportLink(projectId);
     if (!projectId) return;
     if (keepCurrentDraftOnProjectChange) {
         keepCurrentDraftOnProjectChange = false;
@@ -3191,6 +3844,7 @@ if (document.querySelectorAll('#active-project-id option:not([value=""])').lengt
     if (firstProject) {
         const projectId = firstProject.value;
         document.getElementById('active-project-id').value = projectId;
+        updateProjectExportLink(projectId);
         renderDraftOdfPicker();
         setTimeout(() => {
             const draft = draftsByProject[projectId];

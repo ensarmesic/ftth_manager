@@ -72,6 +72,80 @@ trait ManagesFtthData
         return $code;
     }
 
+    protected function nextSequentialProjectName(string $model, int $projectId, string $prefix, int $pad = 0): string
+    {
+        $escaped = preg_quote($prefix, '/');
+        $max = $model::query()
+            ->where('project_id', $projectId)
+            ->pluck('name')
+            ->map(fn ($name) => preg_match("/^{$escaped}(\\d+)$/i", (string) $name, $match) ? (int) $match[1] : 0)
+            ->max();
+
+        $next = (int) $max + 1;
+
+        return $prefix.($pad > 0 ? str_pad((string) $next, $pad, '0', STR_PAD_LEFT) : $next);
+    }
+
+    protected function uniqueProjectName(string $model, int $projectId, string $base): string
+    {
+        $base = trim($base);
+        if ($base === '') {
+            $base = 'Naziv';
+        }
+
+        if (! $model::query()->where('project_id', $projectId)->where('name', $base)->exists()) {
+            return $base;
+        }
+
+        for ($suffix = 2; $suffix < 1000; $suffix++) {
+            $candidate = "{$base}-{$suffix}";
+            if (! $model::query()->where('project_id', $projectId)->where('name', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        abort(422, 'Nije moguce generisati jedinstven naziv.');
+    }
+
+    protected function routeNamePrefix(string $routeType): string
+    {
+        return match ($routeType) {
+            'trench' => 'Glavni rov',
+            'backbone' => 'Backbone',
+            'feeder' => 'Primarni krak',
+            'drop' => 'Drop trasa',
+            default => 'Sekundarni krak',
+        };
+    }
+
+    protected function nextRouteNameForProject(int $projectId, string $routeType): string
+    {
+        $prefix = $this->routeNamePrefix($routeType).' ';
+
+        return $this->nextSequentialProjectName(NetworkRoute::class, $projectId, $prefix);
+    }
+
+    protected function nextFtthCabinetNameForProject(int $projectId, string $branchCode = '1-1'): string
+    {
+        $branchCode = $this->ftthCabinetCodeFromBranchCode($branchCode);
+        $prefix = "FTTH {$branchCode}-";
+
+        return $this->nextSequentialProjectName(Cabinet::class, $projectId, $prefix);
+    }
+
+    protected function ftthCabinetCodeFromBranchCode(string $branchCode): string
+    {
+        $parts = preg_split('/[.-]+/', trim($branchCode), -1, PREG_SPLIT_NO_EMPTY) ?: ['1', '1'];
+        if (count($parts) === 1) {
+            $parts[] = '1';
+        }
+
+        $root = $parts[0].'-'.$parts[1];
+        $children = array_slice($parts, 2);
+
+        return $children ? $root.'.'.implode('.', $children) : $root;
+    }
+
     protected function deleteRouteWithBranch(NetworkRoute $route): void
     {
         DB::transaction(function () use ($route): void {
@@ -126,7 +200,7 @@ trait ManagesFtthData
         $branch = NetworkBranch::create([
             'project_id' => $route->project_id,
             'odf_id' => $route->odf_id ?? $sourceCabinet?->odf_id,
-            'parent_branch_id' => null,
+            'parent_branch_id' => $sourceCabinet?->branch_id,
             'route_id' => $route->id,
             'name' => $route->name,
             'code' => preg_match('/(\d+(?:[.-]\d+)*)/', $route->name, $match) ? str_replace('-', '.', $match[1]) : null,
@@ -410,6 +484,103 @@ trait ManagesFtthData
     protected function pointDistance(array $a, array $b): float
     {
         return $this->polylineLength([$a, $b]);
+    }
+
+    protected function projectPointToRoute(float $lat, float $lng, NetworkRoute $route): array
+    {
+        $points = $route->path ?? [];
+        $originLat = $lat;
+        $originLng = $lng;
+        $best = null;
+        $chainage = 0.0;
+
+        for ($i = 1; $i < count($points); $i++) {
+            [$aLat, $aLng] = $points[$i - 1];
+            [$bLat, $bLng] = $points[$i];
+            $a = $this->latLngToMeters((float) $aLat, (float) $aLng, $originLat, $originLng);
+            $b = $this->latLngToMeters((float) $bLat, (float) $bLng, $originLat, $originLng);
+            $p = $this->latLngToMeters($lat, $lng, $originLat, $originLng);
+            $abx = $b['x'] - $a['x'];
+            $aby = $b['y'] - $a['y'];
+            $ab2 = max(0.000001, ($abx ** 2) + ($aby ** 2));
+            $t = max(0, min(1, ((($p['x'] - $a['x']) * $abx) + (($p['y'] - $a['y']) * $aby)) / $ab2));
+            $x = $a['x'] + ($abx * $t);
+            $y = $a['y'] + ($aby * $t);
+            $distance = sqrt((($p['x'] - $x) ** 2) + (($p['y'] - $y) ** 2));
+            $segmentLength = sqrt($ab2);
+
+            if (! $best || $distance < $best['distance_m']) {
+                $best = [
+                    'lat' => $originLat + ($y / 111320),
+                    'lng' => $originLng + ($x / (111320 * cos(deg2rad($originLat)))),
+                    'distance_m' => $distance,
+                    'chainage_m' => $chainage + ($segmentLength * $t),
+                    'segment_index' => $i,
+                ];
+            }
+            $chainage += $segmentLength;
+        }
+
+        return $best ?? ['lat' => $lat, 'lng' => $lng, 'distance_m' => INF, 'chainage_m' => 0, 'segment_index' => 0];
+    }
+
+    protected function routePathBetween(NetworkRoute $route, array $start, array $end): array
+    {
+        $points = array_values($route->path ?? []);
+        if (count($points) < 2) {
+            return [[$start['lat'], $start['lng']], [$end['lat'], $end['lng']]];
+        }
+
+        $reverse = $start['chainage_m'] > $end['chainage_m'];
+        $from = $reverse ? $end : $start;
+        $to = $reverse ? $start : $end;
+
+        $path = [[$from['lat'], $from['lng']]];
+        for ($i = max(1, (int) $from['segment_index']); $i < count($points); $i++) {
+            $vertexChainage = $this->routeVertexChainage($points, $i);
+            if ($vertexChainage <= $from['chainage_m'] + 0.01) {
+                continue;
+            }
+            if ($vertexChainage >= $to['chainage_m'] - 0.01) {
+                break;
+            }
+            $path[] = [(float) $points[$i][0], (float) $points[$i][1]];
+        }
+        $path[] = [$to['lat'], $to['lng']];
+
+        return $reverse ? array_reverse($this->compactPath($path)) : $this->compactPath($path);
+    }
+
+    protected function compactPath(array $path): array
+    {
+        $compact = [];
+        foreach ($path as $point) {
+            $normalized = [round((float) $point[0], 7), round((float) $point[1], 7)];
+            $last = $compact[array_key_last($compact)] ?? null;
+            if (! $last || abs($last[0] - $normalized[0]) > 0.0000001 || abs($last[1] - $normalized[1]) > 0.0000001) {
+                $compact[] = $normalized;
+            }
+        }
+
+        return $compact;
+    }
+
+    private function latLngToMeters(float $lat, float $lng, float $originLat, float $originLng): array
+    {
+        return [
+            'x' => ($lng - $originLng) * 111320 * cos(deg2rad($originLat)),
+            'y' => ($lat - $originLat) * 111320,
+        ];
+    }
+
+    private function routeVertexChainage(array $points, int $vertexIndex): float
+    {
+        $chainage = 0.0;
+        for ($i = 1; $i <= $vertexIndex && $i < count($points); $i++) {
+            $chainage += $this->pointDistance($points[$i - 1], $points[$i]);
+        }
+
+        return $chainage;
     }
 }
 

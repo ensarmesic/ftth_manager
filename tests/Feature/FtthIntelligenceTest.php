@@ -363,6 +363,40 @@ class FtthIntelligenceTest extends TestCase
         $this->assertTrue($paths->flatten(1)->contains(fn (array $point) => abs($point[0] - 44.4490) < 0.000001 && abs($point[1] - 18.6420) < 0.000001));
     }
 
+    public function test_auto_ftth_name_uses_branch_and_child_branch_notation(): void
+    {
+        $project = Project::create(['name' => 'Podkrak naziv', 'code' => 'PKN', 'location' => 'Test', 'status' => 'planning']);
+        $this->branchRoute($project, 'Sekundarni krak 1.6.1', [
+            [44.4490, 18.6400],
+            [44.4510, 18.6400],
+        ]);
+
+        for ($i = 0; $i < 4; $i++) {
+            House::create(['project_id' => $project->id, 'label' => 'K'.($i + 1), 'latitude' => 44.4492 + ($i * 0.0001), 'longitude' => 18.64005, 'status' => 'planned']);
+        }
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()->json();
+
+        $this->assertSame('FTTH 1-6.1-1', $plan['cabinets'][0]['confirmed_name']);
+    }
+
+    public function test_auto_ftth_name_ignores_branch_outlet_suffix(): void
+    {
+        $project = Project::create(['name' => 'Izvod naziv', 'code' => 'IZV', 'location' => 'Test', 'status' => 'planning']);
+        $this->branchRoute($project, 'Sekundarni krak 1.6.1-1', [
+            [44.4490, 18.6400],
+            [44.4510, 18.6400],
+        ]);
+
+        for ($i = 0; $i < 4; $i++) {
+            House::create(['project_id' => $project->id, 'label' => 'I'.($i + 1), 'latitude' => 44.4492 + ($i * 0.0001), 'longitude' => 18.64005, 'status' => 'planned']);
+        }
+
+        $plan = $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()->json();
+
+        $this->assertSame('FTTH 1-6.1-1', $plan['cabinets'][0]['confirmed_name']);
+    }
+
     public function test_confirm_rejects_cross_project_odf_and_cross_branch_house(): void
     {
         $project = Project::create(['name' => 'Confirm', 'code' => 'CF', 'location' => 'Test', 'status' => 'planning']);

@@ -32,7 +32,10 @@ class RouteController extends Controller
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->latest()->paginate(12);
         $allRoutes = NetworkRoute::query()->get();
         $totalDuct = $allRoutes->sum(fn (NetworkRoute $route) => $route->trenchLengthForReport());
-        $effectiveMicroduct = NetworkRoute::query()->selectRaw('SUM(duct_length_m * microduct_count) as total')->value('total') ?? 0;
+        $effectiveMicroduct = NetworkRoute::query()
+            ->where('route_type', '!=', 'trench')
+            ->selectRaw('SUM(duct_length_m * microduct_count) as total')
+            ->value('total') ?? 0;
         $totalFiber = NetworkRoute::sum('fiber_length_m');
 
         return view('ftth.routes', [
@@ -59,7 +62,7 @@ class RouteController extends Controller
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'from_type' => ['nullable', 'in:odf,cabinet'],
             'from_id' => ['nullable', 'integer'],
-            'to_type' => ['nullable', 'in:cabinet'],
+            'to_type' => ['nullable', 'in:cabinet,house'],
             'to_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
@@ -87,13 +90,13 @@ class RouteController extends Controller
         }
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
-        $this->ensureBelongsToProject(Cabinet::class, $data['to_id'] ?? null, $data['project_id'], 'to_id');
+        $this->ensureRouteEndBelongsToProject($data, (int) $data['project_id']);
         $this->normalizeRouteStart($data, (int) $data['project_id']);
 
         if (! empty($data['path'])) {
             $data['path'] = json_decode($data['path'], true);
             $data['duct_length_m'] = $this->polylineLength($data['path']);
-            $data['fiber_length_m'] = $data['duct_length_m'];
+            $data['fiber_length_m'] = $data['route_type'] === 'trench' ? 0 : $data['duct_length_m'];
         }
 
         $route = NetworkRoute::create($data);
@@ -116,6 +119,8 @@ class RouteController extends Controller
                     'note' => $route->note,
                     'from_type' => $route->from_type,
                     'from_id' => $route->from_id,
+                    'to_type' => $route->to_type,
+                    'to_id' => $route->to_id,
                     'odf_id' => $route->odf_id,
                     'cabinet_id' => $route->cabinet_id,
                 ],
@@ -144,7 +149,7 @@ class RouteController extends Controller
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'from_type' => ['nullable', 'in:odf,cabinet'],
             'from_id' => ['nullable', 'integer'],
-            'to_type' => ['nullable', 'in:cabinet'],
+            'to_type' => ['nullable', 'in:cabinet,house'],
             'to_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'microduct_type' => ['nullable', 'in:14/10,10/8'],
@@ -162,7 +167,7 @@ class RouteController extends Controller
         }
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $route->project_id, 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $route->project_id, 'cabinet_id');
-        $this->ensureBelongsToProject(Cabinet::class, $data['to_id'] ?? null, $route->project_id, 'to_id');
+        $this->ensureRouteEndBelongsToProject($data, (int) $route->project_id);
         $this->normalizeRouteStart($data, (int) $route->project_id);
         $route->update($data);
         $this->syncBranchForRoute($route);
@@ -178,7 +183,8 @@ class RouteController extends Controller
                 'id' => $route->id, 'name' => $route->name, 'from' => $this->routeStartLabel($route),
                 'to' => $route->cabinet?->name ?? '-', 'type' => $route->route_type, 'length' => $route->duct_length_m,
                 'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'path' => $route->path,
-                'note' => $route->note, 'odf_id' => $route->odf_id, 'from_type' => $route->from_type, 'from_id' => $route->from_id, 'cabinet_id' => $route->cabinet_id,
+                'note' => $route->note, 'odf_id' => $route->odf_id, 'from_type' => $route->from_type, 'from_id' => $route->from_id,
+                'to_type' => $route->to_type, 'to_id' => $route->to_id, 'cabinet_id' => $route->cabinet_id,
             ],
         ]);
     }
@@ -196,7 +202,7 @@ class RouteController extends Controller
         $route->update([
             'path' => $data['path'],
             'duct_length_m' => $length,
-            'fiber_length_m' => $length,
+            'fiber_length_m' => $route->route_type === 'trench' ? 0 : $length,
         ]);
 
         return response()->json([
@@ -252,7 +258,11 @@ class RouteController extends Controller
             }
 
             $length = $this->polylineLength($path);
-            $route->update(['path' => $path, 'duct_length_m' => $length, 'fiber_length_m' => $length]);
+            $route->update([
+                'path' => $path,
+                'duct_length_m' => $length,
+                'fiber_length_m' => $route->route_type === 'trench' ? 0 : $length,
+            ]);
         });
 
         $length = $this->polylineLength($path);
@@ -263,6 +273,20 @@ class RouteController extends Controller
             'deleted_route_id' => $deletedIds[0] ?? null,
             'deleted_route_ids' => $deletedIds,
         ]);
+    }
+
+    private function ensureRouteEndBelongsToProject(array $data, int $projectId): void
+    {
+        $toType = $data['to_type'] ?? null;
+        $toId = $data['to_id'] ?? null;
+
+        if ($toType === 'cabinet') {
+            $this->ensureBelongsToProject(Cabinet::class, $toId, $projectId, 'to_id');
+        }
+
+        if ($toType === 'house') {
+            $this->ensureBelongsToProject(House::class, $toId, $projectId, 'to_id');
+        }
     }
 
     private function joinedRoutePath(array $a, array $b): array

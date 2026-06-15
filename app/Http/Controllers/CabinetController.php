@@ -192,6 +192,10 @@ class CabinetController extends Controller
                         ->values();
 
                 $createdCabinet = null;
+                $cabinetName = trim((string) ($cabinet['name'] ?? ''));
+                if ($cabinetName === '') {
+                    $cabinetName = $this->nextFtthCabinetNameForProject($projectId);
+                }
                 if ($assignedCabinetIds->count() === 1) {
                     $createdCabinet = Cabinet::query()
                         ->where('project_id', $projectId)
@@ -202,7 +206,7 @@ class CabinetController extends Controller
                 if (! $createdCabinet) {
                     $createdCabinet = Cabinet::query()
                         ->where('project_id', $projectId)
-                        ->where('name', $cabinet['name'])
+                        ->where('name', $cabinetName)
                         ->first();
                 }
 
@@ -219,7 +223,7 @@ class CabinetController extends Controller
                     $createdCabinet = Cabinet::create([
                         'project_id' => $projectId,
                         'odf_id' => $cabinet['odf_id'] ?? null,
-                        'name' => $cabinet['name'],
+                        'name' => $this->uniqueProjectName(Cabinet::class, $projectId, $cabinetName),
                         'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
                         'splitter_count' => $cabinet['splitter_count'],
                         'ports_per_splitter' => 4,
@@ -253,10 +257,11 @@ class CabinetController extends Controller
                         ->update(['cabinet_id' => $createdCabinet->id]);
                     $path = $point['path'] ?? [[(float) $createdCabinet->latitude, (float) $createdCabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
                     $length = $this->polylineLength($path);
+                    $dropName = $this->uniqueProjectName(NetworkRoute::class, $projectId, "Drop {$createdCabinet->name}-{$house->label}");
                     NetworkRoute::create([
                         'project_id' => $projectId,
                         'cabinet_id' => $createdCabinet->id,
-                        'name' => "Drop {$createdCabinet->name}-".($index + 1),
+                        'name' => $dropName,
                         'route_type' => 'drop',
                         'installation_type' => 'underground',
                         'duct_length_m' => $length,

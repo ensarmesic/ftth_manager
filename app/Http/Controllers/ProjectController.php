@@ -156,6 +156,305 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function createMissingDropRoutes(Project $project)
+    {
+        $houses = $project->houses()
+            ->with('cabinet')
+            ->whereNotNull('cabinet_id')
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->get()
+            ->reject(fn (House $house) => NetworkRoute::query()
+                ->where('project_id', $project->id)
+                ->where('route_type', 'drop')
+                ->where('to_type', 'house')
+                ->where('to_id', $house->id)
+                ->exists());
+
+        $routes = DB::transaction(function () use ($project, $houses) {
+            return $houses->map(function (House $house) use ($project) {
+                $cabinet = $house->cabinet;
+                if (! $cabinet || $cabinet->latitude === null || $cabinet->longitude === null) {
+                    return null;
+                }
+
+                $path = $this->dropPathForHouse($project, $cabinet, $house);
+                $length = $this->polylineLength($path);
+
+                return NetworkRoute::create([
+                    'project_id' => $project->id,
+                    'cabinet_id' => $cabinet->id,
+                    'from_type' => 'cabinet',
+                    'from_id' => $cabinet->id,
+                    'to_type' => 'house',
+                    'to_id' => $house->id,
+                    'name' => $this->uniqueProjectName(NetworkRoute::class, $project->id, "Drop {$cabinet->name}-{$house->label}"),
+                    'route_type' => 'drop',
+                    'installation_type' => 'underground',
+                    'duct_length_m' => $length,
+                    'fiber_length_m' => $length,
+                    'fiber_count' => 4,
+                    'microduct_count' => 1,
+                    'microduct_type' => '10/8',
+                    'status' => 'planned',
+                    'path' => $path,
+                ]);
+            })->filter()->values();
+        });
+
+        return response()->json([
+            'message' => 'Nedostajuce drop trase su kreirane.',
+            'created' => $routes->count(),
+            'routes' => $routes->map(fn (NetworkRoute $route) => [
+                'id' => $route->id,
+                'name' => $route->name,
+                'type' => $route->route_type,
+                'length' => $route->duct_length_m,
+                'duct_length_m' => $route->duct_length_m,
+                'microduct' => $route->microduct_type,
+                'fibers' => $route->fiber_count,
+                'path' => $route->path,
+                'note' => $route->note,
+                'from_type' => $route->from_type,
+                'from_id' => $route->from_id,
+                'to_type' => $route->to_type,
+                'to_id' => $route->to_id,
+                'cabinet_id' => $route->cabinet_id,
+            ]),
+        ]);
+    }
+
+    public function exportGeoJson(Project $project)
+    {
+        $project->load(['odfs', 'cabinets', 'houses', 'routes']);
+        $features = collect();
+
+        $project->odfs->whereNotNull('latitude')->whereNotNull('longitude')->each(function (Odf $odf) use ($features): void {
+            $features->push($this->geoJsonPoint('odf', $odf->id, $odf->name, (float) $odf->latitude, (float) $odf->longitude, [
+                'address' => $odf->address,
+                'fiber_capacity' => $odf->fiber_capacity,
+                'port_count' => $odf->port_count,
+            ]));
+        });
+
+        $project->cabinets->whereNotNull('latitude')->whereNotNull('longitude')->each(function (Cabinet $cabinet) use ($features): void {
+            $features->push($this->geoJsonPoint('ftth', $cabinet->id, $cabinet->name, (float) $cabinet->latitude, (float) $cabinet->longitude, [
+                'odf_id' => $cabinet->odf_id,
+                'parent_cabinet_id' => $cabinet->parent_cabinet_id,
+                'splitter_count' => $cabinet->splitter_count,
+                'capacity' => $cabinet->capacity,
+            ]));
+        });
+
+        $project->houses->whereNotNull('latitude')->whereNotNull('longitude')->each(function (House $house) use ($features): void {
+            $features->push($this->geoJsonPoint('house', $house->id, $house->label, (float) $house->latitude, (float) $house->longitude, [
+                'cabinet_id' => $house->cabinet_id,
+                'status' => $house->status,
+                'address' => $house->address,
+            ]));
+        });
+
+        $project->routes->filter(fn (NetworkRoute $route) => count($route->path ?? []) > 1)->each(function (NetworkRoute $route) use ($features): void {
+            $features->push([
+                'type' => 'Feature',
+                'geometry' => [
+                    'type' => 'LineString',
+                    'coordinates' => collect($route->path)->map(fn (array $point) => [(float) $point[1], (float) $point[0]])->values()->all(),
+                ],
+                'properties' => [
+                    'element_type' => 'route',
+                    'id' => $route->id,
+                    'name' => $route->name,
+                    'route_type' => $route->route_type,
+                    'duct_length_m' => $route->duct_length_m,
+                    'fiber_length_m' => $route->fiber_length_m,
+                    'fiber_count' => $route->fiber_count,
+                    'microduct_count' => $route->microduct_count,
+                    'microduct_type' => $route->microduct_type,
+                ],
+            ]);
+        });
+
+        $payload = [
+            'type' => 'FeatureCollection',
+            'name' => $project->code ?: $project->name,
+            'features' => $features->values()->all(),
+        ];
+
+        return response()->json($payload, 200, [
+            'Content-Disposition' => 'attachment; filename="'.$project->code.'-ftth.geojson"',
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function exportDxf(Project $project)
+    {
+        $project->load(['odfs', 'cabinets', 'houses', 'routes']);
+        $lines = [
+            '0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1009', '0', 'ENDSEC',
+            '0', 'SECTION', '2', 'ENTITIES',
+        ];
+
+        foreach ($project->routes as $route) {
+            $path = $route->path ?? [];
+            if (count($path) < 2) {
+                continue;
+            }
+            $lines = array_merge($lines, $this->dxfPolyline($path, $this->dxfLayerForRoute($route), $this->dxfColorForRoute($route)));
+            $middle = $path[(int) floor((count($path) - 1) / 2)];
+            $lines = array_merge($lines, $this->dxfText((float) $middle[1], (float) $middle[0], $route->name, 'FTTH_LABELS', 7, 0.000018));
+        }
+
+        foreach ($project->odfs as $odf) {
+            if ($odf->latitude === null || $odf->longitude === null) {
+                continue;
+            }
+            $lines = array_merge($lines, $this->dxfPoint((float) $odf->longitude, (float) $odf->latitude, 'FTTH_ODF', 5));
+            $lines = array_merge($lines, $this->dxfText((float) $odf->longitude, (float) $odf->latitude, $odf->name, 'FTTH_LABELS', 7));
+        }
+
+        foreach ($project->cabinets as $cabinet) {
+            if ($cabinet->latitude === null || $cabinet->longitude === null) {
+                continue;
+            }
+            $lines = array_merge($lines, $this->dxfPoint((float) $cabinet->longitude, (float) $cabinet->latitude, 'FTTH_CABINETS', 3));
+            $lines = array_merge($lines, $this->dxfText((float) $cabinet->longitude, (float) $cabinet->latitude, $cabinet->name, 'FTTH_LABELS', 7));
+        }
+
+        foreach ($project->houses as $house) {
+            if ($house->latitude === null || $house->longitude === null) {
+                continue;
+            }
+            $lines = array_merge($lines, $this->dxfPoint((float) $house->longitude, (float) $house->latitude, 'FTTH_HOUSES', 3));
+        }
+
+        $lines = array_merge($lines, ['0', 'ENDSEC', '0', 'EOF']);
+
+        return response(implode("\r\n", $lines)."\r\n", 200, [
+            'Content-Type' => 'application/dxf',
+            'Content-Disposition' => 'attachment; filename="'.$project->code.'-ftth.dxf"',
+        ]);
+    }
+
+    public function printProject(Project $project): View
+    {
+        $project->load([
+            'odfs.cabinets',
+            'cabinets.houses',
+            'houses.cabinet',
+            'routes' => fn ($query) => $query->orderBy('route_type')->orderBy('name'),
+            'appendixItems',
+        ]);
+
+        return view('ftth.projects.print', [
+            'project' => $project,
+            'validationItems' => collect($this->ftthIntelligence->validateProject($project)),
+            'materials' => $this->ftthIntelligence->materialSummary($project),
+        ]);
+    }
+
+    private function dropPathForHouse(Project $project, Cabinet $cabinet, House $house): array
+    {
+        $directPath = [
+            [(float) $cabinet->latitude, (float) $cabinet->longitude],
+            [(float) $house->latitude, (float) $house->longitude],
+        ];
+
+        $route = $project->routes()
+            ->whereNotIn('route_type', ['trench', 'drop'])
+            ->whereNotNull('path')
+            ->get()
+            ->filter(fn (NetworkRoute $route) => count($route->path ?? []) >= 2)
+            ->sortBy(fn (NetworkRoute $route) => $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route)['distance_m'])
+            ->first();
+
+        if (! $route) {
+            return $directPath;
+        }
+
+        $cabinetProjection = $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route);
+        $houseProjection = $this->projectPointToRoute((float) $house->latitude, (float) $house->longitude, $route);
+        if ($cabinetProjection['distance_m'] > 35 || $houseProjection['distance_m'] > 90) {
+            return $directPath;
+        }
+
+        return $this->compactPath(array_merge(
+            [[(float) $cabinet->latitude, (float) $cabinet->longitude], [$cabinetProjection['lat'], $cabinetProjection['lng']]],
+            array_slice($this->routePathBetween($route, $cabinetProjection, $houseProjection), 1),
+            [[(float) $house->latitude, (float) $house->longitude]]
+        ));
+    }
+
+    private function geoJsonPoint(string $type, int $id, string $name, float $lat, float $lng, array $properties = []): array
+    {
+        return [
+            'type' => 'Feature',
+            'geometry' => [
+                'type' => 'Point',
+                'coordinates' => [$lng, $lat],
+            ],
+            'properties' => array_merge([
+                'element_type' => $type,
+                'id' => $id,
+                'name' => $name,
+            ], $properties),
+        ];
+    }
+
+    private function dxfPolyline(array $path, string $layer, int $color): array
+    {
+        $lines = ['0', 'POLYLINE', '8', $layer, '62', (string) $color, '66', '1', '70', '0'];
+        foreach ($path as $point) {
+            $lines = array_merge($lines, [
+                '0', 'VERTEX', '8', $layer,
+                '10', (string) ((float) $point[1]),
+                '20', (string) ((float) $point[0]),
+                '30', '0',
+            ]);
+        }
+
+        return array_merge($lines, ['0', 'SEQEND']);
+    }
+
+    private function dxfPoint(float $x, float $y, string $layer, int $color): array
+    {
+        return ['0', 'POINT', '8', $layer, '62', (string) $color, '10', (string) $x, '20', (string) $y, '30', '0'];
+    }
+
+    private function dxfText(float $x, float $y, string $text, string $layer, int $color, float $height = 0.000028): array
+    {
+        return [
+            '0', 'TEXT', '8', $layer, '62', (string) $color,
+            '10', (string) $x, '20', (string) $y, '30', '0',
+            '40', (string) $height,
+            '1', $this->dxfSafeText($text),
+        ];
+    }
+
+    private function dxfLayerForRoute(NetworkRoute $route): string
+    {
+        return match ($route->route_type) {
+            'trench' => 'FTTH_TRENCH',
+            'drop' => 'FTTH_DROP',
+            'backbone', 'feeder' => 'FTTH_PRIMARY',
+            default => 'FTTH_SECONDARY',
+        };
+    }
+
+    private function dxfColorForRoute(NetworkRoute $route): int
+    {
+        return match ($route->route_type) {
+            'trench' => 7,
+            'drop' => 30,
+            'backbone', 'feeder' => 5,
+            default => 3,
+        };
+    }
+
+    private function dxfSafeText(string $text): string
+    {
+        return str_replace(["\r", "\n"], ' ', $text);
+    }
+
     public function projectCheck(): View
     {
         $projects = Project::with([

@@ -188,6 +188,7 @@ class FtthIntelligenceService
                     foreach ($houses->values() as $index => $house) {
                         $path = $dropPreviewByHouse->get($house['id'])['path'] ?? [[(float) $cabinet->latitude, (float) $cabinet->longitude], [(float) $house['latitude'], (float) $house['longitude']]];
                         $length = $this->polylineLength($path);
+                        $dropName = $this->uniqueRouteName($project, "Drop {$cabinet->name}-{$house['label']}");
                         NetworkRoute::create([
                             'project_id' => $project->id,
                             'cabinet_id' => $cabinet->id,
@@ -197,7 +198,7 @@ class FtthIntelligenceService
                             'to_id' => $house['id'],
                             'coordinates_json' => $path,
                             'cable_type' => $cabinetPlan['cable_type'],
-                            'name' => "Drop {$cabinet->name}-".($index + 1),
+                            'name' => $dropName,
                             'route_type' => 'drop',
                             'installation_type' => 'underground',
                             'duct_length_m' => $length,
@@ -846,7 +847,19 @@ class FtthIntelligenceService
     {
         $label = trim((string) ($branch['branch']?->code ?? '').' '.(string) ($branch['name'] ?? '').' '.(string) ($branch['route']?->name ?? ''));
         if (preg_match('/(\d+(?:[.-]\d+)*)/', $label, $match)) {
-            return str_replace('.', '-', str_replace('--', '-', str_replace('_', '-', $match[1])));
+            $code = $match[1];
+            if (str_contains($code, '.') && str_contains($code, '-')) {
+                $code = preg_replace('/-\d+$/', '', $code);
+            }
+            $parts = preg_split('/[.-]+/', $code, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if (count($parts) >= 2) {
+                $root = $parts[0].'-'.$parts[1];
+                $children = array_slice($parts, 2);
+
+                return $children ? $root.'.'.implode('.', $children) : $root;
+            }
+
+            return str_replace('.', '-', str_replace('--', '-', str_replace('_', '-', $code)));
         }
 
         return (string) $branch['branch_index'];
@@ -870,6 +883,22 @@ class FtthIntelligenceService
         }
 
         throw new InvalidArgumentException('Nije moguće generisati jedinstven naziv novog ODO ormarića.');
+    }
+
+    private function uniqueRouteName(Project $project, string $base): string
+    {
+        $base = trim($base);
+        if (! NetworkRoute::where('project_id', $project->id)->where('name', $base)->exists()) {
+            return $base;
+        }
+        for ($suffix = 2; $suffix < 1000; $suffix++) {
+            $candidate = "{$base}-{$suffix}";
+            if (! NetworkRoute::where('project_id', $project->id)->where('name', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        throw new InvalidArgumentException('Nije moguce generisati jedinstven naziv nove trase.');
     }
 
     private function planSummary(Collection $housesWithCoordinates, Collection $housesWithoutCoordinates, Collection $cabinets, array $warnings, Collection $unassigned): array

@@ -36,6 +36,10 @@ Route::match(['put', 'patch'], '/projekti/{id}', [ProjectController::class, 'upd
 Route::post('/projekti/{project}/odo-plan/preview', [ProjectController::class, 'previewOdoPlan'])->name('projects.odo-plan.preview');
 Route::post('/projekti/{project}/odo-plan/confirm', [ProjectController::class, 'confirmOdoPlan'])->name('projects.odo-plan.confirm');
 Route::get('/projekti/{project}/validacija', [ProjectController::class, 'validateProject'])->name('projects.validation');
+Route::post('/projekti/{project}/drop-trase/popuni', [ProjectController::class, 'createMissingDropRoutes'])->name('projects.drop-routes.fill');
+Route::get('/projekti/{project}/geojson', [ProjectController::class, 'exportGeoJson'])->name('projects.geojson');
+Route::get('/projekti/{project}/dxf', [ProjectController::class, 'exportDxf'])->name('projects.dxf');
+Route::get('/projekti/{project}/print', [ProjectController::class, 'printProject'])->name('projects.print');
 Route::delete('/projekti/{id}', [ProjectController::class, 'deleteProject'])->name('projects.delete');
 
 Route::get('/odf', [OdfController::class, 'odfs'])->name('odfs.index');
