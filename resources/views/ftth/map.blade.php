@@ -263,8 +263,6 @@
     @media (min-width: 1280px) {
         #network-map { min-height: 0; }
     }
-    /* --- Mufa (splice closure) --- */
-    .ftth-tag.mufa { display: block; width: 16px; height: 14px; border: 0; background: transparent; }
     /* --- Dark CAD mode --- */
     #map-workspace.cad-dark .route-label span {
         color: #e2e8f0;
@@ -332,7 +330,6 @@
             <button type="button" id="mode-house" class="tc tc-violet">Kuće</button>
             <button type="button" id="mode-manhole" class="tc tc-slate">Šaht</button>
             <button type="button" id="mode-boring-fi-130" class="tc tc-red">Raketa FI130</button>
-            <button type="button" id="mode-mufa" class="tc tc-purple">Mufa</button>
             <div class="tc-sep"></div>
             <button type="button" id="mode-draw" class="tc tc-amber">Trasa</button>
             <button type="button" id="mode-trench-draw" class="tc tc-slate">Rov</button>
@@ -601,13 +598,13 @@
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-0.5 py-2">
-                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'mufa' => ['Opticke mufe','#db2777'], 'dxf' => ['DXF','#9333ea'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
+                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'dxf' => ['DXF','#9333ea'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
                 <div class="layer-row">
                     <label class="flex flex-1 items-center gap-2 cursor-pointer select-none min-w-0">
                         <input type="checkbox" data-layer-toggle="{{ $layer }}" checked>
-                        <span class="inline-block w-2 h-2 rounded-full flex-shrink-0" style="background:{{ $color }}"></span>
+                        <span class="inline-block w-2 h-2 rounded-full shrink-0" style="background:{{ $color }}"></span>
                         <span class="text-slate-700 truncate">{{ $label }}</span>
-                        <span data-layer-count="{{ $layer }}" class="text-[10px] text-slate-400 ml-auto flex-shrink-0">0</span>
+                        <span data-layer-count="{{ $layer }}" class="text-[10px] text-slate-400 ml-auto shrink-0">0</span>
                     </label>
                     <button type="button" data-layer-lock="{{ $layer }}" class="layer-lock-btn">&#x1F513;</button>
                 </div>
@@ -783,7 +780,6 @@ const layerRegistry = {
     backbone: [],
     distribution: [],
     drop: [],
-    mufa: [],
     dxf: [],
     preview: [],
     measure: [],
@@ -859,7 +855,6 @@ mapLegend.onAdd = () => {
         <div><span class="cad-point-sample" style="background:#0f5fa8"></span><span>ODF</span></div>
         <div><span class="cad-point-sample" style="background:#16a34a"></span><span>FTTH</span></div>
         <div><span class="cad-point-sample circle" style="background:#16a34a"></span><span>Kuca</span></div>
-        <div><svg width="10" height="9" viewBox="0 0 16 14" style="justify-self:start;overflow:visible"><polygon points="4,0 12,0 16,7 12,14 4,14 0,7" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/></svg><span>Mufa</span></div>
         <b style="margin-top:4px">VLAKNA</b>
         <div style="color:#f59e0b"><span class="cad-line-sample"></span><span>≤4F</span></div>
         <div style="color:#16a34a"><span class="cad-line-sample"></span><span>12F</span></div>
@@ -887,19 +882,6 @@ function routeLabelSpecs(route) {
     if (md) parts.push(md);
     return parts.length ? parts.join('·') : null;
 }
-function mufaIcon() {
-    const svg = `<svg width="16" height="14" viewBox="0 0 16 14" style="display:block;overflow:visible;filter:drop-shadow(0 0 1px rgba(0,0,0,.7))"><polygon points="4,0 12,0 16,7 12,14 4,14 0,7" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/><text x="8" y="9.5" text-anchor="middle" fill="#fff" font-size="5.5" font-weight="900" font-family="system-ui,sans-serif">M</text></svg>`;
-    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag mufa">${svg}</div>`, iconSize: [2, 2], iconAnchor: [8, 7] });
-}
-function drawSavedMufa(item) {
-    const p = L.latLng(item.lat, item.lng);
-    const label = item.note ? `Mufa: ${item.note}` : 'Optička mufa/spajač';
-    const marker = L.marker(p, { icon: mufaIcon(), draggable: false })
-        .bindTooltip(label, { direction: 'top', offset: [0, -10] })
-        .bindPopup(`<b>Optička mufa</b>${item.note ? `<br>${item.note}` : ''}`)
-        .addTo(map);
-    trackLayer(marker, 'mufa');
-}
 function clearRuler() {
     [rulerStartMarker, rulerLine, rulerEndMarker, rulerLabelMarker].forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
     rulerStart = null; rulerLine = null; rulerStartMarker = null; rulerEndMarker = null; rulerLabelMarker = null;
@@ -924,7 +906,7 @@ function rulerClick(latlng) {
     rulerStartMarker = L.circleMarker(latlng, { radius: 5, color: '#b91c1c', weight: 2, fillColor: '#fee2e2', fillOpacity: 1, interactive: false }).addTo(map);
 }
 function icon(type, text = '', color = null) {
-    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : type === 'mufa' ? 'mufa' : 'house';
+    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : 'house';
     const style = color ? ` style="background:${color}"` : '';
     if (type === 'cabinet') {
         const match = String(text || '').trim().match(/^FTTH\s+(.+)$/i);
@@ -1096,8 +1078,6 @@ data.appendix_items?.forEach(item => {
     const p = L.latLng(item.lat, item.lng);
     if (item.type === 'boring_fi_130') {
         drawSavedBoring(item);
-    } else if (item.type === 'mufa') {
-        drawSavedMufa(item);
     } else {
         const marker = L.marker(p, { icon: icon('manhole', 'S'), draggable: false })
             .bindTooltip(`Prolazni saht: ${item.quantity} ${item.unit}`, { direction: 'top', offset: [0, -10] })
@@ -1129,7 +1109,6 @@ function setMode(next) {
         draw: 'TRASA: klik po klik crtaj trasu. Blizu postojece trase/tacke automatski se spoji. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
         manhole: 'SAHT: klikni lokaciju prolaznog sahta.',
         'boring-fi-130': 'RAKETA FI130: klikni lokaciju podbusivanja ispod ceste.',
-        mufa: 'MUFA: klikni lokaciju optičke spojnice/mufe. ESC za odustajanje.',
         ruler: 'MJERAČ: klikni prvu tačku. Svaki naredni klik mjeri od prethodne tačke. ESC završava.',
         'branch-source': 'NOVI KRAK IZ ODO: klikni ormarić iz kojeg novi krak polazi.',
         connect: 'CONNECT: odaberi ODF',
@@ -1140,7 +1119,7 @@ function setMode(next) {
     document.getElementById('cad-command').textContent = labels[next];
     updateCommandBar();
 }
-['pan','odf','cabinet','house','draw','manhole','boring-fi-130','mufa','ruler','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
+['pan','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
     setMode(m);
     if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
         document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
@@ -2135,7 +2114,7 @@ function removeDraftElement(marker) {
         activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
     }
     if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== marker);
-    if (item.type === 'manhole' || item.type === 'boring_fi_130' || item.type === 'mufa') {
+    if (item.type === 'manhole' || item.type === 'boring_fi_130') {
         draftAppendixItems = draftAppendixItems.filter(entry => entry.marker !== marker);
     }
     refreshDraftTooltips();
@@ -2300,7 +2279,6 @@ function updateLayerCount(type) {
         backbone: () => data.routes.filter(route => route.type === 'backbone').length + branchMeta.filter(route => route.route_type === 'backbone').length,
         distribution: () => data.routes.filter(route => !['trench', 'backbone', 'drop'].includes(route.type)).length + branchMeta.filter(route => !['trench', 'backbone', 'drop'].includes(route.route_type)).length,
         drop: () => data.routes.filter(route => route.type === 'drop').length,
-        mufa: () => (data.appendix_items?.filter(i => i.type === 'mufa').length || 0) + draftAppendixItems.filter(i => i.type === 'mufa').length,
         dxf: () => 0,
     };
     count.textContent = objectCounts[type] ? objectCounts[type]() : (layerRegistry[type]?.length || 0);
@@ -3394,8 +3372,7 @@ function restoreDraft(payload) {
     (payload.appendix_items || []).forEach(item => {
         const latLng = L.latLng(item.lat, item.lng);
         const isManhole = item.type === 'manhole';
-        const isMufa = item.type === 'mufa';
-        const draftItem = isManhole || isMufa
+        const draftItem = isManhole
             ? { type: item.type, quantity: item.quantity || 1, note: item.note || '', marker: null }
             : createBoringDraft(latLng, item);
         if (isManhole) {
@@ -3404,15 +3381,8 @@ function restoreDraft(payload) {
                 .addTo(map);
             draftItem.marker = marker;
             marker.on('drag', refreshPlanSummary);
-        } else if (isMufa) {
-            const marker = L.marker(latLng, { icon: mufaIcon(), draggable: true })
-                .bindTooltip('Optička mufa', { direction: 'top', offset: [0, -10] })
-                .addTo(map);
-            draftItem.marker = marker;
-            trackLayer(marker, 'mufa');
-            marker.on('drag', refreshPlanSummary);
         }
-        registerDraftContext(draftItem.marker, isManhole ? 'Prolazni saht' : isMufa ? 'Optička mufa' : 'Podbusivanje FI 130');
+        registerDraftContext(draftItem.marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
         draftAppendixItems.push(draftItem);
         draftElements.push({ type: item.type, marker: draftItem.marker });
     });
@@ -4054,22 +4024,6 @@ map.on('click', e => {
         document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); return;
     }
     if (mode === 'ruler') { rulerClick(e.latlng); return; }
-    if (mode === 'mufa') {
-        const item = { type: 'mufa', marker: null, quantity: 1, note: '' };
-        const marker = L.marker(e.latlng, { icon: mufaIcon(), draggable: true })
-            .addTo(map)
-            .bindTooltip('Optička mufa', { direction: 'top', offset: [0, -10] })
-            .bindPopup('<b>Optička mufa</b>')
-            .openPopup();
-        item.marker = marker;
-        marker.on('drag', refreshPlanSummary);
-        draftAppendixItems.push(item);
-        draftElements.push({ type: 'mufa', marker });
-        trackLayer(marker, 'mufa');
-        registerDraftContext(marker, 'Optička mufa');
-        refreshPlanSummary();
-        return;
-    }
     if (mode === 'manhole' || mode === 'boring-fi-130') {
         const isManhole = mode === 'manhole';
         const item = isManhole

@@ -20,11 +20,10 @@
 </head>
 @php
     $isWide = trim($__env->yieldContent('wide'));
-    $isDashboard = request()->routeIs('dashboard', 'map.dashboard');
+    $isDashboard = request()->routeIs('map.dashboard');
     $sidebarItems = [
-        ['dashboard',           'Pregled',            'squares'],
-        ['projects.index',      'Projekti',           'folder'],
         ['map.dashboard',       'Mapa',               'map'],
+        ['projects.index',      'Projekti',           'folder'],
         ['odfs.index',          'ODF-ovi',            'server'],
         ['cabinets.index',      'ODO ormarici',       'archive'],
         ['houses.index',        'Kuce',               'home'],
@@ -250,6 +249,17 @@ document.querySelector('[data-delete-modal-action="confirm"]')?.addEventListener
     const form = pendingDeleteForm; pendingDeleteForm = null;
     document.getElementById('delete-confirmation-modal')?.classList.add('hidden');
     form?.submit();
+});
+// Drawer slide-over
+document.addEventListener('click', e => {
+    const open = e.target.closest('[data-drawer-open]');
+    if (open) { document.getElementById(open.dataset.drawerOpen)?.classList.add('open'); return; }
+    const close = e.target.closest('[data-drawer-close]');
+    if (close) { document.getElementById(close.dataset.drawerClose)?.classList.remove('open'); return; }
+    if (e.target.closest('.app-drawer-backdrop')) e.target.closest('.app-drawer')?.classList.remove('open');
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.app-drawer.open').forEach(d => d.classList.remove('open'));
 });
 const savedFtthSettings = JSON.parse(localStorage.getItem('ftthSettings') || '{}');
 document.documentElement.classList.toggle('compact-tables', Boolean(savedFtthSettings.compactTables));

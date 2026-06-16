@@ -3,7 +3,7 @@
 @section('subtitle', 'Lokalne postavke prikaza FTTH Manager aplikacije.')
 @section('content')
 
-<section class="grid gap-5 lg:grid-cols-[minmax(0,540px)_1fr]">
+<section class="grid gap-6 xl:grid-cols-[420px_1fr]">
     <form id="display-settings" class="page-form">
         <div class="page-form-header">
             <div class="page-form-icon">

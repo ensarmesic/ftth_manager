@@ -12,7 +12,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RouteController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [ProjectController::class, 'dashboard'])->name('dashboard');
+Route::redirect('/', '/mapa')->name('dashboard');
 Route::get('/mapa', [MapController::class, 'map'])->name('map.dashboard');
 Route::redirect('/mapa/editor', '/')->name('map.index');
 Route::post('/mapa/plan', [MapController::class, 'storePlan'])->name('map.plan.store');

@@ -56,8 +56,8 @@
 </section>
 
 <div class="app-table-card">
-    <div class="border-b border-slate-100 px-5 py-4" style="background:linear-gradient(135deg,#fafcff 60%,#f8fffc)">
-        <h2 class="text-sm font-bold text-slate-800">Kapacitet po ODO-u</h2>
+    <div class="tbl-card-header">
+        <h2>Kapacitet po ODO-u</h2>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-left">

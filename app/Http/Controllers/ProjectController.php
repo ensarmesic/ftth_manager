@@ -4,11 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\Material;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Models\Subscriber;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,60 +16,6 @@ use App\Http\Controllers\Concerns\ManagesFtthData;
 class ProjectController extends Controller
 {
     use ManagesFtthData;
-
-    public function dashboard(): View
-    {
-        $projects = Project::withCount(['odfs', 'cabinets', 'subscribers', 'houses', 'routes'])->latest()->get();
-        $activeProject = $projects->first();
-        $projectQuery = fn ($query) => $activeProject ? $query->where('project_id', $activeProject->id) : $query->whereRaw('1 = 0');
-        $odfs = $projectQuery(Odf::query())->withCount('cabinets')->get();
-        $cabinets = $projectQuery(Cabinet::query())->with(['project', 'odf', 'parentCabinet'])->withCount(['subscribers', 'houses'])->orderBy('name')->get();
-        $houses = $projectQuery(House::query())->with('cabinet')->get();
-        $subscribers = $projectQuery(Subscriber::query())->with('cabinet')->latest()->take(5)->get();
-        $routes = $projectQuery(NetworkRoute::query())->with(['odf', 'cabinet', 'fromCabinet'])->latest()->get();
-        $validationItems = $activeProject ? collect($this->ftthIntelligence->validateProject($activeProject)) : collect();
-        $issues = $validationItems->reject(fn (array $item) => $item['level'] === 'ok')->values();
-        $materialSummary = $activeProject ? $this->ftthIntelligence->materialSummary($activeProject) : [];
-
-
-        return view('ftth.dashboard', [
-            'projects' => $projects,
-            'activeProject' => $activeProject,
-            'odfs' => $odfs,
-            'cabinets' => $cabinets,
-            'houses' => $houses,
-            'subscribers' => $subscribers,
-            'routes' => $routes,
-            'issues' => $issues,
-            'mapData' => [
-                'odfs' => $odfs->map(fn (Odf $odf) => ['id' => $odf->id, 'name' => $odf->name, 'address' => $odf->address, 'ports' => $odf->port_count, 'fibers' => $odf->fiber_capacity, 'cabinets' => $odf->cabinets_count, 'lat' => (float) $odf->latitude, 'lng' => (float) $odf->longitude]),
-                'cabinets' => $cabinets->map(fn (Cabinet $cabinet) => ['id' => $cabinet->id, 'name' => $cabinet->name, 'address' => $cabinet->address, 'odf' => $cabinet->odf->name ?? 'Nije povezano', 'parent_cabinet_id' => $cabinet->parent_cabinet_id, 'parent_cabinet' => $cabinet->parentCabinet?->name, 'fed_from' => $cabinet->parentCabinet?->name ?? ($cabinet->odf->name ?? 'Nije povezano'), 'used' => $cabinet->houses_count, 'capacity' => $cabinet->capacity, 'splitters' => $cabinet->splitter_count, 'lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude]),
-                'houses' => $houses->map(fn (House $house) => ['id' => $house->id, 'name' => $house->label, 'address' => $house->address, 'cabinet_id' => $house->cabinet_id, 'cabinet' => $house->cabinet->name ?? 'Nije povezano', 'status' => $house->status, 'lat' => (float) $house->latitude, 'lng' => (float) $house->longitude]),
-                'routes' => $routes->map(fn (NetworkRoute $route) => ['id' => $route->id, 'name' => $route->name, 'from' => $this->routeStartLabel($route), 'to' => $route->cabinet->name ?? '-', 'odf_id' => $route->odf_id, 'from_type' => $route->from_type, 'from_id' => $route->from_id, 'cabinet_id' => $route->cabinet_id, 'type' => $route->route_type, 'length' => $route->duct_length_m, 'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'note' => $route->note, 'path' => $route->path ?: ($route->odf && $route->cabinet ? [[(float) $route->odf->latitude, (float) $route->odf->longitude], [(float) $route->cabinet->latitude, (float) $route->cabinet->longitude]] : [])]),
-            ],
-            'stats' => [
-                'projects' => $projects->count(),
-                'odfs' => $projects->sum('odfs_count'),
-                'cabinets' => $projects->sum('cabinets_count'),
-                'houses' => $projects->sum('houses_count'),
-                'subscribers' => $projects->sum('subscribers_count'),
-                'duct_m' => NetworkRoute::sum('duct_length_m'),
-                'fiber_m' => NetworkRoute::sum('fiber_length_m'),
-                'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,
-                'splitters' => $cabinets->sum('splitter_count'),
-                'routes_m' => $routes->sum('duct_length_m'),
-                'microduct_14_10' => $routes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
-                'microduct_10_8' => $routes->where('microduct_type', '10/8')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
-                'fiber_4' => $routes->where('fiber_count', 4)->sum('fiber_length_m'),
-                'fiber_12' => $routes->where('fiber_count', 12)->sum('fiber_length_m'),
-                'fiber_24' => $routes->where('fiber_count', 24)->sum('fiber_length_m'),
-                'issues_errors' => $validationItems->where('level', 'error')->count(),
-                'issues_warnings' => $validationItems->where('level', 'warning')->count(),
-            ],
-            'materialSummary' => $materialSummary,
-            'validationItems' => $validationItems,
-        ]);
-    }
 
     public function projects(): View
     {
@@ -86,14 +30,14 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function deleteProject($id)
+    public function deleteProject(int $id)
     {
         Project::findOrFail($id)->delete();
 
         return back()->with('success', 'Projekat je obrisan.');
     }
 
-    public function updateProject(Request $request, $id): RedirectResponse
+    public function updateProject(Request $request, int $id): RedirectResponse
     {
         $project = Project::findOrFail($id);
         $project->update($request->validate([

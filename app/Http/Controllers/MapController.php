@@ -24,18 +24,16 @@ class MapController extends Controller
         $projectId = (int) $request->input('project');
         $scope = $projectId > 0;
 
-        $odfs = Odf::with('project')
+        $allOdfs = Odf::with('project')
             ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
             ->get();
+        $odfs = $allOdfs->filter(fn ($o) => $o->latitude !== null && $o->longitude !== null)->values();
 
-        $cabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])
+        $allCabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])
             ->withCount(['houses', 'subscribers'])
             ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
             ->get();
+        $cabinets = $allCabinets->filter(fn ($c) => $c->latitude !== null && $c->longitude !== null)->values();
 
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet', 'fromCabinet'])
             ->when($scope, fn ($q) => $q->where('project_id', $projectId))
@@ -73,8 +71,8 @@ class MapController extends Controller
         return view('ftth.map', [
             'projects' => $allProjects,
             'activeProjectId' => $projectId ?: null,
-            'odfsForSelect' => Odf::with('project')->when($scope, fn ($q) => $q->where('project_id', $projectId))->orderBy('name')->get(),
-            'cabinetsForSelect' => Cabinet::with('project')->when($scope, fn ($q) => $q->where('project_id', $projectId))->orderBy('name')->get(),
+            'odfsForSelect' => $allOdfs->sortBy('name')->values(),
+            'cabinetsForSelect' => $allCabinets->sortBy('name')->values(),
             'odfs' => $odfs,
             'cabinets' => $cabinets,
             'houses' => $houses,
@@ -216,7 +214,7 @@ class MapController extends Controller
             'routes.*.counts_as_trench' => ['nullable', 'boolean'],
             'routes.*.trench_length_m' => ['nullable', 'integer', 'min:0'],
             'appendix_items' => ['nullable', 'array'],
-            'appendix_items.*.type' => ['required', 'in:manhole,boring_fi_130,mufa'],
+            'appendix_items.*.type' => ['required', 'in:manhole,boring_fi_130'],
             'appendix_items.*.lat' => $this->latitudeRules(true),
             'appendix_items.*.lng' => $this->longitudeRules(true),
             'appendix_items.*.quantity' => ['nullable', 'numeric', 'min:0'],
@@ -227,6 +225,21 @@ class MapController extends Controller
         ])->validate();
 
         $projectId = (int) $data['project_id'];
+
+        $projectOdfIds = Odf::where('project_id', $projectId)->pluck('id')->flip()->all();
+        $projectCabinetIds = Cabinet::where('project_id', $projectId)->pluck('id')->flip()->all();
+
+        $resolveOdfId = function (?int $id) use (&$projectOdfIds): ?int {
+            if (! $id) return null;
+            abort_if(! isset($projectOdfIds[$id]), 422, "ODF #{$id} nije validan za ovaj projekat.");
+            return $id;
+        };
+        $resolveCabinetId = function (?int $id) use (&$projectCabinetIds): ?int {
+            if (! $id) return null;
+            abort_if(! isset($projectCabinetIds[$id]), 422, "ODO #{$id} nije validan za ovaj projekat.");
+            return $id;
+        };
+
         $createdOdfs = [];
         $createdCabinets = [];
         $createdHouses = collect();
@@ -243,6 +256,7 @@ class MapController extends Controller
                     'latitude' => $odf['lat'],
                     'longitude' => $odf['lng'],
                 ]);
+                $projectOdfIds[$createdOdfs[$index]->id] = $createdOdfs[$index]->id;
             }
 
             foreach (($plan['cabinets'] ?? []) as $index => $cabinet) {
@@ -250,10 +264,7 @@ class MapController extends Controller
                 if (isset($cabinet['odf_index'], $createdOdfs[$cabinet['odf_index']])) {
                     $odfId = $createdOdfs[$cabinet['odf_index']]->id;
                 } elseif (! empty($cabinet['odf_id'])) {
-                    $odfId = Odf::query()
-                        ->where('project_id', $projectId)
-                        ->findOrFail($cabinet['odf_id'])
-                        ->id;
+                    $odfId = $resolveOdfId((int) $cabinet['odf_id']);
                 }
 
                 $cabinetName = $cabinet['name'] ?? $this->nextFtthCabinetNameForProject($projectId);
@@ -268,6 +279,7 @@ class MapController extends Controller
                     'latitude' => $cabinet['lat'],
                     'longitude' => $cabinet['lng'],
                 ]);
+                $projectCabinetIds[$createdCabinets[$index]->id] = $createdCabinets[$index]->id;
             }
 
             foreach (($plan['houses'] ?? []) as $index => $house) {
@@ -286,33 +298,22 @@ class MapController extends Controller
                 $routeType = $route['route_type'] ?? 'distribution';
                 $routeOdfId = isset($route['odf_index'], $createdOdfs[$route['odf_index']])
                     ? $createdOdfs[$route['odf_index']]->id
-                    : ($route['odf_id'] ?? null);
+                    : $resolveOdfId(isset($route['odf_id']) ? (int) $route['odf_id'] : null);
                 $fromType = $route['from_type'] ?? ($routeOdfId ? 'odf' : null);
                 $fromId = $route['from_id'] ?? ($fromType === 'odf' ? $routeOdfId : null);
 
-                if ($routeOdfId) {
-                    $routeOdfId = Odf::query()
-                        ->where('project_id', $projectId)
-                        ->findOrFail($routeOdfId)
-                        ->id;
-                }
                 if ($fromType === 'odf' && $fromId) {
-                    $fromId = Odf::query()->where('project_id', $projectId)->findOrFail($fromId)->id;
+                    $fromId = $resolveOdfId((int) $fromId);
                     $routeOdfId = $fromId;
-                }
-                if ($fromType === 'cabinet' && $fromId) {
-                    $fromId = Cabinet::query()->where('project_id', $projectId)->findOrFail($fromId)->id;
+                } elseif ($fromType === 'cabinet' && $fromId) {
+                    $fromId = $resolveCabinetId((int) $fromId);
                 }
                 $routeCabinetId = isset($route['cabinet_index'], $createdCabinets[$route['cabinet_index']])
                     ? $createdCabinets[$route['cabinet_index']]->id
-                    : ($route['cabinet_id'] ?? null);
-                if ($routeCabinetId) {
-                    $routeCabinetId = Cabinet::query()->where('project_id', $projectId)->findOrFail($routeCabinetId)->id;
-                }
-                $routeToId = $route['to_id'] ?? $routeCabinetId;
-                if ($routeToId) {
-                    $routeToId = Cabinet::query()->where('project_id', $projectId)->findOrFail($routeToId)->id;
-                }
+                    : $resolveCabinetId(isset($route['cabinet_id']) ? (int) $route['cabinet_id'] : null);
+                $routeToId = isset($route['to_id'])
+                    ? $resolveCabinetId((int) $route['to_id'])
+                    : $routeCabinetId;
 
                 $routeName = $route['name'] ?? $this->nextRouteNameForProject($projectId, $routeType);
 

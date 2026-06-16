@@ -44,14 +44,14 @@
             $materials = $insight['materials'];
         @endphp
         <article class="app-table-card overflow-hidden">
-            <div class="border-b border-slate-100 px-5 py-4" style="background:linear-gradient(135deg,#fafcff 60%,#f8fffc)">
+            <div class="tbl-card-header">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 class="text-base font-bold text-slate-900">{{ $project->name }}</h2>
                         <p class="text-xs text-slate-500 mt-0.5">{{ $project->code }} &bull; {{ $project->location }} &bull; {{ $project->status }}</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <a href="{{ route('reports.project-appendix', $project) }}" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors">Prilog 3</a>
+                        <a href="{{ route('reports.project-appendix', $project) }}" class="btn-secondary">Prilog 3</a>
                         <span class="ftth-badge {{ $usedPorts >= $capacity && $capacity > 0 ? 'red' : 'green' }}">
                             <span class="ftth-badge-dot"></span>
                             {{ $usedPorts }}/{{ $capacity }} portova
