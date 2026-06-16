@@ -261,6 +261,10 @@ class CabinetController extends Controller
                     NetworkRoute::create([
                         'project_id' => $projectId,
                         'cabinet_id' => $createdCabinet->id,
+                        'from_type' => 'cabinet',
+                        'from_id' => $createdCabinet->id,
+                        'to_type' => 'house',
+                        'to_id' => $house->id,
                         'name' => $dropName,
                         'route_type' => 'drop',
                         'installation_type' => 'underground',

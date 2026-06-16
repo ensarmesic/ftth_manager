@@ -4,6 +4,7 @@ use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\HouseController;
 use App\Http\Controllers\MapController;
+use App\Http\Controllers\MapLayerController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\OdfController;
 use App\Http\Controllers\ProjectController;
@@ -74,6 +75,8 @@ Route::post('/trase/{id}/join', [RouteController::class, 'joinRoutes'])->name('r
 Route::post('/trase/{id}/join/{otherId}', [RouteController::class, 'joinRoutes'])->name('routes.join');
 Route::post('/trase/dxf', [RouteController::class, 'importDxf'])->name('routes.dxf.import');
 Route::delete('/trase/{id}', [RouteController::class, 'deleteRoute'])->name('routes.delete');
+
+Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->name('map.dxf-layer.upload');
 
 Route::get('/materijali', [MaterialController::class, 'materials'])->name('materials.index');
 Route::post('/materijali', [MaterialController::class, 'storeMaterial'])->name('materials.store');

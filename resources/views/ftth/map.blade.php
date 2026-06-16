@@ -1,4 +1,4 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 
 @section('title', 'Mapa mreže')
 @section('subtitle', 'Satelitski projektantski prikaz za ODF, FTTH ormariće, kuće i trase.')
@@ -8,96 +8,141 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
-    #map-workspace {
-        --panel-bg: rgba(255, 255, 255, .96);
-        min-height: 0;
-    }
+    /* ── Map workspace ──────────────────────────────────────────── */
+    #map-workspace { min-height: 0; }
     .map-shell {
         background:
-            linear-gradient(135deg, rgba(8,145,178,.10), transparent 34%),
-            linear-gradient(315deg, rgba(16,185,129,.12), transparent 36%),
+            linear-gradient(135deg, rgba(8,145,178,.07), transparent 34%),
+            linear-gradient(315deg, rgba(16,185,129,.09), transparent 36%),
             #f8fafc;
     }
-    .control-panel {
-        background: var(--panel-bg);
-        border: 1px solid rgba(15, 23, 42, .10);
-        box-shadow: 0 10px 28px rgba(15, 23, 42, .07);
-        backdrop-filter: blur(14px);
+    /* ── Top bar ─────────────────────────────────────────────────── */
+    .map-topbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
+    .metric-pill {
+        display: inline-flex; align-items: baseline; gap: 5px;
+        padding: 3px 10px; border-radius: 20px; font-size: 11px; border: 1px solid; white-space: nowrap;
     }
-    .side-section {
-        border-top: 1px solid rgba(15, 23, 42, .08);
-        padding-top: .65rem;
+    .metric-pill b { font: 700 14px/1 system-ui, sans-serif; }
+    .metric-pill.amber   { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .metric-pill.violet  { background: #f5f3ff; border-color: #ddd6fe; color: #5b21b6; }
+    .metric-pill.emerald { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    /* ── CAD Toolbar ─────────────────────────────────────────────── */
+    .map-toolbar {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+        padding: 5px 8px; background: #1e293b; border-bottom: 2px solid #334155;
     }
-    .side-section:first-child {
-        border-top: 0;
-        padding-top: 0;
+    .tc {
+        display: inline-flex; align-items: center; height: 26px; padding: 0 9px;
+        border-radius: 5px; border: 1px solid transparent; cursor: pointer;
+        white-space: nowrap; font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .02em; transition: background .1s, border-color .1s, color .1s;
     }
-    .side-kicker {
-        color: #64748b;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: .06em;
-        text-transform: uppercase;
+    .tc-sep { width: 1px; height: 18px; background: #475569; margin: 0 4px; align-self: center; flex-shrink: 0; }
+    .tc-ghost   { background: rgba(255,255,255,.06); color: #94a3b8; border-color: #334155; }
+    .tc-ghost:hover  { background: rgba(255,255,255,.12); color: #cbd5e1; }
+    .tc-white   { background: #e2e8f0; color: #0f172a; border-color: #cbd5e1; }
+    .tc-white:hover  { background: #f1f5f9; }
+    .tc-cyan    { background: rgba(6,182,212,.20);  color: #67e8f9; border-color: rgba(6,182,212,.45); }
+    .tc-cyan:hover   { background: rgba(6,182,212,.32); color: #a5f3fc; }
+    .tc-emerald { background: rgba(52,211,153,.18); color: #6ee7b7; border-color: rgba(52,211,153,.4); }
+    .tc-emerald:hover{ background: rgba(52,211,153,.30); color: #a7f3d0; }
+    .tc-violet  { background: rgba(167,139,250,.18);color: #c4b5fd; border-color: rgba(167,139,250,.4); }
+    .tc-violet:hover { background: rgba(167,139,250,.30); color: #ddd6fe; }
+    .tc-amber   { background: rgba(251,191,36,.18); color: #fde68a; border-color: rgba(251,191,36,.4); }
+    .tc-amber:hover  { background: rgba(251,191,36,.30); color: #fef3c7; }
+    .tc-slate   { background: rgba(148,163,184,.14);color: #cbd5e1; border-color: rgba(148,163,184,.35); }
+    .tc-slate:hover  { background: rgba(148,163,184,.26); }
+    .tc-red     { background: rgba(248,113,113,.18);color: #fca5a5; border-color: rgba(248,113,113,.4); }
+    .tc-red:hover    { background: rgba(248,113,113,.30); color: #fecaca; }
+    .tc-purple  { background: rgba(196,181,253,.16);color: #ddd6fe; border-color: rgba(196,181,253,.38); }
+    .tc-purple:hover { background: rgba(196,181,253,.28); }
+    .tc-rose    { background: rgba(251,113,133,.18);color: #fda4af; border-color: rgba(251,113,133,.4); }
+    .tc-rose:hover   { background: rgba(251,113,133,.30); color: #fecdd3; }
+    .tc-orange  { background: rgba(251,146,60,.18); color: #fdba74; border-color: rgba(251,146,60,.4); }
+    .tc-orange:hover { background: rgba(251,146,60,.30); color: #fed7aa; }
+    .tc-blue    { background: rgba(96,165,250,.18); color: #93c5fd; border-color: rgba(96,165,250,.4); }
+    .tc-blue:hover   { background: rgba(96,165,250,.30); color: #bfdbfe; }
+    .tc-sky     { background: rgba(56,189,248,.18); color: #7dd3fc; border-color: rgba(56,189,248,.4); }
+    .tc-sky:hover    { background: rgba(56,189,248,.30); color: #bae6fd; }
+    .tc-indigo  { background: rgba(129,140,248,.18);color: #a5b4fc; border-color: rgba(129,140,248,.4); }
+    .tc-indigo:hover { background: rgba(129,140,248,.30); color: #c7d2fe; }
+    .tc-save    { background: #059669; color: #fff; border-color: #047857; }
+    .tc-save:hover   { background: #047857; }
+    .tc-confirm { background: #d97706; color: #fff; border-color: #b45309; }
+    .tc-confirm:hover{ background: #b45309; }
+    .tc-danger  { background: rgba(239,68,68,.22); color: #fca5a5; border-color: rgba(239,68,68,.45); }
+    .tc-danger:hover { background: rgba(239,68,68,.35); color: #fecaca; }
+    .map-toolbar .ring-2 { outline: 2px solid #fff; outline-offset: 1px; }
+    /* ── Sidebar cards ───────────────────────────────────────────── */
+    .sidebar-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.04); }
+    .sidebar-hd {
+        display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+        cursor: pointer; background: #fafafa; border-bottom: 1px solid #f1f5f9;
+        font: 600 11.5px/1.4 ui-sans-serif, system-ui, sans-serif; color: #1e293b;
+        user-select: none; list-style: none;
     }
-    .soft-panel {
-        border: 1px solid rgba(15, 23, 42, .10);
-        background: #f8fafc;
+    .sidebar-hd::-webkit-details-marker { display: none; }
+    .sidebar-hd .chev { margin-left: auto; color: #cbd5e1; transition: transform .18s; flex-shrink: 0; }
+    details[open] > .sidebar-hd .chev { transform: rotate(90deg); }
+    .sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .sdot-sky    { background: #0ea5e9; }
+    .sdot-indigo { background: #6366f1; }
+    .sdot-amber  { background: #f59e0b; }
+    .sdot-violet { background: #8b5cf6; }
+    .sdot-slate  { background: #94a3b8; }
+    .sidebar-bd { padding: 10px 12px; }
+    .ctx-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.04); }
+    .ctx-panel-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; background: #fafafa; }
+    /* Sidebar inputs */
+    .sb-inp, .sb-sel {
+        width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px;
+        font-size: 12px; color: #1e293b; background: #fff; outline: none; transition: border-color .15s;
     }
-    .layer-row {
-        min-height: 30px;
+    .sb-inp:focus, .sb-sel:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.12); }
+    /* Sidebar buttons */
+    .sb-btn {
+        display: block; width: 100%; padding: 7px 12px; border-radius: 6px;
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+        cursor: pointer; border: 1px solid transparent; transition: background .12s; text-align: center;
     }
-    .metric-card {
-        border: 1px solid rgba(15, 23, 42, .08);
-        background: linear-gradient(180deg, #ffffff, #f8fafc);
-    }
-    .tool-btn, .action-btn {
-        transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
-    }
-    .tool-btn:hover, .action-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 7px 18px rgba(15, 23, 42, .08);
-    }
-    .cad-toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        border-top: 1px solid rgba(15,23,42,.08);
-        padding-top: 8px;
-    }
-    .cad-toolbar .tool-btn,
-    .cad-toolbar .action-btn {
-        border: 1px solid rgba(15,23,42,.22) !important;
-        border-radius: 2px !important;
-        background: rgba(255,255,255,.92) !important;
-        color: #0f172a !important;
-        box-shadow: none !important;
-        font: 800 11px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        padding: 7px 9px !important;
-    }
-    .cad-toolbar .tool-btn:hover,
-    .cad-toolbar .action-btn:hover {
-        border-color: #0f172a !important;
-        transform: none;
-    }
-    .cad-toolbar .ring-2 {
-        outline: 2px solid #0f172a;
-        outline-offset: 1px;
-    }
-    .cad-toolbar-sep {
-        width: 1px;
-        align-self: stretch;
-        background: rgba(15,23,42,.18);
-        margin: 0 3px;
-    }
+    .sb-btn-primary       { background: #1e293b; color: #fff; }
+    .sb-btn-primary:hover { background: #0f172a; }
+    .sb-btn-emerald       { background: #059669; color: #fff; border-color: #047857; }
+    .sb-btn-emerald:hover { background: #047857; }
+    .sb-btn-cyan          { background: #0891b2; color: #fff; border-color: #0e7490; }
+    .sb-btn-cyan:hover    { background: #0e7490; }
+    .sb-btn-violet        { background: #7c3aed; color: #fff; border-color: #6d28d9; }
+    .sb-btn-violet:hover  { background: #6d28d9; }
+    .sb-btn-blue          { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+    .sb-btn-blue:hover    { background: #1d4ed8; }
+    .sb-btn-sky           { background: #0284c7; color: #fff; border-color: #0369a1; }
+    .sb-btn-sky:hover     { background: #0369a1; }
+    .sb-btn-amber         { background: #d97706; color: #fff; border-color: #b45309; }
+    .sb-btn-amber:hover   { background: #b45309; }
+    .sb-btn-outline       { background: #fff; color: #475569; border-color: #e2e8f0; }
+    .sb-btn-outline:hover { background: #f8fafc; }
+    .sb-btn-amber-outline       { background: #fff; color: #92400e; border-color: #fde68a; }
+    .sb-btn-amber-outline:hover { background: #fffbeb; }
+    /* Misc sidebar helpers */
+    .sb-kicker { font: 800 9px/1 system-ui, sans-serif; color: #94a3b8; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
+    .sb-info   { border-radius: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.5; }
+    .step-btn  { display: block; width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; font: 600 11px/1.3 system-ui, sans-serif; cursor: pointer; text-align: left; transition: background .1s; }
+    .step-btn:hover { background: #f8fafc; }
+    .layer-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; font-size: 11px; transition: background .1s; }
+    .layer-row:hover { background: #f8fafc; }
+    .layer-row input[type=checkbox] { accent-color: #6366f1; flex-shrink: 0; }
+    .layer-lock-btn { padding: 2px 7px; border-radius: 4px; border: 1px solid #e2e8f0; background: #fff; font: 500 11px/1.5 system-ui, sans-serif; color: #64748b; cursor: pointer; flex-shrink: 0; }
+    .layer-lock-btn:hover { background: #f1f5f9; }
+    /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
     .ftth-tag.odf { width: 18px; height: 18px; border: 2px solid #fff; border-radius: 2px; background: #0f5fa8; box-shadow: 0 0 0 1px #0f172a; }
     .ftth-tag.cabinet { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 2px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.cabinet.ftth-cabinet-tag { width: auto; height: auto; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none; display: flex; align-items: center; gap: 4px; transform: translate(-8px, -50%); }
-    .ftth-cabinet-symbol { display: block; width: 13px; height: 13px; flex: 0 0 auto; border: 2px solid #fff; border-radius: 2px; box-shadow: 0 0 0 1px #0f172a; }
-    .ftth-cabinet-text { display: grid; gap: 1px; padding: 1px 3px; background: rgba(255,255,255,.82); color: #0f172a; text-shadow: 0 1px 0 #fff; border: 1px solid rgba(15,23,42,.35); }
-    .ftth-cabinet-title { display: block; font-size: 8px; font-weight: 900; line-height: 1; letter-spacing: 0; }
-    .ftth-cabinet-code { display: block; font-size: 10px; font-weight: 900; line-height: 1.05; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .ftth-cabinet-symbol { display: flex; align-items: center; justify-content: center; width: 22px; height: 14px; flex: 0 0 auto; border: 2px solid #fff; border-radius: 2px; box-shadow: 0 0 0 1px #0f172a; font: 900 6.5px/1 system-ui, sans-serif; color: #fff; letter-spacing: .3px; }
+    .ftth-cabinet-text { display: grid; gap: 1px; padding: 1px 3px; background: rgba(255,255,255,.86); color: #0f172a; text-shadow: 0 1px 0 #fff; border: 1px solid rgba(15,23,42,.28); }
+    .ftth-cabinet-title { display: block; font-size: 7px; font-weight: 900; line-height: 1; letter-spacing: 0; opacity: .75; }
+    .ftth-cabinet-code { display: block; font-size: 9px; font-weight: 900; line-height: 1.05; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .ftth-tag.house { width: 10px; height: 10px; border: 2px solid #fff; border-radius: 999px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }
@@ -145,7 +190,7 @@
         background: transparent;
         box-shadow: none;
         color: #000;
-        font: 900 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font: 900 10px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         letter-spacing: 0;
         padding: 0 2px;
         text-shadow:
@@ -158,7 +203,7 @@
         white-space: nowrap;
     }
     #map-workspace.zoom-high .route-label span {
-        font-size: 13px;
+        font-size: 11px;
         padding: 0 2px;
         background: transparent;
     }
@@ -166,6 +211,24 @@
         font-size: 10px;
         padding: 0 2px;
     }
+    #map-workspace.zoom-far .route-label { display: none; }
+    #map-workspace.zoom-far .ftth-tag.odf { display: none; }
+    #map-workspace.zoom-far .ftth-cabinet-tag { display: none; }
+    #map-workspace.zoom-far .ftth-tag.house { display: none; }
+    #map-workspace.zoom-far .ftth-tag.suggest { display: none; }
+    #map-workspace.zoom-far .ftth-tag.manhole { display: none; }
+    #map-workspace.zoom-far .ftth-tag.boring { display: none; }
+    #map-workspace.zoom-far .boring-length-label { display: none; }
+    /* Zoom-based scaling: markers grow with the map so they stay readable when zoomed in */
+    #map-workspace.z20 .ftth-tag:not(.ftth-cabinet-tag) { transform: translate(-50%,-50%) scale(1.6); }
+    #map-workspace.z21 .ftth-tag:not(.ftth-cabinet-tag) { transform: translate(-50%,-50%) scale(2.4); }
+    #map-workspace.z22 .ftth-tag:not(.ftth-cabinet-tag) { transform: translate(-50%,-50%) scale(3.2); }
+    #map-workspace.z20 .ftth-cabinet-tag { transform: translate(-8px,-50%) scale(1.6); transform-origin: 8px 50%; }
+    #map-workspace.z21 .ftth-cabinet-tag { transform: translate(-8px,-50%) scale(2.4); transform-origin: 8px 50%; }
+    #map-workspace.z22 .ftth-cabinet-tag { transform: translate(-8px,-50%) scale(3.2); transform-origin: 8px 50%; }
+    #map-workspace.z20 .route-label span { font-size: 16px; }
+    #map-workspace.z21 .route-label span { font-size: 22px; }
+    #map-workspace.z22 .route-label span { font-size: 30px; }
     .cad-map-legend {
         border: 1px solid rgba(15,23,42,.45);
         background: rgba(255,255,255,.78);
@@ -200,59 +263,116 @@
     @media (min-width: 1280px) {
         #network-map { min-height: 0; }
     }
+    /* --- Mufa (splice closure) --- */
+    .ftth-tag.mufa { display: block; width: 16px; height: 14px; border: 0; background: transparent; }
+    /* --- Dark CAD mode --- */
+    #map-workspace.cad-dark .route-label span {
+        color: #e2e8f0;
+        background: transparent;
+        text-shadow: 0 0 4px #000, 0 0 2px #000, -1px -1px 0 #000, 1px 1px 0 #000;
+    }
+    #map-workspace.cad-dark .ftth-cabinet-text {
+        background: rgba(0,0,0,.8);
+        border-color: rgba(255,255,255,.45);
+        color: #e2e8f0;
+        text-shadow: none;
+    }
+    #map-workspace.cad-dark .cad-map-legend {
+        background: rgba(15,23,42,.88);
+        border-color: rgba(255,255,255,.25);
+        color: #cbd5e1;
+    }
+    /* --- Ruler tool --- */
+    .ruler-label { border: 0; background: transparent; pointer-events: none; }
+    .ruler-label span {
+        display: block;
+        transform: translate(-50%, -100%) translateY(-6px);
+        white-space: nowrap;
+        border: 1px solid #fca5a5;
+        border-radius: 4px;
+        background: rgba(255,255,255,.95);
+        color: #b91c1c;
+        font: 800 11px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        padding: 2px 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+    /* --- Fiber color legend chip --- */
+    .fiber-legend-chip { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 3px; }
 </style>
 
-<section id="map-workspace" class="grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_330px]">
-    <div class="map-shell flex min-h-0 flex-col overflow-hidden rounded-md border border-zinc-200 shadow-sm">
-        <div class="shrink-0 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur">
-            <div class="flex flex-wrap items-center justify-between gap-3">
+<section id="map-workspace" class="grid flex-1 min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_316px]">
+
+    <!-- MAP COLUMN -->
+    <div class="map-shell flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 shadow-xl">
+
+        <!-- Top bar -->
+        <div class="map-topbar flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+            <div class="flex items-center gap-3">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style="background:linear-gradient(135deg,#308dcc,#004f7d)">
+                    <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 1.586l-4 4v12.828l4-4V1.586zM3.707 3.293A1 1 0 002 4v10a1 1 0 00.293.707L6 18.414V5.586L3.707 3.293zM17.707 5.293L14 1.586v12.828l2.293 2.293A1 1 0 0018 16V6a1 1 0 00-.293-.707z" clip-rule="evenodd"/></svg>
+                </div>
                 <div>
-                    <h2 class="text-base font-semibold">Radna karta</h2>
-                    <p class="text-xs text-zinc-500">Satelit, trase, ODF, FTTH ormarići i kuće na jednom platnu.</p>
-                </div>
-                <div class="grid grid-cols-3 gap-2 text-xs">
-                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">Trasa</span><strong id="draw-length" class="text-sm text-amber-700">0 m</strong></div>
-                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">Kuće</span><strong id="house-count" class="text-sm text-violet-700">0</strong></div>
-                    <div class="metric-card rounded-md px-3 py-2"><span class="block text-zinc-500">FTTH</span><strong id="cabinet-count" class="text-sm text-emerald-700">0</strong></div>
+                    <div class="text-sm font-bold text-slate-900 leading-tight">Radna karta</div>
+                    <div class="text-xs text-slate-500 leading-tight">Satelit · ODF · Ormarići · Trase</div>
                 </div>
             </div>
-            <div class="cad-toolbar mt-3">
-                <button type="button" id="mode-pan" class="tool-btn rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white">Pomjeraj</button>
-                <button type="button" id="mode-odf" class="tool-btn rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800">ODF</button>
-                <button type="button" id="mode-cabinet" class="tool-btn rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">FTTH</button>
-                <button type="button" id="mode-house" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Kuće</button>
-                <button type="button" id="mode-draw" class="tool-btn rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Trasa</button>
-                <button type="button" id="mode-trench-draw" class="tool-btn rounded-md border border-zinc-400 bg-zinc-100 px-3 py-2 text-sm font-semibold text-zinc-900">Glavni rov</button>
-                <button type="button" id="mode-manhole" class="tool-btn rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800">Saht</button>
-                <button type="button" id="mode-boring-fi-130" class="tool-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">Raketa FI130</button>
-                <button type="button" id="mode-branch-source" class="tool-btn rounded-md border border-orange-300 bg-orange-100 px-3 py-2 text-sm font-semibold text-orange-900">Novi krak iz ODO</button>
-                <button type="button" id="mode-connect" class="tool-btn rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">Poveži ODF-ODO</button>
-                <button type="button" id="mode-connect-houses" class="tool-btn rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-800">Poveži ODO-kuće</button>
-                <button type="button" id="mode-trace" class="tool-btn rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800">Trace</button>
-                <button type="button" id="mode-join" class="tool-btn rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800">Join trase</button>
-                <div id="house-connect-actions" class="hidden items-center gap-2">
-                    <button type="button" id="finish-house-connect" class="action-btn rounded-md bg-violet-600 px-3 py-2 text-sm font-semibold text-white">Završi povezivanje</button>
-                    <button type="button" id="cancel-house-connect" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Otkaži</button>
-                </div>
-                <span class="cad-toolbar-sep"></span>
-                <button type="button" id="finish-branch" class="action-btn rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-zinc-950">Završi krak</button>
-                <button type="button" id="undo-draw" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo tačka</button>
-                <button type="button" id="undo-branch" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo krak</button>
-                <button type="button" id="undo-element" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo element</button>
-                <button type="button" id="undo-house" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Undo kuća</button>
-                <button type="button" id="clear-draw" class="action-btn rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Očisti trase</button>
-                <button type="button" id="cancel-draw" class="action-btn rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700">Ponisti crtanje</button>
-                <button type="button" id="quick-save-draft" class="action-btn rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sačuvaj nacrt</button>
-                <div id="route-edit-actions" class="hidden items-center gap-2">
-                    <button type="button" id="add-route-vertex" class="action-btn rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">Dodaj tačku</button>
-                    <button type="button" id="save-route-edit" class="action-btn rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Sačuvaj izmjene trase</button>
-                    <button type="button" id="cancel-route-edit" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Otkaži edit</button>
-                </div>
-                <button type="button" id="toggle-map-view" class="action-btn ml-auto rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">CAD prikaz</button>
-                <button type="button" id="expand-map" class="action-btn rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700">Velika mapa</button>
+            <div class="flex items-center gap-2">
+                <div class="metric-pill amber"><b id="draw-length">0 m</b><span>Trasa</span></div>
+                <div class="metric-pill violet"><b id="house-count">0</b><span>Kuće</span></div>
+                <div class="metric-pill emerald"><b id="cabinet-count">0</b><span>FTTH</span></div>
             </div>
-            <p class="mt-2 text-xs text-zinc-500">Nacrt se čuva automatski. Desni klik na element: obriši ili premjesti.</p>
         </div>
+
+        <!-- CAD Toolbar -->
+        <div class="map-toolbar">
+            <button type="button" id="mode-pan" class="tc tc-white">⊕ Pan</button>
+            <div class="tc-sep"></div>
+            <button type="button" id="mode-odf" class="tc tc-cyan">ODF</button>
+            <button type="button" id="mode-cabinet" class="tc tc-emerald">FTTH</button>
+            <button type="button" id="mode-house" class="tc tc-violet">Kuće</button>
+            <button type="button" id="mode-manhole" class="tc tc-slate">Šaht</button>
+            <button type="button" id="mode-boring-fi-130" class="tc tc-red">Raketa FI130</button>
+            <button type="button" id="mode-mufa" class="tc tc-purple">Mufa</button>
+            <div class="tc-sep"></div>
+            <button type="button" id="mode-draw" class="tc tc-amber">Trasa</button>
+            <button type="button" id="mode-trench-draw" class="tc tc-slate">Rov</button>
+            <button type="button" id="mode-ruler" class="tc tc-rose">Mjerač</button>
+            <div class="tc-sep"></div>
+            <button type="button" id="mode-connect" class="tc tc-blue">ODF↔ODO</button>
+            <button type="button" id="mode-connect-houses" class="tc tc-violet">ODO↔Kuće</button>
+            <button type="button" id="mode-branch-source" class="tc tc-orange">Krak iz ODO</button>
+            <button type="button" id="mode-trace" class="tc tc-sky">Trace</button>
+            <button type="button" id="mode-join" class="tc tc-rose">Join trase</button>
+            <div class="tc-sep"></div>
+            <div id="house-connect-actions" class="hidden items-center gap-1">
+                <button type="button" id="finish-house-connect" class="tc tc-confirm">✓ Završi</button>
+                <button type="button" id="cancel-house-connect" class="tc tc-ghost">✕ Otkaži</button>
+            </div>
+            <button type="button" id="finish-branch" class="tc tc-confirm">✓ Završi krak</button>
+            <button type="button" id="undo-draw" class="tc tc-ghost">↩ Tačka</button>
+            <button type="button" id="undo-branch" class="tc tc-ghost">↩ Krak</button>
+            <button type="button" id="undo-element" class="tc tc-ghost">↩ Elem.</button>
+            <button type="button" id="undo-house" class="tc tc-ghost">↩ Kuća</button>
+            <button type="button" id="cancel-draw" class="tc tc-danger">✕ Crtanje</button>
+            <button type="button" id="clear-draw" class="tc tc-danger">✕ Trase</button>
+            <div id="route-edit-actions" class="hidden items-center gap-1">
+                <button type="button" id="add-route-vertex" class="tc tc-blue">+ Tačka</button>
+                <button type="button" id="save-route-edit" class="tc tc-save">✓ Sačuvaj trasu</button>
+                <button type="button" id="cancel-route-edit" class="tc tc-ghost">✕ Otkaži</button>
+            </div>
+            <button type="button" id="quick-save-draft" class="tc tc-save">💾 Nacrt</button>
+            <div class="tc-sep"></div>
+            <div class="flex items-center gap-1 ml-auto flex-wrap">
+                <button type="button" id="toggle-color-by-fibers" class="tc tc-ghost" title="Boja trase po broju vlakana">Boja F</button>
+                <button type="button" id="toggle-cable-specs" class="tc tc-ghost" title="Specifikacije kabela">Specs</button>
+                <button type="button" id="btn-coord-jump" class="tc tc-ghost" title="Skok na koordinate">Goto</button>
+                <button type="button" id="dxf-layer-btn" onclick="var p=document.getElementById('dxf-layer-panel');p.style.display=p.style.display==='none'?'block':'none';" class="tc tc-indigo" title="Učitaj DXF/DWG">DXF/DWG</button>
+                <button type="button" id="toggle-map-view" class="tc tc-ghost">GIS</button>
+                <button type="button" id="expand-map" class="tc tc-ghost" title="Proširena mapa">⛶</button>
+            </div>
+        </div>
+        <p class="shrink-0 border-b border-slate-800 bg-slate-900 px-4 py-1 text-[10px] text-slate-500">Desni klik: obriši / premjesti · ESC prekid · ENTER završi · CTRL+Z undo · O ortho</p>
+
         <div id="network-map" class="min-h-0 flex-1 w-full"></div>
         <div class="cad-status grid gap-2 px-3 py-2 md:grid-cols-[1fr_auto_auto_auto]">
             <div id="cad-command">Command: PAN</div>
@@ -262,232 +382,291 @@
         </div>
     </div>
 
-    <aside class="grid min-h-0 gap-1.5 xl:max-h-full xl:overflow-y-auto">
-        <details class="control-panel rounded-md" open>
-            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Novi projekat</summary>
-            <form id="quick-project-form" class="grid gap-2 border-t border-zinc-100 p-3">
-                <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv projekta" required>
+    <!-- RIGHT SIDEBAR -->
+    <aside class="grid min-h-0 content-start gap-2 xl:max-h-full xl:overflow-y-auto xl:pb-2">
+
+        <!-- Novi projekat -->
+        <details class="sidebar-card" open>
+            <summary class="sidebar-hd">
+                <span class="sdot sdot-sky"></span>
+                Novi projekat
+                <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </summary>
+            <form id="quick-project-form" class="sidebar-bd grid gap-2">
+                <input name="name" class="sb-inp" placeholder="Naziv projekta" required>
                 <input type="hidden" name="quick_create" value="1">
-                <button class="rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white">Kreiraj i odaberi</button>
+                <button class="sb-btn sb-btn-primary">Kreiraj i odaberi</button>
                 <div id="quick-project-status" class="text-xs font-semibold text-emerald-700"></div>
             </form>
         </details>
-        <div id="element-editor" class="control-panel hidden rounded-md border-2 border-emerald-300 p-3">
-            <div class="flex items-center justify-between gap-2">
-                <div><h2 class="font-semibold">Odabrani element</h2><p id="element-editor-type" class="text-xs text-zinc-500"></p></div>
-                <button type="button" id="close-element-editor" class="rounded px-2 py-1 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Zatvori</button>
+
+        <!-- Element editor (contextual) -->
+        <div id="element-editor" class="ctx-panel hidden" style="border-color:#6ee7b7;border-width:2px">
+            <div class="ctx-panel-hd">
+                <div>
+                    <div class="text-sm font-semibold text-slate-900">Odabrani element</div>
+                    <div id="element-editor-type" class="text-xs text-slate-500"></div>
+                </div>
+                <button type="button" id="close-element-editor" class="sb-btn sb-btn-outline" style="width:auto;padding:3px 9px;font-size:11px">Zatvori</button>
             </div>
-            <input id="element-editor-name" class="mt-3 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv elementa">
-            <button type="button" id="save-element-name" class="mt-2 w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj naziv</button>
-            <div id="element-editor-status" class="mt-2 text-xs font-semibold text-emerald-700"></div>
+            <div class="sidebar-bd grid gap-2">
+                <input id="element-editor-name" class="sb-inp" placeholder="Naziv elementa">
+                <button type="button" id="save-element-name" class="sb-btn sb-btn-emerald">Sacuvaj naziv</button>
+                <div id="element-editor-status" class="text-xs font-semibold text-emerald-700"></div>
+            </div>
         </div>
-        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="control-panel rounded-md p-2.5">
+
+        <!-- Plan projekta -->
+        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="sidebar-card">
             @csrf
-            <div class="grid gap-1">
-                <h2 class="font-semibold text-zinc-950">Plan projekta</h2>
-                <span id="bulk-plan-summary" class="text-xs leading-5 text-slate-600">Draft: 0 ODF, 0 FTTH, 0 kuca, 0 trasa, 0 stavki.</span>
+            <div class="sidebar-hd" style="cursor:default">
+                <span class="sdot sdot-indigo"></span>
+                Plan projekta
+                <span id="bulk-plan-summary" class="ml-auto text-[10px] font-normal text-slate-400 truncate" style="max-width:130px">0 ODF</span>
             </div>
-            <div class="mt-2 grid gap-2">
-                <select id="active-project-id" name="project_id" class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
-                <div class="side-section grid gap-2">
-                    <div class="side-kicker">Tok rada</div>
-                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
-                        <button type="button" data-guide-mode="odf" class="guide-step rounded-md border border-cyan-200 bg-white px-2 py-1.5 text-cyan-800">1 ODF</button>
-                        <button type="button" data-guide-mode="draw" class="guide-step rounded-md border border-amber-200 bg-white px-2 py-1.5 text-amber-800">2 Trasa</button>
-                        <button type="button" data-guide-mode="house" class="guide-step rounded-md border border-violet-200 bg-white px-2 py-1.5 text-violet-800">3 Kuće</button>
-                        <button type="button" id="guide-suggest" class="guide-step rounded-md border border-emerald-200 bg-white px-2 py-1.5 text-emerald-800">4 FTTH</button>
+            <div class="sidebar-bd grid gap-3">
+                <select id="active-project-id" name="project_id" class="sb-sel" required>
+                    <option value="">Svi projekti</option>
+                    @foreach($projects as $project)
+                        <option value="{{ $project->id }}" @selected($activeProjectId === $project->id)>{{ $project->name }}</option>
+                    @endforeach
+                </select>
+                <div>
+                    <div class="sb-kicker">Tok rada</div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button type="button" data-guide-mode="odf" class="step-btn text-cyan-800 border-cyan-200">1 ODF</button>
+                        <button type="button" data-guide-mode="draw" class="step-btn text-amber-800 border-amber-200">2 Trasa</button>
+                        <button type="button" data-guide-mode="house" class="step-btn text-violet-800 border-violet-200">3 Kuce</button>
+                        <button type="button" id="guide-suggest" class="step-btn text-emerald-800 border-emerald-200">4 FTTH</button>
                     </div>
                 </div>
-                <div class="side-section grid gap-2">
-                    <div class="side-kicker">Aktivni ODF</div>
-                    <label class="grid gap-1 text-xs font-semibold text-cyan-900">
-                        <select id="active-odf-index" class="rounded-md border border-cyan-200 bg-white px-3 py-2 text-sm font-normal text-zinc-800">
-                            <option value="">Prvo postavi ODF</option>
-                        </select>
-                    </label>
-                    <div id="odf-link-status" class="text-xs leading-5 text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
+                <div>
+                    <div class="sb-kicker">Aktivni ODF</div>
+                    <select id="active-odf-index" class="sb-sel mb-2"><option value="">Prvo postavi ODF</option></select>
+                    <div id="odf-link-status" class="sb-info bg-cyan-50 text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
                 </div>
-                <div class="soft-panel rounded-md px-2.5 py-2">
-                    <div class="flex items-center justify-between gap-2">
-                        <div>
-                            <div class="text-sm font-semibold text-amber-950">Obracun rova</div>
-                            <div class="text-xs leading-5 text-amber-800">Prvo nacrtaj Glavni rov, zatim posebno mikrocijevi/krakove.</div>
+                <div class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="text-xs font-semibold text-amber-900">Obracun rova</div>
+                        <span id="route-trench-status" class="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white whitespace-nowrap">tip trase odlucuje</span>
+                    </div>
+                    <div class="mt-1 text-xs text-amber-700 leading-5">Najpre Glavni rov, zatim mikrocijevi/krakovi.</div>
+                </div>
+                <details class="rounded-lg border border-amber-100 overflow-hidden">
+                    <summary class="list-none flex items-center justify-between cursor-pointer px-3 py-2 text-xs font-semibold text-amber-900 bg-amber-50">
+                        Postavke trase
+                        <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                    </summary>
+                    <div class="p-3 grid gap-2 bg-white border-t border-amber-100">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-xs font-semibold text-amber-900">Aktivni krak</span>
+                            <span id="route-branch-count" class="text-xs font-semibold text-amber-600">0 krakova</span>
                         </div>
-                        <span id="route-trench-status" class="rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">tip trase odlucuje</span>
-                    </div>
-                </div>
-                <details class="rounded-md border border-slate-200 bg-white">
-                    <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-amber-950">Postavke trase</summary>
-                <div class="border-t border-slate-100 p-2.5">
-	                    <div class="mb-2 flex items-center justify-between gap-2">
-	                        <h3 class="text-sm font-semibold text-amber-950">Aktivni krak trase</h3>
-	                        <span id="route-branch-count" class="text-xs font-semibold text-amber-700">0 krakova</span>
-	                    </div>
-	                    <label class="mb-2 grid gap-1 text-xs text-amber-900">Pocetak trase
-	                        <select id="route-start-source" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800">
-	                            <option value="">Automatski / bez veze</option>
-	                            @foreach($odfsForSelect as $odf)
-	                                <option value="odf:{{ $odf->id }}">ODF: {{ $odf->name }} - {{ $odf->project->name }}</option>
-	                            @endforeach
-	                            @foreach($cabinetsForSelect as $cabinet)
-	                                <option value="cabinet:{{ $cabinet->id }}">ODO: {{ $cabinet->name }} - {{ $cabinet->project->name }}</option>
-	                            @endforeach
-	                        </select>
-	                    </label>
-	                    <div class="grid grid-cols-2 gap-2">
-                        <label class="grid gap-1 text-xs text-amber-900">Tip
-                            <select id="route-draw-type" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800">
-                                <option value="trench">Glavni rov</option>
-                                <option value="feeder">Primarni</option>
-                                <option value="distribution">Sekundarni</option>
-                                <option value="drop">Drop</option>
+                        <div class="sb-kicker">Pocetak trase
+                            <select id="route-start-source" class="sb-sel mt-1 font-normal">
+                                <option value="">Automatski / bez veze</option>
+                                @foreach($odfsForSelect as $odf)
+                                    <option value="odf:{{ $odf->id }}">ODF: {{ $odf->name }} - {{ $odf->project->name }}</option>
+                                @endforeach
+                                @foreach($cabinetsForSelect as $cabinet)
+                                    <option value="cabinet:{{ $cabinet->id }}">ODO: {{ $cabinet->name }} - {{ $cabinet->project->name }}</option>
+                                @endforeach
                             </select>
-                        </label>
-                        <label class="grid gap-1 text-xs text-amber-900">Mikrocijevi
-                            <input id="route-draw-microducts" type="number" min="1" value="1" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800">
-                        </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="sb-kicker">Tip
+                                <select id="route-draw-type" class="sb-sel mt-1 font-normal">
+                                    <option value="trench">Glavni rov</option>
+                                    <option value="feeder">Primarni</option>
+                                    <option value="distribution">Sekundarni</option>
+                                    <option value="drop">Drop</option>
+                                </select>
+                            </div>
+                            <div class="sb-kicker">Mikrocijevi
+                                <input id="route-draw-microducts" type="number" min="1" value="1" class="sb-inp mt-1">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="sb-kicker">Polaganje
+                                <select id="route-draw-installation" class="sb-sel mt-1 font-normal"><option value="underground">Podzemna</option><option value="aerial">Zracna</option></select>
+                            </div>
+                            <div class="sb-kicker">Mikrocijev
+                                <select id="route-draw-microduct-type" class="sb-sel mt-1 font-normal"><option value="14/10">14/10</option><option value="10/8">10/8</option></select>
+                            </div>
+                            <div class="sb-kicker">Niti
+                                <select id="route-draw-fiber-count" class="sb-sel mt-1 font-normal"><option value="4">4F</option><option value="12" selected>12F</option><option value="24">24F</option><option value="48">48F</option></select>
+                            </div>
+                        </div>
+                        <div class="sb-kicker">Oznaka
+                            <input id="route-draw-name" class="sb-inp mt-1" placeholder="npr. P-01 ili S-01">
+                        </div>
+                        <div id="route-odf-status" class="sb-info bg-amber-50 text-amber-900">Krak nije vezan na ODF.</div>
+                        <div id="route-branch-list" class="grid max-h-28 gap-1 overflow-y-auto text-xs text-amber-900"></div>
                     </div>
-                    <div class="mt-2 grid grid-cols-3 gap-2">
-                        <label class="grid gap-1 text-xs text-amber-900">Polaganje
-                            <select id="route-draw-installation" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="underground">Podzemna</option><option value="aerial">Zračna</option></select>
-                        </label>
-                        <label class="grid gap-1 text-xs text-amber-900">Mikrocijev
-                            <select id="route-draw-microduct-type" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="14/10">14/10</option><option value="10/8">10/8</option></select>
-                        </label>
-                        <label class="grid gap-1 text-xs text-amber-900">Niti
-                            <select id="route-draw-fiber-count" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800"><option value="4">4</option><option value="12" selected>12</option><option value="24">24</option><option value="48">48</option></select>
-                        </label>
-                    </div>
-                    <label class="mt-2 grid gap-1 text-xs text-amber-900">Oznaka
-                        <input id="route-draw-name" class="rounded-md border border-amber-200 bg-white px-2 py-2 text-sm text-zinc-800" placeholder="npr. P-01 ili S-01">
-                    </label>
-                    <div id="route-odf-status" class="mt-2 rounded bg-white/70 px-2 py-2 text-xs font-semibold text-amber-900">Krak nije vezan na ODF.</div>
-                    <div id="route-branch-list" class="mt-3 grid max-h-32 gap-1 overflow-y-auto text-xs text-amber-950"></div>
-                </div>
                 </details>
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" id="save-draft" class="action-btn rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-800">Sačuvaj radnu verziju</button>
-                    <button class="action-btn rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Sačuvaj na mapi</button>
+                    <button type="button" id="save-draft" class="sb-btn sb-btn-outline">Radna verzija</button>
+                    <button class="sb-btn sb-btn-emerald">Sacuvaj na mapi</button>
                 </div>
+                <div id="export-actions" style="display:none" class="grid grid-cols-3 gap-1.5">
+                    <a id="export-geojson" href="#" class="sb-btn sb-btn-outline" style="font-size:10px;padding:5px 8px;text-align:center">GeoJSON</a>
+                    <a id="export-dxf" href="#" class="sb-btn sb-btn-outline" style="font-size:10px;padding:5px 8px;text-align:center">DXF</a>
+                    <a id="print-project" href="#" class="sb-btn sb-btn-outline" style="font-size:10px;padding:5px 8px;text-align:center">Print</a>
+                </div>
+                <div id="bulk-plan-status" class="text-xs font-semibold text-emerald-700"></div>
             </div>
-                <div class="mb-2 grid grid-cols-3 gap-2">
-                    <a id="export-geojson" href="#" class="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800">Export GeoJSON</a>
-                    <a id="export-dxf" href="#" class="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800">Export DXF</a>
-                    <a id="print-project" href="#" class="hidden rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800">Print/PDF</a>
-                </div>
-                <div id="bulk-plan-status" class="mt-2 text-sm font-semibold text-emerald-800"></div>
         </form>
 
-        <details class="control-panel rounded-md" open>
-            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Provjera projekta</summary>
-            <div class="grid gap-2 border-t border-zinc-100 p-3">
+        <!-- Provjera projekta -->
+        <details class="sidebar-card" open>
+            <summary class="sidebar-hd">
+                <span class="sdot sdot-amber"></span>
+                Provjera projekta
+                <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="sidebar-bd grid gap-2">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" id="run-project-check" class="action-btn rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">Provjeri</button>
-                    <button type="button" id="fill-missing-drops" class="action-btn rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Popuni dropove</button>
+                    <button type="button" id="run-project-check" class="sb-btn sb-btn-outline">Provjeri</button>
+                    <button type="button" id="fill-missing-drops" class="sb-btn sb-btn-amber-outline">Popuni dropove</button>
                 </div>
-                <div id="project-check-summary" class="text-xs font-semibold text-slate-600">Odaberi projekat i pokreni provjeru.</div>
-                <div id="project-check-panel" class="grid max-h-64 gap-1 overflow-y-auto text-xs"></div>
+                <div id="project-check-summary" class="text-xs text-slate-500">Odaberi projekat i pokreni provjeru.</div>
+                <div id="project-check-panel" class="grid max-h-60 gap-1 overflow-y-auto text-xs"></div>
             </div>
         </details>
 
-        <div id="route-attribute-panel" class="control-panel hidden rounded-md border-2 border-blue-300 p-3">
-            <div class="flex items-center justify-between gap-2">
-                <div><h2 class="font-semibold">Trasa</h2><p id="route-attribute-status" class="text-xs text-zinc-500">Odabrana trasa</p></div>
-                <button type="button" id="close-route-attribute-panel" class="rounded px-2 py-1 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Zatvori</button>
+        <!-- Trasa atributi (contextual) -->
+        <div id="route-attribute-panel" class="ctx-panel hidden" style="border-color:#93c5fd;border-width:2px">
+            <div class="ctx-panel-hd">
+                <div>
+                    <div class="text-sm font-semibold text-slate-900">Trasa</div>
+                    <div id="route-attribute-status" class="text-xs text-slate-500">Odabrana trasa</div>
+                </div>
+                <button type="button" id="close-route-attribute-panel" class="sb-btn sb-btn-outline" style="width:auto;padding:3px 9px;font-size:11px">Zatvori</button>
             </div>
-            <div class="mt-3 grid gap-2">
-                <input id="route-attr-name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv trase">
+            <div class="sidebar-bd grid gap-2">
+                <input id="route-attr-name" class="sb-inp" placeholder="Naziv trase">
                 <div class="grid grid-cols-2 gap-2">
-                    <select id="route-attr-type" class="rounded-md border border-zinc-300 px-2 py-2 text-sm">
+                    <select id="route-attr-type" class="sb-sel">
                         <option value="trench">Glavni rov</option>
                         <option value="backbone">Backbone</option>
                         <option value="feeder">Primarni</option>
                         <option value="distribution">Sekundarni</option>
                         <option value="drop">Drop</option>
                     </select>
-                    <select id="route-attr-microduct" class="rounded-md border border-zinc-300 px-2 py-2 text-sm">
+                    <select id="route-attr-microduct" class="sb-sel">
                         <option value="">Bez mikrocijevi</option>
                         <option value="14/10">14/10</option>
                         <option value="10/8">10/8</option>
                     </select>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
-                    <select id="route-attr-fibers" class="rounded-md border border-zinc-300 px-2 py-2 text-sm">
+                    <select id="route-attr-fibers" class="sb-sel">
                         <option value="4">4F</option>
                         <option value="12">12F</option>
                         <option value="24">24F</option>
                         <option value="48">48F</option>
                     </select>
-                    <input id="route-attr-note" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Napomena">
+                    <input id="route-attr-note" class="sb-inp" placeholder="Napomena">
                 </div>
-                <button type="button" id="save-route-attributes" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sacuvaj podatke trase</button>
+                <button type="button" id="save-route-attributes" class="sb-btn sb-btn-blue">Sacuvaj podatke trase</button>
             </div>
         </div>
 
-        <details class="control-panel rounded-md">
-            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Automatski raspored FTTH</summary>
-        <div class="border-t border-zinc-100 p-3">
-            <div class="flex items-center justify-between gap-3">
-                <h2 class="font-semibold">Automatski raspored</h2>
-                <button type="button" id="suggest-cabinets" class="action-btn rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Predloži FTTH</button>
+        <!-- Auto FTTH -->
+        <details class="sidebar-card">
+            <summary class="sidebar-hd">
+                <span class="sdot sdot-violet"></span>
+                Automatski raspored FTTH
+                <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="sidebar-bd grid gap-3">
+                <div class="grid grid-cols-4 gap-2">
+                    <div class="sb-kicker">Min<input id="planner-min" type="number" min="1" max="12" value="8" class="sb-inp mt-1"></div>
+                    <div class="sb-kicker">Max<input id="planner-max" type="number" min="1" max="12" value="12" class="sb-inp mt-1"></div>
+                    <div class="sb-kicker">Max m<input id="planner-max-drop" type="number" min="20" value="90" class="sb-inp mt-1"></div>
+                    <div class="flex items-end"><button type="button" id="clear-suggestions" class="sb-btn sb-btn-outline">Ocisti</button></div>
+                </div>
+                <button type="button" id="suggest-cabinets" class="sb-btn sb-btn-violet">Predlozi FTTH</button>
+                <div id="suggestion-output" class="max-h-52 overflow-auto rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600 leading-5">Nacrtaj trasu i oznaci kuce.</div>
+                <button type="button" id="save-suggestions" class="hidden sb-btn sb-btn-violet">Potvrdi raspored</button>
             </div>
-            <div class="mt-2 grid grid-cols-4 gap-2">
-                <label class="grid gap-1 text-xs text-zinc-600">Min<input id="planner-min" type="number" min="1" max="12" value="8" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
-                <label class="grid gap-1 text-xs text-zinc-600">Max<input id="planner-max" type="number" min="1" max="12" value="12" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
-                <label class="grid gap-1 text-xs text-zinc-600">Max m<input id="planner-max-drop" type="number" min="20" value="90" class="rounded-md border border-zinc-300 px-2 py-2 text-sm"></label>
-                <button type="button" id="clear-suggestions" class="action-btn mt-5 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold">Očisti</button>
-            </div>
-            <div id="suggestion-output" class="mt-3 max-h-56 overflow-auto rounded-md border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-700">Nacrtaj trasu i oznaci kuće.</div>
-            <button type="button" id="save-suggestions" class="action-btn mt-3 hidden w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Potvrdi raspored</button>
-        </div>
         </details>
 
-        <details class="control-panel rounded-md" open>
-            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Layer Manager</summary>
-            <div class="grid gap-1 border-t border-zinc-100 p-2 text-sm">
-                @foreach(['odf' => 'ODF', 'odo' => 'ODO', 'houses' => 'Kuće', 'trench' => 'Glavni rov', 'backbone' => 'Backbone', 'distribution' => 'Distribution', 'drop' => 'Drop', 'dxf' => 'DXF', 'preview' => 'Preview', 'measure' => 'Mjerenje', 'trace' => 'Fiber tracing'] as $layer => $label)
-                    <div class="layer-row grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-100 bg-white px-2 py-0.5">
-                        <label><input type="checkbox" data-layer-toggle="{{ $layer }}" checked> {{ $label }} <span data-layer-count="{{ $layer }}" class="text-xs text-zinc-400">0</span></label>
-                        <button type="button" data-layer-lock="{{ $layer }}" class="rounded border border-zinc-200 px-2 py-0.5 text-xs font-semibold">Otključan</button>
-                    </div>
+        <!-- Layer Manager -->
+        <details class="sidebar-card">
+            <summary class="sidebar-hd">
+                <span class="sdot sdot-slate"></span>
+                Layer Manager
+                <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="sidebar-bd grid gap-0.5 py-2">
+                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'mufa' => ['Opticke mufe','#db2777'], 'dxf' => ['DXF','#9333ea'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
+                <div class="layer-row">
+                    <label class="flex flex-1 items-center gap-2 cursor-pointer select-none min-w-0">
+                        <input type="checkbox" data-layer-toggle="{{ $layer }}" checked>
+                        <span class="inline-block w-2 h-2 rounded-full flex-shrink-0" style="background:{{ $color }}"></span>
+                        <span class="text-slate-700 truncate">{{ $label }}</span>
+                        <span data-layer-count="{{ $layer }}" class="text-[10px] text-slate-400 ml-auto flex-shrink-0">0</span>
+                    </label>
+                    <button type="button" data-layer-lock="{{ $layer }}" class="layer-lock-btn">&#x1F513;</button>
+                </div>
                 @endforeach
             </div>
         </details>
 
-        <section id="map-trace-panel" class="control-panel hidden rounded-md p-3">
-            <div class="flex items-center justify-between gap-2">
-                <h2 class="font-semibold">Fiber tracing</h2>
-                <button type="button" id="clear-map-trace" class="rounded px-2 py-1 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Ocisti</button>
+        <!-- Fiber tracing (contextual) -->
+        <section id="map-trace-panel" class="ctx-panel hidden">
+            <div class="ctx-panel-hd">
+                <div class="text-sm font-semibold text-slate-900">Fiber tracing</div>
+                <button type="button" id="clear-map-trace" class="sb-btn sb-btn-outline" style="width:auto;padding:3px 9px;font-size:11px">Ocisti</button>
             </div>
-            <div id="map-trace-output" class="mt-3 grid gap-2 text-sm text-slate-700"></div>
+            <div class="sidebar-bd">
+                <div id="map-trace-output" class="grid gap-2 text-xs text-slate-700"></div>
+            </div>
         </section>
 
-        <details class="control-panel rounded-md">
-            <summary class="cursor-pointer list-none px-3 py-2 text-sm font-semibold">Napredne forme za pojedinacno snimanje</summary>
-            <div class="grid gap-3 border-t border-zinc-100 p-3">
-                <form method="POST" action="{{ route('odfs.store') }}" id="odf-form" class="grid gap-3 rounded-md border border-cyan-100 bg-cyan-50 p-3">
+        <!-- Napredne forme -->
+        <details class="sidebar-card">
+            <summary class="sidebar-hd">
+                <span class="sdot sdot-slate"></span>
+                Napredne forme za snimanje
+                <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="sidebar-bd grid gap-3">
+                <form method="POST" action="{{ route('odfs.store') }}" id="odf-form" class="grid gap-2 rounded-lg border border-cyan-100 bg-cyan-50/50 p-3">
                     @csrf
-                    <h3 class="font-semibold text-cyan-900">Sačuvaj ODF</h3>
-                    <select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
-                    <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv ODF-a" required>
-                    <input name="address" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Adresa" required>
-                    <input type="number" name="fiber_capacity" value="144" min="1" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required>
-                    <input type="number" name="port_count" value="48" min="1" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required>
-                    <div class="grid grid-cols-2 gap-2"><input id="odf-lat" name="latitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lat" required><input id="odf-lng" name="longitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lng" required></div>
-                    <button class="rounded-md bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj ODF</button>
+                    <div class="text-xs font-bold text-cyan-900 mb-1">Sacuvaj ODF</div>
+                    <select name="project_id" class="sb-sel" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
+                    <input name="name" class="sb-inp" placeholder="Naziv ODF-a" required>
+                    <input name="address" class="sb-inp" placeholder="Adresa" required>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" name="fiber_capacity" value="144" min="1" class="sb-inp" placeholder="Vlakna">
+                        <input type="number" name="port_count" value="48" min="1" class="sb-inp" placeholder="Portovi">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="odf-lat" name="latitude" class="sb-inp" placeholder="Lat" required>
+                        <input id="odf-lng" name="longitude" class="sb-inp" placeholder="Lng" required>
+                    </div>
+                    <button class="sb-btn sb-btn-cyan">Sacuvaj ODF</button>
                 </form>
-                <form method="POST" action="{{ route('cabinets.store') }}" id="cabinet-form" class="grid gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-3">
+                <form method="POST" action="{{ route('cabinets.store') }}" id="cabinet-form" class="grid gap-2 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
                     @csrf
-                    <h3 class="font-semibold text-emerald-900">Sačuvaj FTTH ormarić</h3>
-                    <select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
-                    <select name="odf_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><option value="">Povezani ODF</option>@foreach($odfsForSelect as $odf)<option value="{{ $odf->id }}">{{ $odf->name }} - {{ $odf->project->name }}</option>@endforeach</select>
-                    <select name="parent_cabinet_id" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><option value="">Napaja se direktno iz ODF-a</option>@foreach($cabinetsForSelect as $parentCabinet)<option value="{{ $parentCabinet->id }}">Iz ODO: {{ $parentCabinet->name }} - {{ $parentCabinet->project->name }}</option>@endforeach</select>
-                    <input name="name" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Naziv, npr. FTTH 1-2-3" required>
-                    <input name="address" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Adresa" required>
-                    <div class="grid grid-cols-2 gap-2"><input type="number" name="splitter_count" value="3" min="1" max="3" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"><input type="number" name="ports_per_splitter" value="4" min="1" max="4" class="rounded-md border border-zinc-300 px-3 py-2 text-sm"></div>
-                    <div class="grid grid-cols-2 gap-2"><input id="cabinet-lat" name="latitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lat" required><input id="cabinet-lng" name="longitude" class="rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="Lng" required></div>
-                    <button class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Sačuvaj FTTH</button>
+                    <div class="text-xs font-bold text-emerald-900 mb-1">Sacuvaj FTTH ormaric</div>
+                    <select name="project_id" class="sb-sel" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
+                    <select name="odf_id" class="sb-sel"><option value="">Povezani ODF</option>@foreach($odfsForSelect as $odf)<option value="{{ $odf->id }}">{{ $odf->name }} - {{ $odf->project->name }}</option>@endforeach</select>
+                    <select name="parent_cabinet_id" class="sb-sel"><option value="">Napaja se iz ODF-a direktno</option>@foreach($cabinetsForSelect as $parentCabinet)<option value="{{ $parentCabinet->id }}">Iz ODO: {{ $parentCabinet->name }} - {{ $parentCabinet->project->name }}</option>@endforeach</select>
+                    <input name="name" class="sb-inp" placeholder="Naziv, npr. FTTH 1-2-3" required>
+                    <input name="address" class="sb-inp" placeholder="Adresa" required>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" name="splitter_count" value="3" min="1" max="3" class="sb-inp" placeholder="Splitteri">
+                        <input type="number" name="ports_per_splitter" value="4" min="1" max="4" class="sb-inp" placeholder="Portovi">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="cabinet-lat" name="latitude" class="sb-inp" placeholder="Lat" required>
+                        <input id="cabinet-lng" name="longitude" class="sb-inp" placeholder="Lng" required>
+                    </div>
+                    <button class="sb-btn sb-btn-emerald">Sacuvaj FTTH</button>
                 </form>
                 <form method="POST" action="{{ route('routes.store') }}" id="route-form" class="hidden">
                     @csrf
@@ -500,10 +679,10 @@
                     <input id="house-lat" name="latitude">
                     <input id="house-lng" name="longitude">
                 </form>
-                <div id="material-specs-output" class="hidden grid gap-3 rounded-md border border-sky-100 bg-sky-50 p-3">
-                    <h3 class="font-semibold text-sky-900">Materijalne specifikacije</h3>
-                    <div id="material-items" class="grid gap-2 max-h-48 overflow-y-auto text-sm"><!-- dynamic content --></div>
-                    <button type="button" id="save-all-materials" class="rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">Snimi sve materijale</button>
+                <div id="material-specs-output" style="display:none" class="grid gap-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3">
+                    <div class="text-xs font-bold text-sky-900">Materijalne specifikacije</div>
+                    <div id="material-items" class="grid gap-2 max-h-48 overflow-y-auto text-xs"></div>
+                    <button type="button" id="save-all-materials" class="sb-btn sb-btn-sky">Snimi sve materijale</button>
                 </div>
             </div>
         </details>
@@ -534,6 +713,7 @@ window.ftthMapConfig = {
 };
 const defaultCenter = [44.4493, 18.6498];
 const map = L.map('network-map', { zoomSnap: 0.25 }).setView(defaultCenter, 17);
+window.ftthNetworkMap = map;
 let mode = 'pan';
 let mapViewMode = 'cad';
 let activeBranch = [];
@@ -588,6 +768,13 @@ const cabinetMarkerById = {};
 const routeLayerById = {};
 const routeLabelsById = {};
 let activeTraceHouseId = null;
+let colorByFibers = false;
+let showCableSpecs = true;
+let rulerStart = null;
+let rulerLine = null;
+let rulerStartMarker = null;
+let rulerEndMarker = null;
+let rulerLabelMarker = null;
 const layerRegistry = {
     odf: [],
     odo: [],
@@ -596,6 +783,7 @@ const layerRegistry = {
     backbone: [],
     distribution: [],
     drop: [],
+    mufa: [],
     dxf: [],
     preview: [],
     measure: [],
@@ -636,7 +824,24 @@ const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/service
 }).addTo(map);
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap' });
-L.control.layers({ 'Satelit': imagery, 'OpenStreetMap': osm }, {}, { position: 'bottomleft' }).addTo(map);
+const cartodbDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxNativeZoom: 19, maxZoom: 22, attribution: '&copy; CARTO' });
+L.control.layers({ 'Satelit': imagery, 'OpenStreetMap': osm, 'CAD tamni': cartodbDark }, {}, { position: 'bottomleft' }).addTo(map);
+
+L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
+
+(function addNorthArrow() {
+    const NorthArrow = L.Control.extend({
+        options: { position: 'bottomright' },
+        onAdd() {
+            const div = L.DomUtil.create('div', '');
+            div.style.cssText = 'background:rgba(255,255,255,.82);border:1px solid rgba(15,23,42,.35);border-radius:2px;padding:3px 5px;font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:#0f172a;text-align:center;cursor:default;user-select:none;';
+            div.innerHTML = '<svg width="14" height="20" viewBox="0 0 14 20" style="display:block;margin:0 auto 1px"><polygon points="7,0 11,10 7,8 3,10" fill="#0f172a"/><polygon points="7,20 11,10 7,12 3,10" fill="#94a3b8"/></svg>N';
+            L.DomEvent.disableClickPropagation(div);
+            return div;
+        },
+    });
+    new NorthArrow().addTo(map);
+}());
 
 const cabinetPalette = [
     '#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#7c3aed', '#0891b2', '#db2777',
@@ -654,21 +859,80 @@ mapLegend.onAdd = () => {
         <div><span class="cad-point-sample" style="background:#0f5fa8"></span><span>ODF</span></div>
         <div><span class="cad-point-sample" style="background:#16a34a"></span><span>FTTH</span></div>
         <div><span class="cad-point-sample circle" style="background:#16a34a"></span><span>Kuca</span></div>
+        <div><svg width="10" height="9" viewBox="0 0 16 14" style="justify-self:start;overflow:visible"><polygon points="4,0 12,0 16,7 12,14 4,14 0,7" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/></svg><span>Mufa</span></div>
+        <b style="margin-top:4px">VLAKNA</b>
+        <div style="color:#f59e0b"><span class="cad-line-sample"></span><span>≤4F</span></div>
+        <div style="color:#16a34a"><span class="cad-line-sample"></span><span>12F</span></div>
+        <div style="color:#2563eb"><span class="cad-line-sample"></span><span>24F</span></div>
+        <div style="color:#ea580c"><span class="cad-line-sample"></span><span>48F</span></div>
+        <div style="color:#dc2626"><span class="cad-line-sample"></span><span>96F+</span></div>
     `;
     return box;
 };
 mapLegend.addTo(map);
 
+function fiberCountColor(fibers) {
+    const f = Number(fibers) || 0;
+    if (f <= 4)  return '#f59e0b';
+    if (f <= 12) return '#16a34a';
+    if (f <= 24) return '#2563eb';
+    if (f <= 48) return '#ea580c';
+    return '#dc2626';
+}
+function routeLabelSpecs(route) {
+    const parts = [];
+    const f = route.fiber_count || route.fibers;
+    if (f) parts.push(`${f}F`);
+    const md = route.microduct_type || route.microduct;
+    if (md) parts.push(md);
+    return parts.length ? parts.join('·') : null;
+}
+function mufaIcon() {
+    const svg = `<svg width="16" height="14" viewBox="0 0 16 14" style="display:block;overflow:visible;filter:drop-shadow(0 0 1px rgba(0,0,0,.7))"><polygon points="4,0 12,0 16,7 12,14 4,14 0,7" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/><text x="8" y="9.5" text-anchor="middle" fill="#fff" font-size="5.5" font-weight="900" font-family="system-ui,sans-serif">M</text></svg>`;
+    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag mufa">${svg}</div>`, iconSize: [2, 2], iconAnchor: [8, 7] });
+}
+function drawSavedMufa(item) {
+    const p = L.latLng(item.lat, item.lng);
+    const label = item.note ? `Mufa: ${item.note}` : 'Optička mufa/spajač';
+    const marker = L.marker(p, { icon: mufaIcon(), draggable: false })
+        .bindTooltip(label, { direction: 'top', offset: [0, -10] })
+        .bindPopup(`<b>Optička mufa</b>${item.note ? `<br>${item.note}` : ''}`)
+        .addTo(map);
+    trackLayer(marker, 'mufa');
+}
+function clearRuler() {
+    [rulerStartMarker, rulerLine, rulerEndMarker, rulerLabelMarker].forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+    rulerStart = null; rulerLine = null; rulerStartMarker = null; rulerEndMarker = null; rulerLabelMarker = null;
+}
+function rulerClick(latlng) {
+    if (!rulerStart) {
+        rulerStart = latlng;
+        rulerStartMarker = L.circleMarker(latlng, { radius: 5, color: '#b91c1c', weight: 2, fillColor: '#fee2e2', fillOpacity: 1, interactive: false }).addTo(map);
+        document.getElementById('cad-command').textContent = 'MJERAČ: klikni drugu tačku. ESC za odustajanje.';
+        return;
+    }
+    const d = Math.round(map.distance(rulerStart, latlng));
+    if (rulerLine) map.removeLayer(rulerLine);
+    if (rulerEndMarker) map.removeLayer(rulerEndMarker);
+    if (rulerLabelMarker) map.removeLayer(rulerLabelMarker);
+    rulerLine = L.polyline([rulerStart, latlng], { color: '#b91c1c', weight: 2, dashArray: '6 5', opacity: .9, interactive: false }).addTo(map);
+    rulerEndMarker = L.circleMarker(latlng, { radius: 5, color: '#b91c1c', weight: 2, fillColor: '#fee2e2', fillOpacity: 1, interactive: false }).addTo(map);
+    rulerLabelMarker = L.marker(latlng, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'ruler-label', html: `<span>${d} m</span>`, iconAnchor: [0, 0] }) }).addTo(map);
+    document.getElementById('cad-command').textContent = `MJERAČ: ${d} m. Klikni za nastavak lanca ili ESC za završetak.`;
+    rulerStart = latlng;
+    if (rulerStartMarker) map.removeLayer(rulerStartMarker);
+    rulerStartMarker = L.circleMarker(latlng, { radius: 5, color: '#b91c1c', weight: 2, fillColor: '#fee2e2', fillOpacity: 1, interactive: false }).addTo(map);
+}
 function icon(type, text = '', color = null) {
-    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : 'house';
+    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : type === 'mufa' ? 'mufa' : 'house';
     const style = color ? ` style="background:${color}"` : '';
     if (type === 'cabinet') {
         const match = String(text || '').trim().match(/^FTTH\s+(.+)$/i);
         const title = match ? 'FTTH' : String(text || '').trim();
         const code = match ? normalizeFtthDisplayCode(match[1]) : '';
         const html = code
-            ? `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}></span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span><span class="ftth-cabinet-code">${code}</span></span></div>`
-            : `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}></span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span></span></div>`;
+            ? `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}>ODO</span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span><span class="ftth-cabinet-code">${code}</span></span></div>`
+            : `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}>ODO</span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span></span></div>`;
         return L.divIcon({ className: 'ftth-label', html, iconSize: [2, 2], iconAnchor: [1, 1] });
     }
     return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
@@ -718,7 +982,7 @@ data.routes.forEach(route => {
     const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
-    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false);
+    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
     routeLayerById[route.id] = line;
     routeLabelsById[route.id] = labels || [];
     trackLayer(line, routeLayerType(route.type));
@@ -832,6 +1096,8 @@ data.appendix_items?.forEach(item => {
     const p = L.latLng(item.lat, item.lng);
     if (item.type === 'boring_fi_130') {
         drawSavedBoring(item);
+    } else if (item.type === 'mufa') {
+        drawSavedMufa(item);
     } else {
         const marker = L.marker(p, { icon: icon('manhole', 'S'), draggable: false })
             .bindTooltip(`Prolazni saht: ${item.quantity} ${item.unit}`, { direction: 'top', offset: [0, -10] })
@@ -846,6 +1112,7 @@ if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 }); el
 
 function setMode(next) {
     if (routeEdit && next !== 'pan') cancelRouteEdit();
+    if (mode === 'ruler' && next !== 'ruler') clearRuler();
     mode = next;
     if (next !== 'connect') connectOdf = null;
     if (next !== 'connect-houses') resetHouseConnect();
@@ -862,6 +1129,8 @@ function setMode(next) {
         draw: 'TRASA: klik po klik crtaj trasu. Blizu postojece trase/tacke automatski se spoji. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
         manhole: 'SAHT: klikni lokaciju prolaznog sahta.',
         'boring-fi-130': 'RAKETA FI130: klikni lokaciju podbusivanja ispod ceste.',
+        mufa: 'MUFA: klikni lokaciju optičke spojnice/mufe. ESC za odustajanje.',
+        ruler: 'MJERAČ: klikni prvu tačku. Svaki naredni klik mjeri od prethodne tačke. ESC završava.',
         'branch-source': 'NOVI KRAK IZ ODO: klikni ormarić iz kojeg novi krak polazi.',
         connect: 'CONNECT: odaberi ODF',
         'connect-houses': 'CONNECT HOUSES: odaberi ODO',
@@ -871,7 +1140,7 @@ function setMode(next) {
     document.getElementById('cad-command').textContent = labels[next];
     updateCommandBar();
 }
-['pan','odf','cabinet','house','draw','manhole','boring-fi-130','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
+['pan','odf','cabinet','house','draw','manhole','boring-fi-130','mufa','ruler','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
     setMode(m);
     if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
         document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
@@ -1025,10 +1294,10 @@ function routeTypeLabel(type) {
     return type === 'trench' ? 'Glavni rov' : type === 'backbone' ? 'Backbone' : type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
 }
 function routeColor(type) {
-    return type === 'trench' ? '#111827' : type === 'backbone' ? '#1d4ed8' : type === 'feeder' ? '#0e7490' : type === 'drop' ? '#f59e0b' : '#16a34a';
+    return type === 'trench' ? '#111827' : type === 'backbone' ? '#1d4ed8' : type === 'feeder' ? '#0e7490' : type === 'drop' ? '#f59e0b' : '#f97316';
 }
 function routeWeight(type) {
-    return type === 'trench' ? 4 : type === 'drop' ? 2 : 3;
+    return type === 'trench' ? 4 : type === 'drop' ? 2 : 4;
 }
 function routeDashArray(type) {
     return type === 'trench' ? '10 8' : type === 'drop' ? '4 6' : null;
@@ -1055,7 +1324,26 @@ function routeLineStyle(type, color = routeColor(type)) {
     };
 }
 function routeLineColor(route) {
-    return route.type === 'trench' ? routeColor('trench') : (route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type));
+    if (route.type === 'trench') return routeColor('trench');
+    const fibers = route.fiber_count || route.fibers;
+    if (colorByFibers && fibers) return fiberCountColor(fibers);
+    return route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type);
+}
+function refreshAllRouteStyles() {
+    data.routes.forEach(route => {
+        const line = routeLayerById[route.id];
+        if (line?.setStyle) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+    });
+    branchLines.forEach((line, idx) => {
+        const meta = branchMeta[idx] || {};
+        if (line?.setStyle) line.setStyle(routeLineStyle(meta.route_type || 'distribution', colorByFibers && meta.fiber_count ? fiberCountColor(meta.fiber_count) : undefined));
+    });
+}
+function refreshAllRouteLabels() {
+    data.routes.forEach(route => {
+        const oldLayerType = routeLayerType(route.type);
+        refreshRouteLabels(route, oldLayerType);
+    });
 }
 function usedRouteNames(type = null) {
     return [...data.routes, ...branchMeta]
@@ -1201,7 +1489,7 @@ function addSavedRouteToMap(route) {
     const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length} m`)
         .addTo(map);
-    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false);
+    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
     data.routes.push(route);
     savedRoutePoints.push(points);
     routeLayerById[route.id] = line;
@@ -1254,7 +1542,7 @@ async function joinSelectedRoutes() {
             map.removeLayer(label);
             untrackLayer(label);
         });
-        routeLabelsById[first.route.id] = first.route.type === 'trench' ? [] : addRouteLabel(points, first.route.name, false);
+        routeLabelsById[first.route.id] = first.route.type === 'trench' ? [] : addRouteLabel(points, first.route.name, false, routeLabelSpecs(first.route));
         routeLabelsById[first.route.id].forEach(label => trackLayer(label, routeLayerType(first.route.type)));
         const removedLine = routeLayerById[result.deleted_route_id];
         if (removedLine) map.removeLayer(removedLine);
@@ -1771,11 +2059,13 @@ function routeLabelPlacement(points, position = .5) {
     }
     return { latlng: points[Math.floor(points.length / 2)], angle: 0 };
 }
-function addRouteLabel(points, name, track = true) {
+function addRouteLabel(points, name, track = true, specs = null) {
     const labelName = normalizeRouteDisplayName(name);
+    const specsText = showCableSpecs && specs ? ` <span style="opacity:.65;font-size:.85em">${specs}</span>` : '';
+    const labelHtml = `${labelName}${specsText}`;
     const markers = [];
     const total = distance(points);
-    const positions = total > 250 ? [.12, .5, .88] : (total > 90 ? [.25, .75] : [.5]);
+    const positions = total > 500 ? [.2, .5, .8] : (total > 180 ? [.3, .7] : [.5]);
     positions.forEach(position => {
         const placement = routeLabelPlacement(points, position);
         if (!placement) return;
@@ -1784,7 +2074,7 @@ function addRouteLabel(points, name, track = true) {
             keyboard: false,
             icon: L.divIcon({
                 className: 'route-label',
-                html: `<span style="transform: rotate(${placement.angle.toFixed(1)}deg)">${labelName}</span>`,
+                html: `<span style="transform: rotate(${placement.angle.toFixed(1)}deg)">${labelHtml}</span>`,
                 iconAnchor: [12, 18],
         }),
     }).addTo(map);
@@ -1845,7 +2135,7 @@ function removeDraftElement(marker) {
         activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
     }
     if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== marker);
-    if (item.type === 'manhole' || item.type === 'boring_fi_130') {
+    if (item.type === 'manhole' || item.type === 'boring_fi_130' || item.type === 'mufa') {
         draftAppendixItems = draftAppendixItems.filter(entry => entry.marker !== marker);
     }
     refreshDraftTooltips();
@@ -2010,6 +2300,7 @@ function updateLayerCount(type) {
         backbone: () => data.routes.filter(route => route.type === 'backbone').length + branchMeta.filter(route => route.route_type === 'backbone').length,
         distribution: () => data.routes.filter(route => !['trench', 'backbone', 'drop'].includes(route.type)).length + branchMeta.filter(route => !['trench', 'backbone', 'drop'].includes(route.route_type)).length,
         drop: () => data.routes.filter(route => route.type === 'drop').length,
+        mufa: () => (data.appendix_items?.filter(i => i.type === 'mufa').length || 0) + draftAppendixItems.filter(i => i.type === 'mufa').length,
         dxf: () => 0,
     };
     count.textContent = objectCounts[type] ? objectCounts[type]() : (layerRegistry[type]?.length || 0);
@@ -2104,7 +2395,7 @@ function refreshRouteLabels(route, oldLayerType = null) {
     }
 
     const points = route.path.map(point => L.latLng(point[0], point[1]));
-    routeLabelsById[route.id] = addRouteLabel(points, route.name, false);
+    routeLabelsById[route.id] = addRouteLabel(points, route.name, false, routeLabelSpecs(route));
     routeLabelsById[route.id].forEach(label => trackLayer(label, routeLayerType(route.type)));
 }
 function renderRouteEditVertices() {
@@ -2563,7 +2854,7 @@ function clearSuggestions() {
     document.getElementById('cabinet-count').textContent='0';
     document.getElementById('suggestion-output').innerHTML='Nacrtaj trasu i oznaci kuće.';
     document.getElementById('save-suggestions').classList.add('hidden');
-    document.getElementById('material-specs-output').classList.add('hidden');
+    document.getElementById('material-specs-output').style.display = 'none';
     refreshPlanSummary();
 }
 
@@ -2707,7 +2998,7 @@ function renderAutoOdoPlan(plan) {
         ${cabinetHtml}
     `;
     document.getElementById('save-suggestions').classList.remove('hidden');
-    document.getElementById('material-specs-output').classList.remove('hidden');
+    document.getElementById('material-specs-output').style.display = 'grid';
     displayMaterialSpecs();
     refreshPlanSummary();
 }
@@ -3103,7 +3394,8 @@ function restoreDraft(payload) {
     (payload.appendix_items || []).forEach(item => {
         const latLng = L.latLng(item.lat, item.lng);
         const isManhole = item.type === 'manhole';
-        const draftItem = isManhole
+        const isMufa = item.type === 'mufa';
+        const draftItem = isManhole || isMufa
             ? { type: item.type, quantity: item.quantity || 1, note: item.note || '', marker: null }
             : createBoringDraft(latLng, item);
         if (isManhole) {
@@ -3112,8 +3404,15 @@ function restoreDraft(payload) {
                 .addTo(map);
             draftItem.marker = marker;
             marker.on('drag', refreshPlanSummary);
+        } else if (isMufa) {
+            const marker = L.marker(latLng, { icon: mufaIcon(), draggable: true })
+                .bindTooltip('Optička mufa', { direction: 'top', offset: [0, -10] })
+                .addTo(map);
+            draftItem.marker = marker;
+            trackLayer(marker, 'mufa');
+            marker.on('drag', refreshPlanSummary);
         }
-        registerDraftContext(draftItem.marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
+        registerDraftContext(draftItem.marker, isManhole ? 'Prolazni saht' : isMufa ? 'Optička mufa' : 'Podbusivanje FI 130');
         draftAppendixItems.push(draftItem);
         draftElements.push({ type: item.type, marker: draftItem.marker });
     });
@@ -3405,14 +3704,20 @@ function applyMapViewMode() {
     const workspace = document.getElementById('map-workspace');
     const btn = document.getElementById('toggle-map-view');
     workspace.classList.toggle('gis-view', mapViewMode === 'gis');
-    if (btn) btn.textContent = mapViewMode === 'cad' ? 'CAD prikaz' : 'GIS prikaz';
+    workspace.classList.toggle('cad-dark', mapViewMode === 'dark');
+    const viewLabels = { cad: 'GIS prikaz', gis: 'Tamni CAD', dark: 'Satelit' };
+    if (btn) btn.textContent = viewLabels[mapViewMode] || 'GIS prikaz';
+    [imagery, osm, cartodbDark].forEach(layer => { if (map.hasLayer(layer)) map.removeLayer(layer); });
+    if (mapViewMode === 'dark') cartodbDark.addTo(map);
+    else if (mapViewMode === 'gis') osm.addTo(map);
+    else imagery.addTo(map);
     data.routes.forEach(route => {
         const line = routeLayerById[route.id];
         if (line?.setStyle) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
     });
     branchLines.forEach((line, index) => {
         const meta = branchMeta[index] || {};
-        if (line?.setStyle) line.setStyle(routeLineStyle(meta.route_type || 'distribution'));
+        if (line?.setStyle) line.setStyle(routeLineStyle(meta.route_type || 'distribution', colorByFibers && meta.fiber_count ? fiberCountColor(meta.fiber_count) : undefined));
     });
     if (activeBranchLine) redrawActiveBranch();
 }
@@ -3421,11 +3726,43 @@ function applyMapZoomClass() {
     const zoom = map.getZoom();
     workspace.classList.toggle('zoom-high', zoom >= 19);
     workspace.classList.toggle('zoom-low', zoom <= 16);
+    workspace.classList.toggle('zoom-far', zoom <= 15);
+    ['z20','z21','z22'].forEach(c => workspace.classList.remove(c));
+    if (zoom >= 20) workspace.classList.add('z' + Math.min(Math.round(zoom), 22));
 }
 document.getElementById('toggle-map-view').addEventListener('click', () => {
-    mapViewMode = mapViewMode === 'cad' ? 'gis' : 'cad';
+    const cycle = { cad: 'gis', gis: 'dark', dark: 'cad' };
+    mapViewMode = cycle[mapViewMode] || 'gis';
     applyMapViewMode();
     document.getElementById('cad-command').textContent = `VIEW: ${mapViewMode.toUpperCase()} prikaz aktivan.`;
+});
+document.getElementById('toggle-color-by-fibers').addEventListener('click', () => {
+    colorByFibers = !colorByFibers;
+    const btn = document.getElementById('toggle-color-by-fibers');
+    btn.classList.toggle('bg-amber-100', colorByFibers);
+    btn.classList.toggle('border-amber-400', colorByFibers);
+    btn.classList.toggle('text-amber-900', colorByFibers);
+    refreshAllRouteStyles();
+    document.getElementById('cad-command').textContent = colorByFibers
+        ? 'BOJA F: trase obojene po broju vlakana (4F=žuta, 12F=zelena, 24F=plava, 48F=narandžasta, 96F+=crvena).'
+        : 'BOJA F: isključeno, boja po tipu/grani.';
+});
+document.getElementById('toggle-cable-specs').addEventListener('click', () => {
+    showCableSpecs = !showCableSpecs;
+    const btn = document.getElementById('toggle-cable-specs');
+    btn.classList.toggle('bg-sky-100', showCableSpecs);
+    btn.classList.toggle('border-sky-400', showCableSpecs);
+    btn.classList.toggle('text-sky-900', showCableSpecs);
+    refreshAllRouteLabels();
+    document.getElementById('cad-command').textContent = showCableSpecs ? 'SPECS: prikaz vlakana i mikrocijevi na trasama uključen.' : 'SPECS: isključen.';
+});
+document.getElementById('btn-coord-jump').addEventListener('click', () => {
+    const raw = prompt('Unesi koordinate (lat, lng):');
+    if (!raw) return;
+    const parts = raw.split(/[\s,;]+/).map(Number).filter(v => !isNaN(v));
+    if (parts.length < 2) { document.getElementById('cad-command').textContent = 'GOTO: neispravan format. Primjer: 44.449, 18.650'; return; }
+    map.setView([parts[0], parts[1]], Math.max(map.getZoom(), 18));
+    document.getElementById('cad-command').textContent = `GOTO: LAT ${parts[0].toFixed(5)}, LNG ${parts[1].toFixed(5)}`;
 });
 applyMapViewMode();
 applyMapZoomClass();
@@ -3655,6 +3992,9 @@ document.addEventListener('keydown', event => {
         if (mode === 'draw') {
             cancelActiveDrawing();
         }
+        if (mode === 'ruler') {
+            clearRuler();
+        }
         setMode('pan');
         return;
     }
@@ -3712,6 +4052,23 @@ map.on('click', e => {
         registerHouseContext(marker);
         houseMarkers.push(marker);
         document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); return;
+    }
+    if (mode === 'ruler') { rulerClick(e.latlng); return; }
+    if (mode === 'mufa') {
+        const item = { type: 'mufa', marker: null, quantity: 1, note: '' };
+        const marker = L.marker(e.latlng, { icon: mufaIcon(), draggable: true })
+            .addTo(map)
+            .bindTooltip('Optička mufa', { direction: 'top', offset: [0, -10] })
+            .bindPopup('<b>Optička mufa</b>')
+            .openPopup();
+        item.marker = marker;
+        marker.on('drag', refreshPlanSummary);
+        draftAppendixItems.push(item);
+        draftElements.push({ type: 'mufa', marker });
+        trackLayer(marker, 'mufa');
+        registerDraftContext(marker, 'Optička mufa');
+        refreshPlanSummary();
+        return;
     }
     if (mode === 'manhole' || mode === 'boring-fi-130') {
         const isManhole = mode === 'manhole';
@@ -3786,76 +4143,57 @@ function updateProjectExportLink(projectId = document.getElementById('active-pro
         ['export-dxf', appConfig.projectDxfBaseUrl],
         ['print-project', appConfig.projectPrintBaseUrl],
     ];
+    const exportActions = document.getElementById('export-actions');
     if (!projectId) {
         links.forEach(([id]) => {
             const link = document.getElementById(id);
-            if (!link) return;
-            link.classList.add('hidden');
-            link.href = '#';
+            if (link) link.href = '#';
         });
+        if (exportActions) exportActions.style.display = 'none';
         return;
     }
     links.forEach(([id, baseUrl]) => {
         const link = document.getElementById(id);
         if (!link) return;
         link.href = baseUrl.replace('__ID__', projectId);
-        link.classList.remove('hidden');
     });
+    if (exportActions) exportActions.style.display = 'grid';
 }
 
 document.getElementById('active-project-id').addEventListener('change', (e) => {
     const projectId = e.target.value;
     updateProjectExportLink(projectId);
-    if (!projectId) return;
-    if (keepCurrentDraftOnProjectChange) {
-        keepCurrentDraftOnProjectChange = false;
-        activeOdfSelection = null;
-        renderDraftOdfPicker();
-        refreshPlanSummary();
+
+    // Navigate to filtered URL so map data reloads for the selected project
+    if (!keepCurrentDraftOnProjectChange) {
+        const url = new URL(window.location.href);
+        if (projectId) {
+            url.searchParams.set('project', projectId);
+        } else {
+            url.searchParams.delete('project');
+        }
+        window.location.href = url.toString();
         return;
     }
-    const draft = draftsByProject[projectId];
-    if (draft) {
-        restoreDraft(draft);
-    } else {
-        clearDraw();
-        houseMarkers.forEach(m => map.removeLayer(m));
-        houseMarkers = [];
-        housePoints = data.houses.map(h => L.latLng(h.lat, h.lng));
-        draftAppendixItems.forEach(removeAppendixDraftItem);
-        draftElements.forEach(item => {
-            if (!draftAppendixItems.some(appendixItem => appendixItem.marker === item.marker)) map.removeLayer(item.marker);
-        });
-        draftElements = [];
-        draftOdfs = [];
-        draftCabinets = [];
-        draftAppendixItems = [];
-        activeDraftOdfIndex = null;
-        activeOdfSelection = null;
-        clearSuggestions();
-        renderDraftOdfPicker();
-        refreshStats();
-    }
+
+    keepCurrentDraftOnProjectChange = false;
+    activeOdfSelection = null;
+    renderDraftOdfPicker();
+    refreshPlanSummary();
 });
 
-// Load first project's draft on page load
-if (document.querySelectorAll('#active-project-id option:not([value=""])').length > 0) {
-    const firstProject = document.querySelector('#active-project-id option:not([value=""])');
-    if (firstProject) {
-        const projectId = firstProject.value;
-        document.getElementById('active-project-id').value = projectId;
-        updateProjectExportLink(projectId);
-        renderDraftOdfPicker();
-        setTimeout(() => {
-            const draft = draftsByProject[projectId];
-            if (draft) {
-                restoreDraft(draft);
-            } else {
-                renderDraftOdfPicker();
-            }
-        }, 500);
-    }
-}
+// On page load, restore draft for the active project (pre-selected via URL)
+(function () {
+    const projectId = document.getElementById('active-project-id').value;
+    if (!projectId) return;
+    updateProjectExportLink(projectId);
+    renderDraftOdfPicker();
+    setTimeout(() => {
+        const draft = draftsByProject[projectId];
+        if (draft) restoreDraft(draft);
+        else renderDraftOdfPicker();
+    }, 500);
+})();
 const pendingTraceHouseId = localStorage.getItem('ftthTraceHouseId');
 if (pendingTraceHouseId) {
     localStorage.removeItem('ftthTraceHouseId');
@@ -3863,4 +4201,47 @@ if (pendingTraceHouseId) {
 }
 refreshTrenchGroupStatus();
 </script>
+
+{{-- DXF/DWG floating panel --}}
+<div id="dxf-layer-panel" style="display:none;position:fixed;top:120px;right:350px;z-index:9999;width:280px;background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);overflow:hidden;font-family:inherit">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:linear-gradient(135deg,#eef2ff,#f0f9ff)">
+        <span style="font-size:13px;font-weight:700;color:#3730a3">DXF / DWG Layeri</span>
+        <button type="button" onclick="document.getElementById('dxf-layer-panel').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;padding:0 2px">&times;</button>
+    </div>
+    <div id="dxf-dropzone" style="margin:10px;border:2px dashed #a5b4fc;border-radius:8px;background:#eef2ff;padding:14px 10px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s">
+        <svg style="display:block;margin:0 auto 6px;color:#818cf8" width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+        <p style="font-size:11px;font-weight:700;color:#4338ca;margin:0">Prevuci DXF/DWG fajl ovdje</p>
+        <p style="font-size:10px;color:#818cf8;margin:3px 0 0">ili klikni dugme ispod</p>
+    </div>
+    <div id="dxf-error" style="display:none;margin:0 10px 6px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;padding:7px 10px;font-size:11px;font-weight:600;color:#b91c1c"></div>
+    <div id="dxf-layer-list" style="padding:0 4px 4px;max-height:180px;overflow-y:auto">
+        <p style="padding:12px 8px;text-align:center;font-size:10px;color:#94a3b8;margin:0">Nema učitanih layera.</p>
+    </div>
+    <div style="padding:8px 10px;border-top:1px solid #f1f5f9">
+        <button id="dxf-upload-btn" type="button" style="width:100%;border-radius:7px;background:#4f46e5;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit">
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            Odaberi DXF/DWG fajl
+            <span id="dxf-spinner" style="display:none">⏳</span>
+        </button>
+        <input id="dxf-file-input" type="file" accept=".dxf,.dwg" style="display:none">
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin="anonymous"></script>
+<script src="{{ asset('js/ftth-dxf-layer.js') }}"></script>
+<script>
+(function tryInit() {
+    if (window.ftthDxfLayer && window.ftthNetworkMap) {
+        window.ftthDxfLayer.init(window.ftthNetworkMap);
+    } else {
+        setTimeout(tryInit, 200);
+    }
+})();
+</script>
+<style>
+#dxf-dropzone.dxf-dragover {
+    background: #e0e7ff !important;
+    border-color: #6366f1 !important;
+}
+</style>
 @endsection

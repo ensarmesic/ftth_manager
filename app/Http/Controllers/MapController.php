@@ -5,22 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\MapDraft;
-use App\Models\Material;
-use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
-use App\Models\Subscriber;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use App\Http\Controllers\Concerns\ManagesFtthData;
 
@@ -28,20 +19,26 @@ class MapController extends Controller
 {
     use ManagesFtthData;
 
-    public function map(): View
+    public function map(Request $request): View
     {
+        $projectId = (int) $request->input('project');
+        $scope = $projectId > 0;
+
         $odfs = Odf::with('project')
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->get();
 
         $cabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])
             ->withCount(['houses', 'subscribers'])
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->get();
 
-        $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])
+        $routes = NetworkRoute::with(['project', 'odf', 'cabinet', 'fromCabinet'])
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
             ->where(function ($query) {
                 $query->whereNotNull('path')
                     ->orWhere(function ($linkedQuery) {
@@ -52,19 +49,32 @@ class MapController extends Controller
             })
             ->get();
 
+        $housesPerCabinet = House::whereNotNull('cabinet_id')
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
+            ->selectRaw('cabinet_id, count(*) as cnt')
+            ->groupBy('cabinet_id')
+            ->pluck('cnt', 'cabinet_id')
+            ->all();
+
         $houses = House::with(['project', 'cabinet'])
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->get();
-        $appendixItems = ProjectAppendixItem::with('project')
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->get();
 
+        $appendixItems = ProjectAppendixItem::with('project')
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->get();
+
+        $allProjects = Project::orderBy('name')->get();
+
         return view('ftth.map', [
-            'projects' => Project::orderBy('name')->get(),
-            'odfsForSelect' => Odf::with('project')->orderBy('name')->get(),
-            'cabinetsForSelect' => Cabinet::with('project')->orderBy('name')->get(),
+            'projects' => $allProjects,
+            'activeProjectId' => $projectId ?: null,
+            'odfsForSelect' => Odf::with('project')->when($scope, fn ($q) => $q->where('project_id', $projectId))->orderBy('name')->get(),
+            'cabinetsForSelect' => Cabinet::with('project')->when($scope, fn ($q) => $q->where('project_id', $projectId))->orderBy('name')->get(),
             'odfs' => $odfs,
             'cabinets' => $cabinets,
             'houses' => $houses,
@@ -145,7 +155,7 @@ class MapController extends Controller
                     'from_id' => $route->from_id,
                     'to_type' => $route->to_type,
                     'to_id' => $route->to_id,
-                    'occupancy' => $this->ftthIntelligence->routeOccupancy($route),
+                    'occupancy' => $this->ftthIntelligence->routeOccupancy($route, $housesPerCabinet),
                     'status' => $route->status,
                     'note' => $route->note,
                     'path' => $route->path ?: ($route->odf && $route->cabinet ? [
@@ -206,7 +216,7 @@ class MapController extends Controller
             'routes.*.counts_as_trench' => ['nullable', 'boolean'],
             'routes.*.trench_length_m' => ['nullable', 'integer', 'min:0'],
             'appendix_items' => ['nullable', 'array'],
-            'appendix_items.*.type' => ['required', 'in:manhole,boring_fi_130'],
+            'appendix_items.*.type' => ['required', 'in:manhole,boring_fi_130,mufa'],
             'appendix_items.*.lat' => $this->latitudeRules(true),
             'appendix_items.*.lng' => $this->longitudeRules(true),
             'appendix_items.*.quantity' => ['nullable', 'numeric', 'min:0'],

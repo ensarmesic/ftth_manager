@@ -1,76 +1,132 @@
 @extends('ftth.layout')
-
-@section('title', 'Krakovi mreze')
+@section('title', 'Krakovi mreže')
 @section('subtitle', 'Hijerarhija primarnih, sekundarnih i izvedenih krakova.')
-
 @section('content')
+
 <section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-sm text-slate-500">Krakovi ukupno</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['total'] }}</div>
+    <article class="stat-card">
+        <div class="flex items-start justify-between gap-3">
+            <div>
+                <div class="stat-label">Krakovi ukupno</div>
+                <div class="stat-value">{{ $branchStats['total'] }}</div>
+            </div>
+            <div class="stat-icon blue">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+            </div>
+        </div>
     </article>
-    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-sm text-slate-500">Primarni</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['primary'] }}</div>
+    <article class="stat-card">
+        <div class="flex items-start justify-between gap-3">
+            <div>
+                <div class="stat-label">Primarni</div>
+                <div class="stat-value">{{ $branchStats['primary'] }}</div>
+            </div>
+            <div class="stat-icon violet">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/></svg>
+            </div>
+        </div>
     </article>
-    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-sm text-slate-500">Sekundarni</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['secondary'] }}</div>
+    <article class="stat-card">
+        <div class="flex items-start justify-between gap-3">
+            <div>
+                <div class="stat-label">Sekundarni</div>
+                <div class="stat-value">{{ $branchStats['secondary'] }}</div>
+            </div>
+            <div class="stat-icon sky">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+            </div>
+        </div>
     </article>
-    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="text-sm text-slate-500">ODO na krakovima</div>
-        <div class="mt-2 text-2xl font-semibold">{{ $branchStats['cabinets'] }}</div>
+    <article class="stat-card">
+        <div class="flex items-start justify-between gap-3">
+            <div>
+                <div class="stat-label">ODO na krakovima</div>
+                <div class="stat-value">{{ $branchStats['cabinets'] }}</div>
+            </div>
+            <div class="stat-icon green">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/></svg>
+            </div>
+        </div>
     </article>
 </section>
 
 <section class="grid gap-6 xl:grid-cols-[420px_1fr]">
-    <form method="POST" action="{{ route('branches.store') }}" class="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
+    <form method="POST" action="{{ route('branches.store') }}" class="page-form">
         @csrf
-        <h2 class="mb-4 font-semibold">Novi krak</h2>
-        <div class="grid gap-4">
-            <label class="grid gap-1 text-sm"><span>Projekat</span><select name="project_id" class="rounded-md border border-zinc-300 px-3 py-2" required><option value="">Odaberi projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select></label>
-            <label class="grid gap-1 text-sm"><span>ODF</span><select name="odf_id" class="rounded-md border border-zinc-300 px-3 py-2"><option value="">ODF nije odabran</option>@foreach($odfs as $odf)<option value="{{ $odf->id }}">{{ $odf->project->name }} / {{ $odf->name }}</option>@endforeach</select></label>
-            <label class="grid gap-1 text-sm"><span>Roditeljski krak</span><select name="parent_branch_id" class="rounded-md border border-zinc-300 px-3 py-2"><option value="">Glavni krak</option>@foreach($parentBranches as $branch)<option value="{{ $branch->id }}">{{ $branch->project->name }} / {{ $branch->name }}</option>@endforeach</select></label>
-            <label class="grid gap-1 text-sm"><span>Vezana trasa</span><select name="route_id" class="rounded-md border border-zinc-300 px-3 py-2"><option value="">Bez vezane trase</option>@foreach($routes as $route)<option value="{{ $route->id }}">{{ $route->project->name }} / {{ $route->name }}</option>@endforeach</select></label>
-            <label class="grid gap-1 text-sm"><span>Naziv kraka</span><input name="name" class="rounded-md border border-zinc-300 px-3 py-2" placeholder="Sekundarni krak 1.1" required></label>
-            <div class="grid gap-3 sm:grid-cols-2">
-                <label class="grid gap-1 text-sm"><span>Kod</span><input name="code" class="rounded-md border border-zinc-300 px-3 py-2" placeholder="1.1"></label>
-                <label class="grid gap-1 text-sm"><span>Redoslijed</span><input name="sort_order" type="number" value="0" min="0" class="rounded-md border border-zinc-300 px-3 py-2"></label>
+        <div class="page-form-header">
+            <div class="page-form-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </div>
-            <label class="grid gap-1 text-sm"><span>Tip kraka</span><select name="type" class="rounded-md border border-zinc-300 px-3 py-2"><option value="secondary">Sekundarni</option><option value="primary">Primarni</option></select></label>
-            <button class="rounded-md bg-blue-600 px-4 py-2 font-bold text-white">Sacuvaj krak</button>
+            <h2>Novi krak</h2>
+        </div>
+        <div class="page-form-body">
+            <label class="ftth-label">Projekat
+                <select name="project_id" class="ftth-input" required>
+                    <option value="">Odaberi projekat</option>
+                    @foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach
+                </select>
+            </label>
+            <label class="ftth-label">ODF
+                <select name="odf_id" class="ftth-input">
+                    <option value="">ODF nije odabran</option>
+                    @foreach($odfs as $odf)<option value="{{ $odf->id }}">{{ $odf->project->name }} / {{ $odf->name }}</option>@endforeach
+                </select>
+            </label>
+            <label class="ftth-label">Roditeljski krak
+                <select name="parent_branch_id" class="ftth-input">
+                    <option value="">Glavni krak</option>
+                    @foreach($parentBranches as $branch)<option value="{{ $branch->id }}">{{ $branch->project->name }} / {{ $branch->name }}</option>@endforeach
+                </select>
+            </label>
+            <label class="ftth-label">Vezana trasa
+                <select name="route_id" class="ftth-input">
+                    <option value="">Bez vezane trase</option>
+                    @foreach($routes as $route)<option value="{{ $route->id }}">{{ $route->project->name }} / {{ $route->name }}</option>@endforeach
+                </select>
+            </label>
+            <label class="ftth-label">Naziv kraka<input name="name" class="ftth-input" placeholder="Sekundarni krak 1.1" required></label>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <label class="ftth-label">Kod<input name="code" class="ftth-input" placeholder="1.1"></label>
+                <label class="ftth-label">Redoslijed<input name="sort_order" type="number" value="0" min="0" class="ftth-input"></label>
+            </div>
+            <label class="ftth-label">Tip kraka
+                <select name="type" class="ftth-input">
+                    <option value="secondary">Sekundarni</option>
+                    <option value="primary">Primarni</option>
+                </select>
+            </label>
+            <button class="btn-save">Sačuvaj krak</button>
         </div>
     </form>
 
-    <div class="app-table-card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr><th class="px-4 py-3">Krak</th><th>ODF</th><th>Roditelj</th><th>Trasa</th><th>ODO</th><th>Akcije</th></tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse($branches as $branch)
-                        <tr class="transition hover:bg-blue-50/50">
-                            <td class="px-4 py-3"><b>{{ $branch->name }}</b><br><small>{{ $branch->code }} / {{ $branch->type }} / #{{ $branch->sort_order }}</small></td>
-                            <td>{{ $branch->odf?->name ?? '-' }}</td>
-                            <td>{{ $branch->parentBranch?->name ?? '-' }}</td>
-                            <td>{{ $branch->route?->name ?? '-' }}</td>
-                            <td>{{ $branch->cabinets_count }}</td>
-                            <td>
-                                <form method="POST" action="{{ route('branches.delete', $branch) }}" style="display:inline;" data-confirm-delete="Obrisati krak?">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button class="rounded-md bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">Obrisi</button>
-                                </form>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">Nema krakova mreze.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        <div class="border-t border-slate-100 bg-slate-50/60 px-4 py-3">{{ $branches->links() }}</div>
-    </div>
+    @include('ftth.partials.table', [
+        'rows'        => $branches,
+        'columns'     => [
+            'name'               => 'Krak',
+            'code'               => 'Kod',
+            'type'               => 'Tip',
+            'odf.name'           => 'ODF',
+            'parentBranch.name'  => 'Roditelj',
+            'route.name'         => 'Trasa',
+            'cabinets_count'     => 'ODO',
+        ],
+        'editRoute'   => fn($id) => route('branches.update', $id),
+        'deleteRoute' => fn($id) => route('branches.delete', $id),
+        'editFields'  => [
+            'project_id'       => ['label' => 'Projekat',         'type' => 'select',
+                                   'options' => $projects->pluck('name', 'id')->all()],
+            'odf_id'           => ['label' => 'ODF',              'type' => 'select',
+                                   'options' => ['' => '—'] + $odfs->mapWithKeys(fn($o) => [$o->id => $o->project->name.' / '.$o->name])->all()],
+            'parent_branch_id' => ['label' => 'Roditeljski krak', 'type' => 'select',
+                                   'options' => ['' => 'Glavni krak'] + $parentBranches->mapWithKeys(fn($b) => [$b->id => $b->project->name.' / '.$b->name])->all()],
+            'route_id'         => ['label' => 'Vezana trasa',     'type' => 'select',
+                                   'options' => ['' => '—'] + $routes->mapWithKeys(fn($r) => [$r->id => $r->project->name.' / '.$r->name])->all()],
+            'name'             => 'Naziv',
+            'code'             => 'Kod',
+            'sort_order'       => ['label' => 'Redoslijed', 'type' => 'number'],
+            'type'             => ['label' => 'Tip', 'type' => 'select',
+                                   'options' => ['secondary' => 'Sekundarni', 'primary' => 'Primarni']],
+        ],
+    ])
 </section>
 @endsection

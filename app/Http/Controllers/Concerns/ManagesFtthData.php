@@ -330,12 +330,8 @@ trait ManagesFtthData
 
     protected function routeStartLabel(NetworkRoute $route): string
     {
-        if ($route->from_type === 'cabinet' && $route->from_id) {
-            return Cabinet::query()->whereKey($route->from_id)->value('name') ?? '-';
-        }
-
-        if ($route->from_type === 'odf' && $route->from_id) {
-            return Odf::query()->whereKey($route->from_id)->value('name') ?? '-';
+        if ($route->from_type === 'cabinet') {
+            return $route->fromCabinet?->name ?? '-';
         }
 
         return $route->odf?->name ?? '-';

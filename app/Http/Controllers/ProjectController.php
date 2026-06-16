@@ -4,22 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\MapDraft;
 use App\Models\Material;
-use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\Subscriber;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use App\Http\Controllers\Concerns\ManagesFtthData;
 
@@ -36,7 +28,7 @@ class ProjectController extends Controller
         $cabinets = $projectQuery(Cabinet::query())->with(['project', 'odf', 'parentCabinet'])->withCount(['subscribers', 'houses'])->orderBy('name')->get();
         $houses = $projectQuery(House::query())->with('cabinet')->get();
         $subscribers = $projectQuery(Subscriber::query())->with('cabinet')->latest()->take(5)->get();
-        $routes = $projectQuery(NetworkRoute::query())->with(['odf', 'cabinet'])->latest()->get();
+        $routes = $projectQuery(NetworkRoute::query())->with(['odf', 'cabinet', 'fromCabinet'])->latest()->get();
         $validationItems = $activeProject ? collect($this->ftthIntelligence->validateProject($activeProject)) : collect();
         $issues = $validationItems->reject(fn (array $item) => $item['level'] === 'ok')->values();
         $materialSummary = $activeProject ? $this->ftthIntelligence->materialSummary($activeProject) : [];
@@ -58,11 +50,11 @@ class ProjectController extends Controller
                 'routes' => $routes->map(fn (NetworkRoute $route) => ['id' => $route->id, 'name' => $route->name, 'from' => $this->routeStartLabel($route), 'to' => $route->cabinet->name ?? '-', 'odf_id' => $route->odf_id, 'from_type' => $route->from_type, 'from_id' => $route->from_id, 'cabinet_id' => $route->cabinet_id, 'type' => $route->route_type, 'length' => $route->duct_length_m, 'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'note' => $route->note, 'path' => $route->path ?: ($route->odf && $route->cabinet ? [[(float) $route->odf->latitude, (float) $route->odf->longitude], [(float) $route->cabinet->latitude, (float) $route->cabinet->longitude]] : [])]),
             ],
             'stats' => [
-                'projects' => Project::count(),
-                'odfs' => Odf::count(),
-                'cabinets' => Cabinet::count(),
-                'houses' => House::count(),
-                'subscribers' => Subscriber::count(),
+                'projects' => $projects->count(),
+                'odfs' => $projects->sum('odfs_count'),
+                'cabinets' => $projects->sum('cabinets_count'),
+                'houses' => $projects->sum('houses_count'),
+                'subscribers' => $projects->sum('subscribers_count'),
                 'duct_m' => NetworkRoute::sum('duct_length_m'),
                 'fiber_m' => NetworkRoute::sum('fiber_length_m'),
                 'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,
@@ -158,18 +150,22 @@ class ProjectController extends Controller
 
     public function createMissingDropRoutes(Project $project)
     {
+        $existingDropHouseIds = array_flip(
+            NetworkRoute::where('project_id', $project->id)
+                ->where('route_type', 'drop')
+                ->where('to_type', 'house')
+                ->pluck('to_id')
+                ->map(fn ($id) => (int) $id)
+                ->all()
+        );
+
         $houses = $project->houses()
             ->with('cabinet')
             ->whereNotNull('cabinet_id')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->get()
-            ->reject(fn (House $house) => NetworkRoute::query()
-                ->where('project_id', $project->id)
-                ->where('route_type', 'drop')
-                ->where('to_type', 'house')
-                ->where('to_id', $house->id)
-                ->exists());
+            ->reject(fn (House $house) => isset($existingDropHouseIds[$house->id]));
 
         $routes = DB::transaction(function () use ($project, $houses) {
             return $houses->map(function (House $house) use ($project) {
@@ -299,35 +295,35 @@ class ProjectController extends Controller
             if (count($path) < 2) {
                 continue;
             }
-            $lines = array_merge($lines, $this->dxfPolyline($path, $this->dxfLayerForRoute($route), $this->dxfColorForRoute($route)));
+            array_push($lines, ...$this->dxfPolyline($path, $this->dxfLayerForRoute($route), $this->dxfColorForRoute($route)));
             $middle = $path[(int) floor((count($path) - 1) / 2)];
-            $lines = array_merge($lines, $this->dxfText((float) $middle[1], (float) $middle[0], $route->name, 'FTTH_LABELS', 7, 0.000018));
+            array_push($lines, ...$this->dxfText((float) $middle[1], (float) $middle[0], $route->name, 'FTTH_LABELS', 7, 0.000018));
         }
 
         foreach ($project->odfs as $odf) {
             if ($odf->latitude === null || $odf->longitude === null) {
                 continue;
             }
-            $lines = array_merge($lines, $this->dxfPoint((float) $odf->longitude, (float) $odf->latitude, 'FTTH_ODF', 5));
-            $lines = array_merge($lines, $this->dxfText((float) $odf->longitude, (float) $odf->latitude, $odf->name, 'FTTH_LABELS', 7));
+            array_push($lines, ...$this->dxfPoint((float) $odf->longitude, (float) $odf->latitude, 'FTTH_ODF', 5));
+            array_push($lines, ...$this->dxfText((float) $odf->longitude, (float) $odf->latitude, $odf->name, 'FTTH_LABELS', 7));
         }
 
         foreach ($project->cabinets as $cabinet) {
             if ($cabinet->latitude === null || $cabinet->longitude === null) {
                 continue;
             }
-            $lines = array_merge($lines, $this->dxfPoint((float) $cabinet->longitude, (float) $cabinet->latitude, 'FTTH_CABINETS', 3));
-            $lines = array_merge($lines, $this->dxfText((float) $cabinet->longitude, (float) $cabinet->latitude, $cabinet->name, 'FTTH_LABELS', 7));
+            array_push($lines, ...$this->dxfPoint((float) $cabinet->longitude, (float) $cabinet->latitude, 'FTTH_CABINETS', 3));
+            array_push($lines, ...$this->dxfText((float) $cabinet->longitude, (float) $cabinet->latitude, $cabinet->name, 'FTTH_LABELS', 7));
         }
 
         foreach ($project->houses as $house) {
             if ($house->latitude === null || $house->longitude === null) {
                 continue;
             }
-            $lines = array_merge($lines, $this->dxfPoint((float) $house->longitude, (float) $house->latitude, 'FTTH_HOUSES', 3));
+            array_push($lines, ...$this->dxfPoint((float) $house->longitude, (float) $house->latitude, 'FTTH_HOUSES', 3));
         }
 
-        $lines = array_merge($lines, ['0', 'ENDSEC', '0', 'EOF']);
+        array_push($lines, '0', 'ENDSEC', '0', 'EOF');
 
         return response(implode("\r\n", $lines)."\r\n", 200, [
             'Content-Type' => 'application/dxf',
