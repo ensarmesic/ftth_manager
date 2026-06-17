@@ -1,4 +1,4 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', 'Splitteri')
 @section('subtitle', 'Pregled zauzeća splittera i raspoloživih portova po ODO ormariću.')
 @section('content')
@@ -8,7 +8,7 @@
     $used = $cabinets->sum('houses_count');
 @endphp
 
-<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
             <div>

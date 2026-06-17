@@ -562,6 +562,19 @@ main > .shrink-0.border-b p {
 /* Full page application surfaces */
 .app-content > section.grid.gap-6 {
     align-items: start;
+    gap: 1.1rem !important;
+}
+
+.app-content > section.grid.gap-4 {
+    gap: .9rem !important;
+}
+
+.app-content > section.mb-6 {
+    margin-bottom: 1rem !important;
+}
+
+.app-content > section.mb-5 {
+    margin-bottom: .9rem !important;
 }
 
 @media (min-width: 1280px) {
@@ -983,11 +996,11 @@ body > div > aside nav a,
 }
 
 main > header {
-    min-height: 3.75rem;
+    min-height: 2.75rem !important;
 }
 
 main > header [data-header-action] {
-    min-height: 2.25rem;
+    min-height: 1.85rem;
 }
 
 .app-content > section.grid.gap-6 > form:first-child {
@@ -1061,4 +1074,389 @@ main > header [data-header-action] {
 .app-content #map,
 .app-content [id*='map'] {
     border-radius: .5rem;
+}
+
+/* ============================================================
+   WOW Upgrade — Premium Visual System
+   ============================================================ */
+
+/* ---- No-scroll page layout: content fills viewport, table rows scroll invisibly ---- */
+
+/* App-content: fixed-height flex column, no page scroll ever */
+.app-content {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    scrollbar-width: none !important;
+}
+.app-content::-webkit-scrollbar { display: none !important; }
+
+/* Stat cards, flash messages, toolbar: natural height, don't grow */
+.app-content > .flash-success,
+.app-content > .flash-error,
+.app-content > section.mb-6.grid,
+.app-content > section.mb-5.grid,
+.app-content > section.mb-3.grid,
+.app-content > section.mt-5.grid,
+.app-content > section.grid.gap-4,
+.app-content > .page-toolbar {
+    flex-shrink: 0;
+}
+
+/* Flash message margin reduced so it doesn't push content down much */
+.app-content > .flash-success,
+.app-content > .flash-error {
+    margin-bottom: 10px !important;
+}
+
+/* Form+table section: FILLS remaining vertical space */
+.app-content > section.grid.gap-6 {
+    flex: 1 !important;
+    min-height: 0 !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+}
+
+/* Single table card as direct child also fills remaining space */
+.app-content > .app-table-card {
+    flex: 1 !important;
+    min-height: 0 !important;
+}
+
+/* 2-column grid at lg (1024px+) so form and table are ALWAYS side-by-side */
+@media (min-width: 1024px) {
+    .app-content > section.grid.gap-6 {
+        grid-template-columns: minmax(270px, 340px) minmax(0, 1fr) !important;
+    }
+}
+
+/* Form (left column): fills column height, internal hidden scroll if needed */
+.app-content > section.grid.gap-6 > form:first-child {
+    position: relative !important;
+    top: auto !important;
+    overflow-y: auto !important;
+    max-height: 100% !important;
+    scrollbar-width: none !important;
+    align-self: stretch !important;
+}
+.app-content > section.grid.gap-6 > form:first-child::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Table card (right column): flex column, fills height */
+.app-content .app-table-card {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    align-self: stretch !important;
+}
+
+/* The actual scroll zone: ONLY the table rows overflow, invisibly */
+.app-content .app-table-card > .overflow-x-auto {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    scrollbar-width: none !important;
+}
+.app-content .app-table-card > .overflow-x-auto::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Pagination bar: always visible at bottom of table card */
+.app-content .app-table-card > nav,
+.app-content .app-table-card .pagination-bar {
+    flex-shrink: 0 !important;
+}
+/* Toolbar and card headers inside table card: fixed at top */
+.app-content .app-table-card .tbl-card-header,
+.app-content .app-table-card > .page-toolbar {
+    flex-shrink: 0 !important;
+}
+
+/* ---- Body background: premium mesh gradient ---- */
+body::before {
+    background:
+        radial-gradient(ellipse at 18% 0%, rgba(48,141,204,.08) 0%, transparent 48%),
+        radial-gradient(ellipse at 84% 75%, rgba(129,195,66,.06) 0%, transparent 44%),
+        linear-gradient(160deg, #f4f8fd 0%, #edf3fa 55%, #f0f6f1 100%);
+}
+
+/* ---- Sidebar: deep premium dark navy ---- */
+body > div > aside {
+    background: linear-gradient(168deg,
+        #011322 0%,
+        #041d30 38%,
+        #03192a 72%,
+        #020e1c 100%) !important;
+    border-right: 1px solid rgba(48,141,204,.12) !important;
+    box-shadow: 28px 0 80px rgba(0,0,0,.40) !important;
+}
+
+body > div > aside::before {
+    background:
+        radial-gradient(ellipse at 50% 4%, rgba(48,141,204,.15) 0%, transparent 54%),
+        linear-gradient(90deg, rgba(255,255,255,.055), transparent 40%);
+}
+
+body > div > aside > a:first-child {
+    background: rgba(255,255,255,.035) !important;
+    border-color: rgba(48,141,204,.16) !important;
+}
+
+body > div > aside > a:first-child span:first-child,
+#mobile-sidebar a span:first-child {
+    background: linear-gradient(135deg, #81c342, #4f8934) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.32) !important;
+}
+
+/* ---- Sidebar active item ---- */
+body > div > aside nav a.sidebar-active,
+#mobile-sidebar nav a.sidebar-active {
+    background: linear-gradient(135deg,
+        rgba(48,141,204,.24) 0%,
+        rgba(48,141,204,.10) 100%) !important;
+    border-color: rgba(48,141,204,.38) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 18px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06) !important;
+}
+
+body > div > aside nav a.sidebar-active span,
+#mobile-sidebar nav a.sidebar-active span {
+    background: linear-gradient(135deg, #308dcc, #1d6fa8) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 14px rgba(48,141,204,.48) !important;
+    opacity: 1 !important;
+}
+
+/* Inactive icons slightly more visible */
+body > div > aside nav a:not(.sidebar-active) span,
+#mobile-sidebar nav a:not(.sidebar-active) span {
+    background: rgba(255,255,255,.08) !important;
+    opacity: 1 !important;
+}
+
+body > div > aside nav a:not(.sidebar-active) {
+    color: rgba(214,232,255,.78) !important;
+}
+
+body > div > aside nav a:not(.sidebar-active):hover {
+    background: rgba(255,255,255,.08) !important;
+    color: #fff !important;
+    border-color: rgba(255,255,255,.10) !important;
+}
+
+/* ---- Header: richer glass effect ---- */
+main > header {
+    background: rgba(255,255,255,.94) !important;
+    box-shadow:
+        0 1px 0 rgba(0,0,0,.055),
+        0 12px 36px rgba(15,23,42,.07) !important;
+    backdrop-filter: blur(20px) !important;
+}
+
+main > header::after {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(48,141,204,.50) 35%,
+        rgba(129,195,66,.48) 65%,
+        transparent 100%);
+}
+
+/* ---- Page header: more impact ---- */
+main > .shrink-0.border-b {
+    background:
+        linear-gradient(135deg, rgba(255,255,255,.97), rgba(239,248,255,.88) 52%, rgba(237,248,230,.76)) !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+}
+
+main > .shrink-0.border-b::before {
+    width: .42rem;
+    background: linear-gradient(180deg, #308dcc 0%, #65a845 100%);
+}
+
+main > .shrink-0.border-b h1 {
+    font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+    font-weight: 900;
+    letter-spacing: -.018em;
+}
+
+main > .shrink-0.border-b h1::after {
+    width: 3.5rem;
+    height: .26rem;
+    background: linear-gradient(90deg, #308dcc, #65a845);
+}
+
+/* ---- Stat card top bar: wider, more vivid ---- */
+.app-content > section.grid.gap-4 article::after,
+.app-content > section.mb-6.grid article::after,
+.app-content > section.mb-5.grid article::after {
+    height: .3rem;
+    background: linear-gradient(90deg,
+        #1b78b8 0%,
+        #308dcc 38%,
+        #65a845 70%,
+        #81c342 100%);
+    opacity: 1;
+}
+
+/* Stat values bolder but not oversized */
+.app-content > section.grid.gap-4 article div:nth-child(2),
+.app-content > section.mb-6.grid article div:nth-child(2),
+.app-content > section.mb-5.grid article div:nth-child(2) {
+    font-size: clamp(1.05rem, 1.5vw, 1.3rem) !important;
+    font-weight: 900 !important;
+    letter-spacing: -.03em !important;
+    color: #0a1b28 !important;
+}
+
+/* Stat card hover: stronger shadow */
+.app-content > section.grid.gap-4 article:hover,
+.app-content > section.mb-6.grid article:hover {
+    box-shadow: 0 22px 60px rgba(15,23,42,.14) !important;
+    border-color: rgba(48,141,204,.28) !important;
+}
+
+/* ---- Table: stronger row hover (only on dedicated table cards, not inline tables) ---- */
+.app-table-card > .overflow-x-auto tbody tr:hover,
+.app-content > .app-table-card tbody tr:hover,
+.app-content > section.grid.gap-6 .app-table-card tbody tr:hover {
+    background: linear-gradient(90deg, #eaf4ff 0%, #f4f9ff 100%) !important;
+    box-shadow: inset 4px 0 0 #308dcc !important;
+}
+
+.app-table-card thead,
+.app-content table thead {
+    background: linear-gradient(180deg, #f9fbff, #f2f7fc) !important;
+}
+
+/* ---- Cards and forms: richer borders ---- */
+.app-content article,
+.app-content form:not([style]) {
+    border-color: #d8e8f6 !important;
+}
+
+/* ---- Modals: colored top accent ---- */
+#global-search > div,
+#delete-confirmation-modal > div {
+    border-top: 4px solid #308dcc !important;
+}
+
+/* ---- Delete modal icon: stronger ---- */
+#delete-confirmation-modal .rounded-full {
+    background: linear-gradient(135deg, #fee2e2, #fecaca) !important;
+    box-shadow: 0 4px 14px rgba(185,28,28,.18);
+}
+
+/* ---- Sidebar mobile: same deep navy ---- */
+#mobile-sidebar {
+    background: linear-gradient(168deg,
+        #011322 0%,
+        #041d30 38%,
+        #03192a 72%,
+        #020e1c 100%) !important;
+}
+
+/* ---- Profile avatar: stronger gradient ---- */
+main > header .rounded-full {
+    background: linear-gradient(135deg, #308dcc, #004f7d) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 14px rgba(48,141,204,.38) !important;
+}
+
+/* ---- Submit buttons in forms: stronger ---- */
+.app-content > section.grid.gap-6 > form:first-child button[type='submit'],
+.app-content > section.grid.gap-6 > form:first-child button:not([type]) {
+    background: linear-gradient(135deg, #16a34a, #15803d) !important;
+    box-shadow: 0 4px 16px rgba(21,128,61,.34) !important;
+}
+
+/* ---- Form panel accent bar: vivid ---- */
+.app-content > section.grid.gap-6 > form:first-child::before {
+    height: .3rem;
+    background: linear-gradient(90deg, #308dcc, #65a845);
+}
+
+/* ---- Reports: all table rows forced white (no grey alternating) ---- */
+.app-content > section.grid.gap-5 article table tbody tr {
+    background: #fff !important;
+    box-shadow: none !important;
+}
+
+/* ---- Reports page: static no-scroll layout ---- */
+
+/* Section becomes flex column, fills remaining app-content height */
+.app-content > section.grid.gap-5 {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Project article: flex column, fills section, clips overflow */
+.app-content > section.grid.gap-5 > article {
+    flex: 1 !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+
+/* All fixed sections in article: don't grow */
+.app-content > section.grid.gap-5 > article > .tbl-card-header,
+.app-content > section.grid.gap-5 > article > .grid,
+.app-content > section.grid.gap-5 > article > .border-t:not(:last-child) {
+    flex-shrink: 0 !important;
+}
+
+/* Pregled trasa (last border-t): fills remaining article height */
+.app-content > section.grid.gap-5 > article > .border-t:last-child {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* Summary line below table: stays at bottom */
+.app-content > section.grid.gap-5 > article > .border-t:last-child > .mt-2 {
+    flex-shrink: 0 !important;
+}
+
+/* Table wrapper: fills flex space, rows scroll invisibly */
+.app-content > section.grid.gap-5 > article > .border-t:last-child > .overflow-x-auto {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    scrollbar-width: none !important;
+}
+.app-content > section.grid.gap-5 > article > .border-t:last-child > .overflow-x-auto::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Validation/material check items: tighter */
+.app-content > section.grid.gap-5 .grid.gap-2 .check-item {
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
+}
+/* Materijal grid items: tighter */
+.app-content > section.grid.gap-5 .grid.grid-cols-2.gap-2 > div {
+    padding: 5px 10px !important;
+}
+/* Appendix items rows */
+.app-content > section.grid.gap-5 .flex.items-center.justify-between.gap-3.rounded-xl {
+    padding: 6px 10px !important;
+}
+
+/* ---- Notifications badge: pulse ---- */
+@keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(239,68,68,.5); }
+    70%  { box-shadow: 0 0 0 5px rgba(239,68,68,0); }
+    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+[data-notification-badge] {
+    animation: pulse-ring 2.2s cubic-bezier(.455,.03,.515,.955) infinite;
 }

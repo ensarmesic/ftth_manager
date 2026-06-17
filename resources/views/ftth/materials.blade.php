@@ -1,9 +1,9 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', 'Materijali')
 @section('subtitle', 'Planirane i utrošene količine materijala po projektu.')
 @section('content')
 
-<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
             <div><div class="stat-label">Stavke materijala</div><div class="stat-value">{{ $materialStats['total'] }}</div></div>
@@ -30,7 +30,7 @@
     </article>
 </section>
 
-<div class="info-banner green mb-5">
+<div class="info-banner green mb-3">
     <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 shrink-0 mt-0.5"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
     <div>
         <p class="font-semibold text-emerald-900">Automatski obračun materijala</p>

@@ -1,9 +1,9 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', 'Kuće')
 @section('subtitle', 'Evidencija kuća i priključnih tačaka povezanih na projekat i ODO ormarić.')
 @section('content')
 
-<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
             <div><div class="stat-label">Kuće ukupno</div><div class="stat-value">{{ $houseStats['total'] }}</div></div>

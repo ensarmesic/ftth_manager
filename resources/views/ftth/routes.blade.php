@@ -1,9 +1,9 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', 'Optičke trase')
 @section('subtitle', 'Dužine mikrocijevi, optičkog kabla i veze ODF/ODO/kuće.')
 @section('content')
 
-<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
             <div><div class="stat-label">Glavni rov fizički</div><div class="stat-value">{{ number_format($routeStats['duct']) }}<span class="text-sm font-normal text-slate-400"> m</span></div></div>

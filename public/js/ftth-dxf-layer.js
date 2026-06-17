@@ -66,6 +66,24 @@
         return false;
     }
 
+    // Rasjeca polyline na dugim segmentima i vraca samo validne dijelove
+    function splitOnLongSegments(ll) {
+        const result = [];
+        let current = [ll[0]];
+        for (let i = 1; i < ll.length; i++) {
+            let long = false;
+            try { long = map.distance(ll[i - 1], ll[i]) > MAX_SEGMENT_M; } catch { long = true; }
+            if (long) {
+                if (current.length >= 2) result.push(current);
+                current = [ll[i]];
+            } else {
+                current.push(ll[i]);
+            }
+        }
+        if (current.length >= 2) result.push(current);
+        return result;
+    }
+
     /* ─── Canvas text layer ──────────────────────────────────────── */
     // Crta sve tekst labele direktno na canvas (jedan DOM element za sve labele)
 
@@ -162,7 +180,7 @@
         const items    = []; // L.polyline / L.polygon
         const textPts  = []; // {ll, text} za canvas
         let   rendered = 0;
-        let   skipped  = 0;
+        const skip = { longSegment: 0, tooFewPoints: 0, badCoord: 0, emptyText: 0 };
 
         geojson.features.forEach(f => {
             const g = f.geometry;
@@ -173,21 +191,44 @@
 
             if (g.type === 'LineString') {
                 const ll = coordsToLatLngs(g.coordinates, srcProj);
-                if (ll.length >= 2 && !hasLongSegment(ll)) {
-                    lyr = L.polyline(ll, style);
-                } else { skipped++; return; }
+                if (ll.length < 2) { skip.tooFewPoints++; return; }
+                if (hasLongSegment(ll)) {
+                    const segs = splitOnLongSegments(ll);
+                    if (!segs.length) { skip.longSegment++; return; }
+                    segs.forEach(seg => {
+                        const l = L.polyline(seg, style).addTo(map);
+                        items.push(l);
+                        rendered++;
+                    });
+                    return;
+                }
+                lyr = L.polyline(ll, style);
 
             } else if (g.type === 'Polygon') {
                 const rings = g.coordinates.map(r => coordsToLatLngs(r, srcProj));
                 const outer = rings[0];
-                if (outer && outer.length >= 3 && !hasLongSegment(outer)) {
-                    lyr = L.polygon(rings, { ...style, fillOpacity: 0.06 });
-                } else { skipped++; return; }
+                if (!outer || outer.length < 3) { skip.tooFewPoints++; return; }
+                if (hasLongSegment(outer)) {
+                    const segs = splitOnLongSegments(outer);
+                    if (!segs.length) { skip.longSegment++; return; }
+                    segs.forEach(seg => {
+                        if (seg.length >= 2) {
+                            const l = L.polyline(seg, style).addTo(map);
+                            items.push(l);
+                            rendered++;
+                        }
+                    });
+                    return;
+                }
+                lyr = L.polygon(rings, { ...style, fillOpacity: 0.06 });
 
             } else if (g.type === 'Point') {
                 const ll   = toLatLng(g.coordinates[0], g.coordinates[1], srcProj);
                 const text = f.properties?.text || '';
-                if (ll && text) { textPts.push({ ll, text }); rendered++; }
+                if (!ll)   { skip.badCoord++;  return; }
+                if (!text) { skip.emptyText++; return; }
+                textPts.push({ ll, text });
+                rendered++;
                 return;
             } else {
                 return;
@@ -206,12 +247,19 @@
             textLayer = new DxfTextLayer(textPts).addTo(map);
         }
 
-        if (skipped) {
-            console.info(`DXF: ${skipped} preskočeno (dug segment / nevalidne koordinate)`);
+        const totalSkipped = skip.longSegment + skip.tooFewPoints + skip.badCoord + skip.emptyText;
+        if (totalSkipped) {
+            console.info(
+                `DXF preskočeno ${totalSkipped}:`,
+                `dug segment=${skip.longSegment}`,
+                `premalo tačaka=${skip.tooFewPoints}`,
+                `loša koordinata=${skip.badCoord}`,
+                `prazan tekst=${skip.emptyText}`
+            );
         }
-        console.info(`DXF: ${rendered} entiteta, ${textPts.length} tekst labela, ${items.length} geometrija`);
+        console.info(`DXF: ${rendered} prikazano, ${textPts.length} tekst labela, ${items.length} geometrija`);
 
-        return { items, textLayer, textPts, rendered };
+        return { items, textLayer, textPts, rendered, skip };
     }
 
     function addLayer(geojson, color) {

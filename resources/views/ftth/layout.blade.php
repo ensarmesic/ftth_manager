@@ -60,16 +60,16 @@
     if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarica nema povezani ODF.");
     if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehnicke podatke.");
 @endphp
-<body class="{{ $isWide ? 'min-h-screen lg:h-screen lg:overflow-hidden' : 'min-h-screen' }} overflow-x-hidden bg-slate-100 font-sans text-slate-950 antialiased">
-<div class="{{ $isWide ? 'flex min-h-screen lg:h-screen lg:overflow-hidden' : 'flex min-h-screen' }}">
+<body class="h-screen overflow-hidden bg-slate-100 font-sans text-slate-950 antialiased">
+<div class="flex h-screen overflow-hidden">
     <aside class="hidden w-52 shrink-0 bg-linear-to-b from-[#004f7d] to-[#003558] text-white lg:flex lg:flex-col" style="box-shadow: 4px 0 24px rgba(0,0,0,.18);">
-        <a href="{{ route('dashboard') }}" class="flex h-14 items-center gap-3 border-b border-white/10 px-5 xl:h-16 xl:px-6">
+        <a href="{{ route('dashboard') }}" class="flex h-11 items-center gap-3 border-b border-white/10 px-5 xl:h-12 xl:px-6">
             <span class="grid h-7 w-7 place-items-center rounded-lg text-[10px] font-black" style="background:linear-gradient(135deg,#81C342,#4f8934)">FT</span>
             <span class="text-sm font-bold tracking-wide">FTTH Manager</span>
         </a>
         <nav class="flex flex-col p-2 text-[12px] flex-1 overflow-y-auto" style="gap:1px">
             @foreach ($sidebarItems as [$route, $label, $iconKey])
-                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'bg-white/15 font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route) }}">
+                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route) }}">
                     <span class="shrink-0 opacity-70">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                     {{ $label }}
                 </a>
@@ -85,8 +85,8 @@
         @endif
     </aside>
 
-    <main class="{{ $isWide ? 'flex min-h-0 flex-1 flex-col lg:overflow-hidden' : '' }} min-w-0 flex-1">
-        <header class="relative z-1300 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-white px-2 shadow-sm sm:h-15 sm:px-4 xl:px-5">
+    <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header class="relative z-1300 flex h-11 shrink-0 items-center justify-between gap-2 border-b bg-white px-2 shadow-sm sm:h-12 sm:px-4 xl:px-5">
             <div class="flex min-w-0 items-center gap-2 text-sm xl:gap-4">
                 <button type="button" data-header-action="mobile-menu" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Otvori meni">
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
@@ -133,7 +133,7 @@
                 <p>@yield('subtitle')</p>
             </div>
         @endunless
-        <div class="app-content {{ $isWide ? 'flex h-full min-h-0 flex-1 flex-col p-1.5 sm:p-2 lg:overflow-hidden xl:p-2.5' : 'mx-auto w-full max-w-[min(1880px,calc(100vw-2rem))] px-3 py-5 sm:px-5 sm:py-6 xl:px-7' }}">
+        <div class="app-content {{ $isWide ? 'flex min-h-0 flex-1 flex-col overflow-hidden p-1.5 sm:p-2 xl:p-2.5' : 'flex-1 min-h-0 overflow-hidden flex flex-col w-full px-3 py-2 sm:px-4 sm:py-2' }}">
             @if (session('success'))<div class="flash-success"><svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>{{ session('success') }}</div>@endif
             @if ($errors->any())<div class="flash-error"><svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>{{ $errors->first() }}</div>@endif
             @yield('content')
@@ -143,13 +143,13 @@
 </div>
 <div id="mobile-sidebar-backdrop" class="fixed inset-0 z-1350 hidden bg-slate-950/50 lg:hidden"></div>
 <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-1400 hidden w-[min(280px,88vw)] overflow-y-auto bg-linear-to-b from-[#004f7d] to-[#003558] text-white shadow-2xl lg:hidden">
-    <div class="flex h-14 items-center justify-between border-b border-white/10 px-4">
+    <div class="flex h-11 items-center justify-between border-b border-white/10 px-4">
         <a href="{{ route('dashboard') }}" class="font-bold text-sm">FTTH Manager</a>
         <button type="button" data-header-action="close-mobile-menu" class="rounded-lg px-3 py-2 text-xs font-semibold hover:bg-white/10">Zatvori</button>
     </div>
     <nav class="grid gap-px p-2 text-[13px]">
         @foreach ($sidebarItems as [$route, $label, $iconKey])
-            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ request()->routeIs($route) ? 'bg-white/15 font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route) }}">
+            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route) }}">
                 <span class="shrink-0 opacity-75">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                 {{ $label }}
             </a>

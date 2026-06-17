@@ -4,22 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\MapDraft;
-use App\Models\Material;
-use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
-use App\Models\Odf;
 use App\Models\Project;
 use App\Models\Subscriber;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use App\Http\Controllers\Concerns\ManagesFtthData;
 
@@ -137,39 +127,6 @@ class HouseController extends Controller
         });
 
         return response()->json(['message' => 'Kuce i drop trase su povezane.', 'routes' => $routes->values()]);
-    }
-
-    private function dropPathForHouse(Cabinet $cabinet, House $house): array
-    {
-        $directPath = [
-            [(float) $cabinet->latitude, (float) $cabinet->longitude],
-            [(float) $house->latitude, (float) $house->longitude],
-        ];
-
-        $route = NetworkRoute::query()
-            ->where('project_id', $cabinet->project_id)
-            ->whereNotIn('route_type', ['trench', 'drop'])
-            ->whereNotNull('path')
-            ->get()
-            ->filter(fn (NetworkRoute $route) => count($route->path ?? []) >= 2)
-            ->sortBy(fn (NetworkRoute $route) => $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route)['distance_m'])
-            ->first();
-
-        if (! $route) {
-            return $directPath;
-        }
-
-        $cabinetProjection = $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route);
-        $houseProjection = $this->projectPointToRoute((float) $house->latitude, (float) $house->longitude, $route);
-        if ($cabinetProjection['distance_m'] > 35 || $houseProjection['distance_m'] > 90) {
-            return $directPath;
-        }
-
-        return $this->compactPath(array_merge(
-            [[(float) $cabinet->latitude, (float) $cabinet->longitude], [$cabinetProjection['lat'], $cabinetProjection['lng']]],
-            array_slice($this->routePathBetween($route, $cabinetProjection, $houseProjection), 1),
-            [[(float) $house->latitude, (float) $house->longitude]]
-        ));
     }
 
     public function subscribers(): View

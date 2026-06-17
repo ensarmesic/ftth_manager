@@ -315,22 +315,24 @@ class RouteController extends Controller
             return back()->withErrors(['dxf' => 'DXF nema podrzane LINE, LWPOLYLINE ili POLYLINE entitete.']);
         }
 
-        foreach ($entities as $index => $points) {
-            $length = $this->polylineLength($points);
-            NetworkRoute::create([
-                'project_id' => $data['project_id'],
-                'name' => 'DXF trasa '.($index + 1),
-                'route_type' => 'distribution',
-                'installation_type' => 'underground',
-                'duct_length_m' => $length,
-                'fiber_length_m' => $length,
-                'fiber_count' => 12,
-                'microduct_count' => 1,
-                'microduct_type' => '14/10',
-                'status' => 'planned',
-                'path' => $points,
-            ]);
-        }
+        DB::transaction(function () use ($data, $entities): void {
+            foreach ($entities as $index => $points) {
+                $length = $this->polylineLength($points);
+                NetworkRoute::create([
+                    'project_id' => $data['project_id'],
+                    'name' => 'DXF trasa '.($index + 1),
+                    'route_type' => 'distribution',
+                    'installation_type' => 'underground',
+                    'duct_length_m' => $length,
+                    'fiber_length_m' => $length,
+                    'fiber_count' => 12,
+                    'microduct_count' => 1,
+                    'microduct_type' => '14/10',
+                    'status' => 'planned',
+                    'path' => $points,
+                ]);
+            }
+        });
 
         return back()->with('success', 'DXF importovan: '.count($entities).' trasa.');
     }

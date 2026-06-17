@@ -40,6 +40,7 @@ Route::get('/projekti/{project}/validacija', [ProjectController::class, 'validat
 Route::post('/projekti/{project}/drop-trase/popuni', [ProjectController::class, 'createMissingDropRoutes'])->name('projects.drop-routes.fill');
 Route::get('/projekti/{project}/geojson', [ProjectController::class, 'exportGeoJson'])->name('projects.geojson');
 Route::get('/projekti/{project}/dxf', [ProjectController::class, 'exportDxf'])->name('projects.dxf');
+Route::get('/projekti/{project}/fiber-schema-dxf', [ProjectController::class, 'exportFiberSchema'])->name('projects.fiber-schema-dxf');
 Route::get('/projekti/{project}/print', [ProjectController::class, 'printProject'])->name('projects.print');
 Route::delete('/projekti/{id}', [ProjectController::class, 'deleteProject'])->name('projects.delete');
 

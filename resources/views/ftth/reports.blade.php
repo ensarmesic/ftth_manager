@@ -1,9 +1,9 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', 'Izvještaji')
 @section('subtitle', 'Pregled projekta, kapaciteta, trasa i materijala.')
 @section('content')
 
-<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     @foreach ([
         ['Projekti',            $totals['projects'],                          'violet', '<path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>'],
         ['Kuće / Priključci',   $totals['houses'],                            'blue',   '<path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>'],
@@ -62,16 +62,16 @@
 
             <div class="grid grid-cols-2 gap-px border-b border-slate-100 bg-slate-100 sm:grid-cols-5">
                 @foreach ([['ODF', $project->odfs_count], ['Ormarići', $project->cabinets_count], ['Slobodno', $freePorts], ['Kuće', $project->houses_count], ['Materijal', number_format($projectMaterialCost, 2).' KM']] as [$lbl, $val])
-                    <div class="bg-white px-5 py-3">
+                    <div class="bg-white px-3 py-1.5">
                         <div class="text-[10px] font-bold uppercase tracking-wide text-slate-400">{{ $lbl }}</div>
-                        <div class="mt-1 text-lg font-bold text-slate-900">{{ $val }}</div>
+                        <div class="mt-0.5 text-sm font-bold text-slate-900">{{ $val }}</div>
                     </div>
                 @endforeach
             </div>
 
-            <div class="grid gap-5 p-5 md:grid-cols-2">
+            <div class="grid gap-3 p-3 md:grid-cols-2">
                 <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Projektna validacija</h3>
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Projektna validacija</h3>
                     <div class="grid gap-2">
                         @forelse($validation->take(5) as $item)
                             <div class="check-item {{ $item['level'] === 'error' ? 'error' : ($item['level'] === 'warning' ? 'warn' : 'ok') }}">
@@ -87,7 +87,7 @@
                     </div>
                 </div>
                 <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Materijalni obračun</h3>
+                    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Materijalni obračun</h3>
                     <div class="grid grid-cols-2 gap-2 text-sm">
                         @foreach ([
                             ['Mikrocijev 14/10', number_format($materials['microduct_14_10_m'] ?? 0).' m'],
@@ -106,9 +106,9 @@
                 </div>
             </div>
 
-            <div class="border-t border-slate-100 p-5">
-                <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Stavke za Prilog 3</h3>
-                <form method="POST" action="{{ route('reports.appendix-items.store', $project) }}" class="mb-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1.3fr_.7fr_1.5fr_auto]">
+            <div class="border-t border-slate-100 p-3">
+                <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Stavke za Prilog 3</h3>
+                <form method="POST" action="{{ route('reports.appendix-items.store', $project) }}" class="mb-2 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 md:grid-cols-[1.3fr_.7fr_1.5fr_auto]">
                     @csrf
                     <select name="type" class="ftth-input text-xs" required>
                         <option value="manhole">Prolazni sahtovi</option>
@@ -140,35 +140,35 @@
                 </div>
             </div>
 
-            <div class="border-t border-slate-100 p-5">
-                <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Pregled trasa</h3>
+            <div class="border-t border-slate-100 p-3">
+                <h3 class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Pregled trasa</h3>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs">
-                        <thead class="border-b border-slate-100">
+                    <table class="w-full text-left">
+                        <thead>
                             <tr>
-                                <th class="pb-2 font-semibold text-slate-400 uppercase tracking-wide">Trasa</th>
-                                <th class="pb-2 font-semibold text-slate-400 uppercase tracking-wide">Polaganje</th>
-                                <th class="pb-2 font-semibold text-slate-400 uppercase tracking-wide">Mikrocijev</th>
-                                <th class="pb-2 font-semibold text-slate-400 uppercase tracking-wide">Dužina</th>
-                                <th class="pb-2 font-semibold text-slate-400 uppercase tracking-wide">Kabl</th>
+                                <th>Trasa</th>
+                                <th>Polaganje</th>
+                                <th>Mikrocijev</th>
+                                <th>Dužina</th>
+                                <th>Kabl</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-50">
+                        <tbody>
                             @forelse($project->routes as $route)
                                 <tr>
-                                    <td class="py-2 font-medium text-slate-800">{{ $route->name }}</td>
-                                    <td class="py-2 text-slate-500">{{ $route->installation_type }}</td>
-                                    <td class="py-2 text-slate-500">{{ $route->microduct_type }} × {{ $route->microduct_count }}</td>
-                                    <td class="py-2 text-slate-700 font-semibold">{{ $route->duct_length_m }} m</td>
-                                    <td class="py-2 text-slate-500">{{ $route->fiber_count }} niti / {{ $route->fiber_length_m }} m</td>
+                                    <td class="font-medium">{{ $route->name }}</td>
+                                    <td>{{ $route->installation_type }}</td>
+                                    <td>{{ $route->microduct_type }} × {{ $route->microduct_count }}</td>
+                                    <td class="font-semibold">{{ $route->duct_length_m }} m</td>
+                                    <td>{{ $route->fiber_count }} niti / {{ $route->fiber_length_m }} m</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="py-3 text-slate-400">Nema trasa za ovaj projekat.</td></tr>
+                                <tr><td colspan="5">Nema trasa za ovaj projekat.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
-                <div class="mt-3 text-xs text-slate-400">
+                <div class="mt-2 text-xs text-slate-400">
                     Glavni rov: <b class="text-slate-600">{{ number_format($physicalTrench) }} m</b> &bull;
                     Mikrocijevi: <b class="text-slate-600">{{ number_format($duct1410 + $duct108) }} m</b> &bull;
                     Optički kabl: <b class="text-slate-600">{{ number_format($project->routes->sum('fiber_length_m')) }} m</b> &bull;

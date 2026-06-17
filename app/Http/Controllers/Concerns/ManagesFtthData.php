@@ -4,12 +4,10 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\Material;
 use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Models\Subscriber;
 use App\Services\FtthIntelligenceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -146,6 +144,39 @@ trait ManagesFtthData
         return $children ? $root.'.'.implode('.', $children) : $root;
     }
 
+    protected function dropPathForHouse(Cabinet $cabinet, House $house): array
+    {
+        $directPath = [
+            [(float) $cabinet->latitude, (float) $cabinet->longitude],
+            [(float) $house->latitude, (float) $house->longitude],
+        ];
+
+        $route = NetworkRoute::query()
+            ->where('project_id', $cabinet->project_id)
+            ->whereNotIn('route_type', ['trench', 'drop'])
+            ->whereNotNull('path')
+            ->get()
+            ->filter(fn (NetworkRoute $route) => count($route->path ?? []) >= 2)
+            ->sortBy(fn (NetworkRoute $route) => $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route)['distance_m'])
+            ->first();
+
+        if (! $route) {
+            return $directPath;
+        }
+
+        $cabinetProjection = $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $route);
+        $houseProjection = $this->projectPointToRoute((float) $house->latitude, (float) $house->longitude, $route);
+        if ($cabinetProjection['distance_m'] > 35 || $houseProjection['distance_m'] > 90) {
+            return $directPath;
+        }
+
+        return $this->compactPath(array_merge(
+            [[(float) $cabinet->latitude, (float) $cabinet->longitude], [$cabinetProjection['lat'], $cabinetProjection['lng']]],
+            array_slice($this->routePathBetween($route, $cabinetProjection, $houseProjection), 1),
+            [[(float) $house->latitude, (float) $house->longitude]]
+        ));
+    }
+
     protected function deleteRouteWithBranch(NetworkRoute $route): void
     {
         DB::transaction(function () use ($route): void {
@@ -159,7 +190,7 @@ trait ManagesFtthData
         });
     }
 
-    protected function cabinetWouldCreateCycle(int $cabinetId, $parentCabinetId): bool
+    protected function cabinetWouldCreateCycle(int $cabinetId, ?int $parentCabinetId): bool
     {
         $visited = [];
         while ($parentCabinetId) {
@@ -173,7 +204,7 @@ trait ManagesFtthData
         return false;
     }
 
-    protected function branchWouldCreateCycle(int $branchId, $parentBranchId): bool
+    protected function branchWouldCreateCycle(int $branchId, ?int $parentBranchId): bool
     {
         $visited = [];
         while ($parentBranchId) {
@@ -337,10 +368,10 @@ trait ManagesFtthData
         return $route->odf?->name ?? '-';
     }
 
-    protected function ensureBelongsToProject(string $model, $id, $projectId, string $field): void
+    protected function ensureBelongsToProject(string $model, mixed $id, int|string $projectId, string $field): void
     {
         validator([$field => $id], [
-            $field => [function (string $attribute, $value, $fail) use ($model, $projectId): void {
+            $field => [function (string $_attribute, mixed $value, $fail) use ($model, $projectId): void {
                 if ($value && ! $model::query()->whereKey($value)->where('project_id', $projectId)->exists()) {
                     $fail('Odabrani zapis ne pripada projektu.');
                 }
@@ -348,10 +379,10 @@ trait ManagesFtthData
         ])->validate();
     }
 
-    protected function ensureSecondaryBranch($branchId): void
+    protected function ensureSecondaryBranch(?int $branchId): void
     {
         validator(['branch_id' => $branchId], [
-            'branch_id' => [function (string $attribute, $value, $fail): void {
+            'branch_id' => [function (string $_attribute, mixed $value, $fail): void {
                 if ($value && ! NetworkBranch::query()->whereKey($value)->where('type', 'secondary')->exists()) {
                     $fail('ODO ormaric se moze planirati samo na sekundarnom kraku.');
                 }
@@ -359,7 +390,7 @@ trait ManagesFtthData
         ])->validate();
     }
 
-    protected function ensureCabinetHouseCapacity($cabinetId, ?int $exceptHouseId = null): void
+    protected function ensureCabinetHouseCapacity(?int $cabinetId, ?int $exceptHouseId = null): void
     {
         if (! $cabinetId) {
             return;
@@ -372,9 +403,9 @@ trait ManagesFtthData
         }
 
         if ($query->count() >= $cabinet->capacity) {
-            validator(['cabinet_id' => $cabinetId], [
-                'cabinet_id' => [fn ($attribute, $value, $fail) => $fail("ODO ormaric ne moze imati vise od {$cabinet->capacity} kuca.")],
-            ])->validate();
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cabinet_id' => ["ODO ormaric ne moze imati vise od {$cabinet->capacity} kuca."],
+            ]);
         }
     }
 
@@ -407,8 +438,11 @@ trait ManagesFtthData
             }
             $point = [];
         };
-        $flushEntity = function () use (&$entities, &$current, &$point, $flushPoint): void {
-            $flushPoint();
+        $flushEntity = function () use (&$entities, &$current, &$point): void {
+            if (isset($point['x'], $point['y'])) {
+                $current[] = [(float) $point['y'], (float) $point['x']];
+            }
+            $point = [];
             if (count($current) >= 2) {
                 $entities[] = $current;
             }

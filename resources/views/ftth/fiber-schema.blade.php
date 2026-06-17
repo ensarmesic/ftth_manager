@@ -210,6 +210,11 @@
                 <span class="schema-chip">{{ $allCabinets->count() }} FTTH</span>
                 <span class="schema-chip">{{ $totalHouses }}/{{ $totalCapacity }}</span>
                 <span class="schema-chip">{{ $projectUtilization }}%</span>
+                <a href="{{ route('projects.fiber-schema-dxf', $project) }}"
+                   style="display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:.2rem .6rem;font-size:.71rem;font-weight:800;text-decoration:none">
+                    <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
+                    DXF Fiber Sema
+                </a>
             </div>
         </div>
 

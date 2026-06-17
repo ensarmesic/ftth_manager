@@ -1,9 +1,9 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', 'ODO ormarici')
 @section('subtitle', 'Distribucione tačke koje se planiraju na sekundarnim krakovima.')
 @section('content')
 
-<section class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
             <div><div class="stat-label">Ukupno ODO</div><div class="stat-value">{{ $cabinetStats['total'] }}</div></div>
