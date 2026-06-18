@@ -228,14 +228,6 @@ class FtthIntelligenceService
         $items = [];
         $project->loadMissing(['odfs.cabinets', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
         $branchRoutes = $this->branchRoutes($project);
-        $housesPerCabinet = $project->cabinets->mapWithKeys(fn (Cabinet $cabinet) => [$cabinet->id => $cabinet->houses->count()])->all();
-        $dropRouteHouseIds = array_flip(
-            $project->routes
-                ->filter(fn (NetworkRoute $route) => $route->route_type === 'drop' && $route->to_type === 'house' && $route->to_id)
-                ->pluck('to_id')
-                ->map(fn ($id) => (int) $id)
-                ->all()
-        );
 
         if ($project->odfs->isEmpty()) {
             $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mreznog plana.');
@@ -256,7 +248,7 @@ class FtthIntelligenceService
             if (! $house->cabinet_id) {
                 $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kucu ODO ormaricu.');
             }
-            if (! isset($dropRouteHouseIds[$house->id])) {
+            if (! $project->routes->contains(fn (NetworkRoute $route) => $route->route_type === 'drop' && $route->to_type === 'house' && (int) $route->to_id === $house->id)) {
                 $items[] = $this->validationItem('warning', "{$house->label} nema drop trasu.", 'house', $house->id, 'Nacrtaj ili automatski kreiraj drop trasu.');
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
@@ -317,7 +309,7 @@ class FtthIntelligenceService
             if ($route->duct_length_m <= 0) $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
             if ($route->route_type === 'drop' && ($route->to_type !== 'house' || ! $route->to_id)) $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.');
             if (in_array($route->route_type, ['backbone', 'distribution'], true) && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.');
-            $occupancy = $this->routeOccupancy($route, $housesPerCabinet);
+            $occupancy = $this->routeOccupancy($route);
             if ($occupancy['used_fibers'] > $occupancy['fiber_capacity']) $items[] = $this->validationItem('error', "{$route->name} ima više zauzetih vlakana od kapaciteta.", 'route', $route->id, 'Povećaj kapacitet kabla.');
             elseif ($occupancy['utilization_percent'] > 80) $items[] = $this->validationItem('warning', "{$route->name} ima preko 80% zauzeća vlakana.", 'route', $route->id, 'Planiraj rezervni kapacitet.');
             if (! $route->path) {
@@ -359,16 +351,12 @@ class FtthIntelligenceService
         return $summary;
     }
 
-    public function routeOccupancy(NetworkRoute $route, array $housesPerCabinet = []): array
+    public function routeOccupancy(NetworkRoute $route): array
     {
         $capacity = (int) ($route->fiber_count ?? 0);
         $used = $route->route_type === 'drop'
             ? ($route->to_type === 'house' && $route->to_id ? 1 : 0)
-            : ($route->cabinet_id
-                ? (array_key_exists($route->cabinet_id, $housesPerCabinet)
-                    ? (int) $housesPerCabinet[$route->cabinet_id]
-                    : House::where('cabinet_id', $route->cabinet_id)->count())
-                : 0);
+            : ($route->cabinet_id ? House::where('cabinet_id', $route->cabinet_id)->count() : 0);
 
         return ['fiber_capacity' => $capacity, 'used_fibers' => $used, 'free_fibers' => max($capacity - $used, 0), 'utilization_percent' => $capacity > 0 ? (int) round($used / $capacity * 100) : 0];
     }
@@ -414,7 +402,6 @@ class FtthIntelligenceService
                 if (! $route || count($route->path ?? []) < 2) {
                     return null;
                 }
-                $route->setAttribute('planning_branch', $branch);
                 $route->setAttribute('planning_branch_id', $branch->id);
                 $route->setAttribute('planning_branch_name', $branch->name);
                 $route->setAttribute('planning_branch_code', $branch->code);
@@ -432,7 +419,7 @@ class FtthIntelligenceService
         foreach ($routes->values() as $index => $route) {
             $branchId = (int) $route->getAttribute('planning_branch_id');
             $branches[$branchId] = [
-                'branch' => $route->getAttribute('planning_branch'),
+                'branch' => NetworkBranch::find($branchId),
                 'route' => $route,
                 'name' => $route->getAttribute('planning_branch_name') ?: $route->name,
                 'branch_index' => $this->branchIndex($route, $index + 1),
@@ -500,24 +487,10 @@ class FtthIntelligenceService
             return [$houses];
         }
 
-        // K-means++ seed selection: each new seed is the house farthest from all existing seeds.
-        // This spreads seeds across the actual distribution regardless of orientation.
-        $medoidResult = $this->medoid($houses);
-        $seeds = [$medoidResult['house']];
-        while (count($seeds) < $clusterCount) {
-            $farthest = $houses
-                ->map(fn (House $house) => [
-                    'house' => $house,
-                    'min_dist' => collect($seeds)->min(fn (House $seed) => $this->distanceMeters(
-                        (float) $house->latitude, (float) $house->longitude,
-                        (float) $seed->latitude, (float) $seed->longitude
-                    )),
-                ])
-                ->sortByDesc('min_dist')
-                ->first();
-            $seeds[] = $farthest['house'];
-        }
-
+        $ordered = $houses->sortBy(fn (House $house) => (float) $house->longitude)->values();
+        $seeds = collect(range(0, $clusterCount - 1))
+            ->map(fn (int $index) => $ordered[(int) round(($index / max(1, $clusterCount - 1)) * max(0, $ordered->count() - 1))])
+            ->all();
         $groups = array_fill(0, $clusterCount, null);
         for ($i = 0; $i < $clusterCount; $i++) {
             $groups[$i] = collect();
@@ -540,116 +513,36 @@ class FtthIntelligenceService
     private function groupsForBranch(Collection $houses, array $branch, array $params): array
     {
         $ordered = $houses->sortBy(fn (House $house) => (float) $house->getAttribute('chainage_m'))->values();
-
-        // Segment at mandatory gap breaks (large spatial gaps along the route).
-        $segments = [];
+        $groups = [];
         $current = collect();
-        $prev = null;
+        $previous = null;
+
         foreach ($ordered as $house) {
-            if ($prev !== null && abs((float) $house->getAttribute('chainage_m') - (float) $prev->getAttribute('chainage_m')) > $params['max_gap_m']) {
-                if ($current->isNotEmpty()) {
-                    $segments[] = $current;
+            $shouldStart = $current->count() >= $params['max_houses_per_odo'];
+            if ($previous && abs((float) $house->getAttribute('chainage_m') - (float) $previous->getAttribute('chainage_m')) > $params['max_gap_m']) {
+                $shouldStart = true;
+            }
+            if (! $shouldStart && $current->isNotEmpty()) {
+                $candidate = $current->push($house);
+                $odoPoint = $this->odoPointForGroup($candidate, $branch);
+                $maxDistance = $candidate->max(fn (House $candidateHouse) => $this->dropPreviewForHouse($candidateHouse, $odoPoint, $branch)['length_m']);
+                $current->pop();
+                if ($maxDistance > $params['max_house_to_odo_m']) {
+                    $shouldStart = true;
                 }
+            }
+            if ($shouldStart && $current->isNotEmpty()) {
+                $groups[] = $current->values();
                 $current = collect();
             }
             $current->push($house);
-            $prev = $house;
+            $previous = $house;
         }
         if ($current->isNotEmpty()) {
-            $segments[] = $current;
-        }
-
-        // Run DP on each gap-separated segment independently.
-        $groups = [];
-        foreach ($segments as $segment) {
-            foreach ($this->dpGroups($segment->values(), $branch, $params) as $group) {
-                $groups[] = $group;
-            }
+            $groups[] = $current->values();
         }
 
         return $groups;
-    }
-
-    /**
-     * Dynamic-programming partition of houses (sorted by chainage) into cabinet groups.
-     *
-     * dp[i] = minimum total cost to serve houses 0..i-1 optimally.
-     * Transition: dp[i] = min over k in [i-M, i) of dp[k] + groupDropCost(h[k..i-1])
-     *
-     * Guarantees the globally optimal grouping within each cable segment, unlike greedy.
-     * Complexity: O(n * M) transitions, each O(M²) for medoid → O(n * M³) total.
-     * For M=12 and n≤300 this is well under 1M operations.
-     */
-    private function dpGroups(Collection $houses, array $branch, array $params): array
-    {
-        $n = $houses->count();
-        $M = $params['max_houses_per_odo'];
-
-        $dp = array_fill(0, $n + 1, PHP_FLOAT_MAX);
-        $from = array_fill(0, $n + 1, 0);
-        $dp[0] = 0.0;
-
-        for ($i = 1; $i <= $n; $i++) {
-            for ($k = max(0, $i - $M); $k < $i; $k++) {
-                if ($dp[$k] === PHP_FLOAT_MAX) {
-                    continue;
-                }
-                $group = $houses->slice($k, $i - $k);
-                $cost = $dp[$k] + $this->groupDropCost($group, $branch, $params);
-                if ($cost < $dp[$i]) {
-                    $dp[$i] = $cost;
-                    $from[$i] = $k;
-                }
-            }
-        }
-
-        $groups = [];
-        $i = $n;
-        while ($i > 0) {
-            $k = $from[$i];
-            $groups[] = $houses->slice($k, $i - $k)->values();
-            $i = $k;
-        }
-
-        return array_reverse($groups);
-    }
-
-    /**
-     * Cost of placing one ODO cabinet for this group of houses.
-     *
-     * Primary cost: total drop cable length (minimized by choosing medoid on route).
-     * Splitter penalty: wasted ports in partially filled splitters (4-port each).
-     *   e.g. 10 houses → 3 splitters, 2 wasted ports → penalty = 2 × 12m equivalent
-     * Underfill penalty: group below preferred minimum (discourages tiny last-group orphans).
-     *
-     * Hard constraint: if any house exceeds max_house_to_odo_m, returns near-infinite cost.
-     */
-    private function groupDropCost(Collection $group, array $branch, array $params): float
-    {
-        $odoPoint = $this->odoPointForGroup($group, $branch);
-        $totalDrop = 0.0;
-        $maxDrop = 0.0;
-
-        foreach ($group as $house) {
-            $len = $this->dropPreviewForHouse($house, $odoPoint, $branch)['length_m'];
-            $totalDrop += $len;
-            $maxDrop = max($maxDrop, $len);
-        }
-
-        if ($maxDrop > $params['max_house_to_odo_m']) {
-            return PHP_FLOAT_MAX / 2;
-        }
-
-        $count = $group->count();
-        // Empty splitter ports within the last splitter (0 if group size is multiple of 4).
-        $wastedPorts = (4 - ($count % 4)) % 4;
-        $splitterPenalty = $wastedPorts * 12.0;
-
-        $underFillPenalty = $count < $params['preferred_fill_min']
-            ? ($params['preferred_fill_min'] - $count) * 25.0
-            : 0.0;
-
-        return $totalDrop + $splitterPenalty + $underFillPenalty;
     }
 
     private function fillExistingCabinets(Project $project, Collection $houses, array $branch, Collection $odfs, array $params): array
