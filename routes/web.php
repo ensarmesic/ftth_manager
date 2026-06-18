@@ -24,6 +24,7 @@ Route::delete('/izvjestaji/stavke-priloga/{item}', [ReportController::class, 'de
 Route::get('/izvjestaji/projekti/{project}/prilog-3', [ReportController::class, 'projectAppendix'])->name('reports.project-appendix');
 Route::get('/splitteri', [ReportController::class, 'splitters'])->name('splitters.index');
 Route::get('/fiber-sema', [ReportController::class, 'fiberSchema'])->name('fiber-schema.index');
+Route::get('/projekti/{project}/fiber-sema/pdf', [ReportController::class, 'fiberSchemaPdf'])->name('projects.fiber-schema-pdf');
 Route::get('/krakovi', [BranchController::class, 'branches'])->name('branches.index');
 Route::post('/krakovi', [BranchController::class, 'storeBranch'])->name('branches.store');
 Route::match(['put', 'patch'], '/krakovi/{id}', [BranchController::class, 'updateBranch'])->name('branches.update');

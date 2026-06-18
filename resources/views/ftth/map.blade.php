@@ -4182,7 +4182,7 @@ refreshTrenchGroupStatus();
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin="anonymous"></script>
-<script src="{{ asset('js/ftth-dxf-layer.js') }}"></script>
+<script src="{{ asset('js/ftth-dxf-layer.js') }}?v={{ filemtime(public_path('js/ftth-dxf-layer.js')) }}"></script>
 <script>
 (function tryInit() {
     if (window.ftthDxfLayer && window.ftthNetworkMap) {

@@ -88,9 +88,15 @@
     // Crta sve tekst labele direktno na canvas (jedan DOM element za sve labele)
 
     const DxfTextLayer = L.Layer.extend({
-        initialize(pts) {
-            this._pts  = pts; // [{ll: L.LatLng, text: string}]
-            this._raf  = null;
+        initialize(pts, color) {
+            this._pts   = pts;
+            this._color = color || '#d946ef';
+            this._raf   = null;
+        },
+
+        setColor(color) {
+            this._color = color;
+            this._draw();
         },
 
         onAdd(map) {
@@ -143,18 +149,29 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             const zoom = map.getZoom();
-            if (zoom < 16) return; // Sakrij tekst kad je previše zumirano van
+            if (zoom < 17) return;
 
-            // Font proporcionalan zoomu: zoom16=9px, zoom17=11px, zoom18=13px ...
-            const fontSize = Math.round(9 + (zoom - 16) * 2);
-            ctx.font         = `bold ${fontSize}px Arial,sans-serif`;
-            ctx.fillStyle    = '#d946ef';
+            const refLat = this._pts[0]?.ll?.lat ?? 44;
+            const mpp = 156543.03392 * Math.cos(refLat * Math.PI / 180) / Math.pow(2, zoom);
+
+            ctx.fillStyle    = this._color;
             ctx.shadowColor  = '#fff';
             ctx.shadowBlur   = 2;
             ctx.textBaseline = 'middle';
 
-            for (const { ll, text } of this._pts) {
+            const W = canvas.width, H = canvas.height;
+
+            for (const { ll, text, height } of this._pts) {
                 const p = map.latLngToContainerPoint(ll);
+                // Preskoči labele koje su van viewport-a
+                if (p.x < -50 || p.x > W + 50 || p.y < -20 || p.y > H + 20) continue;
+                let fontSize;
+                if (height && height > 0) {
+                    fontSize = Math.max(7, Math.min(14, Math.round(height / mpp)));
+                } else {
+                    fontSize = Math.max(7, Math.round(7 + (zoom - 17) * 1.5));
+                }
+                ctx.font = `${fontSize}px Arial,sans-serif`;
                 ctx.fillText(text, p.x, p.y);
             }
         },
@@ -223,11 +240,12 @@
                 lyr = L.polygon(rings, { ...style, fillOpacity: 0.06 });
 
             } else if (g.type === 'Point') {
-                const ll   = toLatLng(g.coordinates[0], g.coordinates[1], srcProj);
-                const text = f.properties?.text || '';
+                const ll     = toLatLng(g.coordinates[0], g.coordinates[1], srcProj);
+                const text   = f.properties?.text || '';
+                const height = f.properties?.height ?? null;
                 if (!ll)   { skip.badCoord++;  return; }
                 if (!text) { skip.emptyText++; return; }
-                textPts.push({ ll, text });
+                textPts.push({ ll, text, height });
                 rendered++;
                 return;
             } else {
@@ -244,7 +262,7 @@
         // Jedan canvas layer za sve tekst labele
         let textLayer = null;
         if (textPts.length) {
-            textLayer = new DxfTextLayer(textPts).addTo(map);
+            textLayer = new DxfTextLayer(textPts, color).addTo(map);
         }
 
         const totalSkipped = skip.longSegment + skip.tooFewPoints + skip.badCoord + skip.emptyText;
@@ -311,6 +329,9 @@
         ly.items.forEach(l => {
             try { if (typeof l.setStyle === 'function') l.setStyle({ color }); } catch {}
         });
+        if (ly.textLayer) {
+            try { ly.textLayer.setColor(color); } catch {}
+        }
     }
 
     function zoomTo(id) {
@@ -384,7 +405,7 @@
 
     /* ─── Upload ─────────────────────────────────────────────────── */
 
-    const PALETTE = ['#d946ef', '#2563eb', '#e11d48', '#16a34a', '#d97706', '#7c3aed'];
+    const PALETTE = ['#d946ef', '#d946ef', '#d946ef', '#d946ef', '#d946ef', '#d946ef'];
 
     async function upload(file) {
         if (!/\.(dxf|dwg)$/i.test(file.name)) {

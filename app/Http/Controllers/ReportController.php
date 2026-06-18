@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class ReportController extends Controller
@@ -159,6 +160,78 @@ class ReportController extends Controller
         $cabinets = Cabinet::with(['project', 'odf'])->withCount(['houses', 'subscribers'])->orderBy('name')->get();
 
         return view('ftth.splitters', ['cabinets' => $cabinets]);
+    }
+
+    public function fiberSchemaPdf(Project $project): \Illuminate\Http\Response
+    {
+        $project->load([
+            'houses' => fn ($q) => $q->whereNull('cabinet_id')->orderBy('label'),
+            'branches' => fn ($q) => $q->with(['route', 'cabinets.houses', 'childBranches.route', 'childBranches.cabinets.houses'])->orderBy('sort_order'),
+            'odfs.cabinets' => fn ($q) => $q
+                ->whereNull('parent_cabinet_id')
+                ->with([
+                    'houses' => fn ($hq) => $hq->orderBy('label'),
+                    'childCabinets' => fn ($cq) => $cq->with(['houses' => fn ($hq) => $hq->orderBy('label')])->withCount(['houses', 'subscribers'])->orderBy('name'),
+                ])
+                ->withCount(['houses', 'subscribers'])
+                ->orderBy('name'),
+        ]);
+
+        $cabinets = $project->odfs->flatMap->cabinets;
+        $childCabinets = $cabinets->flatMap->childCabinets;
+        $allCabinets = $cabinets->merge($childCabinets);
+        $totalHouses = $allCabinets->sum('houses_count');
+        $totalCapacity = max($allCabinets->sum(fn ($c) => max($c->capacity, 12)), 1);
+        $projectUtilization = min(100, round($totalHouses / $totalCapacity * 100));
+
+        $neededSplitters = function ($cabinet): int {
+            $houseCount = $cabinet->houses_count ?? ($cabinet->relationLoaded('houses') ? $cabinet->houses->count() : $cabinet->houses()->count());
+            return (int) ceil(((int) $houseCount) / max(1, (int) $cabinet->ports_per_splitter));
+        };
+
+        $fiberAllocations = [];
+        $nextFiber = 1;
+        $project->odfs->sortBy(fn ($odf) => (string) $odf->name)->each(function ($odf) use ($project, &$fiberAllocations, &$nextFiber, $neededSplitters) {
+            $project->branches
+                ->where('type', 'secondary')
+                ->where('odf_id', $odf->id)
+                ->sortBy(fn ($branch) => sprintf('%06d|%s', (int) ($branch->sort_order ?? 0), (string) $branch->name))
+                ->each(function ($branch) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                    $branch->cabinets
+                        ->sortBy(fn ($cabinet) => sprintf('%06d|%s', (int) ($cabinet->branch_order ?? 0), (string) $cabinet->name))
+                        ->each(function ($cabinet) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                            $fiberCount = $neededSplitters($cabinet);
+                            if ($fiberCount > 0) {
+                                $fiberAllocations[$cabinet->id] = ['from' => $nextFiber, 'to' => $nextFiber + $fiberCount - 1, 'count' => $fiberCount];
+                                $nextFiber += $fiberCount;
+                            }
+                            $cabinet->childCabinets->whereNull('branch_id')
+                                ->sortBy(fn ($child) => sprintf('%06d|%s', (int) ($child->branch_order ?? 0), (string) $child->name))
+                                ->each(function ($child) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                                    $childFiberCount = $neededSplitters($child);
+                                    if ($childFiberCount > 0) {
+                                        $fiberAllocations[$child->id] = ['from' => $nextFiber, 'to' => $nextFiber + $childFiberCount - 1, 'count' => $childFiberCount];
+                                        $nextFiber += $childFiberCount;
+                                    }
+                                });
+                        });
+                });
+        });
+
+        $usedFiberTo = collect($fiberAllocations)->max('to') ?? 0;
+        $odfCapacity = $project->odfs->max('fiber_capacity') ?? 144;
+        $reserveFrom = $usedFiberTo + 1;
+        $reserveTo = max($odfCapacity, $usedFiberTo + 1);
+
+        $pdf = Pdf::loadView('ftth.fiber-schema-pdf', compact(
+            'project', 'allCabinets', 'totalHouses', 'totalCapacity',
+            'projectUtilization', 'fiberAllocations', 'neededSplitters',
+            'usedFiberTo', 'reserveFrom', 'reserveTo',
+        ))->setPaper('a4', 'landscape');
+
+        $filename = 'fiber-shema-' . str($project->code ?: $project->name)->slug() . '-' . now()->format('Ymd') . '.pdf';
+
+        return $pdf->download($filename);
     }
 
     public function fiberSchema(): View

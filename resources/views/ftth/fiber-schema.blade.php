@@ -10,9 +10,9 @@
     .schema-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; border-bottom: 1px solid #dfeaf5; background: #f8fbff; padding: .7rem .85rem; }
     .schema-stats { display: flex; flex-wrap: wrap; gap: .35rem; }
     .schema-chip { border-radius: 999px; background: #edf6ff; padding: .2rem .5rem; color: #005f96; font-size: .71rem; font-weight: 800; }
-    .schema-shell { display: grid; gap: .65rem; padding: .65rem; }
+    .schema-shell { display: grid; gap: .65rem; padding: .65rem; max-height: 80vh; overflow-y: auto; }
     @media (min-width: 1180px) { .schema-shell { grid-template-columns: minmax(0, 1fr) 260px; } }
-    .schema-board { min-width: 0; overflow: hidden; border: 1px solid #dbe7f3; border-radius: .75rem; background:
+    .schema-board { min-width: 0; overflow: visible; border: 1px solid #dbe7f3; border-radius: .75rem; background:
         linear-gradient(#e8eef6 1px, transparent 1px),
         linear-gradient(90deg, #e8eef6 1px, transparent 1px),
         #f9fbfe; background-size: 28px 28px; padding: .65rem; }
@@ -196,8 +196,9 @@
                     });
             });
         $usedFiberTo = collect($fiberAllocations)->max('to') ?? 0;
+        $odfCapacity = $project->odfs->max('fiber_capacity') ?? 144;
         $reserveFrom = $usedFiberTo + 1;
-        $reserveTo = 144;
+        $reserveTo = max($odfCapacity, $usedFiberTo + 1);
     @endphp
     <article class="schema-project">
         <div class="schema-head">
@@ -214,6 +215,11 @@
                    style="display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:.2rem .6rem;font-size:.71rem;font-weight:800;text-decoration:none">
                     <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
                     DXF Fiber Sema
+                </a>
+                <a href="{{ route('projects.fiber-schema-pdf', $project) }}"
+                   style="display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:.2rem .6rem;font-size:.71rem;font-weight:800;text-decoration:none">
+                    <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
+                    PDF Fiber Sema
                 </a>
             </div>
         </div>
@@ -243,6 +249,7 @@
                 'used_fiber_to' => $usedFiberTo,
                 'reserve_from' => $reserveFrom,
                 'reserve_to' => $reserveTo,
+                'odf_capacity' => $odfCapacity,
             ];
         @endphp
         <div data-schema-panel="cad-fiber">
@@ -261,7 +268,7 @@
             </div>
         </div>
 
-        <div class="schema-shell hidden" data-schema-panel="rack">
+        <div class="hidden" data-schema-panel="rack"><div class="schema-shell">
             <div class="schema-board">
                 <div class="schema-legend" aria-label="Legenda fiber seme">
                     <span class="legend-item"><span class="legend-swatch odf"></span>ODF rack</span>
@@ -300,6 +307,8 @@
                                 $fiberRange = $fiberAllocations[$cabinet->id] ?? null;
                                 $fiberLabel = $fiberRange ? ($fiberRange['from'] === $fiberRange['to'] ? (string) $fiberRange['from'] : $fiberRange['from'].'-'.$fiberRange['to']) : '?';
                                 $activeSplitters = $neededSplitters($cabinet);
+                                $portsPerSplitter = max(1, (int) $cabinet->ports_per_splitter);
+                                $splitterRatio = '1:' . $portsPerSplitter;
                             @endphp
                             <div class="cabinet-node">
                                 <span class="connection-tag">OUT {{ $cabinetOrdinal }}</span>
@@ -310,15 +319,15 @@
                                     </div>
                                     <div class="mt-1 truncate text-[10px] font-semibold text-slate-500" title="{{ $cabinet->address ?: 'Bez adrese' }}">{{ $cabinet->address ?: 'Bez adrese' }}</div>
                                     <div class="util-bar"><div style="width: {{ $utilization }}%"></div></div>
-                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $activeSplitters }} x 1:4 / F {{ $fiberLabel }}</div>
+                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $activeSplitters }} x {{ $splitterRatio }} / F {{ $fiberLabel }}</div>
                                 </div>
                                 <div class="splitter-panel">
                                 @for($splitter = 1; $splitter <= max($activeSplitters, 1); $splitter++)
                                     <div class="splitter-line">
-                                        <div class="splitter-label">S{{ $splitter }} 1:4</div>
-                                        @for($port = 1; $port <= 4; $port++)
+                                        <div class="splitter-label">S{{ $splitter }} {{ $splitterRatio }}</div>
+                                        @for($port = 1; $port <= $portsPerSplitter; $port++)
                                             @php
-                                                $absolutePort = ($splitter - 1) * 4 + $port;
+                                                $absolutePort = ($splitter - 1) * $portsPerSplitter + $port;
                                                 $house = $houses->get($absolutePort - 1);
                                             @endphp
                                             @if($house)
@@ -344,6 +353,8 @@
                                                 $childFiberRange = $fiberAllocations[$childCabinet->id] ?? null;
                                                 $childFiberLabel = $childFiberRange ? ($childFiberRange['from'] === $childFiberRange['to'] ? (string) $childFiberRange['from'] : $childFiberRange['from'].'-'.$childFiberRange['to']) : '?';
                                                 $childActiveSplitters = $neededSplitters($childCabinet);
+                                                $childPortsPerSplitter = max(1, (int) $childCabinet->ports_per_splitter);
+                                                $childSplitterRatio = '1:' . $childPortsPerSplitter;
                                             @endphp
                                             <div class="child-cabinet-node">
                                                 <div class="cabinet-box {{ $childState }}">
@@ -354,15 +365,15 @@
                                                     </div>
                                                     <div class="mt-1 truncate text-[10px] font-semibold text-slate-500" title="{{ $childCabinet->address ?: 'Bez adrese' }}">{{ $childCabinet->address ?: 'Bez adrese' }}</div>
                                                     <div class="util-bar"><div style="width: {{ $childUtilization }}%"></div></div>
-                                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $childActiveSplitters }} x 1:4 / F {{ $childFiberLabel }}</div>
+                                                    <div class="mt-1 text-[10px] font-bold text-slate-500">{{ $childActiveSplitters }} x {{ $childSplitterRatio }} / F {{ $childFiberLabel }}</div>
                                                 </div>
                                                 <div class="splitter-panel">
                                                 @for($childSplitter = 1; $childSplitter <= max($childActiveSplitters, 1); $childSplitter++)
                                                     <div class="splitter-line">
-                                                        <div class="splitter-label">S{{ $childSplitter }} 1:4</div>
-                                                        @for($childPort = 1; $childPort <= 4; $childPort++)
+                                                        <div class="splitter-label">S{{ $childSplitter }} {{ $childSplitterRatio }}</div>
+                                                        @for($childPort = 1; $childPort <= $childPortsPerSplitter; $childPort++)
                                                             @php
-                                                                $childAbsolutePort = ($childSplitter - 1) * 4 + $childPort;
+                                                                $childAbsolutePort = ($childSplitter - 1) * $childPortsPerSplitter + $childPort;
                                                                 $childHouse = $childHouses->get($childAbsolutePort - 1);
                                                             @endphp
                                                             @if($childHouse)
@@ -400,7 +411,7 @@
                 </div>
                 <a href="{{ route('map.dashboard') }}" class="mt-4 block rounded-md border border-blue-200 px-3 py-2 text-center text-sm font-bold text-blue-700">Otvori mapu</a>
             </aside>
-        </div>
+        </div></div>
         @if($project->houses->isNotEmpty())
             <details class="mx-3 mb-3 rounded-md border border-amber-200 bg-amber-50 p-3">
                 <summary class="cursor-pointer text-sm font-black text-amber-900">Nepovezane kuce ({{ $project->houses->count() }})</summary>

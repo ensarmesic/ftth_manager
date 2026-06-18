@@ -186,7 +186,13 @@ class MapLayerController extends Controller
                 }
                 $features[] = [
                     'type'       => 'Feature',
-                    'properties' => ['layer' => $layer, 'color' => $color, 'text' => $text, 'entity' => $entityType],
+                    'properties' => [
+                        'layer'  => $layer,
+                        'color'  => $color,
+                        'text'   => $text,
+                        'entity' => $entityType,
+                        'height' => isset($extra['radius']) && $extra['radius'] > 0 ? $extra['radius'] : null,
+                    ],
                     'geometry'   => ['type' => 'Point', 'coordinates' => [$pts[0][0], $pts[0][1]]],
                 ];
                 continue;
