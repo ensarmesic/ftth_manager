@@ -11,6 +11,7 @@ use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use App\Http\Controllers\Concerns\ManagesFtthData;
@@ -228,8 +229,10 @@ class ProjectController extends Controller
         ], JSON_UNESCAPED_UNICODE);
     }
 
-    public function exportDxf(Project $project)
+    public function exportDxf(Project $project, Request $request)
     {
+        ini_set('memory_limit', '1G');
+        set_time_limit(180);
         $project->load(['odfs', 'cabinets', 'houses', 'routes', 'appendixItems']);
 
         // Zona — koristimo ODF, ormarice i prvu točku prve trase
@@ -252,6 +255,108 @@ class ProjectController extends Controller
             $cabinetColor[$cabinet->id] = $palette[$idx % count($palette)];
         }
 
+        // ── FTTH GK bounding box — za clip background-a i $EXTMIN/$EXTMAX ─────────
+        $bboxMinX = PHP_FLOAT_MAX;  $bboxMaxX = -PHP_FLOAT_MAX;
+        $bboxMinY = PHP_FLOAT_MAX;  $bboxMaxY = -PHP_FLOAT_MAX;
+        $expandBbox = function (float $lat, float $lng) use (&$bboxMinX, &$bboxMaxX, &$bboxMinY, &$bboxMaxY, $zone) {
+            [$gx, $gy] = $this->wgs84ToGaussKruger($lat, $lng, $zone);
+            if ($gx < $bboxMinX) $bboxMinX = $gx; if ($gx > $bboxMaxX) $bboxMaxX = $gx;
+            if ($gy < $bboxMinY) $bboxMinY = $gy; if ($gy > $bboxMaxY) $bboxMaxY = $gy;
+        };
+        foreach ($project->odfs as $o) {
+            if ($o->latitude !== null) $expandBbox((float)$o->latitude, (float)$o->longitude);
+        }
+        foreach ($project->cabinets as $c) {
+            if ($c->latitude !== null) $expandBbox((float)$c->latitude, (float)$c->longitude);
+        }
+        foreach ($project->houses as $h) {
+            if ($h->latitude !== null) $expandBbox((float)$h->latitude, (float)$h->longitude);
+        }
+        foreach ($project->routes as $r) {
+            foreach ($r->path ?? [] as $pt) {
+                if (isset($pt[0], $pt[1])) $expandBbox((float)$pt[1], (float)$pt[0]); // [lng,lat] → lat,lng
+                elseif (isset($pt['lat'], $pt['lng'])) $expandBbox((float)$pt['lat'], (float)$pt['lng']);
+            }
+        }
+        $hasBbox = $bboxMinX < PHP_FLOAT_MAX;
+
+        // ── Background layeri — single-pass: dekodiraj JSON jednom, piši features odmah ──
+        $bgLayerNames  = [];
+        $bgEntityFiles = [];
+
+        if ($request->isMethod('post')) {
+            foreach ($request->input('background_layers', []) as $bg) {
+                $rawKey  = (string) ($bg['cache_key'] ?? '');
+                $safeKey = preg_replace('/[^a-f0-9\-]/i', '', $rawKey);
+                if ($safeKey === '' || strlen($safeKey) < 10 || strlen($safeKey) > 40) continue;
+
+                $storagePath = 'dxf_layers/' . $safeKey . '.json';
+                if (!Storage::exists($storagePath)) {
+                    return response()->json([
+                        'error' => 'DXF cache fajl nije pronađen na serveru. Ukloni podlogu u DXF panelu i ponovo importuj fajl, zatim pokušaj export.',
+                    ], 422);
+                }
+
+                // Jedan decode — skupi layer names + piši entities u temp fajl
+                $json     = Storage::get($storagePath);
+                $features = json_decode($json, true);
+                unset($json);
+
+                if (!is_array($features) || empty($features)) continue;
+
+                $entTmp = tempnam(sys_get_temp_dir(), 'ftth_bg_');
+                $entFh  = fopen($entTmp, 'wb');
+
+                foreach ($features as $f) {
+                    $g   = $f['geometry'] ?? null;
+                    $typ = $g['type'] ?? '';
+                    if (!$g || !$typ) continue;
+
+                    $rawName  = (string) ($f['properties']['layer'] ?? '0');
+                    $safeName = 'BG_' . preg_replace('/[^A-Z0-9_]/', '_', strtoupper($rawName));
+                    $ln       = substr($safeName, 0, 31);
+                    $bgLayerNames[$ln] = true;
+
+                    if ($typ === 'LineString') {
+                        $pts = array_map(fn ($c) => $this->rawCoordToGk($c[0], $c[1], $zone), $g['coordinates']);
+                        if (count($pts) >= 2) {
+                            fwrite($entFh, implode("\r\n", $this->dxfPolylineGk($pts, $ln, 9)) . "\r\n");
+                        }
+                    } elseif ($typ === 'Polygon') {
+                        $outer = array_map(fn ($c) => $this->rawCoordToGk($c[0], $c[1], $zone), $g['coordinates'][0] ?? []);
+                        if (count($outer) >= 3) {
+                            if ($outer[0] !== $outer[count($outer) - 1]) $outer[] = $outer[0];
+                            fwrite($entFh, implode("\r\n", $this->dxfPolylineGk($outer, $ln, 9)) . "\r\n");
+                        }
+                    } elseif ($typ === 'Point') {
+                        $text   = trim((string) ($f['properties']['text'] ?? ''));
+                        $height = (float) ($f['properties']['height'] ?? 2.0);
+                        if ($text !== '') {
+                            [$gx, $gy] = $this->rawCoordToGk($g['coordinates'][0], $g['coordinates'][1], $zone);
+                            fwrite($entFh, implode("\r\n", $this->dxfText($gx, $gy, $text, $ln, 9, max(0.5, $height))) . "\r\n");
+                        }
+                    }
+                }
+
+                fclose($entFh);
+                unset($features);
+                $bgEntityFiles[] = $entTmp;
+            }
+        }
+
+        // Defincije DXF layera za background (sivi, ACI 9)
+        $bgLayerDefs = [];
+        foreach (array_keys($bgLayerNames) as $ln) {
+            array_push($bgLayerDefs, '0', 'LAYER', '2', $ln, '70', '64', '62', '9', '6', 'CONTINUOUS');
+        }
+
+        // Extents za header (FTTH bbox + 50m margin za $EXTMIN/$EXTMAX)
+        $extMargin = 50.0;
+        $extMinX = $hasBbox ? (string) ($bboxMinX - $extMargin) : '0.0';
+        $extMinY = $hasBbox ? (string) ($bboxMinY - $extMargin) : '0.0';
+        $extMaxX = $hasBbox ? (string) ($bboxMaxX + $extMargin) : '1000.0';
+        $extMaxY = $hasBbox ? (string) ($bboxMaxY + $extMargin) : '1000.0';
+
         $lines = [
             // ── HEADER ────────────────────────────────────────────────────────────
             '0', 'SECTION', '2', 'HEADER',
@@ -259,6 +364,10 @@ class ProjectController extends Controller
             '9', '$PDMODE', '70', '3',
             '9', '$PDSIZE', '40', '4.0',
             '9', '$LTSCALE', '40', '1.0',
+            '9', '$EXTMIN', '10', $extMinX, '20', $extMinY,
+            '9', '$EXTMAX', '10', $extMaxX, '20', $extMaxY,
+            '9', '$LIMMIN', '10', $extMinX, '20', $extMinY,
+            '9', '$LIMMAX', '10', $extMaxX, '20', $extMaxY,
             '0', 'ENDSEC',
 
             // ── TABLES ────────────────────────────────────────────────────────────
@@ -270,8 +379,8 @@ class ProjectController extends Controller
             '0', 'LTYPE', '2', 'DASHED',     '70', '64', '3', '_ _ _ _ _ _', '72', '65', '73', '2', '40', '3.0', '49', '2.0', '49', '-1.0',
             '0', 'ENDTAB',
 
-            // Layeri
-            '0', 'TABLE', '2', 'LAYER', '70', '11',
+            // Layeri (11 FTTH + dinamički background)
+            '0', 'TABLE', '2', 'LAYER', '70', (string) (11 + count($bgLayerNames)),
             '0', 'LAYER', '2', '0',              '70', '64', '62',  '7', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_PRIMARY',   '70', '64', '62',  '5', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_SECONDARY', '70', '64', '62',  '3', '6', 'CONTINUOUS',
@@ -283,20 +392,21 @@ class ProjectController extends Controller
             '0', 'LAYER', '2', 'FTTH_MANHOLES',  '70', '64', '62',  '8', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_CABINETS',  '70', '64', '62',  '6', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_HOUSES',    '70', '64', '62',  '4', '6', 'CONTINUOUS',
+        ];
+        // Dodaj background layer definicije
+        array_push($lines, ...$bgLayerDefs);
+        array_push($lines,
             '0', 'ENDTAB',
-
             // Text stil — romans.shx, varijabilna visina (40=0), širina 0.8
             '0', 'TABLE', '2', 'STYLE', '70', '1',
             '0', 'STYLE', '2', 'FTTH',
             '70', '0', '40', '0.0', '41', '0.8', '50', '0.0', '71', '0', '42', '3.0',
             '3', 'romans.shx', '4', '',
             '0', 'ENDTAB',
-
             '0', 'ENDSEC',
-
             // ── ENTITIES ──────────────────────────────────────────────────────────
-            '0', 'SECTION', '2', 'ENTITIES',
-        ];
+            '0', 'SECTION', '2', 'ENTITIES'
+        );
 
         // ── PASS 1: Podbušivanja ──────────────────────────────────────────────────
         // Crtamo ih PRIJE trasa da njihove labele blokiraju pozicije rutama.
@@ -562,12 +672,62 @@ class ProjectController extends Controller
             array_push($lines, ...$this->dxfText($cx + 3.0, $cy, 'Saht', 'FTTH_MANHOLES', 8, 2.0));
         }
 
-        array_push($lines, '0', 'ENDSEC', '0', 'EOF');
+        // ── Streaming u temp fajl — izbjegava $lines + implode peak memorije ────
+        $tmpPath = tempnam(sys_get_temp_dir(), 'ftth_dxf_');
+        $fh      = fopen($tmpPath, 'wb');
 
-        return response(implode("\r\n", $lines)."\r\n", 200, [
+        // Diagnostic: logiraj GK koordinate da provjerimo alignment
+        if ($hasBbox) {
+            \Log::info('DXF Export FTTH bbox (GK Zone '.$zone.')', [
+                'minX' => round($bboxMinX), 'maxX' => round($bboxMaxX),
+                'minY' => round($bboxMinY), 'maxY' => round($bboxMaxY),
+            ]);
+        }
+        if (!empty($bgEntityFiles)) {
+            // Logiraj prvu background koordinatu iz cache-a
+            foreach ($request->input('background_layers', []) as $bg) {
+                $ck = preg_replace('/[^a-f0-9\-]/i', '', (string)($bg['cache_key'] ?? ''));
+                $sp = 'dxf_layers/'.$ck.'.json';
+                if (Storage::exists($sp)) {
+                    $sample = json_decode(Storage::get($sp), true);
+                    $firstF = $sample[0] ?? null;
+                    if ($firstF) {
+                        $fc = ($firstF['geometry']['coordinates'][0] ?? $firstF['geometry']['coordinates']) ?? null;
+                        if ($fc && isset($fc[0])) {
+                            [$bgX, $bgY] = $this->rawCoordToGk((float)$fc[0], (float)$fc[1], $zone);
+                            \Log::info('DXF Export BG first point (GK Zone '.$zone.')', [
+                                'raw' => [$fc[0], $fc[1]],
+                                'gk'  => [round($bgX), round($bgY)],
+                            ]);
+                        }
+                    }
+                    unset($sample);
+                    break;
+                }
+            }
+        }
+
+        // Piši FTTH dio (mali array, OK u memoriji)
+        fwrite($fh, implode("\r\n", $lines) . "\r\n");
+        unset($lines);
+
+        // Append background entity temp fajlova (svaki je iscrtan u single-pass gore)
+        foreach ($bgEntityFiles as $entTmp) {
+            $src = fopen($entTmp, 'rb');
+            if ($src) {
+                stream_copy_to_stream($src, $fh);
+                fclose($src);
+            }
+            @unlink($entTmp);
+        }
+
+        fwrite($fh, "0\r\nENDSEC\r\n0\r\nEOF\r\n");
+        fclose($fh);
+
+        $filename = $project->code . '-ftth.dxf';
+        return response()->download($tmpPath, $filename, [
             'Content-Type' => 'application/dxf',
-            'Content-Disposition' => 'attachment; filename="'.$project->code.'-ftth.dxf"',
-        ]);
+        ])->deleteFileAfterSend(true);
     }
 
     public function exportFiberSchema(Project $project)
@@ -885,9 +1045,14 @@ class ProjectController extends Controller
     {
         $lines = ['0', 'POLYLINE', '8', $layer, '62', (string) $color, '66', '1', '70', '0'];
         foreach ($gkPath as [$x, $y]) {
-            $lines = array_merge($lines, ['0', 'VERTEX', '8', $layer, '10', (string) $x, '20', (string) $y, '30', '0']);
+            $lines[] = '0';  $lines[] = 'VERTEX';
+            $lines[] = '8';  $lines[] = $layer;
+            $lines[] = '10'; $lines[] = (string) $x;
+            $lines[] = '20'; $lines[] = (string) $y;
+            $lines[] = '30'; $lines[] = '0';
         }
-        return array_merge($lines, ['0', 'SEQEND']);
+        $lines[] = '0'; $lines[] = 'SEQEND';
+        return $lines;
     }
 
     private function interpolateGkPoints(array $gkPath, int $n): array
@@ -1132,6 +1297,23 @@ class ProjectController extends Controller
             '40', (string) $height,
             '1', $this->dxfSafeText($text),
         ];
+    }
+
+    // Koordinate iz importovanog DXF-a → standardni GK [easting, northing].
+    // Tri slučaja:
+    //  1) x (group 10) > 5M: standardni GK, x=easting — vrati direktno
+    //  2) y (group 20) > 5M: stari jugoslovenski/bosanski DXF kadastar gdje je
+    //     group 10 = northing (~4.9M) a group 20 = easting (~6.5M) — zamijeni
+    //  3) ostalo: WGS84 (lon, lat) — konvertuj
+    private function rawCoordToGk(float $x, float $y, int $zone): array
+    {
+        if ($x > 5_000_000 && $x < 9_000_000) {
+            return [$x, $y]; // standardni GK: x=easting, y=northing
+        }
+        if ($y > 5_000_000 && $y < 9_000_000) {
+            return [$y, $x]; // stari YU kadastar: x=northing, y=easting — swap
+        }
+        return $this->wgs84ToGaussKruger($y, $x, $zone); // WGS84: (lon, lat)
     }
 
     private function wgs84ToGaussKruger(float $lat, float $lng, int $zone = 6): array

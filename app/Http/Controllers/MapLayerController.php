@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class MapLayerController extends Controller
 {
@@ -23,8 +25,18 @@ class MapLayerController extends Controller
                 return $this->handleDwg($path, $name);
             }
 
+            $geojson = $this->dxfToGeoJson($path, $name);
+
+            // Sačuvaj features na disk — export ih čita po ključu bez resendinga
+            $cacheKey = (string) Str::uuid();
+            Storage::put(
+                'dxf_layers/' . $cacheKey . '.json',
+                json_encode($geojson['features'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+            );
+            $geojson['_cache_key'] = $cacheKey;
+
             return response()->json(
-                $this->dxfToGeoJson($path, $name),
+                $geojson,
                 200, [],
                 JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
             );
@@ -88,13 +100,14 @@ class MapLayerController extends Controller
                 continue;
             }
 
-            $entityType = $value;
-            $layer      = '0';
-            $color      = null;
-            $pts        = [];
-            $pt         = [];
-            $closed     = false;
-            $extra      = []; // radius, angles, text content
+            $entityType      = $value;
+            $layer           = '0';
+            $color           = null;
+            $pts             = [];
+            $pt              = [];
+            $closed          = false;
+            $extra           = [];
+            $polylineInVerts = false; // POLYLINE header ima dummy 10/20 — ignorišuj dok ne počnu VERTEX
 
             $flush = function () use (&$pts, &$pt): void {
                 if (isset($pt['x'], $pt['y'])) {
@@ -108,7 +121,12 @@ class MapLayerController extends Controller
 
                 if ($ec === '0') {
                     if ($ev === 'VERTEX' && $entityType === 'POLYLINE') {
-                        $flush();
+                        if ($polylineInVerts) {
+                            $flush(); // flush prethodnog VERTEX-a
+                        } else {
+                            $pt = []; // odbaci dummy header koordinate
+                            $polylineInVerts = true;
+                        }
                         continue;
                     }
                     if ($ev === 'SEQEND') {
@@ -128,15 +146,12 @@ class MapLayerController extends Controller
                         $color = (int) $ev;
                         break;
                     case '1':
-                        // TEXT / MTEXT string
                         $extra['text'] = isset($extra['text']) ? $extra['text'] . $ev : $ev;
                         break;
                     case '3':
-                        // MTEXT additional text (continues from group 1)
                         $extra['text'] = ($extra['text'] ?? '') . $ev;
                         break;
                     case '40':
-                        // Radius for ARC/CIRCLE, text height for TEXT
                         $extra['radius'] = (float) $ev;
                         break;
                     case '50':
@@ -149,12 +164,15 @@ class MapLayerController extends Controller
                         $closed = ($entityType === 'LWPOLYLINE') && ((int) $ev & 1) === 1;
                         break;
                     case '10':
-                        if (isset($pt['x']) && !in_array($entityType, ['ARC', 'CIRCLE', 'TEXT', 'MTEXT'], true)) {
+                        // Za POLYLINE: skupljaj koordinate samo unutar VERTEX (ne iz headera)
+                        if ($entityType === 'POLYLINE' && !$polylineInVerts) break;
+                        if (isset($pt['x']) && !in_array($entityType, ['TEXT', 'MTEXT'], true)) {
                             $flush();
                         }
                         $pt['x'] = (float) $ev;
                         break;
                     case '20':
+                        if ($entityType === 'POLYLINE' && !$polylineInVerts) break;
                         $pt['y'] = (float) $ev;
                         break;
                     case '11':

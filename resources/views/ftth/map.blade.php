@@ -259,9 +259,10 @@
         color: #fff;
         text-shadow: none;
     }
-    #network-map { min-height: 620px; }
+    #map-container { min-height: 620px; }
+    #network-map { width: 100%; height: 100%; }
     @media (min-width: 1280px) {
-        #network-map { min-height: 0; }
+        #map-container { min-height: 0; }
     }
     /* --- Dark CAD mode --- */
     #map-workspace.cad-dark .route-label span {
@@ -324,6 +325,7 @@
         <!-- CAD Toolbar -->
         <div class="map-toolbar">
             <button type="button" id="mode-pan" class="tc tc-white">⊕ Pan</button>
+            <button type="button" id="mode-select" class="tc tc-white tool-btn" title="Selektuj i briši više elemenata (drag pravougaonik)">⬚ Selekt</button>
             <div class="tc-sep"></div>
             <button type="button" id="mode-odf" class="tc tc-cyan">ODF</button>
             <button type="button" id="mode-cabinet" class="tc tc-emerald">FTTH</button>
@@ -370,7 +372,15 @@
         </div>
         <p class="shrink-0 border-b border-slate-800 bg-slate-900 px-4 py-1 text-[10px] text-slate-500">Desni klik: obriši / premjesti · ESC prekid · ENTER završi · CTRL+Z undo · O ortho</p>
 
-        <div id="network-map" class="min-h-0 flex-1 w-full"></div>
+        <div id="map-container" class="min-h-0 flex-1 w-full relative">
+            <div id="network-map" class="w-full h-full"></div>
+            <div id="select-rubber-band" style="display:none;position:absolute;border:2px solid #3b82f6;background:rgba(59,130,246,0.08);pointer-events:none;z-index:2000;box-sizing:border-box;"></div>
+            <div id="select-actions" style="display:none;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:2001;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;padding:6px 12px;align-items:center;gap:10px;font-size:12px;color:#e2e8f0;white-space:nowrap;">
+                <span id="select-count">0 selektovano</span>
+                <button id="select-delete-btn" class="tc tc-danger" style="padding:2px 10px;font-size:11px;">Obriši selektovano</button>
+                <button id="select-cancel-btn" class="tc tc-ghost" style="padding:2px 8px;font-size:11px;">✕</button>
+            </div>
+        </div>
         <div class="cad-status grid gap-2 px-3 py-2 md:grid-cols-[1fr_auto_auto_auto]">
             <div id="cad-command">Command: PAN</div>
             <div id="cad-metrics" class="cad-chip rounded px-2 py-1">Points: 0 | Distance: 0m | Snap: - | ORTHO: OFF</div>
@@ -722,6 +732,8 @@ let previewBranchLine = null;
 let snapIndicator = null;
 let routeEdit = null;
 let selectedAttributeRoute = null;
+const selectionRegistry = []; // { triggerLayer, allLayers, url, title, origStyle }
+let currentSelection = [];    // trenutno selektovani elementi
 let connectOdf = null;
 let connectCabinet = null;
 let connectHouseIds = new Set();
@@ -1103,6 +1115,7 @@ function setMode(next) {
     if (button) button.classList.add('ring-2', 'ring-zinc-900');
     const labels = {
         pan: 'PAN: pomjeraj mapu. Izaberi alat za crtanje.',
+        select: 'SELEKT: drag da označiš više elemenata, zatim ih obriši.',
         odf: 'ODF: klikni lokaciju centrale/cvora. Novi ODF postaje aktivan.',
         cabinet: 'FTTH: klikni lokacije zelenih ormarića. Vezuju se na aktivni ODF.',
         house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
@@ -1116,10 +1129,35 @@ function setMode(next) {
         trace: 'TRACE: klikni kuću za prikaz optičkog puta',
         join: 'JOIN: označi trase klikom, zatim pritisni ENTER',
     };
-    document.getElementById('cad-command').textContent = labels[next];
+    document.getElementById('cad-command').textContent = labels[next] ?? next.toUpperCase();
     updateCommandBar();
+    // Select mode: zaustavi map drag da rubber-band može normalno raditi
+    if (next === 'select') {
+        map.dragging.disable();
+        document.getElementById('network-map').style.cursor = 'crosshair';
+    } else {
+        map.dragging.enable();
+        document.getElementById('network-map').style.cursor = '';
+        // Ako izlazimo iz select moda, poništi selekciju
+        if (currentSelection.length) {
+            currentSelection.forEach(e => {
+                if (e.isDxf) {
+                    e._geomLayer?.setHighlight(false);
+                } else {
+                    e.allLayers.forEach(l => {
+                        if (!l || !map.hasLayer(l)) return;
+                        if (typeof l.setStyle === 'function' && e._origStyle) l.setStyle(e._origStyle);
+                        else if (l.getElement) { const el = l.getElement(); if (el) el.style.filter = ''; }
+                    });
+                    e._origStyle = null;
+                }
+            });
+            currentSelection = [];
+            document.getElementById('select-actions').style.display = 'none';
+        }
+    }
 }
-['pan','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
+['pan','select','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
     setMode(m);
     if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
         document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
@@ -2220,6 +2258,8 @@ async function saveSavedPosition(marker, url) {
 }
 function registerSavedContext(layer, title, url, positionUrl = null, clickAction = null, customActions = []) {
     const triggerLayer = Array.isArray(layer) ? layer[0] : layer;
+    const allLayers = Array.isArray(layer) ? layer : [layer];
+    selectionRegistry.push({ triggerLayer, allLayers, url, title });
     let savedPosition = triggerLayer.getLatLng?.();
     if (positionUrl) {
         triggerLayer.on('dragend', async () => {
@@ -2262,6 +2302,212 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
         }
     });
 }
+// ─── BOX SELECT ──────────────────────────────────────────────────────────────
+
+(function initBoxSelect() {
+    const rb      = document.getElementById('select-rubber-band');
+    const actPanel = document.getElementById('select-actions');
+    const countEl  = document.getElementById('select-count');
+    const delBtn   = document.getElementById('select-delete-btn');
+    const cancelBtn = document.getElementById('select-cancel-btn');
+    const mapCont  = document.getElementById('map-container');
+
+    let dragStart = null; // { x, y } in container coords
+    let dragging  = false;
+
+    function containerOffset(e) {
+        const rect = mapCont.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    function showRubberBand(a, b) {
+        const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+        const w = Math.abs(a.x - b.x),  h = Math.abs(a.y - b.y);
+        rb.style.left   = x + 'px';
+        rb.style.top    = y + 'px';
+        rb.style.width  = w + 'px';
+        rb.style.height = h + 'px';
+        rb.style.display = 'block';
+    }
+
+    function hideRubberBand() {
+        rb.style.display = 'none';
+    }
+
+    function showActionsPanel() {
+        actPanel.style.display = 'flex';
+    }
+    function hideActionsPanel() {
+        actPanel.style.display = 'none';
+    }
+
+    function applyHighlight(entry, on) {
+        entry.allLayers.forEach(l => {
+            if (!l || !map.hasLayer(l)) return;
+            if (typeof l.setStyle === 'function') {
+                if (on) {
+                    entry._origStyle = entry._origStyle || { color: l.options.color, weight: l.options.weight, opacity: l.options.opacity };
+                    l.setStyle({ color: '#3b82f6', weight: (l.options.weight || 3) + 2, opacity: 1 });
+                } else if (entry._origStyle) {
+                    l.setStyle(entry._origStyle);
+                    entry._origStyle = null;
+                }
+            } else if (l.getElement) {
+                // marker
+                const el = l.getElement();
+                if (el) el.style.filter = on ? 'drop-shadow(0 0 6px #3b82f6) brightness(1.3)' : '';
+            }
+        });
+    }
+
+    function clearSelection() {
+        currentSelection.forEach(e => {
+            if (e.isDxf) {
+                e._geomLayer?.setHighlight(false);
+            } else {
+                applyHighlight(e, false);
+            }
+        });
+        currentSelection = [];
+        hideActionsPanel();
+        countEl.textContent = '0 selektovano';
+    }
+
+    function doBoxSelect(a, b) {
+        const p1 = map.containerPointToLatLng(L.point(a.x, a.y));
+        const p2 = map.containerPointToLatLng(L.point(b.x, b.y));
+        const bounds = L.latLngBounds(p1, p2);
+
+        clearSelection();
+
+        // 1. Standardni Leaflet elementi (rute, ODF, ormarić, kuća...)
+        selectionRegistry.forEach(entry => {
+            if (!map.hasLayer(entry.triggerLayer)) return;
+            if (layerLocked(entry.triggerLayer._ftthLayerType)) return;
+            let hit = false;
+            const lll = entry.triggerLayer.getLatLng?.();
+            if (lll) {
+                hit = bounds.contains(lll);
+            } else {
+                const lls = entry.triggerLayer.getLatLngs?.();
+                if (lls) {
+                    const flat = lls.flat ? lls.flat(2) : lls;
+                    hit = flat.some(ll => bounds.contains(ll));
+                }
+            }
+            if (hit) {
+                currentSelection.push(entry);
+                applyHighlight(entry, true);
+            }
+        });
+
+        // 2. DXF background layeri — intersect (jer pokrivaju veliku površinu)
+        const dxfItems = window.ftthDxfLayer?.getSelectableItems() ?? [];
+        dxfItems.forEach(item => {
+            if (!item.bounds || !bounds.intersects(item.bounds)) return;
+            const entry = {
+                isDxf: true,
+                dxfId: item.dxfId,
+                title: item.name,
+                allLayers: [item.geomLayer, item.textLayer].filter(Boolean),
+                _geomLayer: item.geomLayer,
+            };
+            currentSelection.push(entry);
+            item.geomLayer.setHighlight(true);
+        });
+
+        if (currentSelection.length > 0) {
+            countEl.textContent = currentSelection.length + ' selektovano';
+            showActionsPanel();
+            document.getElementById('cad-command').textContent =
+                `SELEKT: ${currentSelection.length} element(a) selektovano. Klikni "Obriši selektovano" ili ESC.`;
+        } else {
+            document.getElementById('cad-command').textContent = 'SELEKT: drag da označiš elemente.';
+        }
+    }
+
+    // Mouse events on map container
+    mapCont.addEventListener('mousedown', e => {
+        if (mode !== 'select') return;
+        if (e.button !== 0) return;
+        dragStart = containerOffset(e);
+        dragging = false;
+        e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', e => {
+        if (mode !== 'select' || !dragStart) return;
+        const cur = containerOffset(e);
+        const dx = Math.abs(cur.x - dragStart.x), dy = Math.abs(cur.y - dragStart.y);
+        if (dx > 4 || dy > 4) {
+            dragging = true;
+            showRubberBand(dragStart, cur);
+        }
+    });
+
+    window.addEventListener('mouseup', e => {
+        if (mode !== 'select' || !dragStart) return;
+        const cur = containerOffset(e);
+        hideRubberBand();
+        if (dragging) {
+            doBoxSelect(dragStart, cur);
+        }
+        dragStart = null;
+        dragging  = false;
+    });
+
+    // Delete selected
+    delBtn.addEventListener('click', async () => {
+        if (!currentSelection.length) return;
+        if (!confirm(`Obrisati ${currentSelection.length} element(a)?`)) return;
+
+        const toDelete = [...currentSelection];
+        clearSelection();
+        setMode('pan');
+
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        let ok = 0, fail = 0;
+        for (const entry of toDelete) {
+            try {
+                if (entry.isDxf) {
+                    // DXF layer — lokalno brisanje iz IndexedDB, nema server zahtjeva
+                    window.ftthDxfLayer?.removeLayerById(entry.dxfId);
+                    ok++;
+                } else {
+                    const res = await fetch(entry.url, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    if (res.ok) {
+                        entry.allLayers.forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+                        ok++;
+                    } else {
+                        fail++;
+                    }
+                }
+            } catch {
+                fail++;
+            }
+        }
+        document.getElementById('cad-command').textContent =
+            `Obrisano: ${ok}${fail ? ', greška: ' + fail : ''}.`;
+    });
+
+    // Cancel
+    cancelBtn.addEventListener('click', () => {
+        clearSelection();
+        document.getElementById('cad-command').textContent = 'SELEKT: drag da označiš elemente.';
+    });
+
+    // ESC cancels selection
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && mode === 'select' && currentSelection.length) {
+            clearSelection();
+            document.getElementById('cad-command').textContent = 'SELEKT: drag da označiš elemente.';
+        }
+    });
+})();
+
 function routeLayerType(type) {
     return ['trench', 'backbone', 'drop'].includes(type) ? type : 'distribution';
 }
@@ -4101,7 +4347,7 @@ function updateProjectExportLink(projectId = document.getElementById('active-pro
     if (!projectId) {
         links.forEach(([id]) => {
             const link = document.getElementById(id);
-            if (link) link.href = '#';
+            if (link) { link.href = '#'; link.removeAttribute('data-dxf-url'); }
         });
         if (exportActions) exportActions.style.display = 'none';
         return;
@@ -4109,10 +4355,71 @@ function updateProjectExportLink(projectId = document.getElementById('active-pro
     links.forEach(([id, baseUrl]) => {
         const link = document.getElementById(id);
         if (!link) return;
-        link.href = baseUrl.replace('__ID__', projectId);
+        const url = baseUrl.replace('__ID__', projectId);
+        link.href = url;
+        if (id === 'export-dxf') link.setAttribute('data-dxf-url', url);
     });
     if (exportActions) exportActions.style.display = 'grid';
 }
+
+// DXF export — POST s background layerima iz IndexedDB
+document.getElementById('export-dxf')?.addEventListener('click', async function (e) {
+    const dxfUrl = this.getAttribute('data-dxf-url');
+    if (!dxfUrl) return; // nema projekta, pusti default navigaciju
+    e.preventDefault();
+
+    const orig = this.textContent;
+    this.textContent = 'Pripremam…';
+    this.style.pointerEvents = 'none';
+
+    try {
+        const bgLayers = window.ftthDxfLayer
+            ? await window.ftthDxfLayer.getLayersForExport()
+            : [];
+
+        // Prikaži koliko bg layera ide u export (debug vidljivo korisniku)
+        const cmd = document.getElementById('cad-command');
+        if (cmd && bgLayers.length > 0) {
+            cmd.textContent = `Export: ${bgLayers.length} DXF podlog(a) uključeno...`;
+        }
+
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        const res  = await fetch(dxfUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/octet-stream,application/dxf,*/*',
+            },
+            body: JSON.stringify({ background_layers: bgLayers }),
+        });
+
+        if (!res.ok) {
+            let msg = 'HTTP ' + res.status;
+            try {
+                const errJson = await res.json();
+                if (errJson.error) msg = errJson.error;
+            } catch {}
+            throw new Error(msg);
+        }
+
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        const cd   = res.headers.get('Content-Disposition') ?? '';
+        a.download = cd.match(/filename[^;=\n]*=["']?([^"'\n]+)/i)?.[1] ?? 'export.dxf';
+        a.href = url;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        alert('Greška pri DXF exportu: ' + err.message);
+    } finally {
+        this.textContent = orig;
+        this.style.pointerEvents = '';
+    }
+});
 
 document.getElementById('active-project-id').addEventListener('change', (e) => {
     const projectId = e.target.value;

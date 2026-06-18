@@ -91,7 +91,8 @@
 
                             {{-- Export dugmad --}}
                             <a href="{{ route('projects.dxf', $project->id) }}"
-                               class="tbl-btn"
+                               data-dxf-export="{{ route('projects.dxf', $project->id) }}"
+                               class="tbl-btn dxf-export-btn"
                                style="background:#fef3c7;color:#92400e;border-color:#fde68a"
                                title="Preuzmi DXF (Gauss-Krüger)">
                                 <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
@@ -171,5 +172,106 @@
     </div>
 </div>
 @if($errors->any())<script>document.getElementById('drawer-projects')?.classList.add('open');</script>@endif
+
+<script>
+// DXF export s background layerima iz IndexedDB
+(function () {
+    const DB = 'ftth_dxf_v1', ST = 'layers', VER = 1;
+    let _db = null;
+
+    function openDb() {
+        if (_db) return Promise.resolve(_db);
+        return new Promise((res, rej) => {
+            const r = indexedDB.open(DB, VER);
+            r.onupgradeneeded = e => {
+                if (!e.target.result.objectStoreNames.contains(ST))
+                    e.target.result.createObjectStore(ST, { keyPath: 'dbId' });
+            };
+            r.onsuccess = e => { _db = e.target.result; res(_db); };
+            r.onerror   = e => rej(e.target.error);
+        });
+    }
+
+    async function getExportLayers() {
+        try {
+            const db   = await openDb();
+            const all  = await new Promise((res, rej) => {
+                const tx = db.transaction(ST, 'readonly');
+                const rq = tx.objectStore(ST).getAll();
+                rq.onsuccess = e => res(e.target.result || []);
+                rq.onerror   = e => rej(e.target.error);
+            });
+            const result = [];
+            let missingKey = 0;
+            for (const s of all) {
+                const ck = s.cacheKey || s.geojson?._cache_key || null;
+                if (ck) result.push({ cache_key: ck, color: s.color });
+                else if (s.geojson?.features?.length) missingKey++;
+            }
+            if (missingKey > 0) {
+                alert(`${missingKey} DXF podloga nema cache ključ — mora se ponovo importovati.\nOtvori mapu → DXF panel → "Ukloni sve" → ponovo importuj fajl.`);
+            }
+            if (result.length === 0 && missingKey === 0) {
+                alert('Nema sačuvanih DXF podloga u browseru.\nAko si importovao DXF podlogu, otvori mapu i exportuj odande, ili ponovo importuj DXF.');
+            }
+            return result;
+        } catch { return []; }
+    }
+
+    document.addEventListener('click', async function (e) {
+        const btn = e.target.closest('.dxf-export-btn');
+        if (!btn) return;
+        e.preventDefault();
+
+        const url  = btn.getAttribute('data-dxf-export');
+        if (!url) return;
+
+        const orig = btn.innerHTML;
+        btn.textContent = 'Pripremam…';
+        btn.style.pointerEvents = 'none';
+
+        try {
+            const bgLayers = await getExportLayers();
+            // Ako je korisnik odbio alert u getExportLayers ili nema layera, ipak nastavi
+            btn.textContent = bgLayers.length > 0
+                ? `Export (${bgLayers.length} DXF)…`
+                : 'Export (bez podloge)…';
+
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/octet-stream,application/dxf,*/*',
+                },
+                body: JSON.stringify({ background_layers: bgLayers }),
+            });
+
+            if (!res.ok) {
+                let msg = 'HTTP ' + res.status;
+                try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+                throw new Error(msg);
+            }
+
+            const blob = await res.blob();
+            const a    = document.createElement('a');
+            const cd   = res.headers.get('Content-Disposition') ?? '';
+            a.download = cd.match(/filename[^;=\n]*=["']?([^"'\n]+)/i)?.[1] ?? 'export.dxf';
+            a.href = URL.createObjectURL(blob);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        } catch (err) {
+            alert('Greška pri DXF exportu: ' + err.message);
+        } finally {
+            btn.innerHTML = orig;
+            btn.style.pointerEvents = '';
+        }
+    });
+})();
+</script>
 
 @endsection

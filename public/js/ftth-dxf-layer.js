@@ -66,7 +66,6 @@
         return false;
     }
 
-    // Rasjeca polyline na dugim segmentima i vraca samo validne dijelove
     function splitOnLongSegments(ll) {
         const result = [];
         let current = [ll[0]];
@@ -84,8 +83,242 @@
         return result;
     }
 
+    /* ─── IndexedDB persistencija ───────────────────────────────── */
+    // Čuva GeoJSON podatke trajno u browseru — preživi reload stranice.
+
+    const DxfStore = (function () {
+        let _db   = null;
+        const DB  = 'ftth_dxf_v1';
+        const VER = 1;
+        const ST  = 'layers';
+
+        function open() {
+            if (_db) return Promise.resolve(_db);
+            return new Promise((res, rej) => {
+                const r = indexedDB.open(DB, VER);
+                r.onupgradeneeded = e => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(ST)) {
+                        db.createObjectStore(ST, { keyPath: 'dbId' });
+                    }
+                };
+                r.onsuccess = e => { _db = e.target.result; res(_db); };
+                r.onerror   = e => rej(e.target.error);
+            });
+        }
+
+        return {
+            async save(dbId, geojson, color) {
+                const db = await open();
+                return new Promise((res, rej) => {
+                    const tx = db.transaction(ST, 'readwrite');
+                    // cacheKey kao zasebno polje — lakše čitanje bez prolaska kroz cijeli geojson
+                    const cacheKey = geojson._cache_key || null;
+                    tx.objectStore(ST).put({ dbId, geojson, color, cacheKey, savedAt: Date.now() });
+                    tx.oncomplete = res;
+                    tx.onerror    = e => rej(e.target.error);
+                });
+            },
+            async loadAll() {
+                const db = await open();
+                return new Promise((res, rej) => {
+                    const tx = db.transaction(ST, 'readonly');
+                    const rq = tx.objectStore(ST).getAll();
+                    rq.onsuccess = e => res(e.target.result || []);
+                    rq.onerror   = e => rej(e.target.error);
+                });
+            },
+            async remove(dbId) {
+                const db = await open();
+                return new Promise((res, rej) => {
+                    const tx = db.transaction(ST, 'readwrite');
+                    tx.objectStore(ST).delete(dbId);
+                    tx.oncomplete = res;
+                    tx.onerror    = e => rej(e.target.error);
+                });
+            },
+            async clear() {
+                const db = await open();
+                return new Promise((res, rej) => {
+                    const tx = db.transaction(ST, 'readwrite');
+                    tx.objectStore(ST).clear();
+                    tx.oncomplete = res;
+                    tx.onerror    = e => rej(e.target.error);
+                });
+            },
+        };
+    })();
+
+    // Brzo izračunaj bounding box iz niza LatLng-ova
+    function latLngsBbox(lls) {
+        let minLat = lls[0].lat, maxLat = lls[0].lat;
+        let minLng = lls[0].lng, maxLng = lls[0].lng;
+        for (let i = 1; i < lls.length; i++) {
+            const { lat, lng } = lls[i];
+            if (lat < minLat) minLat = lat; else if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) minLng = lng; else if (lng > maxLng) maxLng = lng;
+        }
+        return { minLat, maxLat, minLng, maxLng };
+    }
+
+    /* ─── Canvas geometry layer ──────────────────────────────────── */
+    // Sve linije i poligoni crtaju se na jednom <canvas> — nula Leaflet layer objekata.
+    // Ovo je kljucna razlika od L.polyline pristupa koji kreira zasebni JS objekat po featuri.
+
+    const DxfGeomLayer = L.Layer.extend({
+        initialize(color) {
+            this._lines     = []; // { lls: LatLng[], bbox: {minLat,maxLat,minLng,maxLng}, isFill }
+            this._color     = color || '#d946ef';
+            this._hasFill   = false;
+            this._raf       = null;
+            this._boundsArr = null;
+        },
+
+        setColor(color) {
+            this._color = color;
+            this._schedule();
+        },
+
+        setVisible(v) {
+            if (this._canvas) this._canvas.style.display = v ? '' : 'none';
+            if (v) this._schedule();
+        },
+
+        setHighlight(on) {
+            this._highlighted = on;
+            if (this._canvas) {
+                this._canvas.style.outline = on ? '3px solid #3b82f6' : '';
+                this._canvas.style.filter  = on ? 'brightness(1.4) saturate(1.6)' : '';
+            }
+        },
+
+        // Vraca L.LatLngBounds za zoomTo
+        getBounds() {
+            if (!this._boundsArr) return null;
+            const [s, w, n, e] = this._boundsArr;
+            return L.latLngBounds([[s, w], [n, e]]);
+        },
+
+        // Dodaj batch linija i odmah nacrtaj progres
+        addLines(batch) {
+            for (const item of batch) {
+                this._lines.push(item);
+                if (item.isFill) this._hasFill = true;
+                const b = item.bbox;
+                if (!this._boundsArr) {
+                    this._boundsArr = [b.minLat, b.minLng, b.maxLat, b.maxLng];
+                } else {
+                    if (b.minLat < this._boundsArr[0]) this._boundsArr[0] = b.minLat;
+                    if (b.minLng < this._boundsArr[1]) this._boundsArr[1] = b.minLng;
+                    if (b.maxLat > this._boundsArr[2]) this._boundsArr[2] = b.maxLat;
+                    if (b.maxLng > this._boundsArr[3]) this._boundsArr[3] = b.maxLng;
+                }
+            }
+            this._schedule();
+        },
+
+        onAdd(map) {
+            this._map = map;
+            const c = this._canvas = document.createElement('canvas');
+            c.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:400';
+            map.getContainer().appendChild(c);
+            map.on('zoomanim',          this._onZoomAnim, this);
+            map.on('zoomend viewreset', this._draw,       this);
+            map.on('move',              this._schedule,   this);
+            map.on('resize',            this._onResize,   this);
+            this._onResize();
+        },
+
+        onRemove(map) {
+            if (this._canvas) { this._canvas.remove(); this._canvas = null; }
+            if (this._raf)    { cancelAnimationFrame(this._raf); this._raf = null; }
+            map.off('zoomanim',          this._onZoomAnim, this);
+            map.off('zoomend viewreset', this._draw,       this);
+            map.off('move',              this._schedule,   this);
+            map.off('resize',            this._onResize,   this);
+        },
+
+        _onResize() {
+            const s = this._map.getSize();
+            this._canvas.width  = s.x;
+            this._canvas.height = s.y;
+            this._draw();
+        },
+
+        _onZoomAnim(e) {
+            if (!this._canvas || !this._map) return;
+            const scale  = this._map.getZoomScale(e.zoom);
+            const offset = this._map._getCenterOffset(e.center)
+                               ._multiplyBy(-scale)
+                               .subtract(this._map._getMapPanePos());
+            L.DomUtil.setTransform(this._canvas, offset, scale);
+        },
+
+        _schedule() {
+            if (this._raf) return;
+            this._raf = requestAnimationFrame(() => { this._raf = null; this._draw(); });
+        },
+
+        _draw() {
+            if (!this._canvas || !this._map || !this._lines.length) return;
+            L.DomUtil.setTransform(this._canvas, new L.Point(0, 0), 1);
+
+            const map    = this._map;
+            const canvas = this._canvas;
+            const ctx    = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const vb = map.getBounds().pad(0.15);
+            const vS = vb.getSouth(), vN = vb.getNorth();
+            const vW = vb.getWest(),  vE = vb.getEast();
+            const lngPerPx = (vE - vW) / canvas.width;
+            const latPerPx = (vN - vS) / canvas.height;
+
+            ctx.strokeStyle = this._color;
+            ctx.lineWidth   = 1.5;
+            ctx.globalAlpha = 0.85;
+            ctx.lineJoin    = 'round';
+            ctx.beginPath();
+
+            for (const { lls, bbox, isFill } of this._lines) {
+                if (isFill) continue;
+                if (bbox.maxLat < vS || bbox.minLat > vN ||
+                    bbox.maxLng < vW || bbox.minLng > vE) continue;
+                if ((bbox.maxLng - bbox.minLng) / lngPerPx < 1.0 &&
+                    (bbox.maxLat - bbox.minLat) / latPerPx < 1.0) continue;
+                const p0 = map.latLngToContainerPoint(lls[0]);
+                ctx.moveTo(p0.x, p0.y);
+                for (let i = 1; i < lls.length; i++) {
+                    const p = map.latLngToContainerPoint(lls[i]);
+                    ctx.lineTo(p.x, p.y);
+                }
+            }
+            ctx.stroke();
+
+            if (this._hasFill) {
+                ctx.fillStyle   = this._color;
+                ctx.globalAlpha = 0.06;
+                ctx.beginPath();
+                for (const { lls, bbox, isFill } of this._lines) {
+                    if (!isFill) continue;
+                    if (bbox.maxLat < vS || bbox.minLat > vN ||
+                        bbox.maxLng < vW || bbox.minLng > vE) continue;
+                    if ((bbox.maxLng - bbox.minLng) / lngPerPx < 1.0 &&
+                        (bbox.maxLat - bbox.minLat) / latPerPx < 1.0) continue;
+                    const p0 = map.latLngToContainerPoint(lls[0]);
+                    ctx.moveTo(p0.x, p0.y);
+                    for (let i = 1; i < lls.length; i++) {
+                        const p = map.latLngToContainerPoint(lls[i]);
+                        ctx.lineTo(p.x, p.y);
+                    }
+                    ctx.closePath();
+                }
+                ctx.fill('evenodd');
+            }
+        },
+    });
+
     /* ─── Canvas text layer ──────────────────────────────────────── */
-    // Crta sve tekst labele direktno na canvas (jedan DOM element za sve labele)
 
     const DxfTextLayer = L.Layer.extend({
         initialize(pts, color) {
@@ -104,21 +337,29 @@
             const c = this._canvas = document.createElement('canvas');
             c.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:450';
             map.getContainer().appendChild(c);
-            // zoomstart → odmah obriši da stari tekst ne "visi" tokom animacije
-            map.on('zoomstart', this._clear, this);
-            map.on('zoomend viewreset', this._draw, this);
-            map.on('move', this._schedule, this);
-            map.on('resize', this._onResize, this);
+            map.on('zoomanim',          this._onZoomAnim, this);
+            map.on('zoomend viewreset', this._draw,       this);
+            map.on('move',              this._schedule,   this);
+            map.on('resize',            this._onResize,   this);
             this._onResize();
         },
 
         onRemove(map) {
             if (this._canvas) { this._canvas.remove(); this._canvas = null; }
             if (this._raf)    { cancelAnimationFrame(this._raf); this._raf = null; }
-            map.off('zoomstart', this._clear, this);
-            map.off('zoomend viewreset', this._draw, this);
-            map.off('move', this._schedule, this);
-            map.off('resize', this._onResize, this);
+            map.off('zoomanim',          this._onZoomAnim, this);
+            map.off('zoomend viewreset', this._draw,       this);
+            map.off('move',              this._schedule,   this);
+            map.off('resize',            this._onResize,   this);
+        },
+
+        _onZoomAnim(e) {
+            if (!this._canvas || !this._map) return;
+            const scale  = this._map.getZoomScale(e.zoom);
+            const offset = this._map._getCenterOffset(e.center)
+                               ._multiplyBy(-scale)
+                               .subtract(this._map._getMapPanePos());
+            L.DomUtil.setTransform(this._canvas, offset, scale);
         },
 
         _onResize() {
@@ -141,8 +382,14 @@
             this._raf = requestAnimationFrame(() => { this._raf = null; this._draw(); });
         },
 
+        setVisible(v) {
+            if (this._canvas) this._canvas.style.display = v ? '' : 'none';
+            if (v) this._draw();
+        },
+
         _draw() {
             if (!this._canvas) return;
+            L.DomUtil.setTransform(this._canvas, new L.Point(0, 0), 1);
             const map    = this._map;
             const canvas = this._canvas;
             const ctx    = canvas.getContext('2d');
@@ -163,7 +410,6 @@
 
             for (const { ll, text, height } of this._pts) {
                 const p = map.latLngToContainerPoint(ll);
-                // Preskoči labele koje su van viewport-a
                 if (p.x < -50 || p.x > W + 50 || p.y < -20 || p.y > H + 20) continue;
                 let fontSize;
                 if (height && height > 0) {
@@ -175,11 +421,6 @@
                 ctx.fillText(text, p.x, p.y);
             }
         },
-
-        setVisible(v) {
-            if (this._canvas) this._canvas.style.display = v ? '' : 'none';
-            if (v) this._draw();
-        },
     });
 
     /* ─── HTML escape ────────────────────────────────────────────── */
@@ -190,79 +431,75 @@
         );
     }
 
-    /* ─── Build Leaflet layers iz GeoJSON ───────────────────────── */
+    /* ─── Build canvas layer iz GeoJSON ──────────────────────────── */
+    // Ne kreira L.polyline objekte — samo plain JS nizove LatLng-ova.
+    // geomLayer.addLines() se poziva po paketu da se vide progresivno na mapi.
 
-    function buildLeafletLayer(geojson, color) {
-        const srcProj  = detectProj(geojson.features);
-        const items    = []; // L.polyline / L.polygon
-        const textPts  = []; // {ll, text} za canvas
+    async function buildCanvasLayer(geojson, color, geomLayer, onProgress) {
+        const srcProj = detectProj(geojson.features);
+        const textPts = [];
         let   rendered = 0;
         const skip = { longSegment: 0, tooFewPoints: 0, badCoord: 0, emptyText: 0 };
 
-        geojson.features.forEach(f => {
-            const g = f.geometry;
-            if (!g) return;
+        const CHUNK    = 2000;
+        const features = geojson.features;
 
-            const style = { color, weight: 1.5, opacity: 0.85 };
-            let lyr = null;
+        for (let chunkStart = 0; chunkStart < features.length; chunkStart += CHUNK) {
+            const chunkEnd = Math.min(chunkStart + CHUNK, features.length);
+            const batch = [];
 
-            if (g.type === 'LineString') {
-                const ll = coordsToLatLngs(g.coordinates, srcProj);
-                if (ll.length < 2) { skip.tooFewPoints++; return; }
-                if (hasLongSegment(ll)) {
-                    const segs = splitOnLongSegments(ll);
-                    if (!segs.length) { skip.longSegment++; return; }
-                    segs.forEach(seg => {
-                        const l = L.polyline(seg, style).addTo(map);
-                        items.push(l);
-                        rendered++;
-                    });
-                    return;
-                }
-                lyr = L.polyline(ll, style);
+            for (let fi = chunkStart; fi < chunkEnd; fi++) {
+                const f = features[fi];
+                const g = f.geometry;
+                if (!g) continue;
 
-            } else if (g.type === 'Polygon') {
-                const rings = g.coordinates.map(r => coordsToLatLngs(r, srcProj));
-                const outer = rings[0];
-                if (!outer || outer.length < 3) { skip.tooFewPoints++; return; }
-                if (hasLongSegment(outer)) {
-                    const segs = splitOnLongSegments(outer);
-                    if (!segs.length) { skip.longSegment++; return; }
-                    segs.forEach(seg => {
-                        if (seg.length >= 2) {
-                            const l = L.polyline(seg, style).addTo(map);
-                            items.push(l);
+                if (g.type === 'LineString') {
+                    const lls = coordsToLatLngs(g.coordinates, srcProj);
+                    if (lls.length < 2) { skip.tooFewPoints++; continue; }
+                    if (hasLongSegment(lls)) {
+                        const segs = splitOnLongSegments(lls);
+                        if (!segs.length) { skip.longSegment++; continue; }
+                        segs.forEach(seg => {
+                            batch.push({ lls: seg, bbox: latLngsBbox(seg), isFill: false });
                             rendered++;
-                        }
-                    });
-                    return;
+                        });
+                        continue;
+                    }
+                    batch.push({ lls, bbox: latLngsBbox(lls), isFill: false });
+                    rendered++;
+
+                } else if (g.type === 'Polygon') {
+                    const outer = coordsToLatLngs(g.coordinates[0], srcProj);
+                    if (outer.length < 3) { skip.tooFewPoints++; continue; }
+                    if (hasLongSegment(outer)) {
+                        const segs = splitOnLongSegments(outer);
+                        if (!segs.length) { skip.longSegment++; continue; }
+                        segs.forEach(seg => {
+                            if (seg.length >= 2) {
+                                batch.push({ lls: seg, bbox: latLngsBbox(seg), isFill: false });
+                                rendered++;
+                            }
+                        });
+                        continue;
+                    }
+                    batch.push({ lls: outer, bbox: latLngsBbox(outer), isFill: true });
+                    rendered++;
+
+                } else if (g.type === 'Point') {
+                    const ll     = toLatLng(g.coordinates[0], g.coordinates[1], srcProj);
+                    const text   = f.properties?.text || '';
+                    const height = f.properties?.height ?? null;
+                    if (!ll)   { skip.badCoord++;  continue; }
+                    if (!text) { skip.emptyText++; continue; }
+                    textPts.push({ ll, text, height });
+                    rendered++;
                 }
-                lyr = L.polygon(rings, { ...style, fillOpacity: 0.06 });
-
-            } else if (g.type === 'Point') {
-                const ll     = toLatLng(g.coordinates[0], g.coordinates[1], srcProj);
-                const text   = f.properties?.text || '';
-                const height = f.properties?.height ?? null;
-                if (!ll)   { skip.badCoord++;  return; }
-                if (!text) { skip.emptyText++; return; }
-                textPts.push({ ll, text, height });
-                rendered++;
-                return;
-            } else {
-                return;
             }
 
-            if (lyr) {
-                lyr.addTo(map);
-                items.push(lyr);
-                rendered++;
-            }
-        });
-
-        // Jedan canvas layer za sve tekst labele
-        let textLayer = null;
-        if (textPts.length) {
-            textLayer = new DxfTextLayer(textPts, color).addTo(map);
+            // Odmah dodaj batch na canvas — progresivno se prikazuje dok se ucitava
+            if (batch.length) geomLayer.addLines(batch);
+            if (onProgress) onProgress(chunkEnd, features.length);
+            await new Promise(r => setTimeout(r, 0));
         }
 
         const totalSkipped = skip.longSegment + skip.tooFewPoints + skip.badCoord + skip.emptyText;
@@ -275,27 +512,55 @@
                 `prazan tekst=${skip.emptyText}`
             );
         }
-        console.info(`DXF: ${rendered} prikazano, ${textPts.length} tekst labela, ${items.length} geometrija`);
+        console.info(`DXF: ${rendered} entiteta, ${textPts.length} tekst labela`);
 
-        return { items, textLayer, textPts, rendered, skip };
+        return { textPts, rendered, skip };
     }
 
-    function addLayer(geojson, color) {
-        const id = ++layerCounter;
-        const { items, textLayer, textPts, rendered } = buildLeafletLayer(geojson, color);
+    // dbId: proslijedi postojeći ID pri restore-u, null = novi layer (generiše novi ID)
+    async function addLayer(geojson, color, dbId = null) {
+        const id    = ++layerCounter;
+        const _dbId = dbId ?? `dxf-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        // Kreiraj canvas layer odmah — feature-i se pojavljuju progresivno
+        const geomLayer = new DxfGeomLayer(color).addTo(map);
 
         layers[id] = {
             id,
+            _dbId,
             name:      geojson.name || ('Layer ' + id),
             color,
             visible:   true,
-            items,
-            textLayer,
-            textPts,
+            geomLayer,
+            textLayer: null,
+            textPts:   [],
             total:     geojson.features.length,
-            rendered,
+            rendered:  0,
+            loading:   true,
+        };
+        render();
+
+        // Sačuvaj odmah (ne čekaj canvas build) — novi layeri; restore preskače
+        if (!dbId) {
+            DxfStore.save(_dbId, geojson, color).catch(e => console.warn('DXF save:', e));
+        }
+
+        const onProgress = (done, total) => {
+            if (!layers[id]) return;
+            layers[id].rendered = done;
+            render();
         };
 
+        const { textPts, rendered } = await buildCanvasLayer(geojson, color, geomLayer, onProgress);
+
+        if (!layers[id]) return id; // Obrisan tokom ucitavanja
+
+        let textLayer = null;
+        if (textPts.length) {
+            textLayer = new DxfTextLayer(textPts, color).addTo(map);
+        }
+
+        Object.assign(layers[id], { textLayer, textPts, rendered, loading: false });
         render();
         return id;
     }
@@ -303,22 +568,23 @@
     function removeLayer(id) {
         const ly = layers[id];
         if (!ly) return;
-        ly.items.forEach(l => { try { l.remove(); } catch {} });
-        if (ly.textLayer) { try { ly.textLayer.remove(); } catch {} }
+        if (ly._dbId) DxfStore.remove(ly._dbId).catch(console.warn);
+        if (ly.geomLayer) { try { ly.geomLayer.remove(); ly.geomLayer._lines = []; } catch {} }
+        if (ly.textLayer) { try { ly.textLayer.remove(); ly.textLayer._pts   = []; } catch {} }
         delete layers[id];
         render();
+    }
+
+    function clearAllLayers() {
+        Object.keys(layers).forEach(id => removeLayer(parseInt(id)));
     }
 
     function toggleLayer(id) {
         const ly = layers[id];
         if (!ly) return;
         ly.visible = !ly.visible;
-        ly.items.forEach(l => {
-            try { ly.visible ? l.addTo(map) : l.remove(); } catch {}
-        });
-        if (ly.textLayer) {
-            try { ly.textLayer.setVisible(ly.visible); } catch {}
-        }
+        if (ly.geomLayer) try { ly.geomLayer.setVisible(ly.visible); } catch {}
+        if (ly.textLayer) try { ly.textLayer.setVisible(ly.visible); } catch {}
         render();
     }
 
@@ -326,23 +592,15 @@
         const ly = layers[id];
         if (!ly) return;
         ly.color = color;
-        ly.items.forEach(l => {
-            try { if (typeof l.setStyle === 'function') l.setStyle({ color }); } catch {}
-        });
-        if (ly.textLayer) {
-            try { ly.textLayer.setColor(color); } catch {}
-        }
+        if (ly.geomLayer) try { ly.geomLayer.setColor(color); } catch {}
+        if (ly.textLayer) try { ly.textLayer.setColor(color); } catch {}
     }
 
     function zoomTo(id) {
         const ly = layers[id];
         if (!ly) return;
         try {
-            let bounds = null;
-            if (ly.items.length) {
-                const b = L.featureGroup(ly.items).getBounds();
-                if (b.isValid()) bounds = b;
-            }
+            let bounds = ly.geomLayer?.getBounds() || null;
             for (const { ll } of (ly.textPts || [])) {
                 bounds = bounds ? bounds.extend(ll) : L.latLngBounds([ll, ll]);
             }
@@ -362,10 +620,15 @@
             return;
         }
 
-        el.innerHTML = ids.map(id => {
+        el.innerHTML = `<div style="padding:4px 6px 2px;text-align:right">
+            <button onclick="window._ftthDxfClearAll()" style="background:none;border:none;cursor:pointer;font-size:10px;color:#94a3b8;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">Ukloni sve</button>
+        </div>` + ids.map(id => {
             const ly  = layers[id];
             const dim = !ly.visible;
-            const sub = ly.rendered < ly.total
+            const pct = ly.total > 0 ? Math.round(ly.rendered / ly.total * 100) : 0;
+            const sub = ly.loading
+                ? `<span style="color:#f59e0b">Učitavam... ${pct}%</span>`
+                : ly.rendered < ly.total
                 ? `${ly.rendered} / ${ly.total} entiteta`
                 : `${ly.rendered} entiteta`;
             return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:6px" data-lid="${ly.id}" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
@@ -378,6 +641,8 @@
                 <button class="dxf-del"  style="background:none;border:none;cursor:pointer;padding:2px;color:#94a3b8;flex-shrink:0" title="Ukloni">✕</button>
             </div>`;
         }).join('');
+
+        window._ftthDxfClearAll = clearAllLayers;
 
         el.querySelectorAll('[data-lid]').forEach(row => {
             const id = parseInt(row.dataset.lid);
@@ -455,8 +720,8 @@
             }
 
             const color = PALETTE[layerCounter % PALETTE.length];
-            const id    = addLayer(data, color);
-            setTimeout(() => zoomTo(id), 200);
+            const id    = await addLayer(data, color);
+            zoomTo(id);
 
             const inp = document.getElementById('dxf-file-input');
             if (inp) inp.value = '';
@@ -471,6 +736,53 @@
     /* ─── Init ───────────────────────────────────────────────────── */
 
     window.ftthDxfLayer = {
+        // Vrati podatke za DXF export — samo cache_key (server čita iz fajla)
+        async getLayersForExport() {
+            const saved = await DxfStore.loadAll().catch(() => []);
+            const result = [];
+            let missingCacheKey = 0;
+
+            for (const s of saved) {
+                // Čitaj cache_key: novo top-level polje ILI staro unutar geojson
+                const ck = s.cacheKey || s.geojson?._cache_key || null;
+                if (ck) {
+                    result.push({ cache_key: ck, color: s.color });
+                } else if (s.geojson?.features?.length) {
+                    // Stari IndexedDB zapis bez cache_key — DXF importovan prije
+                    // implementacije cache mehanizma. Potrebno ponovo importovati.
+                    missingCacheKey++;
+                }
+            }
+
+            if (missingCacheKey > 0) {
+                // Upozori korisnika vidljivo
+                const cmd = document.getElementById('cad-command');
+                if (cmd) cmd.textContent =
+                    `⚠ ${missingCacheKey} DXF podloga nema cache ključ — klikni "Ukloni sve" u DXF panelu i ponovo importuj fajl da se uključi u export.`;
+            }
+
+            return result;
+        },
+
+        // Vrati listu učitanih DXF layera za box-select
+        getSelectableItems() {
+            return Object.values(layers)
+                .filter(ly => ly.geomLayer && !ly.loading)
+                .map(ly => ({
+                    dxfId:  ly.id,
+                    name:   ly.name,
+                    bounds: ly.geomLayer.getBounds(),
+                    geomLayer: ly.geomLayer,
+                    textLayer: ly.textLayer,
+                }))
+                .filter(item => item.bounds);
+        },
+
+        // Ukloni DXF layer po ID-u (koristi box-select brisanje)
+        removeLayerById(id) {
+            removeLayer(id);
+        },
+
         init(leafletMap) {
             map = leafletMap;
             render();
@@ -502,6 +814,17 @@
                     if (f) upload(f);
                 });
             }
+
+            // Restore sačuvanih layera iz prethodne sesije
+            DxfStore.loadAll().then(async saved => {
+                if (!saved.length) return;
+                saved.sort((a, b) => (a.savedAt || 0) - (b.savedAt || 0));
+                for (const item of saved) {
+                    if (item.geojson?.features?.length) {
+                        await addLayer(item.geojson, item.color, item.dbId);
+                    }
+                }
+            }).catch(e => console.warn('DXF restore:', e));
         },
     };
 })();
