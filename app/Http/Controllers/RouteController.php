@@ -29,7 +29,7 @@ class RouteController extends Controller
 
     public function routes(): View
     {
-        $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->latest()->paginate(12);
+        $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->where('route_type', '!=', 'trench')->latest()->paginate(12);
         $allRoutes = NetworkRoute::query()->get();
         $totalDuct = $allRoutes->sum(fn (NetworkRoute $route) => $route->trenchLengthForReport());
         $effectiveMicroduct = NetworkRoute::query()

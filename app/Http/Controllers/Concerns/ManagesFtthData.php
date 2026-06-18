@@ -220,7 +220,7 @@ trait ManagesFtthData
 
     protected function createBranchForRoute(NetworkRoute $route): ?NetworkBranch
     {
-        if ($route->route_type === 'drop' || NetworkBranch::query()->where('route_id', $route->id)->exists()) {
+        if (in_array($route->route_type, ['drop', 'trench'], true) || NetworkBranch::query()->where('route_id', $route->id)->exists()) {
             return null;
         }
 
@@ -228,9 +228,17 @@ trait ManagesFtthData
             ? Cabinet::query()->where('project_id', $route->project_id)->find($route->from_id)
             : null;
 
+        $odfId = $route->odf_id ?? $sourceCabinet?->odf_id;
+        if (! $odfId) {
+            $projectOdfs = \App\Models\Odf::query()->where('project_id', $route->project_id)->pluck('id');
+            if ($projectOdfs->count() === 1) {
+                $odfId = $projectOdfs->first();
+            }
+        }
+
         $branch = NetworkBranch::create([
             'project_id' => $route->project_id,
-            'odf_id' => $route->odf_id ?? $sourceCabinet?->odf_id,
+            'odf_id' => $odfId,
             'parent_branch_id' => $sourceCabinet?->branch_id,
             'route_id' => $route->id,
             'name' => $route->name,
@@ -314,7 +322,7 @@ trait ManagesFtthData
     protected function syncBranchForRoute(NetworkRoute $route): void
     {
         $branch = NetworkBranch::query()->where('route_id', $route->id)->first();
-        if ($route->route_type === 'drop') {
+        if (in_array($route->route_type, ['drop', 'trench'], true)) {
             if ($branch) {
                 $branch->cabinets()->update(['branch_id' => null, 'branch_order' => 0]);
                 $branch->childBranches()->update(['parent_branch_id' => null]);
@@ -328,8 +336,16 @@ trait ManagesFtthData
             return;
         }
 
+        $syncOdfId = $route->odf_id;
+        if (! $syncOdfId && ! $branch->odf_id) {
+            $projectOdfs = \App\Models\Odf::query()->where('project_id', $route->project_id)->pluck('id');
+            if ($projectOdfs->count() === 1) {
+                $syncOdfId = $projectOdfs->first();
+            }
+        }
+
         $branch->update([
-            'odf_id' => $route->odf_id,
+            'odf_id' => $syncOdfId ?? $branch->odf_id,
             'name' => $route->name,
             'code' => preg_match('/(\d+(?:[.-]\d+)*)/', $route->name, $match) ? str_replace('-', '.', $match[1]) : null,
             'type' => in_array($route->route_type, ['backbone', 'feeder'], true) ? 'primary' : 'secondary',

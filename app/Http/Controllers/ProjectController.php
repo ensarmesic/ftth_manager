@@ -512,12 +512,14 @@ class ProjectController extends Controller
             if ($route->fiber_count)    $specs[] = $route->fiber_count . 'F';
             if ($route->microduct_type) $specs[] = $route->microduct_type . ' mc';
 
-            $routeDataList[] = [
-                'gkPath'    => $gkPath,
-                'name'      => $route->name,
-                'specsLine' => implode(' / ', $specs),
-                'lengthM'   => $lengthM,
-            ];
+            if ($route->route_type !== 'trench') {
+                $routeDataList[] = [
+                    'gkPath'    => $gkPath,
+                    'name'      => $route->name,
+                    'specsLine' => implode(' / ', $specs),
+                    'lengthM'   => $lengthM,
+                ];
+            }
         }
 
         // ── PASS 2b: Postavi labele — provjeri koliziju s labelama I s linijama trasa ──

@@ -155,10 +155,11 @@ class FtthIntelligenceService
                     ]);
                 } elseif (! $sameAutoCabinet) {
                     $cabinetName = $this->uniqueCabinetName($project, $cabinetName);
+                    $branchId = ! empty($cabinetPlan['branch_id']) && (int) $cabinetPlan['branch_id'] > 0 ? (int) $cabinetPlan['branch_id'] : null;
                     $cabinet = Cabinet::create([
                         'project_id' => $project->id,
                         'odf_id' => $odfId,
-                        'branch_id' => ! empty($cabinetPlan['branch_id']) && (int) $cabinetPlan['branch_id'] > 0 ? (int) $cabinetPlan['branch_id'] : null,
+                        'branch_id' => $branchId,
                         'name' => $cabinetName,
                         'address' => 'Auto plan - '.$cabinetPlan['proposed_latitude'].','.$cabinetPlan['proposed_longitude'],
                         'splitter_count' => $this->splitterCount($houses->count()),
@@ -167,6 +168,9 @@ class FtthIntelligenceService
                         'longitude' => $cabinetPlan['proposed_longitude'],
                     ]);
                     $created++;
+                    if ($odfId && $branchId) {
+                        NetworkBranch::where('id', $branchId)->whereNull('odf_id')->update(['odf_id' => $odfId]);
+                    }
                 }
 
                 $linkedHouses += House::query()
@@ -400,6 +404,10 @@ class FtthIntelligenceService
             ->map(function (NetworkBranch $branch): ?NetworkRoute {
                 $route = $branch->route;
                 if (! $route || count($route->path ?? []) < 2) {
+                    return null;
+                }
+                // Trench routes are physical infrastructure, not logical branches — skip them
+                if ($route->route_type === 'trench') {
                     return null;
                 }
                 $route->setAttribute('planning_branch_id', $branch->id);
