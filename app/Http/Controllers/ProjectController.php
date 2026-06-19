@@ -274,7 +274,7 @@ class ProjectController extends Controller
         }
         foreach ($project->routes as $r) {
             foreach ($r->path ?? [] as $pt) {
-                if (isset($pt[0], $pt[1])) $expandBbox((float)$pt[1], (float)$pt[0]); // [lng,lat] → lat,lng
+                if (isset($pt[0], $pt[1])) $expandBbox((float)$pt[0], (float)$pt[1]); // path: [lat, lng]
                 elseif (isset($pt['lat'], $pt['lng'])) $expandBbox((float)$pt['lat'], (float)$pt['lng']);
             }
         }
@@ -306,6 +306,10 @@ class ProjectController extends Controller
 
                 $entTmp = tempnam(sys_get_temp_dir(), 'ftth_bg_');
                 $entFh  = fopen($entTmp, 'wb');
+                if ($entFh === false) {
+                    @unlink($entTmp);
+                    continue;
+                }
 
                 foreach ($features as $f) {
                     $g   = $f['geometry'] ?? null;

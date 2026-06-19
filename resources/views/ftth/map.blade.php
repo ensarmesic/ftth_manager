@@ -1504,7 +1504,7 @@ async function connectSelectedOdfToCabinet(cabinet) {
 function addSavedRouteToMap(route) {
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
-        .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length} m`)
+        .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length ?? route.duct_length_m ?? 0} m`)
         .addTo(map);
     const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
     data.routes.push(route);
@@ -2600,7 +2600,7 @@ async function saveRouteAttributes() {
         untrackLayer(line, oldLayerType);
         trackLayer(line, routeLayerType(route.type));
         line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
-        line.setPopupContent(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length} m`);
+        line.setPopupContent(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length ?? route.duct_length_m ?? 0} m`);
     }
     refreshRouteLabels(route, oldLayerType);
     document.getElementById('route-attribute-status').textContent = 'Podaci trase su sacuvani.';

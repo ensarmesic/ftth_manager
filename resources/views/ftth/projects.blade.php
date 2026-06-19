@@ -90,7 +90,7 @@
                             </details>
 
                             {{-- Export dugmad --}}
-                            <a href="{{ route('projects.dxf', $project->id) }}"
+                            <a href="#"
                                data-dxf-export="{{ route('projects.dxf', $project->id) }}"
                                class="tbl-btn dxf-export-btn"
                                style="background:#fef3c7;color:#92400e;border-color:#fde68a"

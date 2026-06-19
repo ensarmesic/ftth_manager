@@ -285,7 +285,8 @@ class MapLayerController extends Controller
     {
         $out = sys_get_temp_dir() . '/' . uniqid('dxf_') . '.dxf';
 
-        @exec('dwg2dxf -o ' . escapeshellarg($out) . ' ' . escapeshellarg($path) . ' 2>/dev/null', $_, $code);
+        $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+        @exec('dwg2dxf -o ' . escapeshellarg($out) . ' ' . escapeshellarg($path) . ' 2>' . $null, $_, $code);
 
         if ($code === 0 && file_exists($out)) {
             $result = $this->dxfToGeoJson($out, $name);

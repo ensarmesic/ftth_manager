@@ -298,6 +298,8 @@ class FtthIntelligenceService
             }
         }
 
+        $housesPerCabinet = $project->cabinets->mapWithKeys(fn ($cab) => [$cab->id => $cab->houses->count()])->all();
+
         foreach ($project->routes as $route) {
             if ($route->route_type === 'trench') {
                 if ($route->duct_length_m <= 0) $items[] = $this->validationItem('error', "{$route->name} nema ispravnu duÅ¾inu.", 'route', $route->id, 'Uredi geometriju trase.');
@@ -313,7 +315,7 @@ class FtthIntelligenceService
             if ($route->duct_length_m <= 0) $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
             if ($route->route_type === 'drop' && ($route->to_type !== 'house' || ! $route->to_id)) $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.');
             if (in_array($route->route_type, ['backbone', 'distribution'], true) && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.');
-            $occupancy = $this->routeOccupancy($route);
+            $occupancy = $this->routeOccupancy($route, $housesPerCabinet);
             if ($occupancy['used_fibers'] > $occupancy['fiber_capacity']) $items[] = $this->validationItem('error', "{$route->name} ima više zauzetih vlakana od kapaciteta.", 'route', $route->id, 'Povećaj kapacitet kabla.');
             elseif ($occupancy['utilization_percent'] > 80) $items[] = $this->validationItem('warning', "{$route->name} ima preko 80% zauzeća vlakana.", 'route', $route->id, 'Planiraj rezervni kapacitet.');
             if (! $route->path) {
@@ -355,12 +357,16 @@ class FtthIntelligenceService
         return $summary;
     }
 
-    public function routeOccupancy(NetworkRoute $route): array
+    public function routeOccupancy(NetworkRoute $route, array $housesPerCabinet = []): array
     {
         $capacity = (int) ($route->fiber_count ?? 0);
         $used = $route->route_type === 'drop'
             ? ($route->to_type === 'house' && $route->to_id ? 1 : 0)
-            : ($route->cabinet_id ? House::where('cabinet_id', $route->cabinet_id)->count() : 0);
+            : ($route->cabinet_id
+                ? ($housesPerCabinet
+                    ? (int) ($housesPerCabinet[$route->cabinet_id] ?? 0)
+                    : House::where('cabinet_id', $route->cabinet_id)->count())
+                : 0);
 
         return ['fiber_capacity' => $capacity, 'used_fibers' => $used, 'free_fibers' => max($capacity - $used, 0), 'utilization_percent' => $capacity > 0 ? (int) round($used / $capacity * 100) : 0];
     }

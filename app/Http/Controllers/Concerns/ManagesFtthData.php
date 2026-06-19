@@ -577,13 +577,18 @@ trait ManagesFtthData
             return [[$start['lat'], $start['lng']], [$end['lat'], $end['lng']]];
         }
 
+        $chainages = [0.0];
+        for ($i = 1; $i < count($points); $i++) {
+            $chainages[$i] = $chainages[$i - 1] + $this->pointDistance($points[$i - 1], $points[$i]);
+        }
+
         $reverse = $start['chainage_m'] > $end['chainage_m'];
         $from = $reverse ? $end : $start;
         $to = $reverse ? $start : $end;
 
         $path = [[$from['lat'], $from['lng']]];
         for ($i = max(1, (int) $from['segment_index']); $i < count($points); $i++) {
-            $vertexChainage = $this->routeVertexChainage($points, $i);
+            $vertexChainage = $chainages[$i];
             if ($vertexChainage <= $from['chainage_m'] + 0.01) {
                 continue;
             }

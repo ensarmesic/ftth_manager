@@ -670,7 +670,7 @@
 
     /* ─── Upload ─────────────────────────────────────────────────── */
 
-    const PALETTE = ['#d946ef', '#d946ef', '#d946ef', '#d946ef', '#d946ef', '#d946ef'];
+    const PALETTE = ['#d946ef', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4'];
 
     async function upload(file) {
         if (!/\.(dxf|dwg)$/i.test(file.name)) {
