@@ -458,6 +458,8 @@
             <button type="button" id="clear-draw" class="tc tc-danger">✕ Trase</button>
             <div id="route-edit-actions" class="hidden items-center gap-1">
                 <button type="button" id="add-route-vertex" class="tc tc-blue">+ Tačka</button>
+                <button type="button" id="undo-route-edit" class="tc tc-ghost" title="Ctrl+Z" disabled>↩ Undo</button>
+                <button type="button" id="redo-route-edit" class="tc tc-ghost" title="Ctrl+Y" disabled>↷ Redo</button>
                 <button type="button" id="save-route-edit" class="tc tc-save">✓ Sačuvaj trasu</button>
                 <button type="button" id="cancel-route-edit" class="tc tc-ghost">✕ Otkaži</button>
             </div>
@@ -918,6 +920,8 @@ let orthoEnabled = false;
 let currentAutoPlan = null;
 const undoStack = [];
 const redoStack = [];
+const routeEditUndoStack = [];
+const routeEditRedoStack = [];
 const odfMarkerById = {};
 const cabinetMarkerById = {};
 const routeLayerById = {};
@@ -1912,6 +1916,31 @@ function redoLast() {
     undoStack.push(action);
     updateCommandBar();
 }
+function pushRouteEditUndo(action) {
+    routeEditUndoStack.push(action);
+    routeEditRedoStack.length = 0;
+    syncRouteEditUndoButtons();
+}
+function undoRouteEdit() {
+    const action = routeEditUndoStack.pop();
+    if (!action) return;
+    action.undo();
+    routeEditRedoStack.push(action);
+    syncRouteEditUndoButtons();
+}
+function redoRouteEdit() {
+    const action = routeEditRedoStack.pop();
+    if (!action) return;
+    action.redo();
+    routeEditUndoStack.push(action);
+    syncRouteEditUndoButtons();
+}
+function syncRouteEditUndoButtons() {
+    const u = document.getElementById('undo-route-edit');
+    const r = document.getElementById('redo-route-edit');
+    if (u) u.disabled = routeEditUndoStack.length === 0;
+    if (r) r.disabled = routeEditRedoStack.length === 0;
+}
 function cancelActiveDrawing() {
     quickBranchWorkflow = false;
     activeBranchMarkers.forEach(marker => map.removeLayer(marker));
@@ -2691,11 +2720,21 @@ function routeEditVertexIcon() {
         iconAnchor: [5, 5],
     });
 }
+function routeEditMidpointIcon() {
+    return L.divIcon({
+        className: 'ftth-label',
+        html: '<div style="width:7px;height:7px;background:rgba(37,99,235,0.35);border:1.5px solid #2563eb;border-radius:1px;transform:rotate(45deg);box-shadow:0 0 0 1px rgba(255,255,255,0.6)"></div>',
+        iconAnchor: [4, 4],
+    });
+}
 function startRouteEdit(route, line) {
     if (routeEdit?.route.id === route.id) return;
     cancelRouteEdit();
+    routeEditUndoStack.length = 0;
+    routeEditRedoStack.length = 0;
+    syncRouteEditUndoButtons();
     const points = line.getLatLngs().map(point => L.latLng(point.lat, point.lng));
-    routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [] };
+    routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [], midpointMarkers: [] };
     line.setStyle({ color: '#2563eb', weight: 4, opacity: 1, dashArray: '2 4' });
     document.getElementById('route-edit-actions').classList.remove('hidden');
     document.getElementById('route-edit-actions').classList.add('flex');
@@ -2782,9 +2821,37 @@ function renderRouteEditVertices() {
     routeEdit.markers.forEach(marker => map.removeLayer(marker));
     routeEdit.markers = routeEdit.points.map((point, index) => {
         const marker = L.marker(point, { draggable: true, icon: routeEditVertexIcon(), zIndexOffset: 1000 }).addTo(map);
+        marker.on('dragstart', () => {
+            marker._preDragPos = marker.getLatLng();
+            marker._currentSnapTarget = null;
+        });
         marker.on('drag', event => {
-            routeEdit.points[index] = event.target.getLatLng();
+            const rawPos = event.target.getLatLng();
+            const snapTarget = getSnapTarget(rawPos);
+            marker._currentSnapTarget = snapTarget || null;
+            routeEdit.points[index] = snapTarget ? snapTarget.latlng : rawPos;
             updateRouteEditLine();
+            if (snapTarget) {
+                showSnapIndicator(snapTarget);
+                document.getElementById('cad-command').textContent = `EDIT: snap → ${snapTarget.label}`;
+            } else {
+                hideSnapIndicator();
+                updateRouteEditStatus();
+            }
+        });
+        marker.on('dragend', () => {
+            if (marker._currentSnapTarget) marker.setLatLng(marker._currentSnapTarget.latlng);
+            hideSnapIndicator();
+            const before = marker._preDragPos;
+            const after = marker.getLatLng();
+            if (!before || map.distance(before, after) < 0.1) return;
+            const i = index;
+            pushRouteEditUndo({
+                undo: () => { if (!routeEdit) return; routeEdit.points[i] = before; routeEdit.markers[i]?.setLatLng(before); updateRouteEditLine(); renderRouteEditMidpoints(); },
+                redo: () => { if (!routeEdit) return; routeEdit.points[i] = after; routeEdit.markers[i]?.setLatLng(after); updateRouteEditLine(); renderRouteEditMidpoints(); },
+            });
+            renderRouteEditMidpoints();
+            updateRouteEditStatus();
         });
         marker.on('contextmenu', event => {
             L.DomEvent.stop(event);
@@ -2792,13 +2859,67 @@ function renderRouteEditVertices() {
                 document.getElementById('cad-command').textContent = 'EDIT ROUTE: trasa mora imati najmanje 2 tačke.';
                 return;
             }
-            routeEdit.points.splice(index, 1);
+            const i = index;
+            const deleted = L.latLng(routeEdit.points[i].lat, routeEdit.points[i].lng);
+            routeEdit.points.splice(i, 1);
             updateRouteEditLine();
             renderRouteEditVertices();
+            pushRouteEditUndo({
+                undo: () => { if (!routeEdit) return; routeEdit.points.splice(i, 0, deleted); updateRouteEditLine(); renderRouteEditVertices(); },
+                redo: () => { if (!routeEdit) return; routeEdit.points.splice(i, 1); updateRouteEditLine(); renderRouteEditVertices(); },
+            });
         });
         return marker;
     });
+    renderRouteEditMidpoints();
     updateRouteEditStatus();
+}
+function renderRouteEditMidpoints() {
+    if (!routeEdit) return;
+    (routeEdit.midpointMarkers || []).forEach(m => map.removeLayer(m));
+    routeEdit.midpointMarkers = [];
+    if (routeEdit.points.length < 2) return;
+    for (let i = 1; i < routeEdit.points.length; i++) {
+        const a = routeEdit.points[i - 1];
+        const b = routeEdit.points[i];
+        const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+        const insertAt = i;
+        const marker = L.marker(mid, { draggable: true, icon: routeEditMidpointIcon(), zIndexOffset: 900 }).addTo(map);
+        marker.on('dragstart', () => {
+            marker._currentSnapTarget = null;
+            marker.setIcon(routeEditVertexIcon());
+        });
+        marker.on('drag', event => {
+            const rawPos = event.target.getLatLng();
+            const snapTarget = getSnapTarget(rawPos);
+            marker._currentSnapTarget = snapTarget || null;
+            const previewPos = snapTarget ? snapTarget.latlng : rawPos;
+            const previewPoints = [...routeEdit.points];
+            previewPoints.splice(insertAt, 0, previewPos);
+            routeEdit.line.setLatLngs(previewPoints);
+            if (snapTarget) {
+                showSnapIndicator(snapTarget);
+                document.getElementById('cad-command').textContent = `EDIT: snap → ${snapTarget.label}`;
+            } else {
+                hideSnapIndicator();
+            }
+        });
+        marker.on('dragend', () => {
+            const snapTarget = marker._currentSnapTarget;
+            const finalPos = snapTarget ? snapTarget.latlng : marker.getLatLng();
+            if (snapTarget) marker.setLatLng(finalPos);
+            hideSnapIndicator();
+            const newPoint = L.latLng(finalPos.lat, finalPos.lng);
+            routeEdit.points.splice(insertAt, 0, newPoint);
+            updateRouteEditLine();
+            renderRouteEditVertices();
+            pushRouteEditUndo({
+                undo: () => { if (!routeEdit) return; routeEdit.points.splice(insertAt, 1); updateRouteEditLine(); renderRouteEditVertices(); },
+                redo: () => { if (!routeEdit) return; routeEdit.points.splice(insertAt, 0, newPoint); updateRouteEditLine(); renderRouteEditVertices(); },
+            });
+        });
+        routeEdit.midpointMarkers.push(marker);
+    }
 }
 function updateRouteEditLine() {
     if (!routeEdit) return;
@@ -2834,16 +2955,26 @@ function addRouteEditVertex(latlng = null) {
         const a = routeEdit.points[longest.index - 1], b = routeEdit.points[longest.index];
         target = { insertAt: longest.index, point: L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2) };
     }
-    routeEdit.points.splice(target.insertAt, 0, target.point);
+    const insertAt = target.insertAt;
+    const newPoint = L.latLng(target.point.lat, target.point.lng);
+    routeEdit.points.splice(insertAt, 0, newPoint);
     updateRouteEditLine();
     renderRouteEditVertices();
+    pushRouteEditUndo({
+        undo: () => { if (!routeEdit) return; routeEdit.points.splice(insertAt, 1); updateRouteEditLine(); renderRouteEditVertices(); },
+        redo: () => { if (!routeEdit) return; routeEdit.points.splice(insertAt, 0, newPoint); updateRouteEditLine(); renderRouteEditVertices(); },
+    });
 }
 function cancelRouteEdit() {
     if (!routeEdit) return;
     routeEdit.line.setLatLngs(routeEdit.originalPoints);
     routeEdit.line.setStyle(routeLineStyle(routeEdit.route.type, routeLineColor(routeEdit.route)));
     routeEdit.markers.forEach(marker => map.removeLayer(marker));
+    (routeEdit.midpointMarkers || []).forEach(m => map.removeLayer(m));
     routeEdit = null;
+    routeEditUndoStack.length = 0;
+    routeEditRedoStack.length = 0;
+    syncRouteEditUndoButtons();
     document.getElementById('route-edit-actions').classList.add('hidden');
     document.getElementById('route-edit-actions').classList.remove('flex');
     updateCommandBar();
@@ -2876,6 +3007,7 @@ async function saveRouteEdit() {
     edited.line.setPopupContent(`<b>${edited.route.name}</b><br>${routeTypeLabel(edited.route.type)}<br>${result.route.length} m`);
     edited.line.setStyle(routeLineStyle(edited.route.type, routeLineColor(edited.route)));
     edited.markers.forEach(marker => map.removeLayer(marker));
+    (edited.midpointMarkers || []).forEach(m => map.removeLayer(m));
     routeEdit = null;
     document.getElementById('route-edit-actions').classList.add('hidden');
     document.getElementById('route-edit-actions').classList.remove('flex');
@@ -4051,6 +4183,8 @@ document.getElementById('expand-map').addEventListener('click', () => {
 });
 document.getElementById('add-route-vertex').addEventListener('click', () => addRouteEditVertex());
 document.getElementById('cancel-route-edit').addEventListener('click', cancelRouteEdit);
+document.getElementById('undo-route-edit')?.addEventListener('click', undoRouteEdit);
+document.getElementById('redo-route-edit')?.addEventListener('click', redoRouteEdit);
 document.getElementById('save-route-edit').addEventListener('click', async () => {
     try {
         await saveRouteEdit();
@@ -4283,13 +4417,15 @@ document.addEventListener('keydown', event => {
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
-        undoLast();
+        if (routeEdit) undoRouteEdit();
+        else undoLast();
         return;
     }
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
         event.preventDefault();
-        redoLast();
+        if (routeEdit) redoRouteEdit();
+        else redoLast();
         return;
     }
 
