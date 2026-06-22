@@ -166,7 +166,20 @@ class ReportController extends Controller
     {
         $project->load([
             'houses' => fn ($q) => $q->whereNull('cabinet_id')->orderBy('label'),
-            'branches' => fn ($q) => $q->with(['route', 'cabinets.houses', 'childBranches.route', 'childBranches.cabinets.houses'])->orderBy('sort_order'),
+            'branches' => fn ($q) => $q->with([
+                'route',
+                'cabinets' => fn ($cq) => $cq->withCount(['houses'])->with([
+                    'houses' => fn ($hq) => $hq->orderBy('label'),
+                    'childCabinets' => fn ($ccq) => $ccq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
+                ]),
+                'childBranches' => fn ($cq) => $cq->with([
+                    'route',
+                    'cabinets' => fn ($ccq) => $ccq->withCount(['houses'])->with([
+                        'houses' => fn ($hq) => $hq->orderBy('label'),
+                        'childCabinets' => fn ($cccq) => $cccq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
+                    ]),
+                ]),
+            ])->orderBy('sort_order'),
             'odfs.cabinets' => fn ($q) => $q
                 ->whereNull('parent_cabinet_id')
                 ->with([
@@ -238,7 +251,20 @@ class ReportController extends Controller
     {
         $projects = Project::with([
             'houses' => fn ($query) => $query->whereNull('cabinet_id')->orderBy('label'),
-            'branches' => fn ($query) => $query->with(['route', 'cabinets.houses', 'childBranches.route', 'childBranches.cabinets.houses'])->orderBy('sort_order'),
+            'branches' => fn ($query) => $query->with([
+                'route',
+                'cabinets' => fn ($q) => $q->withCount(['houses'])->with([
+                    'houses' => fn ($hq) => $hq->orderBy('label'),
+                    'childCabinets' => fn ($cq) => $cq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
+                ]),
+                'childBranches' => fn ($q) => $q->with([
+                    'route',
+                    'cabinets' => fn ($cq) => $cq->withCount(['houses'])->with([
+                        'houses' => fn ($hq) => $hq->orderBy('label'),
+                        'childCabinets' => fn ($ccq) => $ccq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
+                    ]),
+                ]),
+            ])->orderBy('sort_order'),
             'odfs.cabinets' => fn ($query) => $query
                 ->whereNull('parent_cabinet_id')
                 ->with([
