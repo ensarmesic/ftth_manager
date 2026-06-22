@@ -108,13 +108,13 @@
         }
 
         return {
-            async save(dbId, geojson, color) {
+            async save(dbId, geojson, color, projectId) {
                 const db = await open();
                 return new Promise((res, rej) => {
                     const tx = db.transaction(ST, 'readwrite');
                     // cacheKey kao zasebno polje — lakše čitanje bez prolaska kroz cijeli geojson
                     const cacheKey = geojson._cache_key || null;
-                    tx.objectStore(ST).put({ dbId, geojson, color, cacheKey, savedAt: Date.now() });
+                    tx.objectStore(ST).put({ dbId, geojson, color, cacheKey, savedAt: Date.now(), projectId: projectId || null });
                     tx.oncomplete = res;
                     tx.onerror    = e => rej(e.target.error);
                 });
@@ -518,7 +518,7 @@
     }
 
     // dbId: proslijedi postojeći ID pri restore-u, null = novi layer (generiše novi ID)
-    async function addLayer(geojson, color, dbId = null) {
+    async function addLayer(geojson, color, dbId = null, projectId = null) {
         const id    = ++layerCounter;
         const _dbId = dbId ?? `dxf-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -528,6 +528,7 @@
         layers[id] = {
             id,
             _dbId,
+            projectId,
             name:      geojson.name || ('Layer ' + id),
             color,
             visible:   true,
@@ -542,7 +543,7 @@
 
         // Sačuvaj odmah (ne čekaj canvas build) — novi layeri; restore preskače
         if (!dbId) {
-            DxfStore.save(_dbId, geojson, color).catch(e => console.warn('DXF save:', e));
+            DxfStore.save(_dbId, geojson, color, projectId).catch(e => console.warn('DXF save:', e));
         }
 
         const onProgress = (done, total) => {
@@ -719,8 +720,9 @@
                 return;
             }
 
-            const color = PALETTE[layerCounter % PALETTE.length];
-            const id    = await addLayer(data, color);
+            const color     = PALETTE[layerCounter % PALETTE.length];
+            const projectId = document.getElementById('active-project-id')?.value || null;
+            const id        = await addLayer(data, color, null, projectId);
             zoomTo(id);
 
             const inp = document.getElementById('dxf-file-input');
@@ -815,13 +817,15 @@
                 });
             }
 
-            // Restore sačuvanih layera iz prethodne sesije
+            // Restore sačuvanih layera iz prethodne sesije — filtrirano po aktivnom projektu
+            const currentProjectId = document.getElementById('active-project-id')?.value || null;
             DxfStore.loadAll().then(async saved => {
                 if (!saved.length) return;
-                saved.sort((a, b) => (a.savedAt || 0) - (b.savedAt || 0));
-                for (const item of saved) {
+                const filtered = saved.filter(item => item.projectId === currentProjectId);
+                filtered.sort((a, b) => (a.savedAt || 0) - (b.savedAt || 0));
+                for (const item of filtered) {
                     if (item.geojson?.features?.length) {
-                        await addLayer(item.geojson, item.color, item.dbId);
+                        await addLayer(item.geojson, item.color, item.dbId, item.projectId);
                     }
                 }
             }).catch(e => console.warn('DXF restore:', e));

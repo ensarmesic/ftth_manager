@@ -398,5 +398,6 @@ class MapController extends Controller
             'updated_at' => $draft->updated_at?->format('Y-m-d H:i'),
         ]);
     }
+
 }
 

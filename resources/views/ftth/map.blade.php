@@ -297,7 +297,84 @@
     }
     /* --- Fiber color legend chip --- */
     .fiber-legend-chip { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 3px; }
+    /* ── Project picker modal ────────────────────────────────────── */
+    #project-picker-overlay {
+        position: fixed; inset: 0; z-index: 99999;
+        background: rgba(15,23,42,.72); backdrop-filter: blur(4px);
+        display: flex; align-items: center; justify-content: center;
+        padding: 16px;
+    }
+    #project-picker-overlay.hidden { display: none; }
+    #project-picker-card {
+        background: #fff; border-radius: 14px; width: 100%; max-width: 460px;
+        box-shadow: 0 24px 60px rgba(15,23,42,.35); overflow: hidden;
+    }
+    #project-picker-card .pp-hd {
+        padding: 18px 20px 14px; border-bottom: 1px solid #f1f5f9;
+        background: linear-gradient(135deg,#eef2ff,#f0f9ff);
+    }
+    #project-picker-card .pp-title { font: 700 16px/1.3 ui-sans-serif,system-ui,sans-serif; color: #1e293b; }
+    #project-picker-card .pp-sub   { font-size: 12px; color: #64748b; margin-top: 2px; }
+    #project-picker-card .pp-list  { max-height: 320px; overflow-y: auto; }
+    .pp-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 11px 20px; border-bottom: 1px solid #f8fafc;
+        transition: background .12s;
+    }
+    .pp-row:hover { background: #f8fafc; }
+    .pp-row-name  { font: 600 13px/1.4 ui-sans-serif,system-ui,sans-serif; color: #1e293b; }
+    .pp-row-meta  { font-size: 11px; color: #94a3b8; }
+    .pp-btn {
+        flex-shrink: 0; padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer;
+        font: 600 11px/1 ui-sans-serif,system-ui,sans-serif;
+        background: #0f172a; color: #fff; transition: background .12s;
+    }
+    .pp-btn:hover { background: #1e293b; }
+    #project-picker-card .pp-new {
+        padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #fafafa;
+    }
+    #project-picker-card .pp-new-title { font: 600 11px/1 ui-sans-serif,system-ui,sans-serif; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
+    .pp-new-row { display: flex; gap: 8px; }
+    .pp-new-inp { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px 10px; font-size: 13px; color: #1e293b; outline: none; }
+    .pp-new-inp:focus { border-color: #6366f1; }
+    .pp-new-submit { padding: 7px 16px; border-radius: 6px; border: none; cursor: pointer; font: 600 12px/1 ui-sans-serif,system-ui,sans-serif; background: #6366f1; color: #fff; }
+    .pp-new-submit:hover { background: #4f46e5; }
+    #pp-new-status { font-size: 11px; color: #64748b; margin-top: 6px; }
+    .pp-empty { padding: 28px 20px; text-align: center; color: #94a3b8; font-size: 13px; }
 </style>
+
+{{-- Project picker modal --}}
+<div id="project-picker-overlay" @if($activeProjectId) class="hidden" @endif>
+    <div id="project-picker-card">
+        <div class="pp-hd">
+            <div class="pp-title">Odaberi projekat</div>
+            <div class="pp-sub">Svaki projekat ima svoju zasebnu mapu i nacrt.</div>
+        </div>
+        <div class="pp-list">
+            @forelse($projects as $project)
+                <div class="pp-row">
+                    <div>
+                        <div class="pp-row-name">{{ $project->name }}</div>
+                        @if($project->location)
+                            <div class="pp-row-meta">{{ $project->location }}</div>
+                        @endif
+                    </div>
+                    <button class="pp-btn" onclick="pickProject({{ $project->id }})">Odaberi</button>
+                </div>
+            @empty
+                <div class="pp-empty">Nema projekata. Kreiraj prvi projekat ispod.</div>
+            @endforelse
+        </div>
+        <div class="pp-new">
+            <div class="pp-new-title">Novi projekat</div>
+            <div class="pp-new-row">
+                <input id="pp-new-name" class="pp-new-inp" placeholder="Naziv projekta" required>
+                <button class="pp-new-submit" onclick="ppCreateProject()">Kreiraj</button>
+            </div>
+            <div id="pp-new-status"></div>
+        </div>
+    </div>
+</div>
 
 <section id="map-workspace" class="grid flex-1 min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_316px]">
 
@@ -599,6 +676,7 @@
                 <button type="button" id="save-suggestions" class="hidden sb-btn sb-btn-violet">Potvrdi raspored</button>
             </div>
         </details>
+
 
         <!-- Layer Manager -->
         <details class="sidebar-card">
@@ -976,6 +1054,7 @@ data.routes.forEach(route => {
     const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
+    if (route.type === 'trench') line.bringToBack();
     const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
     routeLayerById[route.id] = line;
     routeLabelsById[route.id] = labels || [];
@@ -2842,6 +2921,7 @@ function finishBranch() {
         });
         const odfLabel = meta.odf_index === null || meta.odf_index === undefined ? 'bez ODF' : `ODF-${String(meta.odf_index + 1).padStart(2, '0')}`;
         const line = trackLayer(L.polyline(activeBranch, routeLineStyle(meta.route_type)).bindPopup(`<b>${meta.name}</b><br>${routeTypeLabel(meta.route_type)}<br>${odfLabel}<br>${meters} m`).addTo(map), routeLayerType(meta.route_type));
+        if (meta.route_type === 'trench') line.bringToBack();
         branchLines.push(line);
         registerBranchContext(line);
         if (meta.route_type !== 'trench') addRouteLabel(activeBranch, meta.name);
@@ -3856,14 +3936,10 @@ document.getElementById('quick-project-form').addEventListener('submit', async e
             body: new FormData(form),
         });
         const result = await readJsonResponse(response, 'Projekat nije kreiran. Provjeri podatke.');
-        const select = document.getElementById('active-project-id');
-        keepCurrentDraftOnProjectChange = true;
-        select.add(new Option(result.project.name, result.project.id, true, true));
-        select.dispatchEvent(new Event('change'));
-        draftsByProject[result.project.id] = draftPayload();
-        await saveDraft();
-        form.reset();
-        status.textContent = `${result.project.name} je kreiran, odabran i nacrt je sačuvan.`;
+        status.textContent = `${result.project.name} je kreiran. Učitavam čistu mapu...`;
+        const url = new URL(window.location.href);
+        url.searchParams.set('project', result.project.id);
+        window.location.href = url.toString();
     } catch (error) {
         status.textContent = error.message;
     }
@@ -4461,6 +4537,41 @@ if (pendingTraceHouseId) {
     setTimeout(() => showFiberTrace(pendingTraceHouseId), 350);
 }
 refreshTrenchGroupStatus();
+
+// ── Project picker modal ──────────────────────────────────────────
+function pickProject(id) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('project', id);
+    window.location.href = url.toString();
+}
+
+async function ppCreateProject() {
+    const nameInput = document.getElementById('pp-new-name');
+    const status = document.getElementById('pp-new-status');
+    const name = nameInput.value.trim();
+    if (!name) { status.textContent = 'Upiši naziv projekta.'; return; }
+    status.textContent = 'Kreiram...';
+    try {
+        const body = new FormData();
+        body.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
+        body.append('name', name);
+        body.append('quick_create', '1');
+        const response = await fetch('{{ route('projects.store') }}', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body,
+        });
+        const result = await readJsonResponse(response, 'Projekat nije kreiran.');
+        status.textContent = `${result.project.name} je kreiran. Učitavam...`;
+        pickProject(result.project.id);
+    } catch (err) {
+        status.textContent = err.message;
+    }
+}
+
+document.getElementById('pp-new-name')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') ppCreateProject();
+});
 </script>
 
 {{-- DXF/DWG floating panel --}}
@@ -4499,6 +4610,12 @@ refreshTrenchGroupStatus();
     }
 })();
 </script>
+<style>
+#dxf-dropzone.dxf-dragover {
+    background: #e0e7ff !important;
+    border-color: #6366f1 !important;
+}
+</style>
 <style>
 #dxf-dropzone.dxf-dragover {
     background: #e0e7ff !important;
