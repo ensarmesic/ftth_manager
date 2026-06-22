@@ -38,6 +38,10 @@
     .child-cabinet-block { margin-left: 18px; margin-top: 6px; border: 1.5px dashed #2f8f5b; border-radius: 6px; }
     .child-cabinet-block .cabinet-header { background: #f0fff7; border-radius: 4px 4px 0 0; }
     .child-label { font-size: 7pt; color: #2f8f5b; font-weight: 900; background: #e6fff2; border: 1px solid #a5d6bb; border-radius: 3px; padding: 0 4px; margin-right: 4px; }
+    .branch-section { margin-bottom: 10px; }
+    .branch-title { border-bottom: 2px solid #1d4ed8; padding: 3px 2px 3px; margin-bottom: 6px; display: table; width: 100%; }
+    .branch-title-name { font-size: 8.5pt; font-weight: 900; color: #1d4ed8; display: table-cell; }
+    .branch-title-fiber { font-size: 7.5pt; font-weight: 900; color: #1d4ed8; display: table-cell; text-align: right; background: #eaf3ff; border: 1px solid #b8d7ef; border-radius: 3px; padding: 1px 6px; }
     .reserve-box { margin-top: 8px; border: 1.5px solid #16a34a; border-radius: 6px; background: #f0fff4; padding: 7px 12px; }
     .reserve-title { font-size: 8.5pt; font-weight: 900; color: #15803d; }
     .reserve-meta { font-size: 7.5pt; color: #555; margin-top: 2px; }
@@ -81,125 +85,156 @@
             &nbsp;·&nbsp; {{ $odf->cabinets->count() }} izlaza
         </div>
 
-        @forelse($odf->cabinets as $cabinet)
-            @php
-                $houses = $cabinet->houses->values();
-                $capacity = max($cabinet->capacity, 12);
-                $used = $cabinet->houses_count;
-                $utilization = min(100, round($used / max($capacity, 1) * 100));
-                $state = $utilization >= 100 ? 'full' : ($utilization >= 80 ? 'warn' : '');
-                $fiberRange = $fiberAllocations[$cabinet->id] ?? null;
-                $fiberLabel = $fiberRange ? ($fiberRange['from'] === $fiberRange['to'] ? (string) $fiberRange['from'] : $fiberRange['from'].'-'.$fiberRange['to']) : '?';
-                $activeSplitters = $neededSplitters($cabinet);
-                $portsPerSplitter = max(1, (int) $cabinet->ports_per_splitter);
-                $splitterRatio = '1:' . $portsPerSplitter;
-            @endphp
-            <div class="cabinet-block {{ $state }}">
-                <div class="cabinet-header">
-                    <span class="cabinet-name">{{ $cabinet->name }}</span>
-                    <span class="cabinet-info">
-                        {{ $used }}/{{ $capacity }} kuca
-                        &nbsp;·&nbsp; {{ $activeSplitters }}× {{ $splitterRatio }}
-                        &nbsp;·&nbsp; <span class="fiber-tag">F {{ $fiberLabel }}</span>
-                        &nbsp;·&nbsp; {{ $utilization }}%
-                        @if($cabinet->address) &nbsp;·&nbsp; {{ $cabinet->address }} @endif
-                    </span>
-                </div>
-                <div class="util-bar-wrap"><div class="util-bar-fill" style="width:{{ $utilization }}%"></div></div>
-
-                <table class="splitter-table">
-                    <thead>
-                        <tr>
-                            <th style="width:52px">Splitter</th>
-                            @for($p = 1; $p <= $portsPerSplitter; $p++)
-                                <th>Port {{ $p }}</th>
-                            @endfor
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @for($splitter = 1; $splitter <= max($activeSplitters, 1); $splitter++)
-                            <tr>
-                                <td class="splitter-label-cell">S{{ $splitter }} {{ $splitterRatio }}</td>
-                                @for($port = 1; $port <= $portsPerSplitter; $port++)
-                                    @php
-                                        $absolutePort = ($splitter - 1) * $portsPerSplitter + $port;
-                                        $house = $houses->get($absolutePort - 1);
-                                    @endphp
-                                    @if($house)
-                                        <td class="port-used"><span class="port-num">P{{ $absolutePort }}</span>{{ $house->label }}</td>
-                                    @else
-                                        <td class="port-free"><span class="port-num">P{{ $absolutePort }}</span>Slobodno</td>
-                                    @endif
-                                @endfor
-                            </tr>
-                        @endfor
-                    </tbody>
-                </table>
-
-                @if($cabinet->childCabinets->isNotEmpty())
-                    @foreach($cabinet->childCabinets as $childCabinet)
+        @php
+            $pdfBranches = $project->branches
+                ->where('type', 'secondary')
+                ->where('odf_id', $odf->id)
+                ->sortBy(fn($b) => sprintf('%06d|%s', (int)($b->sort_order ?? 0), (string)$b->name));
+            $pdfHasCabinets = $pdfBranches->flatMap->cabinets->isNotEmpty();
+        @endphp
+        @if($pdfHasCabinets)
+            @foreach($pdfBranches as $pdfBranch)
+                @php
+                    $pdfBranchCabs = $pdfBranch->cabinets
+                        ->sortBy(fn($c) => sprintf('%06d|%s', (int)($c->branch_order ?? 0), (string)$c->name));
+                    $pbfMin = PHP_INT_MAX; $pbfMax = 0;
+                    foreach ($pdfBranchCabs as $bc) {
+                        if (isset($fiberAllocations[$bc->id])) {
+                            $pbfMin = min($pbfMin, $fiberAllocations[$bc->id]['from']);
+                            $pbfMax = max($pbfMax, $fiberAllocations[$bc->id]['to']);
+                        }
+                    }
+                    $pbfStr = $pbfMax > 0 ? ($pbfMin === $pbfMax ? "F{$pbfMin}" : "F{$pbfMin}–F{$pbfMax}") : '?';
+                @endphp
+                @if($pdfBranchCabs->isNotEmpty())
+                <div class="branch-section">
+                    <div class="branch-title">
+                        <span class="branch-title-name">{{ $pdfBranch->name }}</span>
+                        <span class="branch-title-fiber">{{ $pbfStr }}</span>
+                    </div>
+                    @foreach($pdfBranchCabs as $cabinet)
                         @php
-                            $childHouses = $childCabinet->houses->values();
-                            $childCapacity = max($childCabinet->capacity, 12);
-                            $childUsed = $childCabinet->houses_count;
-                            $childUtilization = min(100, round($childUsed / max($childCapacity, 1) * 100));
-                            $childState = $childUtilization >= 100 ? 'full' : ($childUtilization >= 80 ? 'warn' : '');
-                            $childFiberRange = $fiberAllocations[$childCabinet->id] ?? null;
-                            $childFiberLabel = $childFiberRange ? ($childFiberRange['from'] === $childFiberRange['to'] ? (string) $childFiberRange['from'] : $childFiberRange['from'].'-'.$childFiberRange['to']) : '?';
-                            $childActiveSplitters = $neededSplitters($childCabinet);
-                            $childPortsPerSplitter = max(1, (int) $childCabinet->ports_per_splitter);
-                            $childSplitterRatio = '1:' . $childPortsPerSplitter;
+                            $houses = $cabinet->houses->values();
+                            $capacity = max($cabinet->capacity, 12);
+                            $used = $cabinet->houses_count ?? $cabinet->houses->count();
+                            $utilization = min(100, round($used / max($capacity, 1) * 100));
+                            $state = $utilization >= 100 ? 'full' : ($utilization >= 80 ? 'warn' : '');
+                            $fiberRange = $fiberAllocations[$cabinet->id] ?? null;
+                            $fiberLabel = $fiberRange ? ($fiberRange['from'] === $fiberRange['to'] ? (string) $fiberRange['from'] : $fiberRange['from'].'-'.$fiberRange['to']) : '?';
+                            $activeSplitters = $neededSplitters($cabinet);
+                            $portsPerSplitter = max(1, (int) $cabinet->ports_per_splitter);
+                            $splitterRatio = '1:' . $portsPerSplitter;
                         @endphp
-                        <div class="child-cabinet-block {{ $childState }}">
+                        <div class="cabinet-block {{ $state }}">
                             <div class="cabinet-header">
-                                <span class="cabinet-name">
-                                    <span class="child-label">IZ {{ $cabinet->name }}</span>
-                                    {{ $childCabinet->name }}
-                                </span>
+                                <span class="cabinet-name">{{ $cabinet->name }}</span>
                                 <span class="cabinet-info">
-                                    {{ $childUsed }}/{{ $childCapacity }} kuca
-                                    &nbsp;·&nbsp; {{ $childActiveSplitters }}× {{ $childSplitterRatio }}
-                                    &nbsp;·&nbsp; <span class="fiber-tag">F {{ $childFiberLabel }}</span>
-                                    &nbsp;·&nbsp; {{ $childUtilization }}%
+                                    {{ $used }}/{{ $capacity }} kuca
+                                    &nbsp;·&nbsp; {{ $activeSplitters }}× {{ $splitterRatio }}
+                                    &nbsp;·&nbsp; <span class="fiber-tag">F {{ $fiberLabel }}</span>
+                                    &nbsp;·&nbsp; {{ $utilization }}%
+                                    @if($cabinet->address) &nbsp;·&nbsp; {{ $cabinet->address }} @endif
                                 </span>
                             </div>
-                            <div class="util-bar-wrap"><div class="util-bar-fill" style="width:{{ $childUtilization }}%"></div></div>
+                            <div class="util-bar-wrap"><div class="util-bar-fill" style="width:{{ $utilization }}%"></div></div>
 
                             <table class="splitter-table">
                                 <thead>
                                     <tr>
                                         <th style="width:52px">Splitter</th>
-                                        @for($p = 1; $p <= $childPortsPerSplitter; $p++)
+                                        @for($p = 1; $p <= $portsPerSplitter; $p++)
                                             <th>Port {{ $p }}</th>
                                         @endfor
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @for($childSplitter = 1; $childSplitter <= max($childActiveSplitters, 1); $childSplitter++)
+                                    @for($splitter = 1; $splitter <= max($activeSplitters, 1); $splitter++)
                                         <tr>
-                                            <td class="splitter-label-cell">S{{ $childSplitter }} {{ $childSplitterRatio }}</td>
-                                            @for($childPort = 1; $childPort <= $childPortsPerSplitter; $childPort++)
+                                            <td class="splitter-label-cell">S{{ $splitter }} {{ $splitterRatio }}</td>
+                                            @for($port = 1; $port <= $portsPerSplitter; $port++)
                                                 @php
-                                                    $childAbsolutePort = ($childSplitter - 1) * $childPortsPerSplitter + $childPort;
-                                                    $childHouse = $childHouses->get($childAbsolutePort - 1);
+                                                    $absolutePort = ($splitter - 1) * $portsPerSplitter + $port;
+                                                    $house = $houses->get($absolutePort - 1);
                                                 @endphp
-                                                @if($childHouse)
-                                                    <td class="port-used"><span class="port-num">P{{ $childAbsolutePort }}</span>{{ $childHouse->label }}</td>
+                                                @if($house)
+                                                    <td class="port-used"><span class="port-num">P{{ $absolutePort }}</span>{{ $house->label }}</td>
                                                 @else
-                                                    <td class="port-free"><span class="port-num">P{{ $childAbsolutePort }}</span>Slobodno</td>
+                                                    <td class="port-free"><span class="port-num">P{{ $absolutePort }}</span>Slobodno</td>
                                                 @endif
                                             @endfor
                                         </tr>
                                     @endfor
                                 </tbody>
                             </table>
+
+                            @if($cabinet->childCabinets->isNotEmpty())
+                                @foreach($cabinet->childCabinets as $childCabinet)
+                                    @php
+                                        $childHouses = $childCabinet->houses->values();
+                                        $childCapacity = max($childCabinet->capacity, 12);
+                                        $childUsed = $childCabinet->houses_count ?? $childCabinet->houses->count();
+                                        $childUtilization = min(100, round($childUsed / max($childCapacity, 1) * 100));
+                                        $childState = $childUtilization >= 100 ? 'full' : ($childUtilization >= 80 ? 'warn' : '');
+                                        $childFiberRange = $fiberAllocations[$childCabinet->id] ?? null;
+                                        $childFiberLabel = $childFiberRange ? ($childFiberRange['from'] === $childFiberRange['to'] ? (string) $childFiberRange['from'] : $childFiberRange['from'].'-'.$childFiberRange['to']) : '?';
+                                        $childActiveSplitters = $neededSplitters($childCabinet);
+                                        $childPortsPerSplitter = max(1, (int) $childCabinet->ports_per_splitter);
+                                        $childSplitterRatio = '1:' . $childPortsPerSplitter;
+                                    @endphp
+                                    <div class="child-cabinet-block {{ $childState }}">
+                                        <div class="cabinet-header">
+                                            <span class="cabinet-name">
+                                                <span class="child-label">IZ {{ $cabinet->name }}</span>
+                                                {{ $childCabinet->name }}
+                                            </span>
+                                            <span class="cabinet-info">
+                                                {{ $childUsed }}/{{ $childCapacity }} kuca
+                                                &nbsp;·&nbsp; {{ $childActiveSplitters }}× {{ $childSplitterRatio }}
+                                                &nbsp;·&nbsp; <span class="fiber-tag">F {{ $childFiberLabel }}</span>
+                                                &nbsp;·&nbsp; {{ $childUtilization }}%
+                                            </span>
+                                        </div>
+                                        <div class="util-bar-wrap"><div class="util-bar-fill" style="width:{{ $childUtilization }}%"></div></div>
+
+                                        <table class="splitter-table">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width:52px">Splitter</th>
+                                                    @for($p = 1; $p <= $childPortsPerSplitter; $p++)
+                                                        <th>Port {{ $p }}</th>
+                                                    @endfor
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @for($childSplitter = 1; $childSplitter <= max($childActiveSplitters, 1); $childSplitter++)
+                                                    <tr>
+                                                        <td class="splitter-label-cell">S{{ $childSplitter }} {{ $childSplitterRatio }}</td>
+                                                        @for($childPort = 1; $childPort <= $childPortsPerSplitter; $childPort++)
+                                                            @php
+                                                                $childAbsolutePort = ($childSplitter - 1) * $childPortsPerSplitter + $childPort;
+                                                                $childHouse = $childHouses->get($childAbsolutePort - 1);
+                                                            @endphp
+                                                            @if($childHouse)
+                                                                <td class="port-used"><span class="port-num">P{{ $childAbsolutePort }}</span>{{ $childHouse->label }}</td>
+                                                            @else
+                                                                <td class="port-free"><span class="port-num">P{{ $childAbsolutePort }}</span>Slobodno</td>
+                                                            @endif
+                                                        @endfor
+                                                    </tr>
+                                                @endfor
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @endforeach
+                            @endif
                         </div>
                     @endforeach
+                </div>
                 @endif
-            </div>
-        @empty
-            <p style="color:#888;font-size:8pt;padding:6px 10px">ODF jos nema povezane FTTH ormarice.</p>
-        @endforelse
+            @endforeach
+        @else
+            <p style="color:#888;font-size:8pt;padding:6px 10px">ODF jos nema povezane FTTH ormarice u granama.</p>
+        @endif
     </div>
 @empty
     <p style="color:#888;padding:10px">Projekat nema ODF lokaciju.</p>
