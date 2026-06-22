@@ -27,7 +27,6 @@
         ['odfs.index',          'ODF-ovi',            'server'],
         ['cabinets.index',      'ODO ormarici',       'archive'],
         ['houses.index',        'Kuce',               'home'],
-        ['subscribers.index',   'Korisnici',          'users'],
         ['routes.index',        'Trase',              'route'],
         ['branches.index',      'Krakovi',            'branch'],
         ['materials.index',     'Materijali',         'cube'],
@@ -80,7 +79,7 @@
         @if($isDashboard && isset($odfs, $cabinets, $stats, $routes))
             <div class="mx-4 mb-4 mt-1 rounded-xl border border-white/10 p-3 text-[10px] xl:text-[11px]" style="background:rgba(255,255,255,.06)">
                 <b class="mb-2 block text-blue-200 text-[9.5px] uppercase tracking-widest">Brzi pregled</b>
-                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarici', $cabinets->count()], ['Korisnici', $stats['subscribers']], ['Trase', $routes->count()], ['Ukupna duzina', number_format($stats['routes_m'] / 1000, 2).' km']] as $quick)
+                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarici', $cabinets->count()], ['Trase', $routes->count()], ['Ukupna duzina', number_format($stats['routes_m'] / 1000, 2).' km']] as $quick)
                     <div class="flex justify-between py-1 text-blue-200"><span>{{ $quick[0] }}</span><b class="text-white">{{ $quick[1] }}</b></div>
                 @endforeach
             </div>
@@ -190,7 +189,7 @@
 <script>
 const ftthMenuItems = [
     ['Pregled', @json(route('dashboard'))], ['Projekti', @json(route('projects.index'))], ['Mapa', @json(route('map.dashboard'))],
-    ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarici', @json(route('cabinets.index'))], ['Kuce', @json(route('houses.index'))], ['Korisnici', @json(route('subscribers.index'))],
+    ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarici', @json(route('cabinets.index'))], ['Kuce', @json(route('houses.index'))],
     ['Trase', @json(route('routes.index'))], ['Krakovi', @json(route('branches.index'))], ['Materijali', @json(route('materials.index'))], ['Izvjestaji', @json(route('reports.index'))],
     ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
     ['Postavke', @json(route('settings.index'))],

@@ -65,11 +65,6 @@ Route::patch('/kuce/{id}/pozicija', [HouseController::class, 'updateHousePositio
 Route::post('/ormarici/{id}/povezi-kuce', [HouseController::class, 'connectCabinetHouses'])->name('cabinets.houses.connect');
 Route::delete('/kuce/{id}', [HouseController::class, 'deleteHouse'])->name('houses.delete');
 
-Route::get('/korisnici', [HouseController::class, 'subscribers'])->name('subscribers.index');
-Route::post('/korisnici', [HouseController::class, 'storeSubscriber'])->name('subscribers.store');
-Route::match(['put', 'patch'], '/korisnici/{id}', [HouseController::class, 'updateSubscriber'])->name('subscribers.update');
-Route::delete('/korisnici/{id}', [HouseController::class, 'deleteSubscriber'])->name('subscribers.delete');
-
 Route::get('/trase', [RouteController::class, 'routes'])->name('routes.index');
 Route::post('/trase', [RouteController::class, 'storeRoute'])->name('routes.store');
 Route::match(['put', 'patch'], '/trase/{id}', [RouteController::class, 'updateRoute'])->name('routes.update');
