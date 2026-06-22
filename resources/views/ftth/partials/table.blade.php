@@ -13,7 +13,7 @@
             </thead>
             <tbody>
                 @forelse ($rows as $row)
-                    <tr>
+                    <tr data-id="{{ $row->id }}">
                         @foreach ($columns as $key => $label)
                             <td>
                                 @if (str_contains((string) $key, 'status'))

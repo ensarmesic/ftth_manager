@@ -38,6 +38,7 @@
     </button>
 </div>
 
+<div id="branches-sortable-table">
 @include('ftth.partials.table', [
     'rows'        => $branches,
     'columns'     => ['name' => 'Krak', 'code' => 'Kod', 'type' => 'Tip', 'odf.name' => 'ODF', 'parentBranch.name' => 'Roditelj', 'route.name' => 'Trasa', 'cabinets_count' => 'ODO'],
@@ -53,6 +54,7 @@
         'type'             => ['label' => 'Tip', 'type' => 'select', 'options' => ['secondary' => 'Sekundarni', 'primary' => 'Primarni']],
     ],
 ])
+</div>
 
 <div id="drawer-branches" class="app-drawer">
     <div class="app-drawer-backdrop"></div>
@@ -106,5 +108,66 @@
     </div>
 </div>
 @if($errors->any())<script>document.getElementById('drawer-branches')?.classList.add('open');</script>@endif
+
+<script>
+(function () {
+    const wrap = document.getElementById('branches-sortable-table');
+    if (!wrap) return;
+    const tbody = wrap.querySelector('tbody');
+    if (!tbody) return;
+
+    const reorderUrl = '{{ route('branches.reorder') }}';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    let dragSrc = null;
+
+    tbody.querySelectorAll('tr[data-id]').forEach(row => {
+        const handle = document.createElement('td');
+        handle.innerHTML = '<span title="Promijeni redoslijed" style="cursor:grab;color:#94a3b8;font-size:1rem;padding:0 .35rem;user-select:none">⠿</span>';
+        row.insertBefore(handle, row.firstChild);
+        row.draggable = true;
+        row.style.cursor = 'grab';
+
+        row.addEventListener('dragstart', e => {
+            dragSrc = row;
+            e.dataTransfer.effectAllowed = 'move';
+            row.style.opacity = '.45';
+        });
+        row.addEventListener('dragend', () => {
+            row.style.opacity = '';
+            tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+        });
+        row.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (row !== dragSrc) {
+                tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+                row.classList.add('drag-over');
+            }
+        });
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            if (!dragSrc || dragSrc === row) return;
+            const rows = [...tbody.querySelectorAll('tr[data-id]')];
+            const srcIdx = rows.indexOf(dragSrc);
+            const tgtIdx = rows.indexOf(row);
+            if (srcIdx < tgtIdx) row.after(dragSrc); else row.before(dragSrc);
+            saveOrder();
+        });
+    });
+
+    function saveOrder() {
+        const ids = [...tbody.querySelectorAll('tr[data-id]')].map(r => r.dataset.id);
+        fetch(reorderUrl, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+            body: JSON.stringify({ ids }),
+        });
+    }
+})();
+</script>
+<style>
+#branches-sortable-table tbody tr.drag-over { outline: 2px solid #2684c2; background: #eaf6ff; }
+</style>
 
 @endsection

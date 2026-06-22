@@ -66,5 +66,14 @@ class BranchController extends Controller
         $branch->delete();
         return back()->with('success', 'Krak je obrisan.');
     }
+
+    public function reorderBranches(Request $request)
+    {
+        $ids = $request->validate(['ids' => 'required|array', 'ids.*' => 'integer|exists:network_branches,id'])['ids'];
+        foreach ($ids as $position => $id) {
+            NetworkBranch::where('id', $id)->update(['sort_order' => $position + 1]);
+        }
+        return response()->json(['ok' => true]);
+    }
 }
 

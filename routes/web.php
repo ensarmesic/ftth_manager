@@ -27,6 +27,7 @@ Route::get('/fiber-sema', [ReportController::class, 'fiberSchema'])->name('fiber
 Route::get('/projekti/{project}/fiber-sema/pdf', [ReportController::class, 'fiberSchemaPdf'])->name('projects.fiber-schema-pdf');
 Route::get('/krakovi', [BranchController::class, 'branches'])->name('branches.index');
 Route::post('/krakovi', [BranchController::class, 'storeBranch'])->name('branches.store');
+Route::patch('/krakovi/reorder', [BranchController::class, 'reorderBranches'])->name('branches.reorder');
 Route::match(['put', 'patch'], '/krakovi/{id}', [BranchController::class, 'updateBranch'])->name('branches.update');
 Route::delete('/krakovi/{id}', [BranchController::class, 'deleteBranch'])->name('branches.delete');
 Route::get('/provjera-projekta', [ProjectController::class, 'projectCheck'])->name('project-check.index');
