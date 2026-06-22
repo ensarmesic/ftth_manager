@@ -145,6 +145,9 @@
     .rack-branch-section { display: grid; gap: .42rem; margin-bottom: .7rem; }
     .rack-branch-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #2684c2; padding: .22rem .1rem .18rem; margin-bottom: .32rem; color: #004f7d; font-size: .73rem; font-weight: 900; letter-spacing: .01em; }
     .rack-fiber-badge { border: 1px solid #b8d7ef; border-radius: 999px; background: #eaf6ff; padding: .1rem .48rem; color: #1d4ed8; font-size: .66rem; font-weight: 900; }
+    .rack-unassigned-section { display: grid; gap: .42rem; margin-bottom: .7rem; }
+    .rack-unassigned-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #d97706; padding: .22rem .1rem .18rem; margin-bottom: .32rem; color: #92400e; font-size: .73rem; font-weight: 900; letter-spacing: .01em; }
+    .rack-unassigned-badge { border: 1px solid #fde68a; border-radius: 999px; background: #fef3c7; padding: .1rem .48rem; color: #92400e; font-size: .66rem; font-weight: 900; }
 </style>
 
 <section class="schema-page">
@@ -325,8 +328,10 @@
                                 ->where('odf_id', $odf->id)
                                 ->sortBy(fn($b) => sprintf('%06d|%s', (int)($b->sort_order ?? 0), (string)$b->name));
                             $rackHasCabinets = $rackBranches->flatMap->cabinets->isNotEmpty();
+                            $unassignedOdfCabs = $odf->cabinets->filter(fn($c) => is_null($c->branch_id))
+                                ->sortBy(fn($c) => (string)$c->name);
                         @endphp
-                        @if($rackHasCabinets)
+                        @if($rackHasCabinets || $unassignedOdfCabs->isNotEmpty())
                             @foreach($rackBranches as $rackBranch)
                                 @php
                                     $rackBranchCabs = $rackBranch->cabinets
@@ -446,6 +451,59 @@
                                 </div>
                                 @endif
                             @endforeach
+                            @if($unassignedOdfCabs->isNotEmpty())
+                                <div class="rack-unassigned-section">
+                                    <div class="rack-unassigned-header">
+                                        <span>&#9888; Neraspoređeni ODO</span>
+                                        <span class="rack-unassigned-badge">{{ $unassignedOdfCabs->count() }} bez grane</span>
+                                    </div>
+                                    @foreach($unassignedOdfCabs as $cabinet)
+                                        @php
+                                            $rackOutCounter++;
+                                            $houses = $cabinet->houses->values();
+                                            $capacity = max($cabinet->capacity, 12);
+                                            $used = $cabinet->houses_count ?? $cabinet->houses->count();
+                                            $utilization = min(100, round($used / max($capacity, 1) * 100));
+                                            $state = $utilization >= 100 ? 'full' : ($utilization >= 80 ? 'warn' : '');
+                                            $activeSplitters = $neededSplitters($cabinet);
+                                            $portsPerSplitter = max(1, (int) $cabinet->ports_per_splitter);
+                                            $splitterRatio = '1:' . $portsPerSplitter;
+                                        @endphp
+                                        <div class="cabinet-node">
+                                            <span class="connection-tag">OUT {{ $rackOutCounter }}</span>
+                                            <div class="cabinet-box {{ $state }}">
+                                                <div class="cabinet-title">
+                                                    <span title="{{ $cabinet->name }}">{{ $cabinet->name }}</span>
+                                                    <span>{{ $used }}/{{ $capacity }}</span>
+                                                </div>
+                                                <div class="mt-1 truncate text-[10px] font-semibold text-slate-500" title="{{ $cabinet->address ?: 'Bez adrese' }}">{{ $cabinet->address ?: 'Bez adrese' }}</div>
+                                                <div class="util-bar"><div style="width: {{ $utilization }}%"></div></div>
+                                                <div class="mt-1 text-[10px] font-bold text-amber-600">{{ $activeSplitters }} x {{ $splitterRatio }} / F ???</div>
+                                            </div>
+                                            <div class="splitter-panel">
+                                            @for($splitter = 1; $splitter <= max($activeSplitters, 1); $splitter++)
+                                                <div class="splitter-line">
+                                                    <div class="splitter-label">S{{ $splitter }} {{ $splitterRatio }}</div>
+                                                    @for($port = 1; $port <= $portsPerSplitter; $port++)
+                                                        @php
+                                                            $absolutePort = ($splitter - 1) * $portsPerSplitter + $port;
+                                                            $house = $houses->get($absolutePort - 1);
+                                                        @endphp
+                                                        @if($house)
+                                                            <button type="button" class="port" title="S{{ $splitter }} / P{{ $absolutePort }} -> {{ $house->label }}" data-trace-house="{{ $house->id }}" data-house-label="{{ $house->label }}" data-cabinet-name="{{ $cabinet->name }}" data-odf-name="{{ $odf->name }}" data-fiber-range="?" data-splitter="{{ $splitter }}" data-port="{{ $absolutePort }}" data-out="{{ $rackOutCounter }}">
+                                                                <b>P{{ $absolutePort }}</b>{{ $house->label }}
+                                                            </button>
+                                                        @else
+                                                            <div class="port empty" title="S{{ $splitter }} / P{{ $absolutePort }} slobodan"><b>P{{ $absolutePort }}</b>Slobodno</div>
+                                                        @endif
+                                                    @endfor
+                                                </div>
+                                            @endfor
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
                         @else
                             <div class="rounded-md border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">ODF jos nema povezane FTTH ormarice u granama.</div>
                         @endif
