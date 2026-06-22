@@ -11,7 +11,6 @@ use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
-use App\Models\Subscriber;
 use App\Services\FtthIntelligenceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -31,8 +30,8 @@ class ReportController extends Controller
 
     public function reports(): View
     {
-        $projects = Project::withCount(['odfs', 'cabinets', 'subscribers', 'houses', 'routes'])
-            ->with(['materials', 'routes', 'cabinets' => fn ($query) => $query->withCount('subscribers')])
+        $projects = Project::withCount(['odfs', 'cabinets', 'houses', 'routes'])
+            ->with(['materials', 'routes', 'cabinets' => fn ($query) => $query->withCount('houses')])
             ->with('appendixItems')
             ->orderBy('name')
             ->get();
@@ -45,10 +44,9 @@ class ReportController extends Controller
             ]]),
             'totals' => [
                 'projects' => Project::count(),
-                'subscribers' => Subscriber::count(),
                 'houses' => House::count(),
                 'cabinets' => Cabinet::count(),
-                'free_ports' => (int) Cabinet::selectRaw('SUM(GREATEST(capacity - (SELECT COUNT(*) FROM subscribers WHERE cabinet_id = cabinets.id), 0)) as total')->value('total'),
+                'free_ports' => (int) Cabinet::selectRaw('SUM(GREATEST((splitter_count * ports_per_splitter) - (SELECT COUNT(*) FROM houses WHERE cabinet_id = cabinets.id), 0)) as total')->value('total'),
                 'duct' => NetworkRoute::sum('duct_length_m'),
                 'fiber' => NetworkRoute::sum('fiber_length_m'),
                 'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,
@@ -62,14 +60,13 @@ class ReportController extends Controller
             'odfs',
             'cabinets.houses',
             'houses',
-            'subscribers',
             'routes',
             'materials',
             'appendixItems',
         ]);
 
         $routes = $project->routes;
-        $subscriberCount = max($project->subscribers->count(), $project->houses->count());
+        $subscriberCount = $project->houses->count();
         $distributionRoutes = $routes->whereIn('route_type', ['distribution', 'secondary']);
         $dropRoutes = $routes->where('route_type', 'drop');
         $totalDuct = (float) $routes
@@ -157,7 +154,7 @@ class ReportController extends Controller
 
     public function splitters(): View
     {
-        $cabinets = Cabinet::with(['project', 'odf'])->withCount(['houses', 'subscribers'])->orderBy('name')->get();
+        $cabinets = Cabinet::with(['project', 'odf'])->withCount(['houses'])->orderBy('name')->get();
 
         return view('ftth.splitters', ['cabinets' => $cabinets]);
     }
@@ -184,9 +181,9 @@ class ReportController extends Controller
                 ->whereNull('parent_cabinet_id')
                 ->with([
                     'houses' => fn ($hq) => $hq->orderBy('label'),
-                    'childCabinets' => fn ($cq) => $cq->with(['houses' => fn ($hq) => $hq->orderBy('label')])->withCount(['houses', 'subscribers'])->orderBy('name'),
+                    'childCabinets' => fn ($cq) => $cq->with(['houses' => fn ($hq) => $hq->orderBy('label')])->withCount(['houses'])->orderBy('name'),
                 ])
-                ->withCount(['houses', 'subscribers'])
+                ->withCount(['houses'])
                 ->orderBy('name'),
         ]);
 
@@ -269,9 +266,9 @@ class ReportController extends Controller
                 ->whereNull('parent_cabinet_id')
                 ->with([
                     'houses' => fn ($houseQuery) => $houseQuery->orderBy('label'),
-                    'childCabinets' => fn ($childQuery) => $childQuery->with(['houses' => fn ($houseQuery) => $houseQuery->orderBy('label')])->withCount(['houses', 'subscribers'])->orderBy('name'),
+                    'childCabinets' => fn ($childQuery) => $childQuery->with(['houses' => fn ($houseQuery) => $houseQuery->orderBy('label')])->withCount(['houses'])->orderBy('name'),
                 ])
-                ->withCount(['houses', 'subscribers'])
+                ->withCount(['houses'])
                 ->orderBy('name'),
             'routes' => fn ($query) => $query->orderBy('route_type')->orderBy('name'),
         ])->orderBy('name')->get();

@@ -10,7 +10,6 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Models\Subscriber;
 use App\Services\FtthIntelligenceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;

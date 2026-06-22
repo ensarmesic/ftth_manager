@@ -335,7 +335,6 @@ class FtthIntelligenceService
             'odf_count' => $project->odfs()->count(),
             'odo_count' => $project->cabinets()->count(),
             'house_count' => $project->houses()->count(),
-            'subscriber_count' => $project->subscribers()->count(),
             'splitter_count' => $project->cabinets()->sum('splitter_count'),
             'route_length_m' => $routes->sum('duct_length_m'),
             'microduct_14_10_m' => $routes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),

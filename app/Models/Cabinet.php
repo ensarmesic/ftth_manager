@@ -15,7 +15,6 @@ class Cabinet extends Model
     public function parentCabinet(): BelongsTo { return $this->belongsTo(Cabinet::class, 'parent_cabinet_id'); }
     public function branch(): BelongsTo { return $this->belongsTo(NetworkBranch::class, 'branch_id'); }
     public function childCabinets(): HasMany { return $this->hasMany(Cabinet::class, 'parent_cabinet_id'); }
-    public function subscribers(): HasMany { return $this->hasMany(Subscriber::class); }
     public function houses(): HasMany { return $this->hasMany(House::class); }
 
     public function getCapacityAttribute(): int
@@ -25,7 +24,7 @@ class Cabinet extends Model
 
     public function getUsedPortsAttribute(): int
     {
-        return $this->subscribers_count ?? $this->subscribers()->count();
+        return $this->houses_count ?? $this->houses()->count();
     }
 
     public function getUtilizationAttribute(): float

@@ -11,7 +11,6 @@ class Project extends Model
 
     public function odfs(): HasMany { return $this->hasMany(Odf::class); }
     public function cabinets(): HasMany { return $this->hasMany(Cabinet::class); }
-    public function subscribers(): HasMany { return $this->hasMany(Subscriber::class); }
     public function houses(): HasMany { return $this->hasMany(House::class); }
     public function routes(): HasMany { return $this->hasMany(NetworkRoute::class); }
     public function branches(): HasMany { return $this->hasMany(NetworkBranch::class); }

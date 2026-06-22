@@ -30,7 +30,7 @@ class MapController extends Controller
         $odfs = $allOdfs->filter(fn ($o) => $o->latitude !== null && $o->longitude !== null)->values();
 
         $allCabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])
-            ->withCount(['houses', 'subscribers'])
+            ->withCount(['houses'])
             ->when($scope, fn ($q) => $q->where('project_id', $projectId))
             ->get();
         $cabinets = $allCabinets->filter(fn ($c) => $c->latitude !== null && $c->longitude !== null)->values();

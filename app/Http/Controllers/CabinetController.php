@@ -10,7 +10,6 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Models\Subscriber;
 use App\Services\FtthIntelligenceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -40,7 +39,7 @@ class CabinetController extends Controller
         }, ['total' => Cabinet::count(), 'capacity' => 0, 'used_ports' => 0, 'full' => 0]);
 
         return view('ftth.cabinets', [
-            'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses', 'subscribers'])->latest()->paginate(12),
+            'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses'])->latest()->paginate(12),
             'parentCabinets' => Cabinet::with('project')->orderBy('name')->get(),
             'branches' => NetworkBranch::with('project')->where('type', 'secondary')->orderBy('sort_order')->orderBy('name')->get(),
             'projects' => Project::orderBy('name')->get(),
@@ -250,11 +249,6 @@ class CabinetController extends Controller
                     }
 
                     $house->update(['cabinet_id' => $createdCabinet->id]);
-                    Subscriber::query()
-                        ->where('project_id', $projectId)
-                        ->whereNull('cabinet_id')
-                        ->where('address', $house->address)
-                        ->update(['cabinet_id' => $createdCabinet->id]);
                     $path = $point['path'] ?? [[(float) $createdCabinet->latitude, (float) $createdCabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
                     $length = $this->polylineLength($path);
                     $dropName = $this->uniqueProjectName(NetworkRoute::class, $projectId, "Drop {$createdCabinet->name}-{$house->label}");

@@ -6,7 +6,6 @@ use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
 use App\Models\Project;
-use App\Models\Subscriber;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -129,83 +128,5 @@ class HouseController extends Controller
         return response()->json(['message' => 'Kuce i drop trase su povezane.', 'routes' => $routes->values()]);
     }
 
-    public function subscribers(): View
-    {
-        return view('ftth.subscribers', [
-            'subscribers' => Subscriber::with(['project', 'cabinet'])->latest()->paginate(12),
-            'projects' => Project::orderBy('name')->get(),
-            'cabinets' => Cabinet::withCount('subscribers')->orderBy('name')->get(),
-            'subscriberStats' => [
-                'total' => Subscriber::count(),
-                'in_service' => Subscriber::where('service_status', 'in_service')->count(),
-                'planned' => Subscriber::where('service_status', 'planned')->count(),
-                'cabinets' => Cabinet::count(),
-            ],
-        ]);
-    }
-
-    public function storeSubscriber(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'project_id' => ['required', 'exists:projects,id'],
-            'cabinet_id' => ['nullable', 'exists:cabinets,id'],
-            'name' => ['required', 'max:255'],
-            'address' => ['required', 'max:255'],
-            'latitude' => $this->latitudeRules(),
-            'longitude' => $this->longitudeRules(),
-            'phone' => ['nullable', 'max:50'],
-            'service_status' => ['required', 'in:planned,connected,in_service,cancelled'],
-            'splitter_no' => ['nullable', 'integer', 'min:1', 'max:3'],
-            'port_no' => ['nullable', 'integer', 'min:1', 'max:4'],
-            'connected_at' => ['nullable', 'date'],
-        ]);
-        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
-
-        if (! empty($data['cabinet_id'])) {
-            $cabinet = Cabinet::withCount('subscribers')->findOrFail($data['cabinet_id']);
-            if ($cabinet->subscribers_count >= $cabinet->capacity) {
-                return back()->withErrors(['cabinet_id' => 'Odabrani ormaric je popunjen. Potrebno je planirati novi ormaric.'])->withInput();
-            }
-        }
-
-        Subscriber::create($data);
-
-        return back()->with('success', 'Korisnik je evidentiran.');
-    }
-
-    public function updateSubscriber(Request $request, $id): RedirectResponse
-    {
-        $subscriber = Subscriber::findOrFail($id);
-        $data = $request->validate([
-            'project_id' => ['required', 'exists:projects,id'],
-            'cabinet_id' => ['nullable', 'exists:cabinets,id'],
-            'name' => ['required', 'max:255'],
-            'address' => ['required', 'max:255'],
-            'latitude' => $this->latitudeRules(),
-            'longitude' => $this->longitudeRules(),
-            'phone' => ['nullable', 'max:50'],
-            'service_status' => ['required', 'in:planned,connected,in_service,cancelled'],
-            'splitter_no' => ['nullable', 'integer', 'min:1', 'max:3'],
-            'port_no' => ['nullable', 'integer', 'min:1', 'max:4'],
-            'connected_at' => ['nullable', 'date'],
-        ]);
-        $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
-        if (! empty($data['cabinet_id'])) {
-            $cabinet = Cabinet::withCount(['subscribers' => fn ($query) => $query->whereKeyNot($subscriber->id)])->findOrFail($data['cabinet_id']);
-            if ($cabinet->subscribers_count >= $cabinet->capacity) {
-                return back()->withErrors(['cabinet_id' => 'Odabrani ormaric je popunjen.'])->withInput();
-            }
-        }
-        $subscriber->update($data);
-
-        return back()->with('success', 'Korisnik je azuriran.');
-    }
-
-    public function deleteSubscriber($id)
-    {
-        Subscriber::findOrFail($id)->delete();
-
-        return back()->with('success', 'Korisnik je obrisan.');
-    }
 }
 
