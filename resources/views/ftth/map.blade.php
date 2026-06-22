@@ -74,65 +74,90 @@
     .tc-danger:hover { background: rgba(239,68,68,.35); color: #fecaca; }
     .map-toolbar .ring-2 { outline: 2px solid #fff; outline-offset: 1px; }
     /* ── Sidebar cards ───────────────────────────────────────────── */
-    .sidebar-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.04); }
+    .sidebar-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04); }
     .sidebar-hd {
-        display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-        cursor: pointer; background: #fafafa; border-bottom: 1px solid #f1f5f9;
-        font: 600 11.5px/1.4 ui-sans-serif, system-ui, sans-serif; color: #1e293b;
-        user-select: none; list-style: none;
+        display: flex; align-items: center; gap: 8px; padding: 10px 13px;
+        cursor: pointer;
+        background: linear-gradient(180deg, #f8fafc 0%, #f3f6fa 100%);
+        border-bottom: 1px solid #e8edf3;
+        font: 700 11.5px/1.4 ui-sans-serif, system-ui, sans-serif; color: #0f172a;
+        user-select: none; list-style: none; letter-spacing: .01em;
     }
     .sidebar-hd::-webkit-details-marker { display: none; }
-    .sidebar-hd .chev { margin-left: auto; color: #cbd5e1; transition: transform .18s; flex-shrink: 0; }
+    .sidebar-hd .chev { margin-left: auto; color: #94a3b8; transition: transform .2s; flex-shrink: 0; }
     details[open] > .sidebar-hd .chev { transform: rotate(90deg); }
-    .sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .sdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(0,0,0,.06); }
     .sdot-sky    { background: #0ea5e9; }
     .sdot-indigo { background: #6366f1; }
     .sdot-amber  { background: #f59e0b; }
     .sdot-violet { background: #8b5cf6; }
     .sdot-slate  { background: #94a3b8; }
-    .sidebar-bd { padding: 10px 12px; }
-    .ctx-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.04); }
-    .ctx-panel-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; background: #fafafa; }
+    .sidebar-bd { padding: 11px 13px; max-height: 320px; overflow-y: auto; }
+    #bulk-plan-form > .sidebar-bd { max-height: none; overflow-y: visible; }
+    .ctx-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04); }
+    .ctx-panel-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 13px; border-bottom: 1px solid #e8edf3; background: linear-gradient(180deg,#f8fafc 0%,#f3f6fa 100%); }
     /* Sidebar inputs */
     .sb-inp, .sb-sel {
-        width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px;
-        font-size: 12px; color: #1e293b; background: #fff; outline: none; transition: border-color .15s;
+        width: 100%; border: 1px solid #dde3ea; border-radius: 7px; padding: 7px 10px;
+        font-size: 12px; color: #1e293b; background: #f8fafc; outline: none; transition: border-color .15s, background .15s, box-shadow .15s;
     }
-    .sb-inp:focus, .sb-sel:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.12); }
+    .sb-inp:focus, .sb-sel:focus { border-color: #6366f1; background: #fff; box-shadow: 0 0 0 3px rgba(99,102,241,.10); }
+    .sb-inp::placeholder { color: #b0bac5; }
     /* Sidebar buttons */
     .sb-btn {
-        display: block; width: 100%; padding: 7px 12px; border-radius: 6px;
+        display: block; width: 100%; padding: 8px 12px; border-radius: 8px;
         font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
-        cursor: pointer; border: 1px solid transparent; transition: background .12s; text-align: center;
+        cursor: pointer; border: 1px solid transparent; transition: filter .12s, transform .1s, box-shadow .12s; text-align: center;
     }
-    .sb-btn-primary       { background: #1e293b; color: #fff; }
-    .sb-btn-primary:hover { background: #0f172a; }
-    .sb-btn-emerald       { background: #059669; color: #fff; border-color: #047857; }
-    .sb-btn-emerald:hover { background: #047857; }
-    .sb-btn-cyan          { background: #0891b2; color: #fff; border-color: #0e7490; }
-    .sb-btn-cyan:hover    { background: #0e7490; }
-    .sb-btn-violet        { background: #7c3aed; color: #fff; border-color: #6d28d9; }
-    .sb-btn-violet:hover  { background: #6d28d9; }
-    .sb-btn-blue          { background: #2563eb; color: #fff; border-color: #1d4ed8; }
-    .sb-btn-blue:hover    { background: #1d4ed8; }
-    .sb-btn-sky           { background: #0284c7; color: #fff; border-color: #0369a1; }
-    .sb-btn-sky:hover     { background: #0369a1; }
-    .sb-btn-amber         { background: #d97706; color: #fff; border-color: #b45309; }
-    .sb-btn-amber:hover   { background: #b45309; }
-    .sb-btn-outline       { background: #fff; color: #475569; border-color: #e2e8f0; }
-    .sb-btn-outline:hover { background: #f8fafc; }
+    .sb-btn:active { transform: scale(.97); }
+    .sb-btn-primary       { background: linear-gradient(180deg, #253447 0%, #0f172a 100%); color: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.25); }
+    .sb-btn-primary:hover { filter: brightness(1.12); }
+    .sb-btn-emerald       { background: linear-gradient(180deg, #059669 0%, #047857 100%); color: #fff; border-color: #047857; box-shadow: 0 1px 3px rgba(5,150,105,.25); }
+    .sb-btn-emerald:hover { filter: brightness(1.08); }
+    .sb-btn-cyan          { background: linear-gradient(180deg, #0891b2 0%, #0e7490 100%); color: #fff; border-color: #0e7490; box-shadow: 0 1px 3px rgba(8,145,178,.25); }
+    .sb-btn-cyan:hover    { filter: brightness(1.08); }
+    .sb-btn-violet        { background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 100%); color: #fff; border-color: #6d28d9; box-shadow: 0 1px 3px rgba(124,58,237,.25); }
+    .sb-btn-violet:hover  { filter: brightness(1.08); }
+    .sb-btn-blue          { background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); color: #fff; border-color: #1d4ed8; box-shadow: 0 1px 3px rgba(37,99,235,.25); }
+    .sb-btn-blue:hover    { filter: brightness(1.08); }
+    .sb-btn-sky           { background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%); color: #fff; border-color: #0369a1; box-shadow: 0 1px 3px rgba(2,132,199,.25); }
+    .sb-btn-sky:hover     { filter: brightness(1.08); }
+    .sb-btn-amber         { background: linear-gradient(180deg, #d97706 0%, #b45309 100%); color: #fff; border-color: #b45309; box-shadow: 0 1px 3px rgba(217,119,6,.25); }
+    .sb-btn-amber:hover   { filter: brightness(1.08); }
+    .sb-btn-outline       { background: #fff; color: #475569; border-color: #dde3ea; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+    .sb-btn-outline:hover { background: #f4f7fa; border-color: #c8d0da; }
     .sb-btn-amber-outline       { background: #fff; color: #92400e; border-color: #fde68a; }
     .sb-btn-amber-outline:hover { background: #fffbeb; }
     /* Misc sidebar helpers */
-    .sb-kicker { font: 800 9px/1 system-ui, sans-serif; color: #94a3b8; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
-    .sb-info   { border-radius: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.5; }
-    .step-btn  { display: block; width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; font: 600 11px/1.3 system-ui, sans-serif; cursor: pointer; text-align: left; transition: background .1s; }
-    .step-btn:hover { background: #f8fafc; }
-    .layer-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; font-size: 11px; transition: background .1s; }
-    .layer-row:hover { background: #f8fafc; }
+    .sb-kicker { font: 800 9.5px/1 system-ui, sans-serif; color: #7c8ea4; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
+    .sb-info   { border-radius: 8px; padding: 7px 9px; font-size: 11px; line-height: 1.5; }
+    /* Step buttons (workflow guide) */
+    .step-btn {
+        display: flex; align-items: center; gap: 7px;
+        width: 100%; padding: 7px 10px; border-radius: 9px; border: 1.5px solid;
+        font: 700 11px/1 system-ui, sans-serif; cursor: pointer; text-align: left;
+        transition: filter .12s, box-shadow .12s, transform .1s;
+    }
+    .step-btn:hover { filter: brightness(.95); box-shadow: 0 2px 8px rgba(0,0,0,.10); transform: translateY(-1px); }
+    .step-btn:active { transform: translateY(0); }
+    .step-btn b {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 50%;
+        font: 800 9px/1 system-ui, sans-serif; flex-shrink: 0; color: #fff;
+    }
+    .step-cyan   { background: #ecfeff; border-color: #a5f3fc; color: #164e63; }
+    .step-cyan b { background: #0891b2; }
+    .step-amber   { background: #fffbeb; border-color: #fde68a; color: #78350f; }
+    .step-amber b { background: #d97706; }
+    .step-violet   { background: #f5f3ff; border-color: #ddd6fe; color: #4c1d95; }
+    .step-violet b { background: #7c3aed; }
+    .step-emerald   { background: #ecfdf5; border-color: #a7f3d0; color: #064e3b; }
+    .step-emerald b { background: #059669; }
+    .layer-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 11px; transition: background .12s; }
+    .layer-row:hover { background: #f0f4f8; }
     .layer-row input[type=checkbox] { accent-color: #6366f1; flex-shrink: 0; }
-    .layer-lock-btn { padding: 2px 7px; border-radius: 4px; border: 1px solid #e2e8f0; background: #fff; font: 500 11px/1.5 system-ui, sans-serif; color: #64748b; cursor: pointer; flex-shrink: 0; }
-    .layer-lock-btn:hover { background: #f1f5f9; }
+    .layer-lock-btn { padding: 2px 8px; border-radius: 5px; border: 1px solid #dde3ea; background: #f8fafc; font: 500 11px/1.5 system-ui, sans-serif; color: #64748b; cursor: pointer; flex-shrink: 0; transition: background .1s; }
+    .layer-lock-btn:hover { background: #edf0f4; }
     /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
@@ -445,6 +470,17 @@
                 <button type="button" id="dxf-layer-btn" onclick="var p=document.getElementById('dxf-layer-panel');p.style.display=p.style.display==='none'?'block':'none';" class="tc tc-indigo" title="Učitaj DXF/DWG">DXF/DWG</button>
                 <button type="button" id="toggle-map-view" class="tc tc-ghost">GIS</button>
                 <button type="button" id="expand-map" class="tc tc-ghost" title="Proširena mapa">⛶</button>
+                <div class="tc-sep"></div>
+                <select id="map-project-filter" title="Filtriraj po projektu" style="height:26px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;border-radius:5px;font-size:11px;padding:0 6px;font-family:inherit;cursor:pointer;max-width:150px">
+                    <option value="">Svi projekti</option>
+                    @foreach($projects as $project)
+                    <option value="{{ $project->id }}" {{ $activeProjectId == $project->id ? 'selected' : '' }}>{{ $project->name }}</option>
+                    @endforeach
+                </select>
+                <button type="button" id="btn-map-print" class="tc tc-ghost" title="Štampaj/izvoz mape">
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
+                    Print
+                </button>
             </div>
         </div>
         <p class="shrink-0 border-b border-slate-800 bg-slate-900 px-4 py-1 text-[10px] text-slate-500">Desni klik: obriši / premjesti · ESC prekid · ENTER završi · CTRL+Z undo · O ortho</p>
@@ -456,6 +492,43 @@
                 <span id="select-count">0 selektovano</span>
                 <button id="select-delete-btn" class="tc tc-danger" style="padding:2px 10px;font-size:11px;">Obriši selektovano</button>
                 <button id="select-cancel-btn" class="tc tc-ghost" style="padding:2px 8px;font-size:11px;">✕</button>
+            </div>
+
+            {{-- Pretraga markera --}}
+            <div id="map-search-overlay" style="position:absolute;top:10px;left:10px;z-index:1500;width:250px">
+                <div style="position:relative">
+                    <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none" width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+                    <input id="map-search-input" placeholder="Traži ODF, FTTH, kuću..." autocomplete="off"
+                        style="width:100%;box-sizing:border-box;padding:7px 10px 7px 28px;border-radius:9px;border:1.5px solid #e2e8f0;background:rgba(255,255,255,.95);font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.14);outline:none;font-family:inherit;color:#1e293b">
+                </div>
+                <div id="map-search-results" style="display:none;margin-top:3px;border-radius:9px;border:1px solid #e2e8f0;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.14);overflow:hidden;max-height:220px;overflow-y:auto"></div>
+            </div>
+
+            {{-- Statistike na mapi --}}
+            <div id="map-stats-bar" style="position:absolute;top:10px;right:10px;z-index:1500;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;pointer-events:none"></div>
+
+            {{-- Legenda --}}
+            <div style="position:absolute;bottom:46px;right:10px;z-index:1500">
+                <button id="map-legend-btn" type="button" style="padding:4px 10px;border-radius:7px;background:rgba(255,255,255,.93);border:1px solid #e2e8f0;font-size:11px;font-weight:600;color:#475569;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.1);display:flex;align-items:center;gap:5px;font-family:inherit;white-space:nowrap">
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>
+                    Legenda
+                </button>
+                <div id="map-legend-panel" style="display:none;position:absolute;bottom:calc(100% + 6px);right:0;width:200px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:10px 12px;font-size:11px">
+                    <div style="font-weight:700;color:#1e293b;margin-bottom:8px;font-size:12px">Legenda mape</div>
+                    <div style="display:grid;gap:5px">
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:22px;height:14px;border-radius:3px;background:#0891b2"></span><span style="color:#334155">ODF čvorište</span></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:22px;height:14px;border-radius:3px;background:#059669"></span><span style="color:#334155">FTTH ormarić (ODO)</span></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:22px;height:14px;border-radius:3px;background:#7c3aed"></span><span style="color:#334155">Kuća / pretplatnik</span></div>
+                        <div style="border-top:1px solid #f1f5f9;margin:3px 0"></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:22px;height:3px;background:#0f172a;border-radius:2px"></span><span style="color:#334155">Backbone kabel</span></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:22px;height:3px;background:#d97706;border-radius:2px"></span><span style="color:#334155">Distribution kabel</span></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:22px;height:3px;background:#6d28d9;border-radius:2px"></span><span style="color:#334155">Drop kabel</span></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:22px;height:3px;background:#64748b;border-radius:2px"></span><span style="color:#334155">Trench / rov</span></div>
+                        <div style="border-top:1px solid #f1f5f9;margin:3px 0"></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:#64748b;margin-left:6px"></span><span style="color:#334155">Šaht</span></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:10px;height:10px;background:#ef4444;transform:rotate(45deg);margin-left:6px"></span><span style="color:#334155">Raketa FI 130</span></div>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="cad-status grid gap-2 px-3 py-2 md:grid-cols-[1fr_auto_auto_auto]">
@@ -518,10 +591,10 @@
                 <div>
                     <div class="sb-kicker">Tok rada</div>
                     <div class="grid grid-cols-2 gap-1.5">
-                        <button type="button" data-guide-mode="odf" class="step-btn text-cyan-800 border-cyan-200">1 ODF</button>
-                        <button type="button" data-guide-mode="draw" class="step-btn text-amber-800 border-amber-200">2 Trasa</button>
-                        <button type="button" data-guide-mode="house" class="step-btn text-violet-800 border-violet-200">3 Kuce</button>
-                        <button type="button" id="guide-suggest" class="step-btn text-emerald-800 border-emerald-200">4 FTTH</button>
+                        <button type="button" data-guide-mode="odf" class="step-btn step-cyan"><b>1</b> ODF</button>
+                        <button type="button" data-guide-mode="draw" class="step-btn step-amber"><b>2</b> Trasa</button>
+                        <button type="button" data-guide-mode="house" class="step-btn step-violet"><b>3</b> Kuće</button>
+                        <button type="button" id="guide-suggest" class="step-btn step-emerald"><b>4</b> FTTH</button>
                     </div>
                 </div>
                 <div>
@@ -764,11 +837,6 @@
                     <input id="house-lat" name="latitude">
                     <input id="house-lng" name="longitude">
                 </form>
-                <div id="material-specs-output" style="display:none" class="grid gap-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3">
-                    <div class="text-xs font-bold text-sky-900">Materijalne specifikacije</div>
-                    <div id="material-items" class="grid gap-2 max-h-48 overflow-y-auto text-xs"></div>
-                    <button type="button" id="save-all-materials" class="sb-btn sb-btn-sky">Snimi sve materijale</button>
-                </div>
             </div>
         </details>
     </aside>
@@ -934,6 +1002,13 @@ const cabinetPalette = [
     '#65a30d', '#ea580c', '#0f766e', '#9333ea', '#be123c', '#4f46e5', '#ca8a04',
 ];
 function cabinetColor(id) { return cabinetPalette[(Math.max(Number(id) || 1, 1) - 1) % cabinetPalette.length]; }
+function cabinetOccupancyColor(c) {
+    const pct = (Number(c.used_ports) || 0) / Math.max(Number(c.capacity) || 1, 1);
+    if (pct >= 1.0) return '#dc2626';
+    if (pct >= 0.8) return '#ea580c';
+    if (pct >= 0.6) return '#f59e0b';
+    return '#16a34a';
+}
 const mapLegend = L.control({ position: 'bottomright' });
 mapLegend.onAdd = () => {
     const box = L.DomUtil.create('div', 'cad-map-legend');
@@ -1097,9 +1172,10 @@ data.odfs.forEach(odf => {
 data.cabinets.forEach(c => {
     const p = L.latLng(c.lat, c.lng);
     const color = cabinetColor(c.id);
+    const pct = Math.round((Number(c.used_ports) || 0) / Math.max(Number(c.capacity) || 1, 1) * 100);
     const marker = L.marker(p, { icon: icon('cabinet', c.name?.startsWith('FTTH') ? c.name : `FTTH ${c.id}`, color), draggable: false })
-        .bindTooltip(`${c.used_ports}/${c.capacity}`, { direction: 'top', offset: [0, -10] })
-        .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova<br>ODF: ${c.odf}`)
+        .bindTooltip(`${c.used_ports}/${c.capacity} (${pct}%)`, { direction: 'top', offset: [0, -10] })
+        .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova (${pct}%)<br>ODF: ${c.odf}`)
         .addTo(map);
     marker.on('click', event => {
         if (layerLocked('odo')) return document.getElementById('cad-command').textContent = 'Layer ODO je zaključan.';
@@ -3158,60 +3234,9 @@ function clearSuggestions() {
     document.getElementById('cabinet-count').textContent='0';
     document.getElementById('suggestion-output').innerHTML='Nacrtaj trasu i oznaci kuće.';
     document.getElementById('save-suggestions').classList.add('hidden');
-    document.getElementById('material-specs-output').style.display = 'none';
     refreshPlanSummary();
 }
 
-function calculateMaterialSpecs() {
-    const specs = {};
-
-    // Spliters i ormarići
-    const splitterTotal = suggestedCabinets.reduce((sum, c) => sum + c.splitter_count, 0);
-    const cabinetCount = suggestedCabinets.length;
-
-    specs['Spliteri 1:4'] = { quantity: splitterTotal, unit: 'kom', price: 160 };
-    specs['Zeleni ormarići (FTTH)'] = { quantity: cabinetCount, unit: 'kom', price: 900 };
-
-    // Mikrocijevi i kabl
-    const totalDuct = allDistance();
-    const microductCount = allNetworkPoints().length;
-    const totalMicroduct = totalDuct * microductCount;
-    const reserveMicroduct = Math.ceil(totalMicroduct * 1.1);
-
-    specs['Mikrocijevi 14/10 (m)'] = { quantity: Math.ceil(reserveMicroduct / 1000), unit: '1km', price: 15000 };
-    specs['Optički kabl SM (m)'] = { quantity: Math.ceil(totalDuct * 1.1), unit: 'm', price: 12 };
-
-    // Konektori i spajanja
-    const spliceCount = splitterTotal + (housePoints.length - savedHouseCount);
-    specs['Splice kasetne (kom)'] = { quantity: Math.ceil(spliceCount / 12), unit: 'kom', price: 450 };
-    specs['Spojnice SC/APC'] = { quantity: housePoints.length - savedHouseCount, unit: 'kom', price: 8 };
-
-    // Korisnički priključci
-    specs['Optički prikljucak ONT'] = { quantity: housePoints.length - savedHouseCount, unit: 'kom', price: 45 };
-
-    return specs;
-}
-
-function displayMaterialSpecs() {
-    const specs = calculateMaterialSpecs();
-    const container = document.getElementById('material-items');
-
-    let html = '';
-    let totalPrice = 0;
-
-    Object.entries(specs).forEach(([name, data]) => {
-        const price = data.quantity * data.price;
-        totalPrice += price;
-        html += `<div class="rounded-md bg-white p-2 grid grid-cols-4 gap-2 text-xs"><span class="font-semibold">${name}</span><span>${data.quantity} ${data.unit}</span><span class="text-right">${Number(data.price).toFixed(2)} KM</span><span class="font-semibold text-right">${Number(price).toFixed(2)} KM</span></div>`;
-    });
-
-    html += `<div class="rounded-md bg-sky-100 p-2 grid grid-cols-4 gap-2 font-semibold text-xs"><span colspan="3">UKUPNO:</span><span class="text-right">${Number(totalPrice).toFixed(2)} KM</span></div>`;
-
-    container.innerHTML = html;
-
-    // Store specs for saving
-    window.currentMaterialSpecs = specs;
-}
 async function suggest() {
     clearSuggestions();
     suggestedCabinets = [];
@@ -3302,8 +3327,7 @@ function renderAutoOdoPlan(plan) {
         ${cabinetHtml}
     `;
     document.getElementById('save-suggestions').classList.remove('hidden');
-    document.getElementById('material-specs-output').style.display = 'grid';
-    displayMaterialSpecs();
+
     refreshPlanSummary();
 }
 function nearestDraftOdf(point) {
@@ -3868,58 +3892,7 @@ document.querySelectorAll('[data-layer-lock]').forEach(button => {
 });
 Object.keys(layerRegistry).forEach(updateLayerCount);
 
-async function saveMaterials() {
-    const projectId = document.getElementById('active-project-id').value;
-    const output = document.getElementById('material-items');
-    if (!projectId || !window.currentMaterialSpecs) {
-        output.innerHTML = '<div class="text-xs font-semibold text-red-700">Obračunaj materijale prije snimanja.</div>';
-        return;
-    }
 
-    const btn = document.getElementById('save-all-materials');
-    const originalText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Snimam...';
-
-    const materialsToSave = Object.entries(window.currentMaterialSpecs).map(([name, data]) => ({
-        project_id: parseInt(projectId),
-        name: name,
-        unit: data.unit,
-        planned_quantity: data.quantity,
-        used_quantity: 0,
-        unit_price: data.price,
-    }));
-
-    try {
-        const promises = materialsToSave.map(material =>
-            fetch('{{ route('materials.store') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                },
-                body: new URLSearchParams(material),
-            })
-        );
-
-        const results = await Promise.all(promises);
-        const allSuccess = results.every(r => r.ok);
-
-        if (allSuccess) {
-            output.innerHTML = `<div class="text-xs font-semibold text-emerald-700">Snimljeno ${materialsToSave.length} stavki materijala.</div>`;
-            clearSuggestions();
-        } else {
-            output.innerHTML = '<div class="text-xs font-semibold text-red-700">Greška pri snimanju nekih materijala.</div>';
-        }
-    } catch (error) {
-        output.innerHTML = `<div class="text-xs font-semibold text-red-700">Greška: ${error.message}</div>`;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = originalText;
-    }
-}
-
-document.getElementById('save-all-materials').addEventListener('click', saveMaterials);
 document.getElementById('quick-project-form').addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -4622,4 +4595,145 @@ document.getElementById('pp-new-name')?.addEventListener('keydown', e => {
     border-color: #6366f1 !important;
 }
 </style>
+<script>
+// ── PRETRAGA MARKERA ─────────────────────────────────────────────────────────
+(function () {
+    let idx = null, hits = [];
+    const inp = document.getElementById('map-search-input');
+    const res = document.getElementById('map-search-results');
+    if (!inp) return;
+
+    function buildIdx() {
+        const items = [];
+        data.odfs.forEach(o => items.push({ type: 'ODF', label: o.name, sub: o.address || '', lat: o.lat, lng: o.lng, id: o.id, color: '#0891b2' }));
+        data.cabinets.forEach(c => items.push({ type: 'FTTH', label: c.name, sub: (c.address || '') + (c.capacity ? ` · ${c.used_ports}/${c.capacity}p` : ''), lat: c.lat, lng: c.lng, id: c.id, color: '#059669' }));
+        data.houses.forEach(h => items.push({ type: 'Kuća', label: h.label, sub: h.address || h.cabinet || '', lat: h.lat, lng: h.lng, id: h.id, color: '#7c3aed' }));
+        return items;
+    }
+
+    inp.addEventListener('input', () => {
+        if (!idx) idx = buildIdx();
+        const q = inp.value.trim().toLowerCase();
+        if (!q) { res.style.display = 'none'; return; }
+        hits = idx.filter(it => it.label.toLowerCase().includes(q) || it.sub.toLowerCase().includes(q)).slice(0, 12);
+        if (!hits.length) {
+            res.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:#94a3b8">Nema rezultata</div>';
+        } else {
+            res.innerHTML = hits.map((h, i) =>
+                `<div data-i="${i}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f8fafc;display:flex;align-items:center;gap:8px">
+                    <span style="flex-shrink:0;width:34px;text-align:center;padding:2px 0;border-radius:5px;font-size:10px;font-weight:700;color:#fff;background:${h.color}">${h.type}</span>
+                    <div style="min-width:0">
+                        <div style="font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.label}</div>
+                        <div style="font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.sub}</div>
+                    </div>
+                </div>`
+            ).join('');
+        }
+        res.style.display = 'block';
+    });
+    res.addEventListener('click', e => {
+        const row = e.target.closest('[data-i]');
+        if (!row) return;
+        const h = hits[Number(row.dataset.i)];
+        if (!h) return;
+        map.flyTo([h.lat, h.lng], 18, { duration: 0.8 });
+        inp.value = h.label;
+        res.style.display = 'none';
+        setTimeout(() => {
+            const m = h.type === 'ODF' ? odfMarkerById[h.id]
+                    : h.type === 'FTTH' ? cabinetMarkerById[h.id]
+                    : houseMarkerById[h.id];
+            m?.openPopup();
+        }, 900);
+    });
+    res.addEventListener('mouseover', e => { const r = e.target.closest('[data-i]'); if (r) r.style.background = '#f8fafc'; });
+    res.addEventListener('mouseout',  e => { const r = e.target.closest('[data-i]'); if (r) r.style.background = ''; });
+    document.addEventListener('click', e => { if (!e.target.closest('#map-search-overlay')) res.style.display = 'none'; });
+    inp.addEventListener('keydown', e => { if (e.key === 'Escape') { res.style.display = 'none'; inp.blur(); } });
+    inp.addEventListener('focus', () => { if (!idx) idx = buildIdx(); });
+})();
+
+// ── STATISTIKE NA MAPI ────────────────────────────────────────────────────────
+(function () {
+    const bar = document.getElementById('map-stats-bar');
+    if (!bar) return;
+    const chips = [
+        { label: 'ODF',   val: data.odfs.length,      bg: 'rgba(8,145,178,.12)',   bc: 'rgba(8,145,178,.4)',   tc: '#0891b2' },
+        { label: 'ODO',   val: data.cabinets.length,   bg: 'rgba(5,150,105,.12)',   bc: 'rgba(5,150,105,.4)',   tc: '#059669' },
+        { label: 'Kuće',  val: data.houses.length,     bg: 'rgba(124,58,237,.12)',  bc: 'rgba(124,58,237,.4)',  tc: '#7c3aed' },
+        { label: 'Trase', val: data.routes.length,     bg: 'rgba(100,116,139,.12)', bc: 'rgba(100,116,139,.4)', tc: '#475569' },
+    ];
+    bar.innerHTML = chips.map(c =>
+        `<div style="background:#fff;border-left:3px solid ${c.tc};color:#1e293b;padding:4px 10px;border-radius:7px;font-size:11px;font-weight:600;line-height:1.4;box-shadow:0 2px 8px rgba(0,0,0,.22);display:flex;align-items:center;gap:5px">
+            <span style="color:${c.tc};font-size:10px;font-weight:700">${c.label}</span>
+            <b style="font-size:13px;color:${c.tc}">${c.val}</b>
+        </div>`
+    ).join('');
+})();
+
+// ── LEGENDA ───────────────────────────────────────────────────────────────────
+document.getElementById('map-legend-btn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const p = document.getElementById('map-legend-panel');
+    if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none';
+});
+document.addEventListener('click', e => {
+    if (!e.target.closest('#map-legend-panel') && !e.target.closest('#map-legend-btn')) {
+        const p = document.getElementById('map-legend-panel');
+        if (p) p.style.display = 'none';
+    }
+});
+
+// ── FILTER PO PROJEKTU ────────────────────────────────────────────────────────
+document.getElementById('map-project-filter')?.addEventListener('change', function () {
+    const pid = this.value ? Number(this.value) : null;
+    const odfPid = {}, cabPid = {};
+    data.odfs.forEach(o => odfPid[o.id] = o.project_id);
+    data.cabinets.forEach(c => cabPid[c.id] = c.project_id);
+
+    data.odfs.forEach(o => {
+        const m = odfMarkerById[o.id]; if (!m) return;
+        if (pid && o.project_id !== pid) map.removeLayer(m);
+        else if (!map.hasLayer(m)) map.addLayer(m);
+    });
+    data.cabinets.forEach(c => {
+        const m = cabinetMarkerById[c.id]; if (!m) return;
+        if (pid && c.project_id !== pid) map.removeLayer(m);
+        else if (!map.hasLayer(m)) map.addLayer(m);
+    });
+    data.houses.forEach(h => {
+        const m = houseMarkerById[h.id]; if (!m) return;
+        if (pid && h.project_id !== pid) map.removeLayer(m);
+        else if (!map.hasLayer(m)) map.addLayer(m);
+    });
+    data.routes.forEach(route => {
+        const routePid = cabPid[route.cabinet_id] || odfPid[route.odf_id];
+        const l = routeLayerById[route.id]; if (!l) return;
+        if (pid && routePid && routePid !== pid) map.removeLayer(l);
+        else if (!map.hasLayer(l)) map.addLayer(l);
+        (routeLabelsById[route.id] || []).forEach(lbl => {
+            if (pid && routePid && routePid !== pid) map.removeLayer(lbl);
+            else if (!map.hasLayer(lbl)) map.addLayer(lbl);
+        });
+    });
+});
+
+// ── PRINT / EXPORT ────────────────────────────────────────────────────────────
+document.getElementById('btn-map-print')?.addEventListener('click', () => window.print());
+</script>
+
+<style>
+@media print {
+    * { visibility: hidden !important; }
+    #map-container, #map-container * { visibility: visible !important; }
+    #map-container {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 99999 !important;
+    }
+}
+</style>
+
 @endsection

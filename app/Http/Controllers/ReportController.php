@@ -46,7 +46,7 @@ class ReportController extends Controller
                 'projects' => Project::count(),
                 'houses' => House::count(),
                 'cabinets' => Cabinet::count(),
-                'free_ports' => (int) Cabinet::selectRaw('SUM(GREATEST((splitter_count * ports_per_splitter) - (SELECT COUNT(*) FROM houses WHERE cabinet_id = cabinets.id), 0)) as total')->value('total'),
+                'free_ports' => (int) Cabinet::selectRaw('SUM(MAX((splitter_count * ports_per_splitter) - (SELECT COUNT(*) FROM houses WHERE cabinet_id = cabinets.id), 0)) as total')->value('total'),
                 'duct' => NetworkRoute::sum('duct_length_m'),
                 'fiber' => NetworkRoute::sum('fiber_length_m'),
                 'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,

@@ -5,7 +5,6 @@ use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\HouseController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapLayerController;
-use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\OdfController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
@@ -76,8 +75,15 @@ Route::delete('/trase/{id}', [RouteController::class, 'deleteRoute'])->name('rou
 
 Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->name('map.dxf-layer.upload');
 
-Route::get('/materijali', [MaterialController::class, 'materials'])->name('materials.index');
-Route::post('/materijali', [MaterialController::class, 'storeMaterial'])->name('materials.store');
-Route::match(['put', 'patch'], '/materijali/{id}', [MaterialController::class, 'updateMaterial'])->name('materials.update');
-Route::post('/materijali/obracun/{project}', [MaterialController::class, 'calculateMaterials'])->name('materials.calculate');
-Route::delete('/materijali/{id}', [MaterialController::class, 'deleteMaterial'])->name('materials.delete');
+Route::get('/api/notifications', function () {
+    $unlinkedHouses    = \App\Models\House::whereNull('cabinet_id')->count();
+    $unlinkedCabinets  = \App\Models\Cabinet::whereNull('odf_id')->count();
+    $incompleteRoutes  = \App\Models\NetworkRoute::where('route_type', '!=', 'trench')->where(function ($q) {
+        $q->whereNull('microduct_type')->orWhereNull('fiber_count');
+    })->count();
+    $items = [];
+    if ($unlinkedHouses)   $items[] = "$unlinkedHouses kuca nema dodijeljeni ODO.";
+    if ($unlinkedCabinets) $items[] = "$unlinkedCabinets ODO ormarica nema povezani ODF.";
+    if ($incompleteRoutes) $items[] = "$incompleteRoutes trasa nema kompletne tehnicke podatke.";
+    return response()->json(['count' => count($items), 'items' => $items]);
+})->name('api.notifications');
