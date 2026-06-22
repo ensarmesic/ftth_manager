@@ -192,4 +192,6 @@ PHP_MEMORY_LIMIT=1G
 
 ## Licenca
 
-MIT
+© 2025 Ensar Mešić. Sva prava zadržana.
+
+Zabranjeno kopiranje, distribucija ili korištenje koda bez pisane dozvole autora.
