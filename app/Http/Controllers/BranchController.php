@@ -29,10 +29,11 @@ class BranchController extends Controller
     public function branches(): View
     {
         $branchStats = [
-            'total' => NetworkBranch::count(),
+            'total' => NetworkBranch::whereNotIn('type', ['rov'])->count(),
             'primary' => NetworkBranch::where('type', 'primary')->count(),
             'secondary' => NetworkBranch::where('type', 'secondary')->count(),
             'cabinets' => Cabinet::whereNotNull('branch_id')->count(),
+            'rov' => NetworkBranch::where('type', 'rov')->count(),
         ];
 
         return view('ftth.branches', [

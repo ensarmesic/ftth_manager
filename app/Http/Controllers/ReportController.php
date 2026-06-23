@@ -31,8 +31,14 @@ class ReportController extends Controller
     public function reports(): View
     {
         $projects = Project::withCount(['odfs', 'cabinets', 'houses', 'routes'])
-            ->with(['materials', 'routes', 'cabinets' => fn ($query) => $query->withCount('houses')])
-            ->with('appendixItems')
+            ->with([
+                'materials',
+                'routes',
+                'appendixItems',
+                'odfs.cabinets',
+                'houses.cabinet',
+                'cabinets' => fn ($q) => $q->withCount('houses')->with(['odf', 'houses']),
+            ])
             ->orderBy('name')
             ->get();
 
@@ -47,8 +53,8 @@ class ReportController extends Controller
                 'houses' => House::count(),
                 'cabinets' => Cabinet::count(),
                 'free_ports' => (int) Cabinet::selectRaw('SUM(MAX((splitter_count * ports_per_splitter) - (SELECT COUNT(*) FROM houses WHERE cabinet_id = cabinets.id), 0)) as total')->value('total'),
-                'duct' => NetworkRoute::sum('duct_length_m'),
-                'fiber' => NetworkRoute::sum('fiber_length_m'),
+                'duct' => NetworkRoute::where('route_type', '!=', 'trench')->sum('duct_length_m'),
+                'fiber' => NetworkRoute::where('route_type', '!=', 'trench')->sum('fiber_length_m'),
                 'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,
             ],
         ]);

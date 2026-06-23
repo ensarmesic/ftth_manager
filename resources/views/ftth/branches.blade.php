@@ -3,7 +3,7 @@
 @section('subtitle', 'Hijerarhija primarnih, sekundarnih i izvedenih krakova.')
 @section('content')
 
-<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+<section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
             <div><div class="stat-label">Krakovi ukupno</div><div class="stat-value">{{ $branchStats['total'] }}</div></div>
@@ -20,6 +20,12 @@
         <div class="flex items-start justify-between gap-3">
             <div><div class="stat-label">Sekundarni</div><div class="stat-value">{{ $branchStats['secondary'] }}</div></div>
             <div class="stat-icon sky"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clip-rule="evenodd"/></svg></div>
+        </div>
+    </article>
+    <article class="stat-card">
+        <div class="flex items-start justify-between gap-3">
+            <div><div class="stat-label">Glavni rovovi</div><div class="stat-value">{{ $branchStats['rov'] }}</div></div>
+            <div class="stat-icon amber"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 7l2.55 2.4A1 1 0 0116 11H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"/></svg></div>
         </div>
     </article>
     <article class="stat-card">
@@ -51,7 +57,7 @@
         'route_id'         => ['label' => 'Vezana trasa', 'type' => 'select', 'options' => ['' => '—'] + $routes->mapWithKeys(fn($r) => [$r->id => $r->project->name.' / '.$r->name])->all()],
         'name'             => 'Naziv', 'code' => 'Kod',
         'sort_order'       => ['label' => 'Redoslijed', 'type' => 'number'],
-        'type'             => ['label' => 'Tip', 'type' => 'select', 'options' => ['secondary' => 'Sekundarni', 'primary' => 'Primarni']],
+        'type'             => ['label' => 'Tip', 'type' => 'select', 'options' => ['secondary' => 'Sekundarni', 'primary' => 'Primarni', 'rov' => 'Glavni rov']],
     ],
 ])
 </div>
@@ -101,6 +107,7 @@
                 <select name="type" class="ftth-input">
                     <option value="secondary">Sekundarni</option>
                     <option value="primary">Primarni</option>
+                    <option value="rov">Glavni rov</option>
                 </select>
             </label>
             <button class="btn-save">Sačuvaj krak</button>

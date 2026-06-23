@@ -123,12 +123,12 @@
         </div>
         <div class="stat-box">
             <b>Trase</b>
-            <span>{{ $project->routes->count() }}</span>
+            <span>{{ $project->routes->where('route_type', '!=', 'trench')->count() }}</span>
             <small>drop: {{ $project->routes->where('route_type', 'drop')->count() }}</small>
         </div>
         <div class="stat-box">
             <b>Dužina trasa</b>
-            <span>{{ number_format($project->routes->sum('duct_length_m')) }}<small style="font-size:13px;font-weight:700"> m</small></span>
+            <span>{{ number_format($project->routes->where('route_type', '!=', 'trench')->sum('duct_length_m')) }}<small style="font-size:13px;font-weight:700"> m</small></span>
             <small>mikrocijev ukupno</small>
         </div>
         <div class="stat-box">
@@ -185,7 +185,7 @@
     </div>
 
     {{-- Routes --}}
-    <h2>Trase <span class="badge">{{ $project->routes->count() }}</span></h2>
+    <h2>Trase <span class="badge">{{ $project->routes->where('route_type', '!=', 'trench')->count() }}</span></h2>
     <table>
         <thead>
             <tr>

@@ -34,6 +34,7 @@ Route::get('/postavke', [ProjectController::class, 'settings'])->name('settings.
 
 Route::get('/projekti', [ProjectController::class, 'projects'])->name('projects.index');
 Route::post('/projekti', [ProjectController::class, 'storeProject'])->name('projects.store');
+Route::get('/projekti/{project}/pregled', [ProjectController::class, 'showProject'])->name('projects.show');
 Route::match(['put', 'patch'], '/projekti/{id}', [ProjectController::class, 'updateProject'])->name('projects.update');
 Route::post('/projekti/{project}/odo-plan/preview', [ProjectController::class, 'previewOdoPlan'])->name('projects.odo-plan.preview');
 Route::post('/projekti/{project}/odo-plan/confirm', [ProjectController::class, 'confirmOdoPlan'])->name('projects.odo-plan.confirm');

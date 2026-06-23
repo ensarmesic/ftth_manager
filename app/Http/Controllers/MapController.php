@@ -79,7 +79,7 @@ class MapController extends Controller
             'routes' => $routes,
             'appendixItems' => $appendixItems,
             'mapData' => [
-                'drafts' => MapDraft::with('project')->latest()->get()->map(fn (MapDraft $draft) => [
+                'drafts' => MapDraft::with('project')->when($scope, fn ($q) => $q->where('project_id', $projectId))->latest()->get()->map(fn (MapDraft $draft) => [
                     'project_id' => $draft->project_id,
                     'project' => $draft->project->name,
                     'payload' => $draft->payload,

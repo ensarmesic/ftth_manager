@@ -232,6 +232,10 @@ class FtthIntelligenceService
         $items = [];
         $project->loadMissing(['odfs.cabinets', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
         $branchRoutes = $this->branchRoutes($project);
+        $dropHouseIds = $project->routes
+            ->where('route_type', 'drop')
+            ->where('to_type', 'house')
+            ->keyBy('to_id');
 
         if ($project->odfs->isEmpty()) {
             $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mreznog plana.');
@@ -245,6 +249,15 @@ class FtthIntelligenceService
         foreach ($project->odfs as $odf) {
             if ($odf->latitude === null || $odf->longitude === null) $items[] = $this->validationItem('error', "{$odf->name} nema koordinate.", 'odf', $odf->id, 'Postavi ODF na mapi.');
             if ($odf->cabinets->isEmpty()) $items[] = $this->validationItem('warning', "{$odf->name} nema povezan ODO.", 'odf', $odf->id, 'Poveži najmanje jedan ODO na ODF.');
+
+            if ($odf->fiber_capacity > 0) {
+                $usedFibers = $odf->cabinets->filter(fn ($c) => $c->parent_cabinet_id === null)->sum('splitter_count');
+                if ($usedFibers > $odf->fiber_capacity) {
+                    $items[] = $this->validationItem('error', "{$odf->name}: prekoračen kapacitet ({$usedFibers}/{$odf->fiber_capacity} vlakana).", 'odf', $odf->id, 'Smanji broj ODO ormarića ili povećaj kapacitet ODF-a.');
+                } elseif ($usedFibers > 0 && $usedFibers > $odf->fiber_capacity * 0.85) {
+                    $items[] = $this->validationItem('warning', "{$odf->name}: kapacitet skoro popunjen ({$usedFibers}/{$odf->fiber_capacity} vlakana).", 'odf', $odf->id, 'Razmotri dodavanje novog ODF-a.');
+                }
+            }
         }
 
         foreach ($project->houses as $house) {
@@ -252,7 +265,7 @@ class FtthIntelligenceService
             if (! $house->cabinet_id) {
                 $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kucu ODO ormaricu.');
             }
-            if (! $project->routes->contains(fn (NetworkRoute $route) => $route->route_type === 'drop' && $route->to_type === 'house' && (int) $route->to_id === $house->id)) {
+            if (! $dropHouseIds->has($house->id)) {
                 $items[] = $this->validationItem('warning', "{$house->label} nema drop trasu.", 'house', $house->id, 'Nacrtaj ili automatski kreiraj drop trasu.');
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
@@ -331,27 +344,28 @@ class FtthIntelligenceService
     public function materialSummary(Project $project, int $reservePercent = 10): array
     {
         $routes = $project->routes;
+        $cableRoutes = $routes->where('route_type', '!=', 'trench');
         $summary = [
-            'odf_count' => $project->odfs()->count(),
-            'odo_count' => $project->cabinets()->count(),
-            'house_count' => $project->houses()->count(),
-            'splitter_count' => $project->cabinets()->sum('splitter_count'),
-            'route_length_m' => $routes->sum('duct_length_m'),
-            'microduct_14_10_m' => $routes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
-            'microduct_10_8_m' => $routes->where('microduct_type', '10/8')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
-            'fiber_4_m' => $routes->where('fiber_count', 4)->sum('fiber_length_m'),
-            'fiber_12_m' => $routes->where('fiber_count', 12)->sum('fiber_length_m'),
-            'fiber_24_m' => $routes->where('fiber_count', 24)->sum('fiber_length_m'),
-            'fiber_48_m' => $routes->where('fiber_count', 48)->sum('fiber_length_m'),
-            'unclassified_routes' => $routes->filter(fn (NetworkRoute $route) => ! $route->microduct_type || ! $route->fiber_count)->count(),
+            'odf_count' => $project->odfs->count(),
+            'odo_count' => $project->cabinets->count(),
+            'house_count' => $project->houses->count(),
+            'splitter_count' => $project->cabinets->sum('splitter_count'),
+            'route_length_m' => $cableRoutes->sum('duct_length_m'),
+            'microduct_14_10_m' => $cableRoutes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
+            'microduct_10_8_m' => $cableRoutes->where('microduct_type', '10/8')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
+            'fiber_4_m' => $cableRoutes->where('fiber_count', 4)->sum('fiber_length_m'),
+            'fiber_12_m' => $cableRoutes->where('fiber_count', 12)->sum('fiber_length_m'),
+            'fiber_24_m' => $cableRoutes->where('fiber_count', 24)->sum('fiber_length_m'),
+            'fiber_48_m' => $cableRoutes->where('fiber_count', 48)->sum('fiber_length_m'),
+            'unclassified_routes' => $cableRoutes->filter(fn (NetworkRoute $route) => ! $route->microduct_type || ! $route->fiber_count)->count(),
         ];
         $summary['estimated_value'] = (float) $project->materials()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?: 0.0;
         $summary['reserve_percent'] = $reservePercent;
         $summary['lengths_with_reserve'] = collect($summary)->filter(fn ($value, $key) => is_numeric($value) && (str_ends_with($key, '_m') || $key === 'route_length_m'))->map(fn ($value) => [
             'base' => $value, 'reserve' => (int) ceil($value * $reservePercent / 100), 'total' => (int) ceil($value * (1 + $reservePercent / 100)),
         ])->all();
-        $summary['microduct_by_type'] = $routes->groupBy('microduct_type')->filter(fn ($group, $type) => filled($type))->map(fn ($group) => $group->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count))->all();
-        $summary['fiber_by_count'] = $routes->groupBy('fiber_count')->filter(fn ($group, $count) => filled($count))->map->sum('fiber_length_m')->all();
+        $summary['microduct_by_type'] = $cableRoutes->groupBy('microduct_type')->filter(fn ($group, $type) => filled($type))->map(fn ($group) => $group->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count))->all();
+        $summary['fiber_by_count'] = $cableRoutes->groupBy('fiber_count')->filter(fn ($group, $count) => filled($count))->map->sum('fiber_length_m')->all();
 
         return $summary;
     }

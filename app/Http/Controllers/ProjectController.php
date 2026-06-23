@@ -33,6 +33,32 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function showProject(Project $project): View
+    {
+        $project->load([
+            'odfs.cabinets.houses',
+            'cabinets' => fn ($q) => $q->withCount('houses')->with(['odf', 'houses', 'branch']),
+            'houses.cabinet',
+            'routes',
+            'branches' => fn ($q) => $q->withCount('cabinets')->orderBy('sort_order'),
+            'materials',
+        ]);
+
+        $validationItems = collect($this->ftthIntelligence->validateProject($project));
+        $materials = $this->ftthIntelligence->materialSummary($project);
+
+        $cableRoutes = $project->routes->where('route_type', '!=', 'trench');
+        $trenchRoutes = $project->routes->where('route_type', 'trench');
+
+        $odfCapacity = $project->odfs->map(fn ($odf) => [
+            'odf' => $odf,
+            'total' => $odf->fiber_capacity,
+            'used' => $odf->cabinets->filter(fn ($c) => $c->parent_cabinet_id === null)->sum('splitter_count'),
+        ]);
+
+        return view('ftth.projects.show', compact('project', 'validationItems', 'materials', 'cableRoutes', 'trenchRoutes', 'odfCapacity'));
+    }
+
     public function deleteProject(int $id)
     {
         Project::findOrFail($id)->delete();

@@ -61,6 +61,11 @@
                     <td>@include('ftth.partials.badge', ['value' => $project->status])</td>
                     <td>
                         <div class="flex items-center gap-1.5 flex-wrap">
+                            {{-- Pregled --}}
+                            <a href="{{ route('projects.show', $project->id) }}" class="tbl-btn" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe">
+                                <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M8 9.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path fill-rule="evenodd" d="M1.38 8.28a.87.87 0 000 .44C1.97 10.92 4.788 13.5 8 13.5s6.03-2.58 6.62-4.78a.87.87 0 000-.44C14.03 6.08 11.212 3.5 8 3.5S1.97 6.08 1.38 8.28zM11 8a3 3 0 11-6 0 3 3 0 016 0z" clip-rule="evenodd"/></svg>
+                                Pregled
+                            </a>
                             {{-- Uredi --}}
                             <details class="relative inline-block">
                                 <summary class="tbl-btn tbl-btn-edit list-none cursor-pointer">

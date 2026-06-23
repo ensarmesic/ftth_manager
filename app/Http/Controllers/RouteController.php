@@ -29,13 +29,12 @@ class RouteController extends Controller
     public function routes(): View
     {
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->where('route_type', '!=', 'trench')->latest()->paginate(12);
-        $allRoutes = NetworkRoute::query()->get();
-        $totalDuct = $allRoutes->sum(fn (NetworkRoute $route) => $route->trenchLengthForReport());
+        $totalDuct = NetworkRoute::where('route_type', 'trench')->sum('duct_length_m');
         $effectiveMicroduct = NetworkRoute::query()
             ->where('route_type', '!=', 'trench')
             ->selectRaw('SUM(duct_length_m * microduct_count) as total')
             ->value('total') ?? 0;
-        $totalFiber = NetworkRoute::sum('fiber_length_m');
+        $totalFiber = NetworkRoute::where('route_type', '!=', 'trench')->sum('fiber_length_m');
 
         return view('ftth.routes', [
             'routes' => $routes,

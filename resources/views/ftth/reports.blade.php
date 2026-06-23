@@ -147,12 +147,12 @@
     </div>
 
     {{-- Trase --}}
-    @if($project->routes->count())
+    @if($project->routes->where('route_type', '!=', 'trench')->count())
     <details class="border-t border-slate-100">
         <summary class="flex cursor-pointer select-none items-center justify-between px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 hover:bg-slate-50">
             <span>Pregled trasa</span>
             <div class="flex items-center gap-2">
-                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{{ $project->routes->count() }} trasa</span>
+                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">{{ $project->routes->where('route_type', '!=', 'trench')->count() }} trasa</span>
                 <span class="text-slate-300">▸</span>
             </div>
         </summary>
@@ -169,7 +169,7 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
-                        @foreach($project->routes as $route)
+                        @foreach($project->routes->where('route_type', '!=', 'trench') as $route)
                         <tr class="hover:bg-slate-50/60">
                             <td class="px-3 py-2 font-semibold text-slate-800">{{ $route->name }}</td>
                             <td class="px-3 py-2 text-slate-500">{{ $route->installation_type ?: '—' }}</td>

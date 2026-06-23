@@ -43,7 +43,7 @@ trait ManagesFtthData
             'project_id' => ['required', 'exists:projects,id'], 'odf_id' => ['nullable', 'exists:odfs,id'],
             'parent_branch_id' => ['nullable', 'exists:network_branches,id'],
             'route_id' => ['nullable', 'exists:routes,id', Rule::unique('network_branches', 'route_id')->ignore($branchId)],
-            'name' => ['required', 'max:255'], 'code' => ['nullable', 'max:100'], 'type' => ['required', 'in:primary,secondary'],
+            'name' => ['required', 'max:255'], 'code' => ['nullable', 'max:100'], 'type' => ['required', 'in:primary,secondary,rov'],
             'sort_order' => ['required', 'integer', 'min:0'],
         ]);
         if ($branchId && (int) ($data['parent_branch_id'] ?? 0) === $branchId) abort(422, 'Krak ne moze biti sam sebi roditelj.');
