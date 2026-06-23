@@ -153,6 +153,8 @@ class MapController extends Controller
                     'from_id' => $route->from_id,
                     'to_type' => $route->to_type,
                     'to_id' => $route->to_id,
+                    'project_id' => $route->project_id,
+                    'microduct_count' => $route->microduct_count ?? 0,
                     'occupancy' => $this->ftthIntelligence->routeOccupancy($route, $housesPerCabinet),
                     'status' => $route->status,
                     'note' => $route->note,

@@ -213,6 +213,83 @@ class RouteController extends Controller
         ]);
     }
 
+    public function splitRoute(Request $request, $id)
+    {
+        $data = $request->validate([
+            'lat' => ['required', 'numeric', 'between:-90,90'],
+            'lng' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $route = NetworkRoute::findOrFail($id);
+        abort_if(count($route->path ?? []) < 2, 422, 'Trasa mora imati najmanje dvije tačke.');
+
+        $proj = $this->projectPointToRoute((float) $data['lat'], (float) $data['lng'], $route);
+        $segIdx = (int) $proj['segment_index'];
+        $splitPoint = [round($proj['lat'], 7), round($proj['lng'], 7)];
+
+        $firstPath = array_merge(array_slice($route->path, 0, $segIdx), [$splitPoint]);
+        $secondPath = array_merge([$splitPoint], array_slice($route->path, $segIdx));
+
+        abort_if(count($firstPath) < 2 || count($secondPath) < 2, 422, 'Tačka podjele je previše blizu kraju trase.');
+
+        $first = $second = null;
+
+        DB::transaction(function () use ($route, $firstPath, $secondPath, &$first, &$second) {
+            $route->update([
+                'path' => $firstPath,
+                'duct_length_m' => $this->polylineLength($firstPath),
+                'fiber_length_m' => $route->route_type === 'trench' ? 0 : $this->polylineLength($firstPath),
+            ]);
+
+            $newRoute = $route->replicate()->fill([
+                'name' => $route->name . '-B',
+                'path' => $secondPath,
+                'duct_length_m' => $this->polylineLength($secondPath),
+                'fiber_length_m' => $route->route_type === 'trench' ? 0 : $this->polylineLength($secondPath),
+                'from_type' => null,
+                'from_id' => null,
+            ]);
+            $newRoute->save();
+            $this->createBranchForRoute($newRoute);
+
+            $first = $route->fresh();
+            $second = $newRoute;
+        });
+
+        return response()->json([
+            'message' => 'Trasa je podijeljena.',
+            'first' => $this->routeToMapJson($first),
+            'second' => $this->routeToMapJson($second),
+        ]);
+    }
+
+    private function routeToMapJson(NetworkRoute $route): array
+    {
+        return [
+            'id' => $route->id,
+            'name' => $route->name,
+            'type' => $route->route_type,
+            'length' => $route->duct_length_m,
+            'duct_length_m' => $route->duct_length_m,
+            'fiber_count' => $route->fiber_count,
+            'fibers' => $route->fiber_count,
+            'microduct_type' => $route->microduct_type,
+            'microduct_count' => $route->microduct_count,
+            'installation_type' => $route->installation_type,
+            'path' => $route->path,
+            'odf_id' => $route->odf_id,
+            'cabinet_id' => $route->cabinet_id,
+            'from_type' => $route->from_type,
+            'from_id' => $route->from_id,
+            'to_type' => $route->to_type,
+            'to_id' => $route->to_id,
+            'note' => $route->note,
+            'status' => $route->status,
+            'project_id' => $route->project_id,
+            'occupancy' => ['fiber_capacity' => $route->fiber_count, 'used_fibers' => 0, 'free_fibers' => $route->fiber_count, 'utilization_percent' => 0],
+        ];
+    }
+
     public function joinRoutes(Request $request, $id, $otherId = null)
     {
         $route = NetworkRoute::findOrFail($id);

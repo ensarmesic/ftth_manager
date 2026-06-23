@@ -49,16 +49,62 @@ let restoringDraft = false;
 let selectedDraftElement = null;
 let keepCurrentDraftOnProjectChange = false;
 let savedRoutePoints = [];
-const snapPixelTolerance = 18;
+const snapPixelTolerance = 30;
 let orthoEnabled = false;
+let osmRoutingEnabled = false;
+let osmRoutingLoading = false;
 let currentAutoPlan = null;
 const undoStack = [];
 const redoStack = [];
 const routeEditUndoStack = [];
 const routeEditRedoStack = [];
+const mapHistory = {
+    stack: [],
+    histRedoStack: [],
+    busy: false,
+    maxSize: 30,
+    push(cmd) {
+        if (this.busy) return;
+        this.stack.push(cmd);
+        if (this.stack.length > this.maxSize) this.stack.shift();
+        this.histRedoStack = [];
+        updateMapHistoryUI();
+    },
+    async undo() {
+        if (this.busy || !this.stack.length) return;
+        const cmd = this.stack.pop();
+        this.busy = true;
+        try {
+            await cmd.undo();
+            this.histRedoStack.push(cmd);
+            document.getElementById('cad-command').textContent = `Undo: ${cmd.label}`;
+        } catch (e) {
+            document.getElementById('cad-command').textContent = `Undo nije uspio: ${e.message}`;
+        } finally {
+            this.busy = false;
+        }
+        updateMapHistoryUI();
+    },
+    async redo() {
+        if (this.busy || !this.histRedoStack.length) return;
+        const cmd = this.histRedoStack.pop();
+        this.busy = true;
+        try {
+            await cmd.redo();
+            this.stack.push(cmd);
+            document.getElementById('cad-command').textContent = `Redo: ${cmd.label}`;
+        } catch (e) {
+            document.getElementById('cad-command').textContent = `Redo nije uspio: ${e.message}`;
+        } finally {
+            this.busy = false;
+        }
+        updateMapHistoryUI();
+    },
+};
 const odfMarkerById = {};
 const cabinetMarkerById = {};
 const routeLayerById = {};
+const routeHitLayerById = {};
 const routeLabelsById = {};
 let activeTraceHouseId = null;
 let colorByFibers = false;
@@ -264,23 +310,26 @@ data.routes.forEach(route => {
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
     const occupancy = route.occupancy || {};
-    const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
+    const line = L.polyline(points, { ...routeLineStyle(route.type, routeLineColor(route)), interactive: false })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
-    if (route.type === 'trench') line.bringToBack();
+    const hitLine = L.polyline(points, { weight: 14, opacity: 0, interactive: true }).addTo(map);
+    if (route.type === 'trench') { line.bringToBack(); hitLine.bringToBack(); }
     const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
     routeLayerById[route.id] = line;
+    routeHitLayerById[route.id] = hitLine;
     routeLabelsById[route.id] = labels || [];
     trackLayer(line, routeLayerType(route.type));
+    trackLayer(hitLine, routeLayerType(route.type));
     labels?.forEach(label => trackLayer(label, routeLayerType(route.type)));
-    registerSavedContext([line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
+    registerSavedContext([hitLine, line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
         if (mode === 'join') selectJoinRoute(route, line);
         else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
         else {
             openRouteAttributePanel(route);
             startRouteEdit(route, line);
         }
-    });
+    }, [], () => deleteRouteWithHistory(route, [hitLine, line, ...labels]));
     points.forEach(p => bounds.push([p.lat, p.lng]));
 });
 data.odfs.forEach(odf => {
@@ -403,6 +452,7 @@ function setMode(next) {
     if (next !== 'connect-houses') resetHouseConnect();
     if (next !== 'join') resetJoinRoutes();
     if (next !== 'draw') hideSnapIndicator();
+    if (next !== 'split') hideSplitPreview();
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-zinc-900'));
     const button = document.getElementById(`mode-${next}`);
     if (button) button.classList.add('ring-2', 'ring-zinc-900');
@@ -421,6 +471,7 @@ function setMode(next) {
         'connect-houses': 'CONNECT HOUSES: odaberi ODO',
         trace: 'TRACE: klikni kuću za prikaz optičkog puta',
         join: 'JOIN: označi trase klikom, zatim pritisni ENTER',
+        split: 'SPLIT: pomjeri miša na trasu i klikni gdje hoćeš da je podijeliš. ESC prekida.',
     };
     document.getElementById('cad-command').textContent = labels[next] ?? next.toUpperCase();
     updateCommandBar();
@@ -437,12 +488,12 @@ function setMode(next) {
                 if (e.isDxf) {
                     e._geomLayer?.setHighlight(false);
                 } else {
-                    e.allLayers.forEach(l => {
+                    e.allLayers.forEach((l, i) => {
                         if (!l || !map.hasLayer(l)) return;
-                        if (typeof l.setStyle === 'function' && e._origStyle) l.setStyle(e._origStyle);
+                        if (typeof l.setStyle === 'function' && e._origStyles?.[i]) l.setStyle(e._origStyles[i]);
                         else if (l.getElement) { const el = l.getElement(); if (el) el.style.filter = ''; }
                     });
-                    e._origStyle = null;
+                    e._origStyles = null;
                 }
             });
             currentSelection = [];
@@ -450,12 +501,17 @@ function setMode(next) {
         }
     }
 }
-['pan','select','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','connect','connect-houses','trace','join'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
+['pan','select','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','connect','connect-houses','trace','join','split'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
     setMode(m);
     if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
         document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
     }
 }));
+document.getElementById('osm-routing-toggle').addEventListener('change', function () {
+    osmRoutingEnabled = this.checked;
+    updateCommandBar();
+});
+
 document.getElementById('mode-trench-draw').addEventListener('click', () => {
     document.getElementById('route-draw-type').value = 'trench';
     document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName('trench')}`;
@@ -796,21 +852,24 @@ async function connectSelectedOdfToCabinet(cabinet) {
 }
 function addSavedRouteToMap(route) {
     const points = route.path.map(point => L.latLng(point[0], point[1]));
-    const line = L.polyline(points, routeLineStyle(route.type, routeLineColor(route)))
+    const line = L.polyline(points, { ...routeLineStyle(route.type, routeLineColor(route)), interactive: false })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length ?? route.duct_length_m ?? 0} m`)
         .addTo(map);
+    const hitLine = L.polyline(points, { weight: 14, opacity: 0, interactive: true }).addTo(map);
     const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
     data.routes.push(route);
     savedRoutePoints.push(points);
     routeLayerById[route.id] = line;
+    routeHitLayerById[route.id] = hitLine;
     routeLabelsById[route.id] = labels || [];
     trackLayer(line, routeLayerType(route.type));
+    trackLayer(hitLine, routeLayerType(route.type));
     labels?.forEach(label => trackLayer(label, routeLayerType(route.type)));
-    registerSavedContext([line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
+    registerSavedContext([hitLine, line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
         if (mode === 'join') selectJoinRoute(route, line);
         else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
         else startRouteEdit(route, line);
-    });
+    }, [], () => deleteRouteWithHistory(route, [hitLine, line, ...labels]));
 }
 function resetJoinRoutes() {
     joinRoutes.forEach(item => item.line.setStyle(routeLineStyle(item.route.type, routeLineColor(item.route))));
@@ -828,6 +887,111 @@ function selectJoinRoute(route, line) {
     line.setStyle({ color: joinRoutes.length === 1 ? '#e11d48' : '#fb7185', weight: 7, opacity: 1 });
     document.getElementById('cad-command').textContent = `JOIN: označeno ${joinRoutes.length} trasa. Glavna: ${joinRoutes[0].route.name}. ENTER spaja.`;
 }
+let splitPreview = null;
+
+function nearestRouteProjection(latlng) {
+    let best = null;
+    data.routes.forEach(route => {
+        if (!route.path || route.path.length < 2) return;
+        const line = routeLayerById[route.id];
+        if (!line) return;
+        for (let i = 0; i < route.path.length - 1; i++) {
+            const a = L.latLng(route.path[i][0], route.path[i][1]);
+            const b = L.latLng(route.path[i + 1][0], route.path[i + 1][1]);
+            const proj = projectOnSegment(latlng, a, b);
+            const dist = layerPixelDistance(latlng, proj);
+            if (!best || dist < best.dist) {
+                best = { route, latlng: proj, dist, line, labels: routeLabelsById[route.id] || [] };
+            }
+        }
+    });
+    return best && best.dist <= 20 ? best : null;
+}
+
+function showSplitPreview(proj) {
+    const html = `<div style="position:relative;width:0;height:0">` +
+        `<div style="position:absolute;transform:translate(-50%,-50%);font-size:18px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));cursor:crosshair">✂</div>` +
+        `<div style="position:absolute;left:14px;top:-16px;background:#ea580c;color:#fff;font:700 10px/1.4 system-ui,sans-serif;padding:2px 7px;border-radius:5px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">${proj.route.name}</div>` +
+        `</div>`;
+    const icon = L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+    if (!splitPreview) {
+        splitPreview = { marker: L.marker(proj.latlng, { icon, interactive: false, zIndexOffset: 3000 }).addTo(map), ...proj };
+    } else {
+        splitPreview.marker.setLatLng(proj.latlng);
+        splitPreview.marker.setIcon(icon);
+        if (!map.hasLayer(splitPreview.marker)) splitPreview.marker.addTo(map);
+        Object.assign(splitPreview, proj);
+    }
+    map.getContainer().style.cursor = 'crosshair';
+}
+
+function hideSplitPreview() {
+    if (splitPreview?.marker && map.hasLayer(splitPreview.marker)) map.removeLayer(splitPreview.marker);
+    splitPreview = null;
+    if (mode !== 'split') map.getContainer().style.cursor = '';
+}
+
+async function splitSavedRoute(route, latlng, line, labels) {
+    try {
+        document.getElementById('cad-command').textContent = 'Dijeli trasu...';
+        const routeSnapshot = { ...route };
+        const latlngSnapshot = { lat: latlng.lat, lng: latlng.lng };
+        const response = await fetch(`${appConfig.routesBase}/${route.id}/split`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ lat: latlng.lat, lng: latlng.lng }),
+        });
+        const result = await readJsonResponse(response, 'Podjela nije uspjela.');
+
+        // Ukloni staru trasu sa mape
+        removeRouteFromMap(route.id);
+
+        // Dodaj dvije nove trase
+        addSavedRouteToMap(result.first);
+        addSavedRouteToMap(result.second);
+
+        document.getElementById('cad-command').textContent = `Trasa podijeljena: ${result.first.name} i ${result.second.name}. CTRL+Z za poništavanje.`;
+
+        const idRefs = { firstId: result.first.id, secondId: result.second.id };
+        const splitRef = { restoredId: null };
+        mapHistory.push({
+            label: `Split ${routeSnapshot.name}`,
+            undo: async () => {
+                await deleteRouteOnServer(idRefs.firstId);
+                removeRouteFromMap(idRefs.firstId);
+                await deleteRouteOnServer(idRefs.secondId);
+                removeRouteFromMap(idRefs.secondId);
+                const restored = await recreateRoute(routeSnapshot);
+                addSavedRouteToMap(restored);
+                splitRef.restoredId = restored.id;
+            },
+            redo: async () => {
+                if (!splitRef.restoredId) return;
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const reRes = await fetch(`${appConfig.routesBase}/${splitRef.restoredId}/split`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify(latlngSnapshot),
+                });
+                const reResult = await readJsonResponse(reRes, 'Podjela nije uspjela.');
+                removeRouteFromMap(splitRef.restoredId);
+                addSavedRouteToMap(reResult.first);
+                addSavedRouteToMap(reResult.second);
+                idRefs.firstId = reResult.first.id;
+                idRefs.secondId = reResult.second.id;
+                splitRef.restoredId = null;
+            },
+        });
+    } catch (error) {
+        document.getElementById('cad-command').textContent = `SPLIT: ${error.message}`;
+    }
+}
+
 async function joinSelectedRoutes() {
     if (joinRoutes.length < 2) {
         document.getElementById('cad-command').textContent = 'JOIN: označi najmanje dvije trase, zatim pritisni ENTER.';
@@ -854,12 +1018,16 @@ async function joinSelectedRoutes() {
         });
         routeLabelsById[first.route.id] = first.route.type === 'trench' ? [] : addRouteLabel(points, first.route.name, false, routeLabelSpecs(first.route));
         routeLabelsById[first.route.id].forEach(label => trackLayer(label, routeLayerType(first.route.type)));
+        routeHitLayerById[first.route.id]?.setLatLngs(points);
         const removedLine = routeLayerById[result.deleted_route_id];
         if (removedLine) map.removeLayer(removedLine);
         (routeLabelsById[result.deleted_route_id] || []).forEach(label => {
             map.removeLayer(label);
             untrackLayer(label);
         });
+        const removedHitLine = routeHitLayerById[result.deleted_route_id];
+        if (removedHitLine) { map.removeLayer(removedHitLine); untrackLayer(removedHitLine); }
+        delete routeHitLayerById[result.deleted_route_id];
         delete routeLayerById[result.deleted_route_id];
         delete routeLabelsById[result.deleted_route_id];
         data.routes = data.routes.filter(item => Number(item.id) !== Number(result.deleted_route_id));
@@ -1030,7 +1198,7 @@ function updateCommandBar(snap = '-', previewPoint = null) {
         segment = Math.round(map.distance(activeBranch[activeBranch.length - 1], previewPoint));
         total += segment;
     }
-    metrics.textContent = `Points: ${activeBranch.length} | Total: ${total}m | Segment: ${segment}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'}`;
+    metrics.textContent = `Points: ${activeBranch.length} | Total: ${total}m | Segment: ${segment}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'} | OSM: ${osmRoutingEnabled ? (osmRoutingLoading ? '...' : 'ON') : 'OFF'}`;
 }
 function pushUndo(action) {
     undoStack.push(action);
@@ -1074,6 +1242,119 @@ function syncRouteEditUndoButtons() {
     const r = document.getElementById('redo-route-edit');
     if (u) u.disabled = routeEditUndoStack.length === 0;
     if (r) r.disabled = routeEditRedoStack.length === 0;
+}
+function updateMapHistoryUI() {
+    const u = document.getElementById('btn-map-undo');
+    const r = document.getElementById('btn-map-redo');
+    if (u) u.disabled = mapHistory.stack.length === 0;
+    if (r) r.disabled = mapHistory.histRedoStack.length === 0;
+}
+function removeRouteFromMap(routeId) {
+    const line = routeLayerById[routeId];
+    const hitLine = routeHitLayerById[routeId];
+    if (line) { map.removeLayer(line); untrackLayer(line); }
+    if (hitLine) { map.removeLayer(hitLine); untrackLayer(hitLine); }
+    (routeLabelsById[routeId] || []).forEach(l => { map.removeLayer(l); untrackLayer(l); });
+    delete routeLayerById[routeId];
+    delete routeHitLayerById[routeId];
+    delete routeLabelsById[routeId];
+    const spIdx = data.routes.filter(r => r.path?.length).findIndex(r => Number(r.id) === Number(routeId));
+    if (spIdx >= 0) savedRoutePoints.splice(spIdx, 1);
+    data.routes = data.routes.filter(r => Number(r.id) !== Number(routeId));
+}
+async function recreateRoute(snapshot) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const response = await fetch(appConfig.routesBase, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({
+            project_id: snapshot.project_id,
+            odf_id: snapshot.odf_id ?? null,
+            cabinet_id: snapshot.cabinet_id ?? null,
+            from_type: snapshot.from_type ?? null,
+            from_id: snapshot.from_id ?? null,
+            to_type: snapshot.to_type ?? null,
+            to_id: snapshot.to_id ?? null,
+            name: snapshot.name,
+            route_type: snapshot.type,
+            installation_type: snapshot.installation_type ?? 'underground',
+            duct_length_m: snapshot.duct_length_m,
+            fiber_length_m: snapshot.fiber_length_m ?? snapshot.duct_length_m,
+            fiber_count: snapshot.fiber_count ?? 4,
+            microduct_count: snapshot.microduct_count ?? 0,
+            microduct_type: snapshot.microduct_type ?? null,
+            status: snapshot.status ?? 'planned',
+            path: JSON.stringify(snapshot.path),
+            note: snapshot.note ?? null,
+        }),
+    });
+    const result = await readJsonResponse(response, 'Obnova trase nije uspjela.');
+    return { ...snapshot, id: result.route.id };
+}
+async function deleteRouteOnServer(routeId) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const response = await fetch(deleteUrls.route(routeId), {
+        method: 'DELETE',
+        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!response.ok) throw new Error('Brisanje trase nije uspjelo.');
+}
+async function deleteRouteWithHistory(route, layers) {
+    if (!confirm('Sigurno obrisati?')) return;
+    const routeSnapshot = { ...route };
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const response = await fetch(deleteUrls.route(route.id), {
+        method: 'DELETE',
+        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!response.ok) {
+        alert(await response.text() || 'Brisanje nije uspjelo.');
+        return;
+    }
+    removeRouteFromMap(route.id);
+    document.getElementById('cad-command').textContent = `Trasa ${routeSnapshot.name} obrisana. CTRL+Z za poništavanje.`;
+    const deleteRef = { recreatedId: null };
+    mapHistory.push({
+        label: `Obriši trasu ${routeSnapshot.name}`,
+        undo: async () => {
+            const restored = await recreateRoute(routeSnapshot);
+            addSavedRouteToMap(restored);
+            deleteRef.recreatedId = restored.id;
+        },
+        redo: async () => {
+            if (!deleteRef.recreatedId) return;
+            await deleteRouteOnServer(deleteRef.recreatedId);
+            removeRouteFromMap(deleteRef.recreatedId);
+            deleteRef.recreatedId = null;
+        },
+    });
+}
+async function patchRouteGeometryOnMap(routeId, points) {
+    const path = points.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]);
+    const len = distance(points);
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const response = await fetch(`${appConfig.routesBase}/${routeId}/geometrija`, {
+        method: 'PATCH',
+        headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ path, duct_length_m: len, fiber_length_m: len }),
+    });
+    const result = await readJsonResponse(response, 'Izmjena geometrije nije uspjela.');
+    const line = routeLayerById[routeId];
+    if (line) {
+        line.setLatLngs(points);
+        routeHitLayerById[routeId]?.setLatLngs(points);
+    }
+    const route = data.routes.find(r => Number(r.id) === Number(routeId));
+    if (route && line) {
+        route.path = result.route.path;
+        route.duct_length_m = result.route.length;
+        line.setPopupContent(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${result.route.length} m`);
+        (routeLabelsById[routeId] || []).forEach(l => { map.removeLayer(l); untrackLayer(l); });
+        const newLabels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
+        routeLabelsById[routeId] = newLabels || [];
+        newLabels?.forEach(l => trackLayer(l, routeLayerType(route.type)));
+    }
+    return result;
 }
 function cancelActiveDrawing() {
     quickBranchWorkflow = false;
@@ -1574,16 +1855,31 @@ async function saveSavedPosition(marker, url) {
     marker.dragging?.disable();
     document.getElementById('cad-command').textContent = 'Nova pozicija je sačuvana.';
 }
-function registerSavedContext(layer, title, url, positionUrl = null, clickAction = null, customActions = []) {
+function registerSavedContext(layer, title, url, positionUrl = null, clickAction = null, customActions = [], onDelete = null) {
     const triggerLayer = Array.isArray(layer) ? layer[0] : layer;
     const allLayers = Array.isArray(layer) ? layer : [layer];
     selectionRegistry.push({ triggerLayer, allLayers, url, title });
     let savedPosition = triggerLayer.getLatLng?.();
     if (positionUrl) {
         triggerLayer.on('dragend', async () => {
+            const oldPos = savedPosition;
             try {
                 await saveSavedPosition(triggerLayer, positionUrl);
-                savedPosition = triggerLayer.getLatLng();
+                const newPos = triggerLayer.getLatLng();
+                savedPosition = newPos;
+                mapHistory.push({
+                    label: `Pomjeri ${title}`,
+                    undo: async () => {
+                        triggerLayer.setLatLng(oldPos);
+                        await saveSavedPosition(triggerLayer, positionUrl);
+                        savedPosition = oldPos;
+                    },
+                    redo: async () => {
+                        triggerLayer.setLatLng(newPos);
+                        await saveSavedPosition(triggerLayer, positionUrl);
+                        savedPosition = newPos;
+                    },
+                });
             } catch (error) {
                 if (savedPosition) triggerLayer.setLatLng(savedPosition);
                 triggerLayer.dragging?.disable();
@@ -1598,8 +1894,8 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
             return;
         }
         const actions = [
-            ...customActions,
-            { label: 'Obrisi', run: () => deleteSavedElement(url, layer) },
+            ...(typeof customActions === 'function' ? customActions(event.latlng) : (customActions || [])),
+            { label: 'Obrisi', run: () => onDelete ? onDelete() : deleteSavedElement(url, layer) },
         ];
         if (positionUrl) actions.push({ label: 'Pomjeri', run: () => triggerLayer.dragging?.enable() });
         showCadContext(event.latlng, title, actions);
@@ -1660,15 +1956,15 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
     }
 
     function applyHighlight(entry, on) {
-        entry.allLayers.forEach(l => {
+        if (on && !entry._origStyles) entry._origStyles = {};
+        entry.allLayers.forEach((l, i) => {
             if (!l || !map.hasLayer(l)) return;
             if (typeof l.setStyle === 'function') {
                 if (on) {
-                    entry._origStyle = entry._origStyle || { color: l.options.color, weight: l.options.weight, opacity: l.options.opacity };
+                    if (!entry._origStyles[i]) entry._origStyles[i] = { color: l.options.color, weight: l.options.weight, opacity: l.options.opacity };
                     l.setStyle({ color: '#3b82f6', weight: (l.options.weight || 3) + 2, opacity: 1 });
-                } else if (entry._origStyle) {
-                    l.setStyle(entry._origStyle);
-                    entry._origStyle = null;
+                } else if (entry._origStyles?.[i]) {
+                    l.setStyle(entry._origStyles[i]);
                 }
             } else if (l.getElement) {
                 // marker
@@ -1676,6 +1972,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
                 if (el) el.style.filter = on ? 'drop-shadow(0 0 6px #3b82f6) brightness(1.3)' : '';
             }
         });
+        if (!on) entry._origStyles = null;
     }
 
     function clearSelection() {
@@ -2119,6 +2416,9 @@ async function saveRouteEdit() {
         document.getElementById('cad-command').textContent = 'EDIT ROUTE: nije moguće snimiti trasu sa manje od 2 tačke.';
         return;
     }
+    const oldPoints = routeEdit.originalPoints.map(p => L.latLng(p.lat, p.lng));
+    const routeId = routeEdit.route.id;
+    const routeName = routeEdit.route.name;
     const path = routeEdit.points.map(point => [Number(point.lat.toFixed(7)), Number(point.lng.toFixed(7))]);
     const length = distance(routeEdit.points);
     const response = await fetch(`${appConfig.routesBase}/${routeEdit.route.id}/geometrija`, {
@@ -2135,18 +2435,25 @@ async function saveRouteEdit() {
     const edited = routeEdit;
     edited.route.path = result.route.path;
     edited.route.duct_length_m = result.route.length;
+    const newPoints = edited.points.map(point => L.latLng(point.lat, point.lng));
     const savedRouteIndex = data.routes.filter(route => route.path?.length).findIndex(route => route.id === edited.route.id);
-    if (savedRouteIndex >= 0) savedRoutePoints[savedRouteIndex] = edited.points.map(point => L.latLng(point.lat, point.lng));
-    edited.originalPoints = edited.points.map(point => L.latLng(point.lat, point.lng));
+    if (savedRouteIndex >= 0) savedRoutePoints[savedRouteIndex] = newPoints;
+    edited.originalPoints = newPoints;
     edited.line.setPopupContent(`<b>${edited.route.name}</b><br>${routeTypeLabel(edited.route.type)}<br>${result.route.length} m`);
     edited.line.setStyle(routeLineStyle(edited.route.type, routeLineColor(edited.route)));
+    routeHitLayerById[edited.route.id]?.setLatLngs(edited.points);
     edited.markers.forEach(marker => map.removeLayer(marker));
     (edited.midpointMarkers || []).forEach(m => map.removeLayer(m));
     routeEdit = null;
     document.getElementById('route-edit-actions').classList.add('hidden');
     document.getElementById('route-edit-actions').classList.remove('flex');
-    document.getElementById('cad-command').textContent = `Trasa ${edited.route.name} je sačuvana (${result.route.length} m).`;
+    document.getElementById('cad-command').textContent = `Trasa ${routeName} je sačuvana (${result.route.length} m).`;
     updateCommandBar();
+    mapHistory.push({
+        label: `Uredi geometriju ${routeName}`,
+        undo: async () => { await patchRouteGeometryOnMap(routeId, oldPoints); },
+        redo: async () => { await patchRouteGeometryOnMap(routeId, newPoints); },
+    });
 }
 function refreshStats() {
     const d = allDistance();
@@ -2209,13 +2516,46 @@ function redrawPreviewBranch(latlng = null) {
     }
     if (snapTarget) document.getElementById('cad-command').textContent = `SNAP: ${snapTarget.label}. Klik potvrduje tacku, ENTER/desni klik zavrsava krak.`;
 }
-function addDrawPoint(latlng) {
+async function fetchOsmRoute(from, to) {
+    const url = `https://router.project-osrm.org/route/v1/foot/${from.lng.toFixed(6)},${from.lat.toFixed(6)};${to.lng.toFixed(6)},${to.lat.toFixed(6)}?geometries=geojson&overview=full`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error('OSRM error');
+    const data = await response.json();
+    if (data.code !== 'Ok' || !data.routes?.[0]?.geometry?.coordinates?.length) throw new Error('No route');
+    return data.routes[0].geometry.coordinates; // [[lng, lat], ...]
+}
+
+async function addDrawPoint(latlng) {
+    if (osmRoutingLoading) return;
     if (previewBranchLine) map.removeLayer(previewBranchLine);
     previewBranchLine = null;
     const orthoPoint = applyOrthoPoint(latlng);
     const snapTarget = getSnapTarget(orthoPoint);
     const point = snapTarget?.latlng || orthoPoint;
     hideSnapIndicator();
+
+    let intermediates = [];
+    if (osmRoutingEnabled && activeBranch.length > 0) {
+        osmRoutingLoading = true;
+        updateCommandBar();
+        document.getElementById('cad-command').textContent = 'Tražim rutu po ulicama...';
+        const from = activeBranch[activeBranch.length - 1];
+        try {
+            const coords = await fetchOsmRoute(from, point);
+            intermediates = coords.slice(1, -1).map(c => L.latLng(c[1], c[0]));
+        } catch (e) {
+            // fallback to straight line
+        }
+        osmRoutingLoading = false;
+        updateCommandBar();
+    }
+
+    for (const ip of intermediates) {
+        activeBranch.push(ip);
+        activeBranchSnapTargets.push(null);
+    }
+    const totalAdded = intermediates.length + 1;
+
     activeBranch.push(point);
     activeBranchSnapTargets.push(snapTarget || null);
     const index = activeBranch.length - 1;
@@ -2229,11 +2569,15 @@ function addDrawPoint(latlng) {
         undo: () => {
             const removedMarker = activeBranchMarkers.pop();
             if (removedMarker) map.removeLayer(removedMarker);
-            activeBranch.pop();
-            activeBranchSnapTargets.pop();
+            activeBranch.splice(activeBranch.length - totalAdded, totalAdded);
+            activeBranchSnapTargets.splice(activeBranchSnapTargets.length - totalAdded, totalAdded);
             redrawActiveBranch();
         },
         redo: () => {
+            for (const ip of intermediates) {
+                activeBranch.push(ip);
+                activeBranchSnapTargets.push(null);
+            }
             activeBranch.push(point);
             activeBranchSnapTargets.push(snapTarget || null);
             activeBranchMarkers.push(marker.addTo(map));
@@ -2303,43 +2647,64 @@ function layerPixelDistance(a, b) {
     return map.latLngToLayerPoint(a).distanceTo(map.latLngToLayerPoint(b));
 }
 function getSnapTarget(latlng) {
-    const candidates = [
-        ...data.odfs.map(item => ({ latlng: odfMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type:'odf', id:item.id })),
-        ...data.cabinets.map(item => ({ latlng: cabinetMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type:'cabinet', id:item.id })),
-        ...data.houses.map(item => ({ latlng: houseMarkerByKey[pointKey(item.lat, item.lng)]?.getLatLng() || L.latLng(item.lat, item.lng), label: `Kuća ${item.label}` })),
-        ...draftOdfs.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `ODF-${String(index + 1).padStart(2, '0')}` })),
-        ...draftCabinets.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || draftCabinetName(index) })),
-        ...houseMarkers.map((marker, index) => ({ latlng: marker.getLatLng(), label: `Kuća ${index + 1}` })),
+    // 1. ODF / ODO / kuća — apsolutni prioritet
+    const primaryCandidates = [
+        ...data.odfs.map(item => ({ latlng: odfMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type: 'odf', id: item.id })),
+        ...data.cabinets.map(item => ({ latlng: cabinetMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type: 'cabinet', id: item.id })),
+        ...data.houses.map(item => ({ latlng: houseMarkerByKey[pointKey(item.lat, item.lng)]?.getLatLng() || L.latLng(item.lat, item.lng), label: `Kuća ${item.label}`, type: 'house' })),
+        ...draftOdfs.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || `ODF-${String(index + 1).padStart(2, '0')}`, type: 'odf' })),
+        ...draftCabinets.map((item, index) => ({ latlng: item.marker.getLatLng(), label: item.name || draftCabinetName(index), type: 'cabinet' })),
+        ...houseMarkers.map((marker, index) => ({ latlng: marker.getLatLng(), label: `Kuća ${index + 1}`, type: 'house' })),
     ];
-    [...savedRoutePoints, ...branches].forEach(route => {
-        route.forEach((vertex, index) => candidates.push({
-            latlng: vertex,
-            label: index === 0 ? 'Route start' : (index === route.length - 1 ? 'Route end' : 'Route vertex'),
-        }));
-    });
     let best = null;
-    candidates.forEach(candidate => {
-        const distance = layerPixelDistance(latlng, candidate.latlng);
-        if (!best || distance < best.distance) best = { ...candidate, distance };
+    primaryCandidates.forEach(c => {
+        const d = layerPixelDistance(latlng, c.latlng);
+        if (!best || d < best.distance) best = { ...c, distance: d };
     });
-    return best && best.distance <= snapPixelTolerance ? best : null;
+    if (best && best.distance <= snapPixelTolerance) return best;
+
+    // 2. Vertexe i segmente sačuvanih trase
+    let bestSec = null;
+    [...savedRoutePoints, ...branches].forEach(route => {
+        // vertexe
+        route.forEach((vertex, index) => {
+            const d = layerPixelDistance(latlng, vertex);
+            const label = index === 0 ? 'Početak trase' : (index === route.length - 1 ? 'Kraj trase' : 'Čvor trase');
+            if (!bestSec || d < bestSec.distance) bestSec = { latlng: vertex, label, type: 'vertex', distance: d };
+        });
+        // projekcija na segmente
+        for (let i = 0; i < route.length - 1; i++) {
+            const proj = projectOnSegment(latlng, route[i], route[i + 1]);
+            const d = layerPixelDistance(latlng, proj);
+            if (!bestSec || d < bestSec.distance) bestSec = { latlng: proj, label: 'Na trasi', type: 'segment', distance: d };
+        }
+    });
+    return bestSec && bestSec.distance <= snapPixelTolerance ? bestSec : null;
 }
+
 function showSnapIndicator(target) {
-    if (!target) {
-        hideSnapIndicator();
-        return;
-    }
+    if (!target) { hideSnapIndicator(); return; }
+    const color = (target.type === 'odf' || target.type === 'cabinet') ? '#22c55e'
+                : target.type === 'house' ? '#8b5cf6'
+                : '#f59e0b';
+    const html = `<div class="snap-wrap" style="--sc:${color}">` +
+        `<div class="snap-ring"></div>` +
+        `<div class="snap-dot"></div>` +
+        `<div class="snap-lbl">${target.label}</div>` +
+        `</div>`;
+    const icon = L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
     if (!snapIndicator) {
-        snapIndicator = L.circleMarker(target.latlng, {
-            radius: 5, color: '#22c55e', weight: 2, fillColor: '#ffffff', fillOpacity: .3, interactive: false,
-        }).addTo(map);
+        snapIndicator = L.marker(target.latlng, { icon, interactive: false, zIndexOffset: 2000 }).addTo(map);
     } else {
         snapIndicator.setLatLng(target.latlng);
+        snapIndicator.setIcon(icon);
         if (!map.hasLayer(snapIndicator)) snapIndicator.addTo(map);
     }
+    map.getContainer().classList.add('leaflet-snap-active');
 }
 function hideSnapIndicator() {
     if (snapIndicator && map.hasLayer(snapIndicator)) map.removeLayer(snapIndicator);
+    map.getContainer().classList.remove('leaflet-snap-active');
 }
 function projectOnSegment(point, a, b) {
     const p = map.latLngToLayerPoint(point), pa = map.latLngToLayerPoint(a), pb = map.latLngToLayerPoint(b);
@@ -3319,6 +3684,8 @@ document.getElementById('add-route-vertex').addEventListener('click', () => addR
 document.getElementById('cancel-route-edit').addEventListener('click', cancelRouteEdit);
 document.getElementById('undo-route-edit')?.addEventListener('click', undoRouteEdit);
 document.getElementById('redo-route-edit')?.addEventListener('click', redoRouteEdit);
+document.getElementById('btn-map-undo')?.addEventListener('click', () => mapHistory.undo());
+document.getElementById('btn-map-redo')?.addEventListener('click', () => mapHistory.redo());
 document.getElementById('save-route-edit').addEventListener('click', async () => {
     try {
         await saveRouteEdit();
@@ -3496,6 +3863,17 @@ document.getElementById('fill-missing-drops').addEventListener('click', async ()
 
 map.on('mousemove', e => {
     document.getElementById('cad-coordinates').textContent = `LAT ${e.latlng.lat.toFixed(7)}, LNG ${e.latlng.lng.toFixed(7)}`;
+    if (mode === 'split') {
+        const proj = nearestRouteProjection(e.latlng);
+        if (proj) {
+            showSplitPreview(proj);
+            document.getElementById('cad-command').textContent = `SPLIT: klikni da podijeliš trasu "${proj.route.name}"`;
+        } else {
+            hideSplitPreview();
+            document.getElementById('cad-command').textContent = 'SPLIT: pomjeri miša na trasu i klikni gdje hoćeš da je podijeliš.';
+        }
+        return;
+    }
     redrawPreviewBranch(e.latlng);
     if (mode !== 'draw') updateCommandBar();
 });
@@ -3552,14 +3930,16 @@ document.addEventListener('keydown', event => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (routeEdit) undoRouteEdit();
-        else undoLast();
+        else if (mode === 'draw' && undoStack.length > 0) undoLast();
+        else mapHistory.undo();
         return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+    if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'))) {
         event.preventDefault();
         if (routeEdit) redoRouteEdit();
-        else redoLast();
+        else if (mode === 'draw' && redoStack.length > 0) redoLast();
+        else mapHistory.redo();
         return;
     }
 
@@ -3568,11 +3948,27 @@ document.addEventListener('keydown', event => {
         orthoEnabled = !orthoEnabled;
         updateCommandBar();
     }
+
+    if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        osmRoutingEnabled = !osmRoutingEnabled;
+        const cb = document.getElementById('osm-routing-toggle');
+        if (cb) cb.checked = osmRoutingEnabled;
+        updateCommandBar();
+    }
 });
 
 map.on('click', e => {
     const lat = e.latlng.lat.toFixed(7), lng = e.latlng.lng.toFixed(7);
     if (mode === 'draw') { addDrawPoint(e.latlng); return; }
+    if (mode === 'split') {
+        if (splitPreview) {
+            const { route, latlng, line, labels } = splitPreview;
+            hideSplitPreview();
+            splitSavedRoute(route, latlng, line, labels);
+        }
+        return;
+    }
     if (mode === 'house') {
         housePoints.push(e.latlng);
         const index = housePoints.length - 1;

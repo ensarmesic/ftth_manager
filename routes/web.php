@@ -69,6 +69,7 @@ Route::get('/trase', [RouteController::class, 'routes'])->name('routes.index');
 Route::post('/trase', [RouteController::class, 'storeRoute'])->name('routes.store');
 Route::match(['put', 'patch'], '/trase/{id}', [RouteController::class, 'updateRoute'])->name('routes.update');
 Route::patch('/trase/{id}/geometrija', [RouteController::class, 'updateRouteGeometry'])->name('routes.geometry.update');
+Route::post('/trase/{id}/split', [RouteController::class, 'splitRoute'])->name('routes.split');
 Route::post('/trase/{id}/join', [RouteController::class, 'joinRoutes'])->name('routes.join.multiple');
 Route::post('/trase/{id}/join/{otherId}', [RouteController::class, 'joinRoutes'])->name('routes.join');
 Route::post('/trase/dxf', [RouteController::class, 'importDxf'])->name('routes.dxf.import');

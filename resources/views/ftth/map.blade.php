@@ -158,6 +158,41 @@
     .layer-row input[type=checkbox] { accent-color: #6366f1; flex-shrink: 0; }
     .layer-lock-btn { padding: 2px 8px; border-radius: 5px; border: 1px solid #dde3ea; background: #f8fafc; font: 500 11px/1.5 system-ui, sans-serif; color: #64748b; cursor: pointer; flex-shrink: 0; transition: background .1s; }
     .layer-lock-btn:hover { background: #edf0f4; }
+    /* ── Snap indicator ─────────────────────────────────────────── */
+    @keyframes snap-pulse {
+        0%   { transform: translate(-50%,-50%) scale(1);    opacity: .85; }
+        55%  { transform: translate(-50%,-50%) scale(1.6);  opacity: .15; }
+        100% { transform: translate(-50%,-50%) scale(1);    opacity: .85; }
+    }
+    .snap-wrap { position: relative; width: 0; height: 0; pointer-events: none; }
+    .snap-ring {
+        width: 34px; height: 34px; border-radius: 50%;
+        border: 2.5px solid var(--sc); position: absolute;
+        top: 0; left: 0; transform: translate(-50%,-50%);
+        animation: snap-pulse .7s ease-in-out infinite;
+    }
+    .snap-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--sc); position: absolute;
+        top: 0; left: 0; transform: translate(-50%,-50%);
+        border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.18);
+    }
+    .snap-lbl {
+        position: absolute; left: 13px; top: -19px;
+        background: #0f172a; color: #fff;
+        font: 700 10px/1.4 system-ui, sans-serif;
+        padding: 2px 7px; border-radius: 5px;
+        white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    }
+    .snap-lbl::after {
+        content: ''; position: absolute;
+        top: 100%; left: 10px;
+        border: 4px solid transparent;
+        border-top-color: #0f172a;
+    }
+    .leaflet-snap-active { cursor: crosshair !important; }
+    .leaflet-snap-active .leaflet-grab { cursor: crosshair !important; }
     /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
@@ -444,6 +479,10 @@
             <button type="button" id="mode-branch-source" class="tc tc-orange">Krak iz ODO</button>
             <button type="button" id="mode-trace" class="tc tc-sky">Trace</button>
             <button type="button" id="mode-join" class="tc tc-rose">Join trase</button>
+            <button type="button" id="mode-split" class="tc tc-orange">✂ Split</button>
+            <div class="tc-sep"></div>
+            <button type="button" id="btn-map-undo" class="tc tc-ghost" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
+            <button type="button" id="btn-map-redo" class="tc tc-ghost" title="Redo (Ctrl+Y)" disabled>↪ Redo</button>
             <div class="tc-sep"></div>
             <div id="house-connect-actions" class="hidden items-center gap-1">
                 <button type="button" id="finish-house-connect" class="tc tc-confirm">✓ Završi</button>
@@ -537,7 +576,7 @@
             <div id="cad-command">Command: PAN</div>
             <div id="cad-metrics" class="cad-chip rounded px-2 py-1">Points: 0 | Distance: 0m | Snap: - | ORTHO: OFF</div>
             <div id="cad-coordinates" class="cad-chip rounded px-2 py-1">LAT -, LNG -</div>
-            <div class="cad-chip rounded px-2 py-1">ESC prekid | ENTER zavrsi | CTRL+Z undo | O ORTHO</div>
+            <div class="cad-chip rounded px-2 py-1">ESC prekid | ENTER zavrsi | CTRL+Z undo | O ORTHO | R OSM ulice</div>
         </div>
     </div>
 
@@ -663,6 +702,11 @@
                         <div id="route-branch-list" class="grid max-h-28 gap-1 overflow-y-auto text-xs text-amber-900"></div>
                     </div>
                 </details>
+                <label class="flex items-center gap-2 cursor-pointer select-none rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <input type="checkbox" id="osm-routing-toggle" class="rounded border-slate-400 accent-amber-500">
+                    <span class="text-xs font-semibold text-amber-900">Prati ulice (OSM)</span>
+                    <span class="ml-auto text-[10px] text-slate-400 font-mono">[R]</span>
+                </label>
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
                     <button type="button" id="save-draft" class="sb-btn sb-btn-outline">Radna verzija</button>
