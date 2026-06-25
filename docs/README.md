@@ -14,3 +14,4 @@
 | [08-provjera-projekta.md](08-provjera-projekta.md) | Provjera projekta i validacijska pravila |
 | [09-arhitektura.md](09-arhitektura.md) | Tehnička arhitektura za developere |
 | [10-api.md](10-api.md) | API endpoints referenca |
+| [11-postavke.md](11-postavke.md) | Lokalne postavke prikaza i sistemske informacije |

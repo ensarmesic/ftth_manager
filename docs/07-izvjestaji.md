@@ -19,20 +19,27 @@ Centralna stranica s pregledom svih projekata i sljedećim agregatima po projekt
 
 ---
 
-## Fiber shema (`/fiber-sema`)
+## Fiber šema (`/fiber-sema`)
 
-Vizualni raspored vlakana — prikazuje koji splitter/port u ODF-u je zauzet kojim ODO-om.
+Vizualni topološki dijagram cijele mreže — prikazuje logičku strukturu od ODF-a do svakog pretplatnika.
 
-Organizacija po projektu → ODF → krak → ODO:
-- Svaki ODO dobija dodjelu vlakana: npr. "Vlakno 1–2" (za 2 splittera)
-- Rezervisana vlakna prikazuju se kao slobodna
-- Popunjenost projekta u %
+Organizacija: **Projekt → ODF → primarni krakovi → sekundarni krakovi → ODO ormarići → kuće**
 
-### PDF fiber sheme
+Prikaz po elementima:
+- **ODF kutija** — lijevo, početak dijagrama
+- **Primarni krakovi** — horizontalne grane od ODF-a
+- **Sekundarni krakovi** — grane od primarnih
+- **ODO ormarići** — s brojem splittera, portova i zauzetošću
+- **Kuće** — krajnji pretplatnici s oznakama
 
-`GET /projekti/{id}/fiber-sema/pdf` — generišeizvještaj u PDF (A4 landscape) kroz barryvdh/laravel-dompdf.
+Svaki ODO prikazuje dodjelu vlakana (npr. "Vlakno 1–2" za 2 splittera). Popunjenost projekta prikazana je u postocima.
 
-Filename: `fiber-shema-{code}-{datum}.pdf`
+Redosljed primarnih i sekundarnih krakova u dijagramu kontroliše se drag-and-drop sortiranjem na stranici `/krakovi`.
+
+### Eksport fiber šeme
+
+- **PDF** — `GET /projekti/{id}/fiber-sema/pdf` — A4 landscape format, generisan kroz Laravel DomPDF. Filename: `fiber-shema-{code}-{datum}.pdf`
+- **DXF** — `GET /projekti/{id}/fiber-schema-dxf` — tehnički crtež topologije za AutoCAD; sadrži slojeve s kutijama, bus linijama, tap tačkama i oznakama
 
 ---
 
@@ -115,7 +122,7 @@ Generišse DXF crtež mreže s:
 - Tekstualnim oznakama (nazivi ODF-a, ODO-a)
 - Opcionalnom DXF podlogom (ako korisnik dostavi podlogu)
 
-Koordinate su u WGS84 (lat/lng) — pri uvozu u AutoCAD koristiti odgovarajuću projekciju.
+Koordinate su automatski konvertovane iz WGS84 u **MGI Gauss-Krüger** (Besselov elipsoid, zona 5/6/7 — automatska detekcija prema longitudi projekta). Ovo je standardni koordinatni sistem koji koriste CAD programi u BiH i okruženju, pa se DXF može direktno otvoriti u AutoCAD-u bez dodatne konverzije projekcije.
 
 ---
 
