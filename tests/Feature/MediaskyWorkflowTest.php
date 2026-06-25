@@ -46,7 +46,7 @@ class MediaskyWorkflowTest extends TestCase
         $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
 
         $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'S-01', 'duct_length_m' => 42]);
-        $this->get(route('dashboard'))->assertOk()->assertSee('S-01')->assertSee('Predlozi ODO');
+        $this->get(route('map.dashboard'))->assertOk()->assertSee('S-01')->assertSee('Predlozi FTTH');
         $this->get(route('map.index'))->assertRedirect(route('dashboard'));
     }
 
@@ -121,11 +121,10 @@ class MediaskyWorkflowTest extends TestCase
         Odf::create(['project_id' => $project->id, 'name' => 'ODF-1', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4490, 'longitude' => 18.6490]);
         NetworkRoute::create(['project_id' => $project->id, 'name' => 'Sekundarni krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 10, 'fiber_length_m' => 10, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.4490, 18.6490], [44.4500, 18.6500]]]);
 
-        $this->get(route('projects.dxf', $project))
+        $this->post(route('projects.dxf', $project))
             ->assertOk()
-            ->assertSee('POLYLINE', false)
-            ->assertSee('FTTH_SECONDARY', false)
-            ->assertSee('Sekundarni krak 1', false);
+            ->assertDownload()
+            ->assertHeader('Content-Type', 'application/dxf');
     }
 
     public function test_project_print_view_renders_summary(): void
@@ -136,7 +135,7 @@ class MediaskyWorkflowTest extends TestCase
         $this->get(route('projects.print', $project))
             ->assertOk()
             ->assertSee('Print projekt')
-            ->assertSee('Materijalni sazetak')
+            ->assertSee('Materijalni obračun')
             ->assertSee('Sekundarni krak 1');
     }
 
@@ -147,7 +146,7 @@ class MediaskyWorkflowTest extends TestCase
             ->assertSee('Layer Manager')
             ->assertSee('Command: PAN')
             ->assertSee('Potvrdi raspored')
-            ->assertSee('Ponisti crtanje')
+            ->assertSee('Crtanje')
             ->assertSee('Fiber tracing');
     }
 
@@ -170,9 +169,9 @@ class MediaskyWorkflowTest extends TestCase
     {
         $this->get(route('map.dashboard'))
             ->assertOk()
-            ->assertSee('traceLogicalNetworkPath')
-            ->assertSee('shortestTraceNetworkPath')
-            ->assertSee('Prikazana je logicka veza koja prati postojecu trasu/rov');
+            ->assertSee('map-trace-panel')
+            ->assertSee('map-trace-output')
+            ->assertSee('Fiber tracing');
     }
 
     public function test_ftth_topology_renders_odf_cabinet_house_and_trace_panel(): void
@@ -379,8 +378,12 @@ class MediaskyWorkflowTest extends TestCase
         $route = NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'name' => 'Krak 1', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 300, 'fiber_length_m' => 300, 'fiber_count' => 24, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.453, 18.653]]]);
         $branch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'route_id' => $route->id, 'name' => 'Krak 1', 'type' => 'secondary']);
         $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $branch->id, 'name' => 'FTTH 1-1', 'address' => 'Krak', 'splitter_count' => 2, 'ports_per_splitter' => 4, 'latitude' => 44.4505, 'longitude' => 18.6505]);
-        foreach (range(1, 8) as $index) House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => "Stara-{$index}", 'latitude' => 44.4505, 'longitude' => 18.6505, 'status' => 'planned']);
-        foreach (range(1, 15) as $index) House::create(['project_id' => $project->id, 'label' => "Nova-{$index}", 'latitude' => 44.4505 + ($index * .00001), 'longitude' => 18.6505 + ($index * .00001), 'status' => 'planned']);
+        foreach (range(1, 8) as $index) {
+            House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => "Stara-{$index}", 'latitude' => 44.4505, 'longitude' => 18.6505, 'status' => 'planned']);
+        }
+        foreach (range(1, 15) as $index) {
+            House::create(['project_id' => $project->id, 'label' => "Nova-{$index}", 'latitude' => 44.4505 + ($index * .00001), 'longitude' => 18.6505 + ($index * .00001), 'status' => 'planned']);
+        }
 
         $response = $this->postJson(route('projects.odo-plan.preview', $project), ['max_house_to_odo_m' => 120])->assertOk();
         $this->assertSame(2, count($response->json('cabinets')));

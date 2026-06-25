@@ -2,25 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\MapDraft;
-use App\Models\Material;
 use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class RouteController extends Controller
 {
@@ -242,7 +234,7 @@ class RouteController extends Controller
             ]);
 
             $newRoute = $route->replicate()->fill([
-                'name' => $route->name . '-B',
+                'name' => $route->name.'-B',
                 'path' => $secondPath,
                 'duct_length_m' => $this->polylineLength($secondPath),
                 'fiber_length_m' => $route->route_type === 'trench' ? 0 : $this->polylineLength($secondPath),
@@ -412,4 +404,3 @@ class RouteController extends Controller
         return back()->with('success', 'DXF importovan: '.count($entities).' trasa.');
     }
 }
-

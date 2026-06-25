@@ -2,27 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\MapDraft;
 use App\Models\Material;
-use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
-use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
-use Barryvdh\DomPDF\Facade\Pdf;
-use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class ReportController extends Controller
 {
@@ -165,7 +156,7 @@ class ReportController extends Controller
         return view('ftth.splitters', ['cabinets' => $cabinets]);
     }
 
-    public function fiberSchemaPdf(Project $project): \Illuminate\Http\Response
+    public function fiberSchemaPdf(Project $project): Response
     {
         $project->load([
             'houses' => fn ($q) => $q->whereNull('cabinet_id')->orderBy('label'),
@@ -202,6 +193,7 @@ class ReportController extends Controller
 
         $neededSplitters = function ($cabinet): int {
             $houseCount = $cabinet->houses_count ?? ($cabinet->relationLoaded('houses') ? $cabinet->houses->count() : $cabinet->houses()->count());
+
             return (int) ceil(((int) $houseCount) / max(1, (int) $cabinet->ports_per_splitter));
         };
 
@@ -245,7 +237,7 @@ class ReportController extends Controller
             'usedFiberTo', 'reserveFrom', 'reserveTo',
         ))->setPaper('a4', 'landscape');
 
-        $filename = 'fiber-shema-' . str($project->code ?: $project->name)->slug() . '-' . now()->format('Ymd') . '.pdf';
+        $filename = 'fiber-shema-'.str($project->code ?: $project->name)->slug().'-'.now()->format('Ymd').'.pdf';
 
         return $pdf->download($filename);
     }
@@ -282,4 +274,3 @@ class ReportController extends Controller
         return view('ftth.fiber-schema', ['projects' => $projects]);
     }
 }
-

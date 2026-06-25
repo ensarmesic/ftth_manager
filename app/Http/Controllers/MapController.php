@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\MapDraft;
@@ -13,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
-use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class MapController extends Controller
 {
@@ -232,13 +232,19 @@ class MapController extends Controller
         $projectCabinetIds = Cabinet::where('project_id', $projectId)->pluck('id')->flip()->all();
 
         $resolveOdfId = function (?int $id) use (&$projectOdfIds): ?int {
-            if (! $id) return null;
+            if (! $id) {
+                return null;
+            }
             abort_if(! isset($projectOdfIds[$id]), 422, "ODF #{$id} nije validan za ovaj projekat.");
+
             return $id;
         };
         $resolveCabinetId = function (?int $id) use (&$projectCabinetIds): ?int {
-            if (! $id) return null;
+            if (! $id) {
+                return null;
+            }
             abort_if(! isset($projectCabinetIds[$id]), 422, "ODO #{$id} nije validan za ovaj projekat.");
+
             return $id;
         };
 
@@ -400,6 +406,4 @@ class MapController extends Controller
             'updated_at' => $draft->updated_at?->format('Y-m-d H:i'),
         ]);
     }
-
 }
-

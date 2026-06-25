@@ -9,6 +9,9 @@ use App\Http\Controllers\OdfController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RouteController;
+use App\Models\Cabinet;
+use App\Models\House;
+use App\Models\NetworkRoute;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/mapa')->name('dashboard');
@@ -31,6 +34,7 @@ Route::match(['put', 'patch'], '/krakovi/{id}', [BranchController::class, 'updat
 Route::delete('/krakovi/{id}', [BranchController::class, 'deleteBranch'])->name('branches.delete');
 Route::get('/provjera-projekta', [ProjectController::class, 'projectCheck'])->name('project-check.index');
 Route::get('/postavke', [ProjectController::class, 'settings'])->name('settings.index');
+Route::get('/postavke/backup', [ProjectController::class, 'backup'])->name('settings.backup');
 
 Route::get('/projekti', [ProjectController::class, 'projects'])->name('projects.index');
 Route::post('/projekti', [ProjectController::class, 'storeProject'])->name('projects.store');
@@ -78,14 +82,21 @@ Route::delete('/trase/{id}', [RouteController::class, 'deleteRoute'])->name('rou
 Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->name('map.dxf-layer.upload');
 
 Route::get('/api/notifications', function () {
-    $unlinkedHouses    = \App\Models\House::whereNull('cabinet_id')->count();
-    $unlinkedCabinets  = \App\Models\Cabinet::whereNull('odf_id')->count();
-    $incompleteRoutes  = \App\Models\NetworkRoute::where('route_type', '!=', 'trench')->where(function ($q) {
+    $unlinkedHouses = House::whereNull('cabinet_id')->count();
+    $unlinkedCabinets = Cabinet::whereNull('odf_id')->count();
+    $incompleteRoutes = NetworkRoute::where('route_type', '!=', 'trench')->where(function ($q) {
         $q->whereNull('microduct_type')->orWhereNull('fiber_count');
     })->count();
     $items = [];
-    if ($unlinkedHouses)   $items[] = "$unlinkedHouses kuca nema dodijeljeni ODO.";
-    if ($unlinkedCabinets) $items[] = "$unlinkedCabinets ODO ormarica nema povezani ODF.";
-    if ($incompleteRoutes) $items[] = "$incompleteRoutes trasa nema kompletne tehnicke podatke.";
+    if ($unlinkedHouses) {
+        $items[] = "$unlinkedHouses kuca nema dodijeljeni ODO.";
+    }
+    if ($unlinkedCabinets) {
+        $items[] = "$unlinkedCabinets ODO ormarica nema povezani ODF.";
+    }
+    if ($incompleteRoutes) {
+        $items[] = "$incompleteRoutes trasa nema kompletne tehnicke podatke.";
+    }
+
     return response()->json(['count' => count($items), 'items' => $items]);
 })->name('api.notifications');

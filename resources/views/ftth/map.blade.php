@@ -917,7 +917,19 @@ window.ftthMapConfig = {
     data: @json($mapData),
 };
 </script>
-<script src="{{ asset('js/ftth-map.js') }}?v={{ filemtime(public_path('js/ftth-map.js')) }}"></script>
+<script src="{{ asset('js/map/state.js') }}?v={{ filemtime(public_path('js/map/state.js')) }}"></script>
+<script src="{{ asset('js/map/utils.js') }}?v={{ filemtime(public_path('js/map/utils.js')) }}"></script>
+<script src="{{ asset('js/map/layers.js') }}?v={{ filemtime(public_path('js/map/layers.js')) }}"></script>
+<script src="{{ asset('js/map/markers.js') }}?v={{ filemtime(public_path('js/map/markers.js')) }}"></script>
+<script src="{{ asset('js/map/context.js') }}?v={{ filemtime(public_path('js/map/context.js')) }}"></script>
+<script src="{{ asset('js/map/routes.js') }}?v={{ filemtime(public_path('js/map/routes.js')) }}"></script>
+<script src="{{ asset('js/map/connect.js') }}?v={{ filemtime(public_path('js/map/connect.js')) }}"></script>
+<script src="{{ asset('js/map/edit.js') }}?v={{ filemtime(public_path('js/map/edit.js')) }}"></script>
+<script src="{{ asset('js/map/draw.js') }}?v={{ filemtime(public_path('js/map/draw.js')) }}"></script>
+<script src="{{ asset('js/map/autoplan.js') }}?v={{ filemtime(public_path('js/map/autoplan.js')) }}"></script>
+<script src="{{ asset('js/map/draft.js') }}?v={{ filemtime(public_path('js/map/draft.js')) }}"></script>
+<script src="{{ asset('js/map/toolbar.js') }}?v={{ filemtime(public_path('js/map/toolbar.js')) }}"></script>
+<script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>
 
 {{-- DXF/DWG floating panel --}}
 <div id="dxf-layer-panel" style="display:none;position:fixed;top:120px;right:350px;z-index:9999;width:280px;background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);overflow:hidden;font-family:inherit">

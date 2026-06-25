@@ -2,25 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
 use App\Models\House;
-use App\Models\MapDraft;
-use App\Models\Material;
 use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class CabinetController extends Controller
 {
@@ -92,7 +84,9 @@ class CabinetController extends Controller
         $connectedRoutes->where('route_type', 'drop')->each(fn (NetworkRoute $route) => $this->deleteRouteWithBranch($route));
         $connectedRoutes->where('route_type', '!=', 'drop')->each(function (NetworkRoute $route) use ($cabinet): void {
             $updates = [];
-            if ((int) $route->cabinet_id === (int) $cabinet->id) $updates['cabinet_id'] = null;
+            if ((int) $route->cabinet_id === (int) $cabinet->id) {
+                $updates['cabinet_id'] = null;
+            }
             if ($route->from_type === 'cabinet' && (int) $route->from_id === (int) $cabinet->id) {
                 $updates['from_type'] = null;
                 $updates['from_id'] = null;
@@ -101,7 +95,9 @@ class CabinetController extends Controller
                 $updates['to_type'] = null;
                 $updates['to_id'] = null;
             }
-            if ($updates) $route->update($updates);
+            if ($updates) {
+                $route->update($updates);
+            }
         });
         $cabinet->houses()->update(['cabinet_id' => null]);
         $cabinet->childCabinets()->update(['parent_cabinet_id' => null]);
@@ -284,4 +280,3 @@ class CabinetController extends Controller
         ]);
     }
 }
-

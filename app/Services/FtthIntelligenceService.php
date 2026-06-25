@@ -16,6 +16,8 @@ class FtthIntelligenceService
 {
     private const BRANCH_WARNING = 'Nema definisanih krakova. Planiranje koristi samo geografsku blizinu i rezultat moze biti netacan.';
 
+    public function __construct(private readonly GeometryService $geometry) {}
+
     public function previewOdoPlan(Project $project, array $parameters = []): array
     {
         $params = $this->planningParameters($parameters);
@@ -191,7 +193,7 @@ class FtthIntelligenceService
                     $dropPreviewByHouse = collect($cabinetPlan['drop_preview'] ?? [])->keyBy('house_id');
                     foreach ($houses->values() as $index => $house) {
                         $path = $dropPreviewByHouse->get($house['id'])['path'] ?? [[(float) $cabinet->latitude, (float) $cabinet->longitude], [(float) $house['latitude'], (float) $house['longitude']]];
-                        $length = $this->polylineLength($path);
+                        $length = $this->geometry->polylineLength($path);
                         $dropName = $this->uniqueRouteName($project, "Drop {$cabinet->name}-{$house['label']}");
                         NetworkRoute::create([
                             'project_id' => $project->id,
@@ -247,8 +249,12 @@ class FtthIntelligenceService
             $items[] = $this->validationItem('info', 'Projekat nema kuce.', 'project', $project->id, 'Dodaj kuce iz mape ili liste.');
         }
         foreach ($project->odfs as $odf) {
-            if ($odf->latitude === null || $odf->longitude === null) $items[] = $this->validationItem('error', "{$odf->name} nema koordinate.", 'odf', $odf->id, 'Postavi ODF na mapi.');
-            if ($odf->cabinets->isEmpty()) $items[] = $this->validationItem('warning', "{$odf->name} nema povezan ODO.", 'odf', $odf->id, 'Poveži najmanje jedan ODO na ODF.');
+            if ($odf->latitude === null || $odf->longitude === null) {
+                $items[] = $this->validationItem('error', "{$odf->name} nema koordinate.", 'odf', $odf->id, 'Postavi ODF na mapi.');
+            }
+            if ($odf->cabinets->isEmpty()) {
+                $items[] = $this->validationItem('warning', "{$odf->name} nema povezan ODO.", 'odf', $odf->id, 'Poveži najmanje jedan ODO na ODF.');
+            }
 
             if ($odf->fiber_capacity > 0) {
                 $usedFibers = $odf->cabinets->filter(fn ($c) => $c->parent_cabinet_id === null)->sum('splitter_count');
@@ -261,7 +267,9 @@ class FtthIntelligenceService
         }
 
         foreach ($project->houses as $house) {
-            if ($house->latitude === null || $house->longitude === null) $items[] = $this->validationItem('error', "{$house->label} nema koordinate.", 'house', $house->id, 'Postavi kuću na mapi.');
+            if ($house->latitude === null || $house->longitude === null) {
+                $items[] = $this->validationItem('error', "{$house->label} nema koordinate.", 'house', $house->id, 'Postavi kuću na mapi.');
+            }
             if (! $house->cabinet_id) {
                 $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kucu ODO ormaricu.');
             }
@@ -294,9 +302,15 @@ class FtthIntelligenceService
             if (! $cabinet->odf_id && ! $cabinet->parent_cabinet_id) {
                 $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Povezi ODO sa najblizim ODF-om.');
             }
-            if ($cabinet->latitude === null || $cabinet->longitude === null) $items[] = $this->validationItem('error', "{$cabinet->name} nema koordinate.", 'cabinet', $cabinet->id, 'Postavi ODO na mapi.');
-            if ($cabinet->splitter_count > 3 || $cabinet->ports_per_splitter > 4) $items[] = $this->validationItem('error', "{$cabinet->name} ima neispravnu splitter konfiguraciju.", 'cabinet', $cabinet->id, 'Koristi najviše 3 splittera sa po 4 porta.');
-            if ($houseCount === 0) $items[] = $this->validationItem('info', "{$cabinet->name} nema povezanih kuća.", 'cabinet', $cabinet->id, 'Poveži kuće na ODO.');
+            if ($cabinet->latitude === null || $cabinet->longitude === null) {
+                $items[] = $this->validationItem('error', "{$cabinet->name} nema koordinate.", 'cabinet', $cabinet->id, 'Postavi ODO na mapi.');
+            }
+            if ($cabinet->splitter_count > 3 || $cabinet->ports_per_splitter > 4) {
+                $items[] = $this->validationItem('error', "{$cabinet->name} ima neispravnu splitter konfiguraciju.", 'cabinet', $cabinet->id, 'Koristi najviše 3 splittera sa po 4 porta.');
+            }
+            if ($houseCount === 0) {
+                $items[] = $this->validationItem('info', "{$cabinet->name} nema povezanih kuća.", 'cabinet', $cabinet->id, 'Poveži kuće na ODO.');
+            }
             if ($houseCount > 12) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} ima vise od 12 kuca.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
             }
@@ -315,7 +329,10 @@ class FtthIntelligenceService
 
         foreach ($project->routes as $route) {
             if ($route->route_type === 'trench') {
-                if ($route->duct_length_m <= 0) $items[] = $this->validationItem('error', "{$route->name} nema ispravnu duÅ¾inu.", 'route', $route->id, 'Uredi geometriju trase.');
+                if ($route->duct_length_m <= 0) {
+                    $items[] = $this->validationItem('error', "{$route->name} nema ispravnu duÅ¾inu.", 'route', $route->id, 'Uredi geometriju trase.');
+                }
+
                 continue;
             }
             if (! $route->fiber_count) {
@@ -324,13 +341,24 @@ class FtthIntelligenceService
             if (! $route->microduct_type) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema mikrocijev.", 'route', $route->id, 'Unesi profil mikrocijevi.');
             }
-            if (! $route->installation_type) $items[] = $this->validationItem('warning', "{$route->name} nema tip polaganja.", 'route', $route->id, 'Odaberi podzemno ili zračno polaganje.');
-            if ($route->duct_length_m <= 0) $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
-            if ($route->route_type === 'drop' && ($route->to_type !== 'house' || ! $route->to_id)) $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.');
-            if (in_array($route->route_type, ['backbone', 'distribution'], true) && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.');
+            if (! $route->installation_type) {
+                $items[] = $this->validationItem('warning', "{$route->name} nema tip polaganja.", 'route', $route->id, 'Odaberi podzemno ili zračno polaganje.');
+            }
+            if ($route->duct_length_m <= 0) {
+                $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
+            }
+            if ($route->route_type === 'drop' && ($route->to_type !== 'house' || ! $route->to_id)) {
+                $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.');
+            }
+            if (in_array($route->route_type, ['backbone', 'distribution'], true) && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) {
+                $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.');
+            }
             $occupancy = $this->routeOccupancy($route, $housesPerCabinet);
-            if ($occupancy['used_fibers'] > $occupancy['fiber_capacity']) $items[] = $this->validationItem('error', "{$route->name} ima više zauzetih vlakana od kapaciteta.", 'route', $route->id, 'Povećaj kapacitet kabla.');
-            elseif ($occupancy['utilization_percent'] > 80) $items[] = $this->validationItem('warning', "{$route->name} ima preko 80% zauzeća vlakana.", 'route', $route->id, 'Planiraj rezervni kapacitet.');
+            if ($occupancy['used_fibers'] > $occupancy['fiber_capacity']) {
+                $items[] = $this->validationItem('error', "{$route->name} ima više zauzetih vlakana od kapaciteta.", 'route', $route->id, 'Povećaj kapacitet kabla.');
+            } elseif ($occupancy['utilization_percent'] > 80) {
+                $items[] = $this->validationItem('warning', "{$route->name} ima preko 80% zauzeća vlakana.", 'route', $route->id, 'Planiraj rezervni kapacitet.');
+            }
             if (! $route->path) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema geometriju.", 'route', $route->id, 'Uredi geometriju trase na mapi.');
             } elseif (count($route->path) < 2) {
@@ -391,12 +419,7 @@ class FtthIntelligenceService
 
     public function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
-        $earth = 6371000;
-        $latDelta = deg2rad($lat2 - $lat1);
-        $lngDelta = deg2rad($lng2 - $lng1);
-        $a = sin($latDelta / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($lngDelta / 2) ** 2;
-
-        return $earth * 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return $this->geometry->distanceMeters($lat1, $lng1, $lat2, $lng2);
     }
 
     private function planningParameters(array $parameters): array
@@ -464,6 +487,7 @@ class FtthIntelligenceService
             $nearest = $this->nearestBranch((float) $house->latitude, (float) $house->longitude, $candidateRoutes);
             if (! $nearest || (! $hasPreferredBranch && $nearest['distance_m'] > $params['max_branch_distance_m'])) {
                 $unassigned->push($house);
+
                 continue;
             }
             $branchId = (int) $nearest['route']->getAttribute('planning_branch_id');
@@ -581,13 +605,17 @@ class FtthIntelligenceService
         $plans = [];
         $cabinets = $project->cabinets()->withCount('houses')->whereNotNull('latitude')->whereNotNull('longitude')->get()
             ->filter(function (Cabinet $cabinet) use ($branch, $params) {
-                if ($cabinet->houses_count >= 12) return false;
-                if ((int) $cabinet->branch_id !== (int) ($branch['branch']?->id ?? 0)) return false;
+                if ($cabinet->houses_count >= 12) {
+                    return false;
+                }
+                if ((int) $cabinet->branch_id !== (int) ($branch['branch']?->id ?? 0)) {
+                    return false;
+                }
                 $nearest = $this->nearestBranch((float) $cabinet->latitude, (float) $cabinet->longitude, collect([$branch['route']]));
 
                 return $nearest && $nearest['distance_m'] <= $params['max_branch_distance_m'];
             })
-            ->sortByDesc(fn (Cabinet $cabinet) => $this->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $branch['route'])['chainage_m']);
+            ->sortByDesc(fn (Cabinet $cabinet) => $this->geometry->projectPointToRoute((float) $cabinet->latitude, (float) $cabinet->longitude, $branch['route'])['chainage_m']);
 
         foreach ($cabinets as $cabinet) {
             $free = max(12 - $cabinet->houses_count, 0);
@@ -595,7 +623,9 @@ class FtthIntelligenceService
                 ->sortBy(fn (House $house) => $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $cabinet->latitude, (float) $cabinet->longitude))
                 ->take($free)
                 ->values();
-            if ($selected->isEmpty()) continue;
+            if ($selected->isEmpty()) {
+                continue;
+            }
             $odoPoint = ['lat' => (float) $cabinet->latitude, 'lng' => (float) $cabinet->longitude, 'medoid' => $selected->first()];
             $plan = $this->cabinetPreview($project, $selected, $branch, 0, $odfs, $params);
             $plan['existing_cabinet_id'] = $cabinet->id;
@@ -682,11 +712,11 @@ class FtthIntelligenceService
         ];
 
         if ($branch['route']) {
-            $odoProjection = $this->projectPointToRoute((float) $odoPoint['lat'], (float) $odoPoint['lng'], $branch['route']);
-            $houseProjection = $this->projectPointToRoute((float) $house->latitude, (float) $house->longitude, $branch['route']);
-            $path = $this->routePathBetween($branch['route'], $odoProjection, $houseProjection);
+            $odoProjection = $this->geometry->projectPointToRoute((float) $odoPoint['lat'], (float) $odoPoint['lng'], $branch['route']);
+            $houseProjection = $this->geometry->projectPointToRoute((float) $house->latitude, (float) $house->longitude, $branch['route']);
+            $path = $this->geometry->routePathBetween($branch['route'], $odoProjection, $houseProjection);
             $path[] = [(float) $house->latitude, (float) $house->longitude];
-            $path = $this->compactPath($path);
+            $path = $this->geometry->compactPath($path);
         }
 
         return [
@@ -694,7 +724,7 @@ class FtthIntelligenceService
             'to' => ['lat' => (float) $house->latitude, 'lng' => (float) $house->longitude],
             'house_id' => $house->id,
             'path' => $path,
-            'length_m' => $this->polylineLength($path),
+            'length_m' => $this->geometry->polylineLength($path),
         ];
     }
 
@@ -722,7 +752,7 @@ class FtthIntelligenceService
         if (! $branch['route']) {
             return ['lat' => (float) $medoid->latitude, 'lng' => (float) $medoid->longitude, 'medoid' => $medoid];
         }
-        $projection = $this->projectPointToRoute((float) $medoid->latitude, (float) $medoid->longitude, $branch['route']);
+        $projection = $this->geometry->projectPointToRoute((float) $medoid->latitude, (float) $medoid->longitude, $branch['route']);
 
         return ['lat' => round($projection['lat'], 7), 'lng' => round($projection['lng'], 7), 'medoid' => $medoid];
     }
@@ -730,106 +760,9 @@ class FtthIntelligenceService
     private function nearestBranch(float $lat, float $lng, Collection $routes): ?array
     {
         return $routes
-            ->map(fn (NetworkRoute $route) => ['route' => $route] + $this->projectPointToRoute($lat, $lng, $route))
+            ->map(fn (NetworkRoute $route) => ['route' => $route] + $this->geometry->projectPointToRoute($lat, $lng, $route))
             ->sortBy('distance_m')
             ->first();
-    }
-
-    private function projectPointToRoute(float $lat, float $lng, NetworkRoute $route): array
-    {
-        $points = $route->path ?? [];
-        $originLat = $lat;
-        $originLng = $lng;
-        $best = null;
-        $chainage = 0.0;
-
-        for ($i = 1; $i < count($points); $i++) {
-            [$aLat, $aLng] = $points[$i - 1];
-            [$bLat, $bLng] = $points[$i];
-            $a = $this->toMeters((float) $aLat, (float) $aLng, $originLat, $originLng);
-            $b = $this->toMeters((float) $bLat, (float) $bLng, $originLat, $originLng);
-            $p = $this->toMeters($lat, $lng, $originLat, $originLng);
-            $abx = $b['x'] - $a['x'];
-            $aby = $b['y'] - $a['y'];
-            $ab2 = max(0.000001, ($abx ** 2) + ($aby ** 2));
-            $t = max(0, min(1, ((($p['x'] - $a['x']) * $abx) + (($p['y'] - $a['y']) * $aby)) / $ab2));
-            $x = $a['x'] + ($abx * $t);
-            $y = $a['y'] + ($aby * $t);
-            $distance = sqrt((($p['x'] - $x) ** 2) + (($p['y'] - $y) ** 2));
-            $segmentLength = sqrt($ab2);
-
-            if (! $best || $distance < $best['distance_m']) {
-                $best = [
-                    'lat' => $originLat + ($y / 111320),
-                    'lng' => $originLng + ($x / (111320 * cos(deg2rad($originLat)))),
-                    'distance_m' => $distance,
-                    'chainage_m' => $chainage + ($segmentLength * $t),
-                    'segment_index' => $i,
-                ];
-            }
-            $chainage += $segmentLength;
-        }
-
-        return $best ?? ['lat' => $lat, 'lng' => $lng, 'distance_m' => INF, 'chainage_m' => 0, 'segment_index' => 0];
-    }
-
-    private function routePathBetween(NetworkRoute $route, array $start, array $end): array
-    {
-        $points = array_values($route->path ?? []);
-        if (count($points) < 2) {
-            return [[$start['lat'], $start['lng']], [$end['lat'], $end['lng']]];
-        }
-
-        $reverse = $start['chainage_m'] > $end['chainage_m'];
-        $from = $reverse ? $end : $start;
-        $to = $reverse ? $start : $end;
-
-        $path = [[$from['lat'], $from['lng']]];
-        for ($i = max(1, (int) $from['segment_index']); $i < count($points); $i++) {
-            $vertexChainage = $this->routeVertexChainage($points, $i);
-            if ($vertexChainage <= $from['chainage_m'] + 0.01) {
-                continue;
-            }
-            if ($vertexChainage >= $to['chainage_m'] - 0.01) {
-                break;
-            }
-            $path[] = [(float) $points[$i][0], (float) $points[$i][1]];
-        }
-        $path[] = [$to['lat'], $to['lng']];
-
-        return $reverse ? array_reverse($this->compactPath($path)) : $this->compactPath($path);
-    }
-
-    private function routeVertexChainage(array $points, int $vertexIndex): float
-    {
-        $chainage = 0.0;
-        for ($i = 1; $i <= $vertexIndex && $i < count($points); $i++) {
-            $chainage += $this->distanceMeters((float) $points[$i - 1][0], (float) $points[$i - 1][1], (float) $points[$i][0], (float) $points[$i][1]);
-        }
-
-        return $chainage;
-    }
-
-    private function compactPath(array $path): array
-    {
-        $compact = [];
-        foreach ($path as $point) {
-            $normalized = [round((float) $point[0], 7), round((float) $point[1], 7)];
-            $last = $compact[array_key_last($compact)] ?? null;
-            if (! $last || abs($last[0] - $normalized[0]) > 0.0000001 || abs($last[1] - $normalized[1]) > 0.0000001) {
-                $compact[] = $normalized;
-            }
-        }
-
-        return $compact;
-    }
-
-    private function toMeters(float $lat, float $lng, float $originLat, float $originLng): array
-    {
-        return [
-            'x' => ($lng - $originLng) * 111320 * cos(deg2rad($originLat)),
-            'y' => ($lat - $originLat) * 111320,
-        ];
     }
 
     private function medoid(Collection $houses): array
@@ -994,17 +927,5 @@ class FtthIntelligenceService
             'element_id' => $id,
             'recommendation' => $recommendation,
         ];
-    }
-
-    private function polylineLength(array $points): int
-    {
-        $distance = 0.0;
-        for ($i = 1; $i < count($points); $i++) {
-            [$lat1, $lng1] = $points[$i - 1];
-            [$lat2, $lng2] = $points[$i];
-            $distance += $this->distanceMeters((float) $lat1, (float) $lng1, (float) $lat2, (float) $lng2);
-        }
-
-        return (int) round($distance);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
@@ -10,7 +11,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
-use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class HouseController extends Controller
 {
@@ -127,6 +127,4 @@ class HouseController extends Controller
 
         return response()->json(['message' => 'Kuce i drop trase su povezane.', 'routes' => $routes->values()]);
     }
-
 }
-

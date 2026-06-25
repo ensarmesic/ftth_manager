@@ -94,6 +94,37 @@
                 </div>
             </div>
         </article>
+
+        {{-- Backup --}}
+        <article class="page-form">
+            <div class="page-form-header">
+                <div class="page-form-icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"/><path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"/><path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"/></svg>
+                </div>
+                <h2>Backup baze</h2>
+            </div>
+            <div class="page-form-body">
+                <dl class="grid gap-2 text-sm mb-4">
+                    <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                        <dt class="text-slate-500 font-medium text-xs uppercase tracking-wide">Fajl</dt>
+                        <dd class="font-semibold text-slate-900 text-xs">database.sqlite</dd>
+                    </div>
+                    <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                        <dt class="text-slate-500 font-medium text-xs uppercase tracking-wide">Veličina</dt>
+                        <dd class="font-semibold text-slate-900 text-xs">{{ round(filesize(database_path('database.sqlite')) / 1024) }} KB</dd>
+                    </div>
+                    <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                        <dt class="text-slate-500 font-medium text-xs uppercase tracking-wide">Zadnja izmjena</dt>
+                        <dd class="font-semibold text-slate-900 text-xs">{{ date('d.m.Y H:i', filemtime(database_path('database.sqlite'))) }}</dd>
+                    </div>
+                </dl>
+                <a href="{{ route('settings.backup') }}" class="btn-save flex items-center justify-center gap-2 no-underline">
+                    <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                    Preuzmi backup
+                </a>
+                <p class="text-xs text-slate-400 text-center -mt-1">Preuzima SQLite fajl s trenutnim timestampom. Čuvaj na sigurnom mjestu.</p>
+            </div>
+        </article>
     </div>
 </section>
 

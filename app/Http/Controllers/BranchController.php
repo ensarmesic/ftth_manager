@@ -2,25 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
-use App\Models\House;
-use App\Models\MapDraft;
-use App\Models\Material;
 use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class BranchController extends Controller
 {
@@ -49,12 +38,14 @@ class BranchController extends Controller
     public function storeBranch(Request $request)
     {
         NetworkBranch::create($this->branchData($request));
+
         return back()->with('success', 'Krak je kreiran.');
     }
 
     public function updateBranch(Request $request, $id)
     {
         NetworkBranch::findOrFail($id)->update($this->branchData($request, $id));
+
         return back()->with('success', 'Krak je azuriran.');
     }
 
@@ -64,6 +55,7 @@ class BranchController extends Controller
         $branch->cabinets()->update(['branch_id' => null, 'branch_order' => 0]);
         $branch->childBranches()->update(['parent_branch_id' => null]);
         $branch->delete();
+
         return back()->with('success', 'Krak je obrisan.');
     }
 
@@ -73,7 +65,7 @@ class BranchController extends Controller
         foreach ($ids as $position => $id) {
             NetworkBranch::where('id', $id)->update(['sort_order' => $position + 1]);
         }
+
         return response()->json(['ok' => true]);
     }
 }
-

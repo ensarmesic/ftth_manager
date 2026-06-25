@@ -10,12 +10,35 @@ class Cabinet extends Model
 {
     protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'branch_id', 'branch_order', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude'];
 
-    public function project(): BelongsTo { return $this->belongsTo(Project::class); }
-    public function odf(): BelongsTo { return $this->belongsTo(Odf::class); }
-    public function parentCabinet(): BelongsTo { return $this->belongsTo(Cabinet::class, 'parent_cabinet_id'); }
-    public function branch(): BelongsTo { return $this->belongsTo(NetworkBranch::class, 'branch_id'); }
-    public function childCabinets(): HasMany { return $this->hasMany(Cabinet::class, 'parent_cabinet_id'); }
-    public function houses(): HasMany { return $this->hasMany(House::class); }
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function odf(): BelongsTo
+    {
+        return $this->belongsTo(Odf::class);
+    }
+
+    public function parentCabinet(): BelongsTo
+    {
+        return $this->belongsTo(Cabinet::class, 'parent_cabinet_id');
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(NetworkBranch::class, 'branch_id');
+    }
+
+    public function childCabinets(): HasMany
+    {
+        return $this->hasMany(Cabinet::class, 'parent_cabinet_id');
+    }
+
+    public function houses(): HasMany
+    {
+        return $this->hasMany(House::class);
+    }
 
     public function getCapacityAttribute(): int
     {

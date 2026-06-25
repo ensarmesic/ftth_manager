@@ -2,25 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Cabinet;
-use App\Models\House;
-use App\Models\MapDraft;
-use App\Models\Material;
-use App\Models\NetworkBranch;
+use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Services\FtthIntelligenceService;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Http\Controllers\Concerns\ManagesFtthData;
 
 class OdfController extends Controller
 {
@@ -71,12 +59,16 @@ class OdfController extends Controller
                 ->orWhere(fn ($routeQuery) => $routeQuery->where('from_type', 'odf')->where('from_id', $odf->id)))
             ->get()->each(function (NetworkRoute $route) use ($odf): void {
                 $updates = [];
-                if ((int) $route->odf_id === (int) $odf->id) $updates['odf_id'] = null;
+                if ((int) $route->odf_id === (int) $odf->id) {
+                    $updates['odf_id'] = null;
+                }
                 if ($route->from_type === 'odf' && (int) $route->from_id === (int) $odf->id) {
                     $updates['from_type'] = null;
                     $updates['from_id'] = null;
                 }
-                if ($updates) $route->update($updates);
+                if ($updates) {
+                    $route->update($updates);
+                }
             });
         $odf->delete();
         if (request()->expectsJson()) {
@@ -108,4 +100,3 @@ class OdfController extends Controller
         return $this->updatePosition($request, Odf::findOrFail($id));
     }
 }
-

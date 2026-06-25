@@ -17,7 +17,7 @@ class MapLayerController extends Controller
 
         try {
             $file = $request->file('file');
-            $ext  = strtolower($file->getClientOriginalExtension());
+            $ext = strtolower($file->getClientOriginalExtension());
             $name = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
             $path = $file->getPathname();
 
@@ -30,7 +30,7 @@ class MapLayerController extends Controller
             // Sačuvaj features na disk — export ih čita po ključu bez resendinga
             $cacheKey = (string) Str::uuid();
             Storage::put(
-                'dxf_layers/' . $cacheKey . '.json',
+                'dxf_layers/'.$cacheKey.'.json',
                 json_encode($geojson['features'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
             );
             $geojson['_cache_key'] = $cacheKey;
@@ -42,7 +42,7 @@ class MapLayerController extends Controller
             );
         } catch (\Throwable $e) {
             return response()->json([
-                'error' => 'PHP greška: ' . $e->getMessage() . ' u ' . basename($e->getFile()) . ':' . $e->getLine(),
+                'error' => 'PHP greška: '.$e->getMessage().' u '.basename($e->getFile()).':'.$e->getLine(),
             ], 500);
         }
     }
@@ -50,7 +50,7 @@ class MapLayerController extends Controller
     private function dxfToGeoJson(string $filePath, string $name): array
     {
         $fh = fopen($filePath, 'rb');
-        if (!$fh) {
+        if (! $fh) {
             throw new \RuntimeException('Ne mogu otvoriti DXF fajl.');
         }
 
@@ -58,18 +58,20 @@ class MapLayerController extends Controller
 
         $read = function () use ($fh, &$pending): ?array {
             if ($pending !== null) {
-                $p       = $pending;
+                $p = $pending;
                 $pending = null;
+
                 return $p;
             }
             if (feof($fh)) {
                 return null;
             }
-            $codeLine  = fgets($fh);
+            $codeLine = fgets($fh);
             $valueLine = fgets($fh);
             if ($codeLine === false) {
                 return null;
             }
+
             return [trim($codeLine), trim((string) $valueLine)];
         };
 
@@ -77,36 +79,38 @@ class MapLayerController extends Controller
             $pending = $pair;
         };
 
-        $features   = [];
+        $features = [];
         $inEntities = false;
-        $supported  = ['LINE', 'LWPOLYLINE', 'POLYLINE', 'TEXT', 'MTEXT'];
+        $supported = ['LINE', 'LWPOLYLINE', 'POLYLINE', 'TEXT', 'MTEXT'];
 
         while (($pair = $read()) !== null) {
             [$code, $value] = $pair;
 
             if ($code === '0' && $value === 'SECTION') {
-                $next       = $read();
+                $next = $read();
                 $inEntities = $next && $next[1] === 'ENTITIES';
+
                 continue;
             }
             if ($code === '0' && $value === 'ENDSEC') {
                 $inEntities = false;
+
                 continue;
             }
-            if (!$inEntities) {
+            if (! $inEntities) {
                 continue;
             }
-            if ($code !== '0' || !in_array($value, $supported, true)) {
+            if ($code !== '0' || ! in_array($value, $supported, true)) {
                 continue;
             }
 
-            $entityType      = $value;
-            $layer           = '0';
-            $color           = null;
-            $pts             = [];
-            $pt              = [];
-            $closed          = false;
-            $extra           = [];
+            $entityType = $value;
+            $layer = '0';
+            $color = null;
+            $pts = [];
+            $pt = [];
+            $closed = false;
+            $extra = [];
             $polylineInVerts = false; // POLYLINE header ima dummy 10/20 — ignorišuj dok ne počnu VERTEX
 
             $flush = function () use (&$pts, &$pt): void {
@@ -127,6 +131,7 @@ class MapLayerController extends Controller
                             $pt = []; // odbaci dummy header koordinate
                             $polylineInVerts = true;
                         }
+
                         continue;
                     }
                     if ($ev === 'SEQEND') {
@@ -146,10 +151,10 @@ class MapLayerController extends Controller
                         $color = (int) $ev;
                         break;
                     case '1':
-                        $extra['text'] = isset($extra['text']) ? $extra['text'] . $ev : $ev;
+                        $extra['text'] = isset($extra['text']) ? $extra['text'].$ev : $ev;
                         break;
                     case '3':
-                        $extra['text'] = ($extra['text'] ?? '') . $ev;
+                        $extra['text'] = ($extra['text'] ?? '').$ev;
                         break;
                     case '40':
                         $extra['radius'] = (float) $ev;
@@ -165,14 +170,18 @@ class MapLayerController extends Controller
                         break;
                     case '10':
                         // Za POLYLINE: skupljaj koordinate samo unutar VERTEX (ne iz headera)
-                        if ($entityType === 'POLYLINE' && !$polylineInVerts) break;
-                        if (isset($pt['x']) && !in_array($entityType, ['TEXT', 'MTEXT'], true)) {
+                        if ($entityType === 'POLYLINE' && ! $polylineInVerts) {
+                            break;
+                        }
+                        if (isset($pt['x']) && ! in_array($entityType, ['TEXT', 'MTEXT'], true)) {
                             $flush();
                         }
                         $pt['x'] = (float) $ev;
                         break;
                     case '20':
-                        if ($entityType === 'POLYLINE' && !$polylineInVerts) break;
+                        if ($entityType === 'POLYLINE' && ! $polylineInVerts) {
+                            break;
+                        }
                         $pt['y'] = (float) $ev;
                         break;
                     case '11':
@@ -203,16 +212,17 @@ class MapLayerController extends Controller
                     continue;
                 }
                 $features[] = [
-                    'type'       => 'Feature',
+                    'type' => 'Feature',
                     'properties' => [
-                        'layer'  => $layer,
-                        'color'  => $color,
-                        'text'   => $text,
+                        'layer' => $layer,
+                        'color' => $color,
+                        'text' => $text,
                         'entity' => $entityType,
                         'height' => isset($extra['radius']) && $extra['radius'] > 0 ? $extra['radius'] : null,
                     ],
-                    'geometry'   => ['type' => 'Point', 'coordinates' => [$pts[0][0], $pts[0][1]]],
+                    'geometry' => ['type' => 'Point', 'coordinates' => [$pts[0][0], $pts[0][1]]],
                 ];
+
                 continue;
             }
 
@@ -229,15 +239,15 @@ class MapLayerController extends Controller
                     $pts[] = $pts[0];
                 }
                 $features[] = [
-                    'type'       => 'Feature',
+                    'type' => 'Feature',
                     'properties' => $props,
-                    'geometry'   => ['type' => 'Polygon', 'coordinates' => [$pts]],
+                    'geometry' => ['type' => 'Polygon', 'coordinates' => [$pts]],
                 ];
             } else {
                 $features[] = [
-                    'type'       => 'Feature',
+                    'type' => 'Feature',
                     'properties' => $props,
-                    'geometry'   => ['type' => 'LineString', 'coordinates' => $pts],
+                    'geometry' => ['type' => 'LineString', 'coordinates' => $pts],
                 ];
             }
         }
@@ -245,8 +255,8 @@ class MapLayerController extends Controller
         fclose($fh);
 
         return [
-            'type'     => 'FeatureCollection',
-            'name'     => $name,
+            'type' => 'FeatureCollection',
+            'name' => $name,
             'features' => $features,
         ];
     }
@@ -261,6 +271,7 @@ class MapLayerController extends Controller
         // DXF %% overrides: %%d=°, %%p=±, %%c=⌀
         $text = str_replace(['%%d', '%%D', '%%p', '%%P', '%%c', '%%C'], ['°', '°', '±', '±', '⌀', '⌀'], $text);
         $text = preg_replace('/%%[A-Za-z0-9]/', '', $text);
+
         return trim($text);
     }
 
@@ -272,21 +283,26 @@ class MapLayerController extends Controller
         // iconv podržava CP1250 na svim OS-ima bolje od mbstring
         if (function_exists('iconv')) {
             $r = @iconv('CP1250', 'UTF-8//IGNORE', $s);
-            if ($r !== false) return $r;
+            if ($r !== false) {
+                return $r;
+            }
 
             $r = @iconv('ISO-8859-2', 'UTF-8//IGNORE', $s);
-            if ($r !== false) return $r;
+            if ($r !== false) {
+                return $r;
+            }
         }
+
         // Posljednji fallback: ukloni non-ASCII bajtove
         return (string) preg_replace('/[\x80-\xFF]/', '', $s);
     }
 
     private function handleDwg(string $path, string $name): JsonResponse
     {
-        $out = sys_get_temp_dir() . '/' . uniqid('dxf_') . '.dxf';
+        $out = sys_get_temp_dir().'/'.uniqid('dxf_').'.dxf';
 
         $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
-        @exec('dwg2dxf -o ' . escapeshellarg($out) . ' ' . escapeshellarg($path) . ' 2>' . $null, $_, $code);
+        @exec('dwg2dxf -o '.escapeshellarg($out).' '.escapeshellarg($path).' 2>'.$null, $_, $code);
 
         if ($code === 0 && file_exists($out)) {
             $result = $this->dxfToGeoJson($out, $name);
@@ -301,7 +317,7 @@ class MapLayerController extends Controller
 
         return response()->json([
             'error' => 'DWG fajl nije moguće automatski konvertovati. '
-                     . 'Otvorite u AutoCAD-u ili FreeCAD-u i snimite kao DXF (ASCII R12/2000).',
+                     .'Otvorite u AutoCAD-u ili FreeCAD-u i snimite kao DXF (ASCII R12/2000).',
         ], 422);
     }
 }

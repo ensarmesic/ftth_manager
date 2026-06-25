@@ -1,0 +1,222 @@
+// ── TOOLBAR / VIEW / PROJECT CHECK ───────────────────────────────────────────
+function applyMapViewMode() {
+    const workspace = document.getElementById('map-workspace');
+    const btn = document.getElementById('toggle-map-view');
+    workspace.classList.toggle('gis-view', mapViewMode === 'gis');
+    workspace.classList.toggle('cad-dark', mapViewMode === 'dark');
+    const viewLabels = { cad: 'GIS prikaz', gis: 'Tamni CAD', dark: 'Satelit' };
+    if (btn) btn.textContent = viewLabels[mapViewMode] || 'GIS prikaz';
+    [imagery, osm, cartodbDark].forEach(layer => { if (map.hasLayer(layer)) map.removeLayer(layer); });
+    if (mapViewMode === 'dark') cartodbDark.addTo(map);
+    else if (mapViewMode === 'gis') osm.addTo(map);
+    else imagery.addTo(map);
+    data.routes.forEach(route => {
+        const line = routeLayerById[route.id];
+        if (line?.setStyle) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+    });
+    branchLines.forEach((line, index) => {
+        const meta = branchMeta[index] || {};
+        if (line?.setStyle) line.setStyle(routeLineStyle(meta.route_type || 'distribution', colorByFibers && meta.fiber_count ? fiberCountColor(meta.fiber_count) : undefined));
+    });
+    if (activeBranchLine) redrawActiveBranch();
+}
+function applyMapZoomClass() {
+    const workspace = document.getElementById('map-workspace');
+    const zoom = map.getZoom();
+    workspace.classList.toggle('zoom-high', zoom >= 19);
+    workspace.classList.toggle('zoom-low', zoom <= 16);
+    workspace.classList.toggle('zoom-far', zoom <= 15);
+    ['z20','z21','z22'].forEach(c => workspace.classList.remove(c));
+    if (zoom >= 20) workspace.classList.add('z' + Math.min(Math.round(zoom), 22));
+}
+
+async function runProjectCheck() {
+    const projectId = document.getElementById('active-project-id').value;
+    const panel = document.getElementById('project-check-panel');
+    const summary = document.getElementById('project-check-summary');
+    if (!projectId) {
+        summary.textContent = 'Prvo odaberi projekat.';
+        panel.innerHTML = '';
+        return;
+    }
+
+    summary.textContent = 'Provjeravam projekat...';
+    panel.innerHTML = '';
+    const response = await fetch(appConfig.projectValidationBaseUrl.replace('__ID__', projectId), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const result = await readJsonResponse(response, 'Provjera projekta nije uspjela.');
+    const items = result.items || [];
+    const problems = items.filter(item => item.level !== 'ok');
+    const counts = {
+        error: problems.filter(item => item.level === 'error').length,
+        warning: problems.filter(item => item.level === 'warning').length,
+        info: problems.filter(item => item.level === 'info').length,
+    };
+    summary.textContent = problems.length
+        ? `${counts.error} gresaka, ${counts.warning} upozorenja, ${counts.info} info stavki`
+        : 'Projekat nema otvorenih problema.';
+    panel.innerHTML = items.map((item, index) => projectCheckItemHtml(item, index)).join('');
+    highlightValidationItems(items);
+    panel.querySelectorAll('[data-check-index]').forEach(button => {
+        button.addEventListener('click', () => focusValidationItem(items[Number(button.dataset.checkIndex)]));
+    });
+}
+
+async function fillMissingDropRoutes() {
+    const projectId = document.getElementById('active-project-id').value;
+    const summary = document.getElementById('project-check-summary');
+    if (!projectId) {
+        summary.textContent = 'Prvo odaberi projekat.';
+        return;
+    }
+
+    summary.textContent = 'Popunjavam nedostajuce drop trase...';
+    const response = await fetch(appConfig.projectDropFillBaseUrl.replace('__ID__', projectId), {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+    const result = await readJsonResponse(response, 'Drop trase nisu kreirane.');
+    (result.routes || []).forEach(route => addSavedRouteToMap({ ...route, type: 'drop', length: route.duct_length_m ?? route.length }));
+    summary.textContent = result.created
+        ? `Kreirano ${result.created} nedostajucih drop trasa.`
+        : 'Nema nedostajucih drop trasa za kuce koje imaju ODO.';
+    await runProjectCheck();
+}
+
+function projectCheckItemHtml(item, index) {
+    const color = item.level === 'error'
+        ? 'border-red-300 bg-red-50 text-red-900'
+        : item.level === 'warning'
+            ? 'border-amber-300 bg-amber-50 text-amber-950'
+            : item.level === 'ok'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                : 'border-slate-200 bg-slate-50 text-slate-800';
+
+    return `<button type="button" data-check-index="${index}" class="grid gap-1 rounded-md border px-2 py-2 text-left ${color}">
+        <span class="font-bold uppercase">${item.level} · ${item.element_type || 'project'}</span>
+        <span>${item.message || ''}</span>
+        <small>${item.recommendation || ''}</small>
+    </button>`;
+}
+
+function focusValidationItem(item) {
+    if (!item) return;
+    const id = Number(item.element_id);
+    let layer = null;
+    if (item.element_type === 'odf') layer = odfMarkerById[id];
+    if (item.element_type === 'cabinet') layer = cabinetMarkerById[id];
+    if (item.element_type === 'house') layer = houseMarkerById[id];
+    if (item.element_type === 'route') layer = routeLayerById[id];
+
+    if (layer?.getLatLng) {
+        map.setView(layer.getLatLng(), Math.max(map.getZoom(), 20));
+        layer.openPopup?.();
+        document.getElementById('cad-command').textContent = `CHECK: ${item.message}`;
+        return;
+    }
+    if (layer?.getBounds) {
+        map.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 20 });
+        layer.openPopup?.();
+        document.getElementById('cad-command').textContent = `CHECK: ${item.message}`;
+        return;
+    }
+
+    document.getElementById('cad-command').textContent = `CHECK: ${item.message}`;
+}
+
+function clearValidationHighlights() {
+    validationHighlightLayers.forEach(layer => {
+        if (layer && map.hasLayer(layer)) map.removeLayer(layer);
+    });
+    validationHighlightLayers = [];
+    data.routes.forEach(route => {
+        const line = routeLayerById[route.id];
+        if (line?.setStyle) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+    });
+}
+
+function highlightValidationItems(items) {
+    clearValidationHighlights();
+    items.filter(item => ['error', 'warning'].includes(item.level)).forEach(item => {
+        const color = item.level === 'error' ? '#dc2626' : '#f59e0b';
+        const id = Number(item.element_id);
+        let layer = null;
+        if (item.element_type === 'odf') layer = odfMarkerById[id];
+        if (item.element_type === 'cabinet') layer = cabinetMarkerById[id];
+        if (item.element_type === 'house') layer = houseMarkerById[id];
+        if (item.element_type === 'route') layer = routeLayerById[id];
+
+        if (layer?.getLatLng) {
+            validationHighlightLayers.push(L.circleMarker(layer.getLatLng(), {
+                radius: 13,
+                color,
+                weight: 3,
+                fill: false,
+                interactive: false,
+                pane: 'markerPane',
+            }).addTo(map));
+        } else if (layer?.setStyle) {
+            layer.setStyle({ color, weight: 6, opacity: 1 });
+        }
+    });
+}
+
+function updateProjectExportLink(projectId = document.getElementById('active-project-id').value) {
+    const links = [
+        ['export-geojson', appConfig.projectGeoJsonBaseUrl],
+        ['export-dxf', appConfig.projectDxfBaseUrl],
+        ['print-project', appConfig.projectPrintBaseUrl],
+    ];
+    const exportActions = document.getElementById('export-actions');
+    if (!projectId) {
+        links.forEach(([id]) => {
+            const link = document.getElementById(id);
+            if (link) { link.href = '#'; link.removeAttribute('data-dxf-url'); }
+        });
+        if (exportActions) exportActions.style.display = 'none';
+        return;
+    }
+    links.forEach(([id, baseUrl]) => {
+        const link = document.getElementById(id);
+        if (!link) return;
+        const url = baseUrl.replace('__ID__', projectId);
+        link.href = url;
+        if (id === 'export-dxf') link.setAttribute('data-dxf-url', url);
+    });
+    if (exportActions) exportActions.style.display = 'grid';
+}
+
+function pickProject(id) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('project', id);
+    window.location.href = url.toString();
+}
+
+async function ppCreateProject() {
+    const nameInput = document.getElementById('pp-new-name');
+    const status = document.getElementById('pp-new-status');
+    const name = nameInput.value.trim();
+    if (!name) { status.textContent = 'Upiši naziv projekta.'; return; }
+    status.textContent = 'Kreiram...';
+    try {
+        const body = new FormData();
+        body.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
+        body.append('name', name);
+        body.append('quick_create', '1');
+        const response = await fetch(appConfig.projectsStore, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body,
+        });
+        const result = await readJsonResponse(response, 'Projekat nije kreiran.');
+        status.textContent = `${result.project.name} je kreiran. Učitavam...`;
+        pickProject(result.project.id);
+    } catch (err) {
+        status.textContent = err.message;
+    }
+}

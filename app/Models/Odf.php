@@ -10,7 +10,18 @@ class Odf extends Model
 {
     protected $fillable = ['project_id', 'name', 'address', 'fiber_capacity', 'port_count', 'latitude', 'longitude', 'notes'];
 
-    public function project(): BelongsTo { return $this->belongsTo(Project::class); }
-    public function cabinets(): HasMany { return $this->hasMany(Cabinet::class); }
-    public function branches(): HasMany { return $this->hasMany(NetworkBranch::class); }
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function cabinets(): HasMany
+    {
+        return $this->hasMany(Cabinet::class);
+    }
+
+    public function branches(): HasMany
+    {
+        return $this->hasMany(NetworkBranch::class);
+    }
 }

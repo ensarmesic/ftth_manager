@@ -31,7 +31,6 @@ return new class extends Migration
             $table->dropColumn(['installation_type', 'microduct_type', 'fiber_count']);
         });
 
-
         Schema::table('odfs', function (Blueprint $table) {
             $table->dropColumn(['port_count', 'notes']);
         });

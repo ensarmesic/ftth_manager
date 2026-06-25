@@ -9,7 +9,18 @@ class House extends Model
 {
     protected $fillable = ['project_id', 'cabinet_id', 'branch_id', 'label', 'address', 'latitude', 'longitude', 'status'];
 
-    public function project(): BelongsTo { return $this->belongsTo(Project::class); }
-    public function cabinet(): BelongsTo { return $this->belongsTo(Cabinet::class); }
-    public function branch(): BelongsTo { return $this->belongsTo(NetworkBranch::class, 'branch_id'); }
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function cabinet(): BelongsTo
+    {
+        return $this->belongsTo(Cabinet::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(NetworkBranch::class, 'branch_id');
+    }
 }
