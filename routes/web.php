@@ -6,6 +6,7 @@ use App\Http\Controllers\HouseController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapLayerController;
 use App\Http\Controllers\OdfController;
+use App\Http\Controllers\PlannerLabController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RouteController;
@@ -13,6 +14,12 @@ use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/planner-lab', [PlannerLabController::class, 'index'])->name('planner-lab.index');
+Route::get('/planner-lab/projects/{project}/data', [PlannerLabController::class, 'projectData'])->name('planner-lab.project-data');
+Route::post('/planner-lab/projects/{project}/preview', [PlannerLabController::class, 'preview'])->name('planner-lab.preview');
+Route::post('/planner-lab/projects/{project}/export-json', [PlannerLabController::class, 'exportJson'])->name('planner-lab.export-json');
+Route::post('/planner-lab/projects/{project}/save', [PlannerLabController::class, 'savePlan'])->name('planner-lab.save');
 
 Route::redirect('/', '/mapa')->name('dashboard');
 Route::get('/mapa', [MapController::class, 'map'])->name('map.dashboard');

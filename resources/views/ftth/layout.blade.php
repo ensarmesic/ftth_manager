@@ -33,6 +33,7 @@
         ['splitters.index',     'Splitteri',          'split'],
         ['fiber-schema.index',  'Fiber sema',         'chip'],
         ['project-check.index', 'Provjera projekta',  'shield'],
+        ['planner-lab.index',   'Planner Lab',        'flask'],
         ['settings.index',      'Postavke',           'cog'],
     ];
     $sidebarIcons = [
@@ -51,6 +52,7 @@
         'chip'    => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clip-rule="evenodd"/><path d="M15 7h1a2 2 0 012 2v5.5a1.5 1.5 0 01-3 0V7z"/></svg>',
         'shield'  => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>',
         'cog'     => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>',
+        'flask'   => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7 2a1 1 0 00-.707 1.707L8 5.414V9l-3.446 5.168A1 1 0 005.382 16h9.236a1 1 0 00.828-1.563L12 9V5.414l1.707-1.707A1 1 0 0013 2H7zm0 2h6l-1.707 1.707A1 1 0 0011 6.586V9.5a1 1 0 01-.168.555L8.382 14h3.236l-2.45-3.668A1 1 0 019 9.5V6.586a1 1 0 00-.293-.707L7 4z" clip-rule="evenodd"/></svg>',
     ];
     $headerNotifications = collect();
     $unlinkedHouses = \App\Models\House::whereNull('cabinet_id')->count();
