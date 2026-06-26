@@ -2,23 +2,31 @@
 
 namespace App\Services\PlannerLab;
 
-use Illuminate\Support\Facades\Http;
-
 class PlannerDropEngine
 {
     private int $counter = 0;
 
-    public function createDrops(array $cabinets, array $houses, array $options): array
-    {
-        $maxDist     = $options['maxDropDistance'] ?? 120;
-        $useOsm      = $options['useOsm'] ?? true;
-        // osmDrops je isključen po defaultu jer N×OSRM poziva traje predugo
-        $followRoads = $useOsm && ($options['osmDrops'] ?? false);
+    /**
+     * Generate drop paths for all house-cabinet assignments.
+     * Uses the same T-shape logic as dropPathForHouse() on the main map:
+     *   ODO → perp snap on nearest planned route → along route → perp snap near house → house
+     * Falls back to a direct straight line when ODO is > 35 m from any route
+     * or house is > 90 m from that route.
+     */
+    public function createDrops(
+        array $cabinets,
+        array $houses,
+        array $plannedRoutes,
+        array $options
+    ): array {
+        $maxDist = (float) ($options['maxDropDistance'] ?? 120);
 
         $houseById = [];
         foreach ($houses as $h) {
             $houseById[$h['id']] = $h;
         }
+
+        $installation = $options['installation'] ?? 'underground';
 
         $drops = [];
         foreach ($cabinets as $cabinet) {
@@ -27,108 +35,101 @@ class PlannerDropEngine
                 if (! $house) {
                     continue;
                 }
-                $drops[] = $this->dropPath($cabinet, $house, $maxDist, $followRoads, $useOsm);
+                $drops[] = $this->dropPath($cabinet, $house, $plannedRoutes, $maxDist, $installation);
             }
         }
 
         return $drops;
     }
 
-    protected function dropPath(array $cabinet, array $house, float $maxDist, bool $followRoads, bool $useOsm): array
-    {
+    protected function dropPath(
+        array $cabinet,
+        array $house,
+        array $plannedRoutes,
+        float $maxDist,
+        string $installation
+    ): array {
         $this->counter++;
         $name = sprintf('LAB-DROP-%03d', $this->counter);
 
-        $path = null;
-        $source = 'straight';
-        $followsRoad = false;
-        $warning = null;
+        $directPath = [
+            [(float) $cabinet['lat'], (float) $cabinet['lng']],
+            [(float) $house['latitude'], (float) $house['longitude']],
+        ];
 
-        if ($followRoads && $useOsm) {
-            $path = $this->osrmRoute(
-                ['lat' => $cabinet['lat'], 'lng' => $cabinet['lng']],
-                ['lat' => $house['latitude'], 'lng' => $house['longitude']]
+        // Find nearest planned route to the cabinet
+        $bestRoute    = null;
+        $bestCabDist  = INF;
+        $bestCabProj  = null;
+
+        foreach ($plannedRoutes as $r) {
+            $path = $r['path'] ?? [];
+            if (count($path) < 2) {
+                continue;
+            }
+            $proj = PlannerGeometry::projectPointToPath(
+                (float) $cabinet['lat'], (float) $cabinet['lng'], $path
             );
-            if ($path !== null) {
-                $source = 'osrm';
-                $followsRoad = true;
+            if ($proj['distance_m'] < $bestCabDist) {
+                $bestCabDist = $proj['distance_m'];
+                $bestCabProj = $proj;
+                $bestRoute   = $r;
+            }
+        }
+
+        $path   = null;
+        $source = 'straight';
+
+        if ($bestRoute !== null && $bestCabDist <= 35.0) {
+            $routePath = $bestRoute['path'];
+            $houseProj = PlannerGeometry::projectPointToPath(
+                (float) $house['latitude'], (float) $house['longitude'], $routePath
+            );
+
+            if ($houseProj['distance_m'] <= 90.0) {
+                $segment = PlannerGeometry::routePathBetween($routePath, $bestCabProj, $houseProj);
+                $path    = PlannerGeometry::compactPath(array_merge(
+                    [
+                        [(float) $cabinet['lat'], (float) $cabinet['lng']],
+                        [$bestCabProj['lat'], $bestCabProj['lng']],
+                    ],
+                    array_slice($segment, 1),
+                    [[(float) $house['latitude'], (float) $house['longitude']]]
+                ));
+                $source = 'route';
             }
         }
 
         if ($path === null) {
-            $path = [
-                [(float) $cabinet['lat'],    (float) $cabinet['lng']],
-                [(float) $house['latitude'], (float) $house['longitude']],
-            ];
-            if ($followRoads) {
-                $warning = [
-                    'level'    => 'info',
-                    'message'  => $name . ' (' . ($house['label'] ?? 'H-' . $house['id']) . '): drop ne prati cestu.',
-                    'drop_temp_id' => 'drop-temp-' . $this->counter,
-                    'house_id' => $house['id'],
-                    'lat'      => $house['latitude'],
-                    'lng'      => $house['longitude'],
-                    'distance' => null,
-                ];
-            }
+            $path = $directPath;
         }
 
-        $length = PlannerGeometry::pathLength($path);
+        $length  = PlannerGeometry::pathLength($path);
+        $warning = null;
 
         if ($length > $maxDist) {
             $warning = [
-                'level'        => 'warning',
-                'message'      => $name . ' (' . ($house['label'] ?? 'H-' . $house['id']) . '): drop je ' . round($length) . ' m (max ' . $maxDist . ' m).',
-                'drop_temp_id' => 'drop-temp-' . $this->counter,
-                'house_id'     => $house['id'],
-                'lat'          => $house['latitude'],
-                'lng'          => $house['longitude'],
-                'distance'     => $length,
+                'level'   => 'warning',
+                'message' => $name . ' (' . ($house['label'] ?? 'H-' . $house['id']) . '): drop je ' . round($length) . ' m (max ' . $maxDist . ' m).',
+                'lat'     => $house['latitude'],
+                'lng'     => $house['longitude'],
+                'distance'=> $length,
             ];
         }
 
         return [
-            'temp_id'        => 'drop-temp-' . $this->counter,
-            'name'           => $name,
-            'house_id'       => $house['id'],
-            'house_label'    => $house['label'] ?? '',
-            'cabinet_temp_id'=> $cabinet['temp_id'],
-            'path'           => $path,
-            'length_m'       => $length,
-            'source'         => $source,
-            'follows_road'   => $followsRoad,
-            'warning'        => $warning,
-            'temporary'      => true,
+            'temp_id'         => 'drop-temp-' . $this->counter,
+            'name'            => $name,
+            'house_id'        => $house['id'],
+            'house_label'     => $house['label'] ?? '',
+            'cabinet_temp_id' => $cabinet['temp_id'],
+            'path'            => $path,
+            'length_m'        => $length,
+            'source'          => $source,
+            'installation'    => $installation,
+            'warning'         => $warning,
+            'temporary'       => true,
         ];
-    }
-
-    protected function osrmRoute(array $start, array $end): ?array
-    {
-        try {
-            $url = sprintf(
-                'https://router.project-osrm.org/route/v1/driving/%f,%f;%f,%f?overview=full&geometries=geojson',
-                $start['lng'], $start['lat'],
-                $end['lng'],   $end['lat']
-            );
-
-            $response = Http::timeout(3)->get($url);
-
-            if (! $response->ok()) {
-                return null;
-            }
-
-            $data = $response->json();
-            if (empty($data['routes'][0]['geometry']['coordinates'])) {
-                return null;
-            }
-
-            return array_map(
-                fn ($c) => [(float) $c[1], (float) $c[0]],
-                $data['routes'][0]['geometry']['coordinates']
-            );
-        } catch (\Throwable) {
-            return null;
-        }
     }
 
     public function reset(): void

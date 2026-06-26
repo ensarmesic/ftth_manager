@@ -72,7 +72,26 @@
             PlannerLab.preview.layers.push(L.marker(midPt, { icon, interactive: false }).addTo(PlannerLab.map));
         });
 
-        // Kuće obojene po svom ormaricu — bez crtanja drop trasa
+        // Drop trase (tanke linije ODO → kuća, ista boja kao krak)
+        (plan.planned_drops || []).forEach(function (d) {
+            if (!d.path || d.path.length < 2) return;
+            const color = cabinetColorMap[d.cabinet_temp_id] || '#94a3b8';
+            const line = L.polyline(d.path, {
+                color,
+                weight: 1.5,
+                opacity: 0.55,
+                dashArray: d.source === 'straight' ? '4 4' : null,
+            }).addTo(PlannerLab.map);
+            line.bindTooltip(
+                '<b>' + (d.house_label || 'Kuća') + '</b>' +
+                '<br>Drop: ' + Math.round(d.length_m) + ' m' +
+                (d.source === 'straight' ? '<br>⚠ ravna linija' : ''),
+                { sticky: true }
+            );
+            PlannerLab.preview.layers.push(line);
+        });
+
+        // Kuće obojene po svom ormaricu
         (plan.house_assignments || []).forEach(function (a) {
             const color = cabinetColorMap[a.cabinet_temp_id] || '#f59e0b';
             const m = L.circleMarker([a.house_lat, a.house_lng], {

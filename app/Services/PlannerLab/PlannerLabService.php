@@ -28,6 +28,7 @@ class PlannerLabService
         protected PlannerRoadGraphEngine $graphEngine,
         protected PlannerRoadEngine      $roadEngine,
         protected PlannerScoringEngine   $scoringEngine,
+        protected PlannerDropEngine      $dropEngine,
     ) {}
 
     public function preview(Project $project, array $options = []): array
@@ -42,6 +43,7 @@ class PlannerLabService
 
         $this->cabinetEngine->reset();
         $this->roadEngine->reset();
+        $this->dropEngine->reset();
 
         $project->load(['odfs', 'houses', 'routes']);
 
@@ -729,15 +731,30 @@ class PlannerLabService
     ): array {
         $houseAssignments = $this->buildAssignments($plannedCabinets, $houses);
 
+        $plannedDrops = $this->dropEngine->createDrops($plannedCabinets, $houses, $plannedRoutes, $options);
+
+        // Collect drop warnings into the main warnings list
+        foreach ($plannedDrops as $drop) {
+            if ($drop['warning'] !== null) {
+                $routeWarnings[] = $drop['warning'];
+            }
+        }
+
         $scoring = $this->scoringEngine->score([
             'planned_cabinets'  => $plannedCabinets,
             'planned_routes'    => $plannedRoutes,
             'planned_branches'  => $plannedBranches,
             'house_assignments' => $houseAssignments,
+            'planned_drops'     => $plannedDrops,
             'summary' => ['unassigned_houses' => count($houses) - count($houseAssignments)],
+            'debug'   => ['options' => $options],
         ]);
 
-        $fallbackCount = count(array_filter($plannedRoutes, fn ($r) => ($r['source'] ?? '') === 'straight'));
+        $fallbackCount    = count(array_filter($plannedRoutes, fn ($r) => ($r['source'] ?? '') === 'straight'));
+        $dropLengths      = array_column($plannedDrops, 'length_m');
+        $totalDropLength  = round(array_sum($dropLengths), 1);
+        $avgDropLength    = count($dropLengths) > 0 ? round(array_sum($dropLengths) / count($dropLengths)) : 0;
+        $longDrops        = count(array_filter($plannedDrops, fn ($d) => $d['length_m'] > ($options['maxDropDistance'] ?? 150)));
 
         return [
             'success'           => true,
@@ -752,6 +769,9 @@ class PlannerLabService
                 'assigned_houses'      => count($houseAssignments),
                 'unassigned_houses'    => count($houses) - count($houseAssignments),
                 'total_route_length_m' => round(array_sum(array_column($plannedRoutes, 'length_m')), 1),
+                'total_drop_length_m'  => $totalDropLength,
+                'avg_drop_length_m'    => $avgDropLength,
+                'long_drops'           => $longDrops,
                 'warnings_count'       => count($routeWarnings),
                 'fallback_routes'      => $fallbackCount,
                 'score'                => $scoring['score'],
@@ -762,6 +782,7 @@ class PlannerLabService
             'planned_cabinets'  => $plannedCabinets,
             'planned_branches'  => $plannedBranches,
             'planned_routes'    => $plannedRoutes,
+            'planned_drops'     => $plannedDrops,
             'house_assignments' => $houseAssignments,
             'warnings'          => $routeWarnings,
             'debug'             => [

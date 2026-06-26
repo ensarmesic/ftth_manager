@@ -95,6 +95,7 @@ class PlannerLabController extends Controller
         $counts = DB::transaction(function () use ($plan, $project, $odf) {
             $savedCabinets = 0;
             $savedRoutes   = 0;
+            $savedDrops    = 0;
             $updatedHouses = 0;
             $tempToReal    = [];
 
@@ -137,15 +138,38 @@ class PlannerLabController extends Controller
                 }
             }
 
-            return compact('savedCabinets', 'savedRoutes', 'updatedHouses');
+            foreach ($plan['planned_drops'] ?? [] as $drop) {
+                $realCabId = $tempToReal[$drop['cabinet_temp_id']] ?? null;
+                if (! $realCabId) {
+                    continue;
+                }
+                NetworkRoute::create([
+                    'project_id'        => $project->id,
+                    'odf_id'            => $odf->id,
+                    'cabinet_id'        => $realCabId,
+                    'name'              => $drop['name'],
+                    'route_type'        => 'drop',
+                    'installation_type' => $drop['installation'] ?? 'underground',
+                    'path'              => $drop['path'],
+                    'fiber_count'       => 4,
+                    'from_type'         => 'cabinet',
+                    'from_id'           => $realCabId,
+                    'to_type'           => 'house',
+                    'to_id'             => $drop['house_id'],
+                ]);
+                $savedDrops++;
+            }
+
+            return compact('savedCabinets', 'savedRoutes', 'savedDrops', 'updatedHouses');
         });
 
         return response()->json([
             'success'        => true,
             'saved_cabinets' => $counts['savedCabinets'],
             'saved_routes'   => $counts['savedRoutes'],
+            'saved_drops'    => $counts['savedDrops'],
             'updated_houses' => $counts['updatedHouses'],
-            'message'        => "Sačuvano: {$counts['savedCabinets']} ODO, {$counts['savedRoutes']} trasa, {$counts['updatedHouses']} kuća.",
+            'message'        => "Sačuvano: {$counts['savedCabinets']} ODO, {$counts['savedRoutes']} trasa, {$counts['savedDrops']} drop kablova, {$counts['updatedHouses']} kuća.",
         ]);
     }
 

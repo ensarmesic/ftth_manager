@@ -27,8 +27,6 @@ class PlannerScoringEngine
         }
 
         // Kuće bez ormarića
-        $unassigned = count($plan['debug']['house_count'] ?? []);
-        $assigned   = count($assignments);
         if (isset($plan['summary']['unassigned_houses']) && $plan['summary']['unassigned_houses'] > 0) {
             $score -= min(20, $plan['summary']['unassigned_houses'] * 2);
             $reasons[] = $plan['summary']['unassigned_houses'] . ' kuća nije dodijeljeno niti jednom ormariu';
@@ -46,6 +44,31 @@ class PlannerScoringEngine
         if ($straightRoutes > 0) {
             $score -= min(15, $straightRoutes * 3);
             $reasons[] = "{$straightRoutes} dionica ne prati cestu (fallback ravna linija)";
+        }
+
+        // Drop trase
+        $drops    = $plan['planned_drops'] ?? [];
+        $maxDrop  = (float) ($plan['debug']['options']['maxDropDistance'] ?? 150);
+        if (! empty($drops)) {
+            $dropLengths = array_column($drops, 'length_m');
+            $avgDrop     = round(array_sum($dropLengths) / count($dropLengths));
+            $longDrops   = count(array_filter($drops, fn ($d) => $d['length_m'] > $maxDrop));
+
+            $reasons[] = 'Prosjecna duzina dropa: ' . $avgDrop . ' m';
+
+            if ($longDrops > 0) {
+                $score    -= min(10, $longDrops * 2);
+                $reasons[] = "{$longDrops} drop(ova) prelazi maks. duzinu ({$maxDrop} m)";
+            }
+
+            $straightDrops = count(array_filter($drops, fn ($d) => ($d['source'] ?? '') === 'straight'));
+            if ($straightDrops > 0 && count($drops) > 0) {
+                $pct = round($straightDrops / count($drops) * 100);
+                if ($pct > 50) {
+                    $score    -= 5;
+                    $reasons[] = "{$pct}% dropova ne prati trasu (ravna linija)";
+                }
+            }
         }
 
         // Branch summary

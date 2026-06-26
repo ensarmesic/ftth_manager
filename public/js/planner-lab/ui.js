@@ -76,7 +76,20 @@
             html += (s.fallback_routes || 0) > 0
                 ? '<div style="font-size:11px;color:#d97706;font-weight:600">' + escapeHtml(s.fallback_routes) + ' ravnih linija</div>'
                 : '<div style="font-size:11px;color:#059669;font-weight:600">sve prate ceste</div>';
-            html += '</div></div>';
+            html += '</div>';
+            if (s.total_drop_length_m > 0) {
+                html += '<div class="r-box r2">';
+                html += '<div><div class="rv">' + fmtM(s.total_drop_length_m) + '</div><div class="rk">Ukupno drop kablova</div></div>';
+                html += '<div style="font-size:11px;color:#64748b;font-weight:600">prosjek ' + fmtM(s.avg_drop_length_m) + '</div>';
+                html += '</div>';
+                if ((s.long_drops || 0) > 0) {
+                    html += '<div class="r-box r2 rwarn">';
+                    html += '<div class="rv">' + escapeHtml(s.long_drops) + ' dugih dropova</div>';
+                    html += '<div style="font-size:11px;color:#92400e">prelaze max. dužinu</div>';
+                    html += '</div>';
+                }
+            }
+            html += '</div>';
 
             const branches = plan.planned_branches || [];
             if (branches.length > 0) {
