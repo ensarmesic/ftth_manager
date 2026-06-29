@@ -121,6 +121,27 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function calculateMaterials(Project $project): RedirectResponse
+    {
+        $routes = $project->routes()->where('route_type', '!=', 'trench')->get();
+
+        $toUpsert = [];
+        foreach ($routes->groupBy('microduct_type')->filter(fn ($g, $t) => filled($t)) as $type => $group) {
+            $toUpsert["Mikrocijev $type"] = ['unit' => 'm', 'planned_quantity' => $group->sum(fn ($r) => $r->duct_length_m * max((int) $r->microduct_count, 1))];
+        }
+        foreach ($routes->groupBy('fiber_count')->filter(fn ($g, $c) => filled($c)) as $count => $group) {
+            $toUpsert["Opticki kabl $count niti"] = ['unit' => 'm', 'planned_quantity' => $group->sum('fiber_length_m')];
+        }
+
+        DB::transaction(function () use ($project, $toUpsert) {
+            foreach ($toUpsert as $name => $data) {
+                $project->materials()->updateOrCreate(['name' => $name], $data);
+            }
+        });
+
+        return redirect()->back();
+    }
+
     public function createMissingDropRoutes(Project $project)
     {
         $existingDropHouseIds = array_flip(

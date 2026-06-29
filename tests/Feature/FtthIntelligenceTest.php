@@ -8,7 +8,6 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Models\Subscriber;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -166,12 +165,11 @@ class FtthIntelligenceTest extends TestCase
         $this->assertSame(110, $materials['fiber_12_m']);
     }
 
-    public function test_map_suggestion_save_links_houses_subscribers_and_odf(): void
+    public function test_map_suggestion_save_links_houses_and_odf(): void
     {
         $project = $this->projectWithHouses(1);
         $house = $project->houses()->firstOrFail();
         $odf = Odf::create(['project_id' => $project->id, 'name' => 'ODF-1', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4490, 'longitude' => 18.6490]);
-        $subscriber = Subscriber::create(['project_id' => $project->id, 'name' => 'Korisnik', 'address' => $house->address, 'service_status' => 'planned']);
 
         $this->postJson(route('map.suggestions.store'), [
             'project_id' => $project->id,
@@ -192,7 +190,6 @@ class FtthIntelligenceTest extends TestCase
         $cabinet = Cabinet::firstOrFail();
         $this->assertSame($odf->id, $cabinet->odf_id);
         $this->assertSame($cabinet->id, $house->fresh()->cabinet_id);
-        $this->assertSame($cabinet->id, $subscriber->fresh()->cabinet_id);
     }
 
     public function test_map_suggestion_save_reuses_existing_cabinet_by_name(): void

@@ -17,17 +17,19 @@
     PlannerLab.ui = {
         setLoading: function (loading) {
             const btn = document.getElementById('btn-preview');
-            const sp = document.getElementById('pl-spinner');
+            const sp  = document.getElementById('pl-spinner');
             if (!btn) return;
 
             btn.disabled = loading;
-            for (const node of btn.childNodes) {
-                if (node.nodeType === 3) {
-                    node.textContent = loading ? ' Racunam... ' : ' Generisi plan ';
-                    break;
-                }
-            }
             if (sp) sp.style.display = loading ? 'inline-block' : 'none';
+
+            // Tekst dugmeta
+            const textNode = Array.from(btn.childNodes).find(n => n.nodeType === 3);
+            if (textNode) textNode.textContent = loading ? ' Računam... ' : ' Generisi plan ';
+
+            // Opcije planiranja — disable tokom računanja da spriječimo race condition
+            document.querySelectorAll('#opt-osm, #opt-max-houses, #opt-max-drop, #opt-installation')
+                .forEach(function (el) { el.disabled = loading; });
         },
 
         showProjectStats: function (data) {
@@ -228,7 +230,6 @@
                 useOsm: document.getElementById('opt-osm')?.checked ?? true,
                 followRoads: true,
                 maxHousesPerCabinet: parseInt(document.getElementById('opt-max-houses')?.value || '12', 10),
-                odoSpacing: parseInt(document.getElementById('opt-odo-spacing')?.value || '150', 10),
                 maxDropDistance: parseInt(document.getElementById('opt-max-drop')?.value || '150', 10),
                 installation: document.getElementById('opt-installation')?.value || 'underground',
             };

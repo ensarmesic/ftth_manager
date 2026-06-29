@@ -64,6 +64,7 @@
             if (!firstRoute.path || firstRoute.path.length < 2) return;
 
             const midPt = firstRoute.path[Math.floor(firstRoute.path.length / 2)];
+            if (!midPt) return;
             const icon = L.divIcon({
                 html: '<div style="background:' + color + ';color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;white-space:nowrap;opacity:.9">' + branch.name + '</div>',
                 className: '',
@@ -92,16 +93,26 @@
         });
 
         // Kuće obojene po svom ormaricu
+        const assignedIds = new Set();
         (plan.house_assignments || []).forEach(function (a) {
+            assignedIds.add(a.house_id);
             const color = cabinetColorMap[a.cabinet_temp_id] || '#f59e0b';
             const m = L.circleMarker([a.house_lat, a.house_lng], {
-                radius: 5,
-                color: '#fff',
-                fillColor: color,
-                fillOpacity: 0.95,
-                weight: 1.5,
+                radius: 5, color: '#fff', fillColor: color, fillOpacity: 0.95, weight: 1.5,
             }).addTo(PlannerLab.map);
             m.bindTooltip('<b>' + (a.house_label || 'Kuća') + '</b><br>ODO: ' + a.cabinet_name, { sticky: true });
+            PlannerLab.preview.layers.push(m);
+        });
+
+        // Neraspoređene kuće — sive, vidljivo gdje plan nije pokriven
+        (PlannerLab.data.houses || []).forEach(function (h) {
+            if (assignedIds.has(h.id)) return;
+            if (!h.latitude || !h.longitude) return;
+            const m = L.circleMarker([h.latitude, h.longitude], {
+                radius: 4, color: '#94a3b8', fillColor: '#94a3b8', fillOpacity: 0.45, weight: 1,
+                dashArray: '3 2',
+            }).addTo(PlannerLab.map);
+            m.bindTooltip('<b>' + (h.label || h.address || 'Kuća') + '</b><br><i>Nije dodijeljena</i>', { sticky: true });
             PlannerLab.preview.layers.push(m);
         });
 

@@ -15,18 +15,26 @@
                 PlannerLab.projectId = id;
                 PlannerLab.ui.clearPreview();
 
+                // Spinner dok se projekt učitava
+                const statsEl = document.getElementById('pl-stats');
+                if (statsEl) {
+                    statsEl.innerHTML = '<div style="text-align:center;padding:8px;color:#94a3b8;font-size:11px">Učitavam...</div>';
+                    statsEl.style.display = 'block';
+                }
+
                 try {
                     const data = await PlannerLab.api.loadProject(id);
-                    PlannerLab.data.odfs = data.odfs || [];
-                    PlannerLab.data.houses = data.houses || [];
-                    PlannerLab.data.cabinets = data.cabinets || [];
-                    PlannerLab.data.routes = data.routes || [];
+                    PlannerLab.data.odfs      = data.odfs      || [];
+                    PlannerLab.data.houses    = data.houses    || [];
+                    PlannerLab.data.cabinets  = data.cabinets  || [];
+                    PlannerLab.data.routes    = data.routes    || [];
 
                     PlannerLab.renderExisting();
                     PlannerLab.ui.showProjectStats(data);
 
                 } catch (e) {
-                    alert('Greška: ' + e.message);
+                    if (statsEl) statsEl.innerHTML = '';
+                    alert('Greška pri učitavanju projekta: ' + e.message);
                 }
             });
         }

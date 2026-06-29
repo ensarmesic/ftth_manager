@@ -75,6 +75,10 @@ class PlannerLabController extends Controller
             'odoSpacing'         => 'integer|min:80|max:400',
             'maxDropDistance'    => 'integer|min:30|max:400',
             'installation'       => 'string|in:underground,aerial',
+            'road_polylines'       => 'nullable|array',
+            'road_polylines.*'     => 'array',
+            'excluded_polygons'    => 'nullable|array',
+            'excluded_polygons.*'  => 'array',
         ]);
 
         $plan = $this->plannerLab->preview($project, $options);
@@ -87,23 +91,29 @@ class PlannerLabController extends Controller
         $validated = $request->validate(['plan' => 'required|array']);
         $plan = $validated['plan'];
 
-        $odf = $project->odfs()->first();
-        if (! $odf) {
+        $odfs = $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->get();
+        if ($odfs->isEmpty()) {
             return response()->json(['success' => false, 'message' => 'Projekt nema ODF.'], 422);
         }
 
-        $counts = DB::transaction(function () use ($plan, $project, $odf) {
+        $counts = DB::transaction(function () use ($plan, $project, $odfs) {
             $savedCabinets = 0;
             $savedRoutes   = 0;
             $savedDrops    = 0;
             $updatedHouses = 0;
             $tempToReal    = [];
 
+            $nearestOdfId = function (float $lat, float $lng) use ($odfs): int {
+                return $odfs->sortBy(fn ($o) => pow((float) $o->latitude - $lat, 2) + pow((float) $o->longitude - $lng, 2))->first()->id;
+            };
+
             foreach ($plan['planned_cabinets'] ?? [] as $cab) {
+                $odfId = $nearestOdfId((float) $cab['lat'], (float) $cab['lng']);
                 $cabinet = Cabinet::create([
                     'project_id'         => $project->id,
-                    'odf_id'             => $odf->id,
+                    'odf_id'             => $odfId,
                     'name'               => $cab['name'],
+                    'address'            => 'Planner Lab ' . round((float) $cab['lat'], 5) . ', ' . round((float) $cab['lng'], 5),
                     'latitude'           => $cab['lat'],
                     'longitude'          => $cab['lng'],
                     'splitter_count'     => $cab['splitters'] ?? 1,
@@ -114,16 +124,22 @@ class PlannerLabController extends Controller
             }
 
             foreach ($plan['planned_routes'] ?? [] as $route) {
+                $length = (int) round((float) ($route['length_m'] ?? 0));
+                $routePath = $route['path'] ?? [];
+                $midPoint  = $routePath[intval(count($routePath) / 2)] ?? ($routePath[0] ?? null);
+                $odfId     = $midPoint ? $nearestOdfId((float) $midPoint[0], (float) $midPoint[1]) : $odfs->first()->id;
                 NetworkRoute::create([
                     'project_id'        => $project->id,
-                    'odf_id'            => $odf->id,
+                    'odf_id'            => $odfId,
                     'name'              => $route['name'],
                     'route_type'        => 'distribution',
                     'installation_type' => $route['installation'] ?? 'underground',
                     'path'              => $route['path'],
+                    'duct_length_m'     => $length,
+                    'fiber_length_m'    => $length,
                     'fiber_count'       => 12,
                     'microduct_count'   => 1,
-                    'microduct_type'    => '7x1.2',
+                    'microduct_type'    => '14/10',
                 ]);
                 $savedRoutes++;
             }
@@ -143,15 +159,23 @@ class PlannerLabController extends Controller
                 if (! $realCabId) {
                     continue;
                 }
+                $dropLength = (int) round((float) ($drop['length_m'] ?? 0));
+                $dropPath  = $drop['path'] ?? [];
+                $dropMid   = $dropPath[0] ?? null;
+                $dropOdfId = $dropMid ? $nearestOdfId((float) $dropMid[0], (float) $dropMid[1]) : $odfs->first()->id;
                 NetworkRoute::create([
                     'project_id'        => $project->id,
-                    'odf_id'            => $odf->id,
+                    'odf_id'            => $dropOdfId,
                     'cabinet_id'        => $realCabId,
                     'name'              => $drop['name'],
                     'route_type'        => 'drop',
                     'installation_type' => $drop['installation'] ?? 'underground',
                     'path'              => $drop['path'],
+                    'duct_length_m'     => $dropLength,
+                    'fiber_length_m'    => $dropLength,
                     'fiber_count'       => 4,
+                    'microduct_count'   => 1,
+                    'microduct_type'    => '10/8',
                     'from_type'         => 'cabinet',
                     'from_id'           => $realCabId,
                     'to_type'           => 'house',

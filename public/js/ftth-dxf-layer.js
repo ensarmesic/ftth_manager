@@ -785,6 +785,17 @@
             removeLayer(id);
         },
 
+        // Samo postavi mapu — bez IndexedDB restore (za Planner Lab i slične stranice)
+        initMap(leafletMap) {
+            map = leafletMap;
+        },
+
+        // Renderiraj geojson na mapi koristeći canvas layer — ne snima u IndexedDB.
+        // Vraća Promise<layerId> koji možeš proslijediti removeLayerById() za brisanje.
+        async addLayerFromGeojson(geojson, color) {
+            return addLayer(geojson, color, 'planner-temp-' + Date.now(), null);
+        },
+
         init(leafletMap) {
             map = leafletMap;
             render();

@@ -330,7 +330,7 @@ class FtthIntelligenceService
         foreach ($project->routes as $route) {
             if ($route->route_type === 'trench') {
                 if ($route->duct_length_m <= 0) {
-                    $items[] = $this->validationItem('error', "{$route->name} nema ispravnu duÅ¾inu.", 'route', $route->id, 'Uredi geometriju trase.');
+                    $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
                 }
 
                 continue;

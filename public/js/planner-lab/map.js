@@ -36,17 +36,19 @@
         _satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles © Esri',
             maxZoom: 20,
+            maxNativeZoom: 18,
         });
 
         // Prozirni sloj s imenima ulica na satelitu
-        _satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+        _satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
             attribution: '© CartoDB',
             maxZoom: 20,
-            opacity: 0.7,
+            maxNativeZoom: 18,
+            opacity: 0.9,
             pane: 'overlayPane',
         });
 
-        // Satelit + labele kao default
+        // Satelit kao default
         _satLayer.addTo(PlannerLab.map);
         _satLabels.addTo(PlannerLab.map);
         PlannerLab._isSat = true;

@@ -65,33 +65,42 @@ class PlannerLabService
             return $this->emptyPlan($options, count($odfs), count($houses));
         }
 
-        $odf = $odfs[0];
+        if (count($odfs) > 1) {
+            return $this->previewMultiOdf($odfs, $houses, $project, $options);
+        }
 
+        return $this->planSingleOdf($odfs[0], $houses, $project, $options);
+    }
+
+    private function planSingleOdf(array $odf, array $houses, Project $project, array $options): array
+    {
         // ── 1. Grupiraj kuće u ODO grupe (medoid) ──────────────────────────
         $groups = $this->cabinetEngine->groupHouses($houses, $options);
         $odoCandidates = [];
         foreach ($groups as $group) {
-            $cab = $this->cabinetEngine->placeCabinet($group, []);
-            $odoCandidates[] = $cab; // lat, lng = medoid
+            $odoCandidates[] = $this->cabinetEngine->placeCabinet($group);
         }
 
-        // ── 2. OSM road graph (ako useOsm=true) ─────────────────────────────
+        // ── 2. Road graph: lokalne ceste → OSM → fallback ───────────────────
         $graph = null;
-        if ($options['useOsm']) {
-            $bbox    = $this->computeBbox($odf, $houses, 0.008); // ~800m padding
+        if (! empty($options['road_polylines'])) {
+            // Korisnik je uploadovao/nacrtao vlastite ceste — koristi ih direktno
+            $graph = $this->graphEngine->buildGraphFromPolylines(
+                $options['road_polylines'],
+                $options['excluded_polygons'] ?? []
+            );
+        } elseif ($options['useOsm']) {
+            $bbox    = $this->computeBbox($odf, $houses, 0.008);
             $osmWays = $this->graphEngine->loadOsmRoads(...$bbox);
-
             if (! empty($osmWays)) {
                 $graph = $this->graphEngine->buildGraph($osmWays);
             }
         }
 
-        // ── 3a. Ako imamo road graph → graph-based routing ─────────────────
         if ($graph !== null && ! empty($graph['nodes'])) {
             return $this->planFromGraph($odf, $houses, $odoCandidates, $graph, $options);
         }
 
-        // ── 3b. Fallback: koristi ucrtane kabl rute ─────────────────────────
         $cableRoutes = $project->routes
             ->whereIn('route_type', ['backbone', 'feeder', 'distribution'])
             ->values()
@@ -102,12 +111,131 @@ class PlannerLabService
             return $this->planFromExistingRoutes($odf, $houses, $cableRoutes, $options);
         }
 
-        // ── 3c. Fallback: OSRM / ravne linije ──────────────────────────────
         return $this->planFromOsrm($odf, $houses, $odoCandidates, $options);
     }
 
+    private function previewMultiOdf(array $odfs, array $houses, Project $project, array $options): array
+    {
+        // Dodijeli svaku kuću najbližem ODF-u
+        $odfGroups = array_fill_keys(array_column($odfs, 'id'), []);
+        foreach ($houses as $house) {
+            $bestId   = null;
+            $bestDist = PHP_FLOAT_MAX;
+            foreach ($odfs as $odf) {
+                $d = PlannerGeometry::haversine(
+                    (float) $house['latitude'], (float) $house['longitude'],
+                    (float) $odf['latitude'],   (float) $odf['longitude']
+                );
+                if ($d < $bestDist) { $bestDist = $d; $bestId = $odf['id']; }
+            }
+            if ($bestId !== null) {
+                $odfGroups[$bestId][] = $house;
+            }
+        }
+
+        $mergedCabinets    = [];
+        $mergedRoutes      = [];
+        $mergedBranches    = [];
+        $mergedDrops       = [];
+        $mergedAssignments = [];
+        $mergedWarnings    = [];
+
+        foreach ($odfs as $odfIdx => $odf) {
+            $odfHouses = $odfGroups[$odf['id']] ?? [];
+            if (empty($odfHouses)) {
+                $mergedWarnings[] = ['level' => 'info', 'message' => "{$odf['name']}: nema kuća u zoni ovog ODF-a.", 'lat' => $odf['latitude'], 'lng' => $odf['longitude']];
+                continue;
+            }
+
+            $subPlan = $this->planSingleOdf($odf, $odfHouses, $project, $options);
+            if (! ($subPlan['success'] ?? false)) {
+                $mergedWarnings[] = ['level' => 'warning', 'message' => "{$odf['name']}: planiranje nije uspjelo.", 'lat' => $odf['latitude'], 'lng' => $odf['longitude']];
+                continue;
+            }
+
+            // Dodaj prefiks svim temp_id-ovima da ne dođe do kolizije između ODF-a
+            $p = "odf{$odfIdx}-";
+            foreach ($subPlan['planned_cabinets'] as $cab) {
+                $cab['temp_id'] = $p . $cab['temp_id'];
+                $mergedCabinets[] = $cab;
+            }
+            foreach ($subPlan['planned_routes'] as $route) {
+                $route['temp_id']        = $p . ($route['temp_id'] ?? '');
+                $route['branch_temp_id'] = $p . ($route['branch_temp_id'] ?? '');
+                $mergedRoutes[] = $route;
+            }
+            foreach ($subPlan['planned_branches'] as $branch) {
+                $branch['temp_id'] = $p . ($branch['temp_id'] ?? '');
+                $branch['cabinets'] = array_map(fn ($c) => array_merge($c, ['temp_id' => $p . ($c['temp_id'] ?? '')]), $branch['cabinets'] ?? []);
+                $mergedBranches[] = $branch;
+            }
+            foreach ($subPlan['planned_drops'] as $drop) {
+                $drop['temp_id']         = $p . ($drop['temp_id'] ?? '');
+                $drop['cabinet_temp_id'] = $p . ($drop['cabinet_temp_id'] ?? '');
+                $mergedDrops[] = $drop;
+            }
+            foreach ($subPlan['house_assignments'] as $ha) {
+                $ha['cabinet_temp_id'] = $p . ($ha['cabinet_temp_id'] ?? '');
+                $mergedAssignments[] = $ha;
+            }
+            foreach ($subPlan['warnings'] as $w) {
+                $mergedWarnings[] = $w;
+            }
+        }
+
+        $dropLengths     = array_column($mergedDrops, 'length_m');
+        $totalDrop       = round(array_sum($dropLengths), 1);
+        $avgDrop         = count($dropLengths) > 0 ? round(array_sum($dropLengths) / count($dropLengths)) : 0;
+        $totalRoute      = round(array_sum(array_column($mergedRoutes, 'length_m')), 1);
+        $longDrops       = count(array_filter($mergedDrops, fn ($d) => $d['length_m'] > ($options['maxDropDistance'] ?? 150)));
+        $assignedCount   = count($mergedAssignments);
+        $fallbackCount   = count(array_filter($mergedRoutes, fn ($r) => ($r['source'] ?? '') === 'straight'));
+
+        $scoring = $this->scoringEngine->score([
+            'planned_cabinets'  => $mergedCabinets,
+            'planned_routes'    => $mergedRoutes,
+            'planned_branches'  => $mergedBranches,
+            'house_assignments' => $mergedAssignments,
+            'planned_drops'     => $mergedDrops,
+            'summary'           => ['unassigned_houses' => count($houses) - $assignedCount],
+            'debug'             => ['options' => $options],
+        ]);
+
+        return [
+            'success'           => true,
+            'plan_id'           => 'temp-' . uniqid(),
+            'source'            => 'planner_lab',
+            'temporary'         => true,
+            'summary'           => [
+                'total_houses'         => count($houses),
+                'planned_cabinets'     => count($mergedCabinets),
+                'planned_branches'     => count($mergedBranches),
+                'planned_routes'       => count($mergedRoutes),
+                'assigned_houses'      => $assignedCount,
+                'unassigned_houses'    => count($houses) - $assignedCount,
+                'total_route_length_m' => $totalRoute,
+                'total_drop_length_m'  => $totalDrop,
+                'avg_drop_length_m'    => $avgDrop,
+                'long_drops'           => $longDrops,
+                'warnings_count'       => count($mergedWarnings),
+                'fallback_routes'      => $fallbackCount,
+                'score'                => $scoring['score'],
+                'grade'                => $scoring['grade'],
+                'score_reasons'        => $scoring['reasons'],
+                'branch_summary'       => $scoring['branch_summary'] ?? [],
+            ],
+            'planned_cabinets'  => $mergedCabinets,
+            'planned_branches'  => $mergedBranches,
+            'planned_routes'    => $mergedRoutes,
+            'planned_drops'     => $mergedDrops,
+            'house_assignments' => $mergedAssignments,
+            'warnings'          => $mergedWarnings,
+            'debug'             => ['options' => $options, 'house_count' => count($houses), 'odf_count' => count($odfs)],
+        ];
+    }
+
     // ════════════════════════════════════════════════════════════════════════
-    // Algoritam A: OSM Road Graph (shortest path + merge)
+    // Algoritam A: OSM Road Graph (Dijkstra → isti core kao FtthIntelligenceService)
     // ════════════════════════════════════════════════════════════════════════
 
     private function planFromGraph(
@@ -117,114 +245,134 @@ class PlannerLabService
         array $graph,
         array $options
     ): array {
-        $spacing    = max(80, (int) ($options['odoSpacing'] ?? 150));
-        $maxDrop    = (float) ($options['maxDropDistance'] ?? 150);
-        $maxH       = (int) ($options['maxHousesPerCabinet'] ?? 12);
-        $maxBranch  = min(12, (int) ceil(count($houses) / max(1, $maxH * 2)));
-
         $nodes = $graph['nodes'];
         $adj   = $graph['adj'];
 
-        // Snap ODF na najbliži čvor
         $odfSnap = $this->graphEngine->snapToNearestNode(
             (float) $odf['latitude'], (float) $odf['longitude'], $nodes
         );
-
         if ($odfSnap['node_id'] === null) {
             return $this->planFromOsrm($odf, $houses, $odoCandidates, $options);
         }
 
-        $plannedCabinets = [];
-        $plannedRoutes   = [];
-        $plannedBranches = [];
-        $remaining       = $houses;
-        $odoCtr          = 1;
-        $branchNum       = 1;
-        $odfPos          = ['latitude' => $odfSnap['lat'], 'longitude' => $odfSnap['lng']];
-
-        while (! empty($remaining) && $branchNum <= $maxBranch) {
-            $prevCount = count($remaining);
-
-            // Najudaljenija neraspoređena kuća → krak u tom smjeru
-            $target     = $this->furthestHouse($odfPos, $remaining);
-            $targetSnap = $this->graphEngine->snapToNearestNode(
-                $target['lat'], $target['lng'], $nodes
+        // Izgradi Dijkstra krakove od ODF-a do svakog ODO kandidata
+        $branchDefs = [];
+        foreach ($odoCandidates as $candidate) {
+            $snap = $this->graphEngine->snapToNearestNode(
+                (float) $candidate['lat'], (float) $candidate['lng'], $nodes
             );
-
-            if ($targetSnap['node_id'] === null) {
-                break;
-            }
-
-            // Dijkstra: ODF → najudaljenija kuća
-            $djResult = $this->graphEngine->dijkstra(
-                $nodes, $adj, $odfSnap['node_id'], $targetSnap['node_id']
-            );
-
-            if ($djResult === null || count($djResult['path']) < 2) {
-                break;
-            }
-
-            // Postavi ODO-e svakih $spacing metara duž te rute
-            $allOdos = $this->placeAlongPath($djResult['path'], $spacing, $branchNum, $odoCtr);
-            $nextCtr = $odoCtr + count($allOdos); // napreduj brojač za SVE postavljene, ne samo zadržane
-
-            // Dodijeli kuće koje su blizu ove rute
-            [$allOdos, $remaining] = $this->assignHouses($allOdos, $remaining, $maxDrop, $maxH);
-            $odos = array_values(array_filter($allOdos, fn ($o) => $o['house_count'] > 0));
-
-            if (empty($odos) || count($remaining) === $prevCount) {
-                // Nema napretka — preskoci
-                if (count($remaining) === $prevCount) {
-                    break;
-                }
-                $odoCtr = $nextCtr;
-                $branchNum++;
+            if ($snap['node_id'] === null || $snap['node_id'] === $odfSnap['node_id']) {
                 continue;
             }
-
-            $odoCtr = $nextCtr;
-            $branchKey    = 'K-' . $branchNum;
-            $branchTempId = 'branch-' . $branchKey;
-
-            foreach ($odos as $odo) {
-                $plannedCabinets[] = $odo;
+            $dj = $this->graphEngine->dijkstra($nodes, $adj, $odfSnap['node_id'], $snap['node_id']);
+            if ($dj === null || count($dj['path']) < 2) {
+                continue;
             }
-
-            $plannedRoutes[] = [
-                'temp_id'        => 'route-' . $branchKey,
-                'name'           => $branchKey,
-                'branch_temp_id' => $branchTempId,
-                'branch_name'    => $branchKey,
-                'type'           => 'distribution',
-                'installation'   => $options['installation'],
-                'path'           => $djResult['path'],
-                'length_m'       => round($djResult['length_m'], 1),
-                'source'         => 'graph',
-                'follows_road'   => true,
-                'temporary'      => true,
-            ];
-
-            $plannedBranches[] = [
-                'temp_id'        => $branchTempId,
-                'name'           => $branchKey,
-                'cabinets'       => $odos,
-                'cabinet_count'  => count($odos),
-                'length_m'       => round($djResult['length_m'], 1),
-                'straight_count' => 0,
-            ];
-
-            $branchNum++;
+            $branchDefs[] = ['path' => $dj['path'], 'length_m' => $dj['length_m'], 'source' => 'graph'];
         }
 
-        // Preostale kuće forsirano dodjeli najbližem ODO-u
-        if (! empty($remaining) && ! empty($plannedCabinets)) {
-            $this->forcedAssign($remaining, $plannedCabinets);
+        if (empty($branchDefs)) {
+            return $this->planFromOsrm($odf, $houses, $odoCandidates, $options);
         }
 
-        // Konsoliduj slabo popunjene ODO-e (< 4 kuće) u komšije
-        $plannedCabinets = $this->consolidateOdos($plannedCabinets, $maxH);
+        // Filtriraj kratke krakove — kuće blizu ODF/glavnog voda ne trebaju vlastitu granu,
+        // bit će dodijeljene najbližem dužem kraku u planFromBranchPaths.
+        $minBranchLen = 100.0;
+        $longBranches = array_values(array_filter($branchDefs, fn ($b) => $b['length_m'] >= $minBranchLen));
+        // Ako su svi kratki (mali projekt), zadrži ih sve
+        $branchDefs = ! empty($longBranches) ? $longBranches : $branchDefs;
 
-        // Ažuriraj cabinets listu u branchovima (reference su stale nakon konsolidacije)
+        // Isti core algoritam kao FtthIntelligenceService
+        $result = $this->planFromBranchPaths($branchDefs, $houses, $options);
+
+        if (empty($result['planned_cabinets'])) {
+            // Nema krakova blizu kuća → proba Dijkstra do siročića
+            $maxDrop = (float) ($options['maxDropDistance'] ?? 150);
+            $farHouses = $houses; // sve su dalje od maxDrop
+            $extraBranches = $this->buildOrphanBranches($farHouses, $nodes, $adj, $odfSnap, $options);
+            if (! empty($extraBranches)) {
+                $result = $this->planFromBranchPaths(array_merge($branchDefs, $extraBranches), $houses, $options);
+            }
+        }
+
+        if (empty($result['planned_cabinets'])) {
+            return $this->planFromOsrm($odf, $houses, $odoCandidates, $options);
+        }
+
+        return $this->finalizeBranchesAndBuild(
+            $result['planned_cabinets'],
+            $result['planned_routes'],
+            $result['planned_branches'],
+            $houses, [], $options, skipReassign: true
+        );
+    }
+
+    /**
+     * Gradi Dijkstra krakove za "siročiće" (kuće daleko od svih grana).
+     */
+    private function buildOrphanBranches(
+        array $farHouses, array $nodes, array $adj, array $odfSnap, array $options
+    ): array {
+        $branches = [];
+        $orphanGroups = $this->cabinetEngine->groupHouses($farHouses, $options);
+        foreach ($orphanGroups as $group) {
+            if (empty($group)) {
+                continue;
+            }
+            $cLat = array_sum(array_map(fn ($h) => (float) $h['latitude'], $group)) / count($group);
+            $cLng = array_sum(array_map(fn ($h) => (float) $h['longitude'], $group)) / count($group);
+            $snap = $this->graphEngine->snapToNearestNode($cLat, $cLng, $nodes);
+            if ($snap['node_id'] === null) {
+                continue;
+            }
+            $dj = $this->graphEngine->dijkstra($nodes, $adj, $odfSnap['node_id'], $snap['node_id']);
+            if ($dj !== null && count($dj['path']) >= 2) {
+                $branches[] = ['path' => $dj['path'], 'length_m' => $dj['length_m'], 'source' => 'graph'];
+            }
+        }
+        return $branches;
+    }
+
+    private function makeBranchRoute(
+        string $branchKey, string $branchTempId,
+        array $path, float $lengthM, string $source, array $options
+    ): array {
+        return [
+            'temp_id'        => 'route-' . $branchKey,
+            'name'           => $branchKey,
+            'branch_temp_id' => $branchTempId,
+            'branch_name'    => $branchKey,
+            'type'           => 'distribution',
+            'installation'   => $options['installation'],
+            'path'           => $path,
+            'length_m'       => round($lengthM, 1),
+            'source'         => $source,
+            'follows_road'   => $source === 'graph',
+            'temporary'      => true,
+        ];
+    }
+
+    private function makeBranch(string $branchKey, string $branchTempId, array $odos, float $lengthM): array
+    {
+        return [
+            'temp_id'        => $branchTempId,
+            'name'           => $branchKey,
+            'cabinets'       => $odos,
+            'cabinet_count'  => count($odos),
+            'length_m'       => round($lengthM, 1),
+            'straight_count' => 0,
+        ];
+    }
+
+    private function finalizeBranchesAndBuild(
+        array $plannedCabinets,
+        array $plannedRoutes,
+        array $plannedBranches,
+        array $houses,
+        array $routeWarnings,
+        array $options,
+        bool $skipReassign = false
+    ): array {
         $cabByTempId = [];
         foreach ($plannedCabinets as $c) {
             $cabByTempId[$c['temp_id']] = $c;
@@ -237,7 +385,6 @@ class PlannerLabService
         }
         unset($branch);
 
-        // Ukloni prazne krakove i njihove rute
         $validBranchIds  = [];
         $plannedBranches = array_values(array_filter($plannedBranches, function ($b) use (&$validBranchIds) {
             if ($b['cabinet_count'] > 0) {
@@ -251,105 +398,361 @@ class PlannerLabService
             fn ($r) => isset($validBranchIds[$r['branch_temp_id'] ?? ''])
         ));
 
-        return $this->buildResult($plannedCabinets, $plannedRoutes, $plannedBranches, $houses, [], $options);
-    }
-
-    /**
-     * Flatten niza segmenata u jedan polyline (bez duplikata na spojevima).
-     */
-    private function flattenSegments(array $segments): array
-    {
-        $path = [];
-        foreach ($segments as $seg) {
-            if (empty($path)) {
-                $path = $seg;
-            } else {
-                foreach (array_slice($seg, 1) as $pt) {
-                    $path[] = $pt;
-                }
-            }
-        }
-        return $path;
+        return $this->buildResult($plannedCabinets, $plannedRoutes, $plannedBranches, $houses, $routeWarnings, $options, $skipReassign);
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Algoritam B: Ucrtane kabl rute
+    // SHARED CORE — direktni port FtthIntelligenceService algoritma
+    // Radi s nizom path-ova (ne NetworkRoute), ali isti princip:
+    //   svaka kuća → najbliži krak → sort po chainageu → grupe →
+    //   ODO = medoid grupe projiciran na krak
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Isti algoritam kao FtthIntelligenceService::previewOdoPlan() ali s
+     * generisanim kracima (array paths) umjesto NetworkRoute objekata.
+     *
+     * @param  array $branchDefs  [ ['path'=>[[lat,lng],...], 'length_m'=>float, 'source'=>str, ...], ... ]
+     * @param  array $houses      [ ['id'=>int, 'latitude'=>float, 'longitude'=>float, ...], ... ]
+     * @return array              ['planned_cabinets', 'planned_routes', 'planned_branches']
+     */
+    private function planFromBranchPaths(array $branchDefs, array $houses, array $options): array
+    {
+        $maxDrop  = (float) ($options['maxDropDistance'] ?? 150);
+        $maxH = (int) ($options['maxHousesPerCabinet'] ?? 12);
+
+        // 1. Svaka kuća → NAJBLIŽI krak (FtthIntelligenceService::assignHousesToBranches)
+        $branchHouseMap = array_fill(0, count($branchDefs), []);
+        $farHouses      = [];
+
+        foreach ($houses as $house) {
+            $hLat    = (float) $house['latitude'];
+            $hLng    = (float) $house['longitude'];
+            $bestIdx = null;
+            $bestDist= PHP_FLOAT_MAX;
+            $bestCh  = 0.0;
+
+            foreach ($branchDefs as $bIdx => $branch) {
+                $proj = PlannerGeometry::projectPointToPath($hLat, $hLng, $branch['path']);
+                if ($proj['distance_m'] < $bestDist) {
+                    $bestDist = $proj['distance_m'];
+                    $bestIdx  = $bIdx;
+                    $bestCh   = $proj['chainage_m'];
+                }
+            }
+
+            if ($bestIdx !== null && $bestDist <= $maxDrop) {
+                $house['_ch'] = $bestCh;
+                $branchHouseMap[$bestIdx][] = $house;
+            } else {
+                $farHouses[] = $house;
+            }
+        }
+
+        // 2. Za svaki krak: grupiraj po chainageu → ODO-i (FtthIntelligenceService::groupsForBranch)
+        $plannedCabinets = [];
+        $plannedRoutes   = [];
+        $plannedBranches = [];
+        $odoCtr          = 1;
+        $branchNum       = 1;
+
+        foreach ($branchDefs as $bIdx => $branch) {
+            $branchHouses = $branchHouseMap[$bIdx] ?? [];
+            if (empty($branchHouses)) {
+                continue;
+            }
+
+            $path    = $branch['path'];
+            $source  = $branch['source'] ?? 'graph';
+
+            // Sortiraj po chainageu, podijeli ravnomjerno na grupe od max $maxH kuća.
+            // Cilj: što bliže 12 po ODO-u — bez ikakvih dodatnih uvjeta.
+            usort($branchHouses, fn ($a, $b) => $a['_ch'] <=> $b['_ch']);
+
+            $n        = count($branchHouses);
+            $nGroups  = max(1, (int) ceil($n / $maxH));
+            $baseSize = (int) floor($n / $nGroups);
+            $rem      = $n % $nGroups;
+            $groups   = [];
+            $offset   = 0;
+            for ($g = 0; $g < $nGroups; $g++) {
+                $size     = $baseSize + ($g < $rem ? 1 : 0);
+                $groups[] = array_slice($branchHouses, $offset, $size);
+                $offset  += $size;
+            }
+
+            // Kreiraj ODO za svaku grupu
+            $branchKey    = 'K-' . $branchNum;
+            $branchTempId = 'branch-' . $branchKey;
+            $branchOdos   = [];
+
+            foreach ($groups as $group) {
+                // FtthIntelligenceService::odoPointForGroup — medoid grupe projiciran na krak
+                $odoPt = $this->medoidOdoOnPath($group, $path);
+                $odo   = $this->makeOdo($odoPt, $branchNum, $odoCtr++);
+                $odo['branch_temp_id'] = $branchTempId;
+                $odo['house_ids']      = array_map(fn ($h) => $h['id'], $group);
+                $odo['house_count']    = count($group);
+                $odo['splitters']      = $this->calcSplitters($odo['house_count']);
+
+                $branchOdos[]      = $odo;
+                $plannedCabinets[] = $odo;
+            }
+
+            // Odsijeci krak na poziciji zadnjeg ODO-a — sprječava prikaz
+            // "petlje" kad Dijkstra putanja prati vijugavu cestu dalje od ODO-a.
+            $maxOdoCh = 0.0;
+            foreach ($branchOdos as $odo) {
+                $proj = PlannerGeometry::projectPointToPath((float) $odo['lat'], (float) $odo['lng'], $path);
+                if ($proj['chainage_m'] > $maxOdoCh) {
+                    $maxOdoCh = $proj['chainage_m'];
+                }
+            }
+            $routePath = $this->trimPathAtChainage($path, $maxOdoCh + 20.0);
+            $routeLen  = PlannerGeometry::pathLength($routePath);
+            $plannedRoutes[]   = $this->makeBranchRoute($branchKey, $branchTempId, $routePath, $routeLen, $source, $options);
+            $plannedBranches[] = $this->makeBranch($branchKey, $branchTempId, $branchOdos, $routeLen);
+            $branchNum++;
+        }
+
+        // 3. Kuće koje su predaleko od svih krakova → forsirano na najbliži ODO
+        if (! empty($farHouses) && ! empty($plannedCabinets)) {
+            $this->forcedAssign($farHouses, $plannedCabinets, $maxH);
+        }
+
+        // 4. Prebaci kuće iz malih ODO-a (< 4 kuće) na najbliži ODO koji ima mjesta.
+        //    Mali ODO i cijeli njegov krak nestaju — nema smisla graditi granu za 1-3 kuće
+        //    kad je susjed odmah pored i ima slobodnih portova.
+        $this->redistributeSmallOdos($plannedCabinets, $maxH, $maxDrop * 2.5);
+
+        return [
+            'planned_cabinets' => $plannedCabinets,
+            'planned_routes'   => $plannedRoutes,
+            'planned_branches' => $plannedBranches,
+        ];
+    }
+
+    /**
+     * Premjesti kuće iz malih ODO-a (< 4 kuće) na najbliži ODO koji ima kapaciteta.
+     * Mali ODO se briše — finalizeBranchesAndBuild automatski ukloni granu bez ODO-a.
+     */
+    private function redistributeSmallOdos(array &$cabinets, int $maxH, float $maxOdoDist, int $minFill = 4): void
+    {
+        $cabinets = array_values($cabinets);
+        $changed  = true;
+
+        while ($changed) {
+            $changed = false;
+
+            foreach ($cabinets as $i => $cab) {
+                if ($cab['house_count'] >= $minFill) {
+                    continue;
+                }
+
+                // Pronađi najbliži ODO s kapacitetom
+                $bestJ    = null;
+                $bestDist = $maxOdoDist;
+
+                foreach ($cabinets as $j => $other) {
+                    if ($j === $i) {
+                        continue;
+                    }
+                    if ($other['house_count'] + $cab['house_count'] > $maxH) {
+                        continue;
+                    }
+                    $d = PlannerGeometry::haversine(
+                        (float) $cab['lat'], (float) $cab['lng'],
+                        (float) $other['lat'], (float) $other['lng']
+                    );
+                    if ($d < $bestDist) {
+                        $bestDist = $d;
+                        $bestJ    = $j;
+                    }
+                }
+
+                if ($bestJ !== null) {
+                    foreach ($cab['house_ids'] as $hid) {
+                        $cabinets[$bestJ]['house_ids'][] = $hid;
+                    }
+                    $cabinets[$bestJ]['house_count'] += $cab['house_count'];
+                    $cabinets[$bestJ]['splitters']    = $this->calcSplitters($cabinets[$bestJ]['house_count']);
+                    unset($cabinets[$i]);
+                    $cabinets = array_values($cabinets);
+                    $changed  = true;
+                    break;
+                }
+
+                // Nema susjeda u dosegu → ostavi kako je (geografski izolovan)
+            }
+        }
+    }
+
+    /**
+     * ODO pozicija = medoid grupe projiciran na krak.
+     * Ekvivalentno FtthIntelligenceService::odoPointForGroup().
+     */
+    private function medoidOdoOnPath(array $houses, array $path): array
+    {
+        // Medoid: kuća s minimalnom ukupnom udaljenošću do svih ostalih
+        $best      = null;
+        $bestTotal = PHP_FLOAT_MAX;
+        foreach ($houses as $candidate) {
+            $cLat  = (float) $candidate['latitude'];
+            $cLng  = (float) $candidate['longitude'];
+            $total = 0.0;
+            foreach ($houses as $other) {
+                $total += PlannerGeometry::haversine($cLat, $cLng, (float) $other['latitude'], (float) $other['longitude']);
+            }
+            if ($total < $bestTotal) {
+                $bestTotal = $total;
+                $best      = $candidate;
+            }
+        }
+
+        // Projiciraj medoid na krak → ODO je NA cesti
+        $proj = PlannerGeometry::projectPointToPath(
+            (float) $best['latitude'], (float) $best['longitude'], $path
+        );
+
+        return [$proj['lat'], $proj['lng']];
+    }
+
+    /**
+     * Straight-line udaljenost ODO → kuća, koristi se za odluku o grupiranju.
+     * Straight-line je praktičnija mjera od T-forme (chainage+perp je prevelika kazna
+     * za kuće na dugim Dijkstra kracima i dovodi do fragmentacije).
+     */
+    private function dropLengthOnPath(array $house, array $odoPt, array $path): float
+    {
+        return PlannerGeometry::haversine(
+            (float) $odoPt[0], (float) $odoPt[1],
+            (float) $house['latitude'], (float) $house['longitude']
+        );
+    }
+
+    /**
+     * Odsijeci path na zadanoj chainageu — vraća prefiks putanje do te dužine.
+     * Ako je maxCh veći od ukupne dužine patha, vraća cijeli path.
+     */
+    private function trimPathAtChainage(array $path, float $maxCh): array
+    {
+        if (count($path) < 2 || $maxCh <= 0) {
+            return $path;
+        }
+        $result = [$path[0]];
+        $ch     = 0.0;
+        for ($i = 1, $n = count($path); $i < $n; $i++) {
+            $segLen = PlannerGeometry::haversine(
+                (float) $path[$i - 1][0], (float) $path[$i - 1][1],
+                (float) $path[$i][0],     (float) $path[$i][1]
+            );
+            if ($ch + $segLen >= $maxCh) {
+                $t        = $segLen > 0 ? ($maxCh - $ch) / $segLen : 0.0;
+                $result[] = [
+                    (float) $path[$i - 1][0] + $t * ((float) $path[$i][0] - (float) $path[$i - 1][0]),
+                    (float) $path[$i - 1][1] + $t * ((float) $path[$i][1] - (float) $path[$i - 1][1]),
+                ];
+                return $result;
+            }
+            $result[] = $path[$i];
+            $ch      += $segLen;
+        }
+        return $result;
+    }
+
+    /**
+     * Spoji grupe s malo kuća (<$minFill) s najbližim susjedom, dokle god
+     * kapacitet i maxDrop to dozvoljavaju. Cilj: svaki ODO ima ≥$minFill kuća.
+     * Ponavlja prolaz jer spajanje može otvoriti nove prilike.
+     */
+    private function mergeSmallGroups(
+        array $groups, array $path, int $maxH, float $maxDropM, int $minFill = 6
+    ): array {
+        if (count($groups) <= 1) {
+            return $groups;
+        }
+
+        $changed = true;
+        while ($changed) {
+            $changed = false;
+            $n       = count($groups);
+
+            for ($i = 0; $i < $n; $i++) {
+                if (count($groups[$i]) >= $minFill) {
+                    continue; // grupa je dovoljno popunjena
+                }
+
+                // Pokušaj spojiti s prethodnom grupom
+                if ($i > 0) {
+                    $candidate = array_merge($groups[$i - 1], $groups[$i]);
+                    if (count($candidate) <= $maxH && $this->groupMaxDrop($candidate, $path) <= $maxDropM) {
+                        $groups[$i - 1] = $candidate;
+                        array_splice($groups, $i, 1);
+                        $changed = true;
+                        break;
+                    }
+                }
+
+                // Pokušaj spojiti sa sljedećom grupom
+                if ($i < $n - 1) {
+                    $candidate = array_merge($groups[$i], $groups[$i + 1]);
+                    if (count($candidate) <= $maxH && $this->groupMaxDrop($candidate, $path) <= $maxDropM) {
+                        $groups[$i] = $candidate;
+                        array_splice($groups, $i + 1, 1);
+                        $changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $groups;
+    }
+
+    /** Max drop u grupi ako bi ODO bio na medoidu. */
+    private function groupMaxDrop(array $houses, array $path): float
+    {
+        $odoPt = $this->medoidOdoOnPath($houses, $path);
+        return max(array_map(fn ($h) => $this->dropLengthOnPath($h, $odoPt, $path), $houses));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Algoritam B: Ucrtane kabl rute (isti core kao FtthIntelligenceService)
     // ════════════════════════════════════════════════════════════════════════
 
     private function planFromExistingRoutes(array $odf, array $houses, array $cableRoutes, array $options): array
     {
-        $spacing  = max(80, (int) ($options['odoSpacing'] ?? 150));
-        $maxDrop  = (float) ($options['maxDropDistance'] ?? 150);
-        $maxH     = (int) ($options['maxHousesPerCabinet'] ?? 12);
-
-        $plannedCabinets = [];
-        $plannedRoutes   = [];
-        $plannedBranches = [];
-        $remaining       = $houses;
-        $odoCtr          = 1;
-
         $typeOrder = ['backbone' => 0, 'feeder' => 1, 'distribution' => 2];
         usort($cableRoutes, fn ($a, $b) =>
             ($typeOrder[$a['route_type']] ?? 3) <=> ($typeOrder[$b['route_type']] ?? 3));
 
-        foreach ($cableRoutes as $branchNum => $route) {
-            $path = $route['path'];
+        $branchDefs = [];
+        foreach ($cableRoutes as $route) {
+            $path = $route['path'] ?? [];
             if (count($path) < 2) {
                 continue;
             }
-
-            $allOdos = $this->placeAlongPath($path, $spacing, $branchNum + 1, $odoCtr);
-            $nextCtr = $odoCtr + count($allOdos);
-
-            [$allOdos, $remaining] = $this->assignHouses($allOdos, $remaining, $maxDrop, $maxH);
-            $odos = array_values(array_filter($allOdos, fn ($o) => $o['house_count'] > 0));
-
-            if (empty($odos)) {
-                $odoCtr = $nextCtr;
-                continue;
-            }
-
-            $odoCtr = $nextCtr;
-            $branchKey    = 'K-' . ($branchNum + 1);
-            $branchTempId = 'branch-' . $branchKey;
-
-            foreach ($odos as $odo) {
-                $plannedCabinets[] = $odo;
-            }
-
-            $routeLen = PlannerGeometry::pathLength($path);
-
-            $plannedRoutes[] = [
-                'temp_id'        => 'route-' . $branchKey,
-                'name'           => $route['name'] ?: $branchKey,
-                'branch_temp_id' => $branchTempId,
-                'branch_name'    => $branchKey,
-                'type'           => $route['route_type'],
-                'installation'   => $options['installation'],
-                'path'           => $path,
-                'length_m'       => $routeLen,
-                'source'         => 'existing',
-                'follows_road'   => true,
-                'temporary'      => false,
-            ];
-
-            $plannedBranches[] = [
-                'temp_id'        => $branchTempId,
-                'name'           => $branchKey,
-                'cabinets'       => $odos,
-                'cabinet_count'  => count($odos),
-                'length_m'       => $routeLen,
-                'straight_count' => 0,
+            $branchDefs[] = [
+                'path'      => $path,
+                'length_m'  => PlannerGeometry::pathLength($path),
+                'source'    => 'existing',
+                'name'      => $route['name'] ?? '',
+                'route_type'=> $route['route_type'] ?? 'distribution',
             ];
         }
 
-        if (! empty($remaining) && ! empty($plannedCabinets)) {
-            $this->forcedAssign($remaining, $plannedCabinets);
+        if (empty($branchDefs)) {
+            return $this->planFromOsrm($odf, $houses, [], $options);
         }
 
-        $plannedCabinets = $this->consolidateOdos($plannedCabinets, $maxH);
+        $result = $this->planFromBranchPaths($branchDefs, $houses, $options);
 
-        return $this->buildResult($plannedCabinets, $plannedRoutes, $plannedBranches, $houses, [], $options);
+        return $this->finalizeBranchesAndBuild(
+            $result['planned_cabinets'],
+            $result['planned_routes'],
+            $result['planned_branches'],
+            $houses, [], $options, skipReassign: true
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -376,21 +779,24 @@ class PlannerLabService
             $target    = $this->furthestHouse($odf, $remaining);
 
             $routeResult = $this->roadEngine->routeToPoint($odf, $target, $options);
-            $odos        = $this->placeAlongPath($routeResult['path'], $spacing, $branchNum, $odoCtr);
+            $branchKey    = 'K-' . $branchNum;
+            $branchTempId = 'branch-' . $branchKey;
+
+            $odos = $this->placeAlongPath($routeResult['path'], $spacing, $branchNum, $odoCtr);
+            foreach ($odos as &$o) { $o['branch_temp_id'] = $branchTempId; }
+            unset($o);
 
             [$odos, $remaining] = $this->assignHouses($odos, $remaining, $maxDrop, $maxH);
             $odos = array_values(array_filter($odos, fn ($o) => $o['house_count'] > 0));
 
             if (empty($odos) || count($remaining) === $prevCount) {
                 if (! empty($remaining) && ! empty($plannedCabinets)) {
-                    $this->forcedAssign($remaining, $plannedCabinets);
+                    $this->forcedAssign($remaining, $plannedCabinets, $maxH);
                 }
                 break;
             }
 
             $odoCtr += count($odos);
-            $branchKey    = 'K-' . $branchNum;
-            $branchTempId = 'branch-' . $branchKey;
 
             $finalRoute = $this->roadEngine->routeBranch($odf, $odos, $options);
 
@@ -461,66 +867,6 @@ class PlannerLabService
         ];
     }
 
-    /** Dodijeli SVE kuće ODO-ima (za graph mod gdje ODO kandidati su fiksni) */
-    private function assignAllHouses(array $cabinets, array $houses, float $maxDrop, int $maxH): array
-    {
-        $warnings = [];
-
-        foreach ($houses as $house) {
-            $bestDist = $maxDrop * 3; // Veći radius za graph mod (snap na cesti garantuje bliže)
-            $bestIdx  = null;
-
-            foreach ($cabinets as $i => $cab) {
-                if ($cab['house_count'] >= $maxH) {
-                    continue;
-                }
-                $d = PlannerGeometry::haversine(
-                    (float) $house['latitude'], (float) $house['longitude'],
-                    $cab['lat'], $cab['lng']
-                );
-                if ($d < $bestDist) {
-                    $bestDist = $d;
-                    $bestIdx  = $i;
-                }
-            }
-
-            if ($bestIdx !== null) {
-                $cabinets[$bestIdx]['house_ids'][]  = $house['id'];
-                $cabinets[$bestIdx]['house_count']++;
-                $cabinets[$bestIdx]['splitters'] = $this->calcSplitters($cabinets[$bestIdx]['house_count']);
-            } else {
-                // Forsirano na najbliži (bez ograničenja distance)
-                $bestDist = PHP_FLOAT_MAX;
-                $bestIdx  = null;
-                foreach ($cabinets as $i => $cab) {
-                    $d = PlannerGeometry::haversine(
-                        (float) $house['latitude'], (float) $house['longitude'],
-                        $cab['lat'], $cab['lng']
-                    );
-                    if ($d < $bestDist) {
-                        $bestDist = $d;
-                        $bestIdx  = $i;
-                    }
-                }
-                if ($bestIdx !== null) {
-                    $cabinets[$bestIdx]['house_ids'][]  = $house['id'];
-                    $cabinets[$bestIdx]['house_count']++;
-                    $cabinets[$bestIdx]['splitters'] = $this->calcSplitters($cabinets[$bestIdx]['house_count']);
-                    if ($bestDist > $maxDrop) {
-                        $warnings[] = [
-                            'level'   => 'warning',
-                            'message' => ($house['label'] ?? 'Kuća') . ' je ' . round($bestDist) . ' m od najbližeg ODO-a.',
-                            'lat'     => $house['latitude'],
-                            'lng'     => $house['longitude'],
-                        ];
-                    }
-                }
-            }
-        }
-
-        return [$cabinets, $warnings];
-    }
-
     private function assignHouses(array $odos, array $houses, float $maxDist, int $maxH): array
     {
         $unassigned = [];
@@ -551,69 +897,15 @@ class PlannerLabService
         return [$odos, $unassigned];
     }
 
-    /**
-     * Spoji ODO-e s malo kuća u najbliže komšije koji imaju kapacitet.
-     * Ponavlja prolaz dok ima šta za spojiti.
-     */
-    private function consolidateOdos(array $cabinets, int $maxH, int $minFill = 4): array
-    {
-        $changed = true;
-        while ($changed) {
-            $changed = false;
-            $cabinets = array_values($cabinets);
-
-            foreach ($cabinets as $i => $cab) {
-                if ($cab['house_count'] === 0) {
-                    unset($cabinets[$i]);
-                    $changed = true;
-                    break;
-                }
-
-                if ($cab['house_count'] >= $minFill) {
-                    continue;
-                }
-
-                // Traži najbliži ODO s dovoljno kapaciteta
-                $bestJ    = null;
-                $bestDist = PHP_FLOAT_MAX;
-
-                foreach ($cabinets as $j => $other) {
-                    if ($j === $i) {
-                        continue;
-                    }
-                    if ($other['house_count'] + $cab['house_count'] > $maxH) {
-                        continue;
-                    }
-                    $d = PlannerGeometry::haversine($cab['lat'], $cab['lng'], $other['lat'], $other['lng']);
-                    if ($d < $bestDist) {
-                        $bestDist = $d;
-                        $bestJ    = $j;
-                    }
-                }
-
-                if ($bestJ !== null) {
-                    foreach ($cab['house_ids'] as $hid) {
-                        $cabinets[$bestJ]['house_ids'][] = $hid;
-                    }
-                    $cabinets[$bestJ]['house_count'] += $cab['house_count'];
-                    $cabinets[$bestJ]['splitters']    = $this->calcSplitters($cabinets[$bestJ]['house_count']);
-                    unset($cabinets[$i]);
-                    $changed = true;
-                    break;
-                }
-            }
-        }
-
-        return array_values($cabinets);
-    }
-
-    private function forcedAssign(array $houses, array &$cabinets): void
+    private function forcedAssign(array $houses, array &$cabinets, int $maxH = 12): void
     {
         if (empty($cabinets)) return;
         foreach ($houses as $house) {
+            // First pass: nearest cabinet that still has capacity
             $bestDist = PHP_FLOAT_MAX;
             $bestIdx  = null;
             foreach ($cabinets as $i => $cab) {
+                if ($cab['house_count'] >= $maxH) continue;
                 $d = PlannerGeometry::haversine(
                     (float) $house['latitude'], (float) $house['longitude'],
                     $cab['lat'], $cab['lng']
@@ -621,6 +913,20 @@ class PlannerLabService
                 if ($d < $bestDist) {
                     $bestDist = $d;
                     $bestIdx  = $i;
+                }
+            }
+            // Fallback: assign to nearest even if over capacity
+            if ($bestIdx === null) {
+                $bestDist = PHP_FLOAT_MAX;
+                foreach ($cabinets as $i => $cab) {
+                    $d = PlannerGeometry::haversine(
+                        (float) $house['latitude'], (float) $house['longitude'],
+                        $cab['lat'], $cab['lng']
+                    );
+                    if ($d < $bestDist) {
+                        $bestDist = $d;
+                        $bestIdx  = $i;
+                    }
                 }
             }
             if ($bestIdx !== null) {
@@ -727,8 +1033,23 @@ class PlannerLabService
         array $plannedBranches,
         array $houses,
         array $routeWarnings,
-        array $options
+        array $options,
+        bool $skipReassign = false
     ): array {
+        // Chainage-based planovi (planFromGraph) rade dodjelu sami —
+        // reassignToNearest bi pokvario pažljivo izračunate grupe.
+        if (! $skipReassign) {
+            $maxH       = (int) ($options['maxHousesPerCabinet'] ?? 12);
+            $routePaths = [];
+            foreach ($plannedRoutes as $r) {
+                if (! empty($r['branch_temp_id']) && ! empty($r['path'])) {
+                    $routePaths[$r['branch_temp_id']] = $r['path'];
+                }
+            }
+            $maxDrop = (float) ($options['maxDropDistance'] ?? 150);
+            $this->reassignToNearest($plannedCabinets, $houses, $maxH, $routePaths, $maxDrop);
+        }
+
         $houseAssignments = $this->buildAssignments($plannedCabinets, $houses);
 
         $plannedDrops = $this->dropEngine->createDrops($plannedCabinets, $houses, $plannedRoutes, $options);
@@ -816,6 +1137,125 @@ class PlannerLabService
             }
         }
         return $result;
+    }
+
+    /**
+     * Pametna dodjela kuća ODO-ima — greedy sorted-pairs algoritam.
+     *
+     * Koraci:
+     *  1. Predizračunaj score za svaki par (kuća, ODO):
+     *       score = distDoKraka + distDoOdo × 0.3
+     *     Perpendikularna udaljenost do kraka (rute) je primarna metrika jer
+     *     drop kabel prati T-putanju: ODO → ruta → kuća. ODO-ova udaljenost
+     *     je sekundarni tie-breaker (0.3× težina).
+     *
+     *  2. Sortiraj sve parove po score-u (rastući).
+     *
+     *  3. Greedy prolaz: uzimaj parove redom — ako kuća još nije dodijeljena
+     *     i ODO ima kapacitet, dodijeli. Svaka kuća se pojavljuje u listi
+     *     za sve ODO-e pa će uvijek naći prvog slobodnog.
+     *
+     *  4. Fallback za kuće kojima su svi ODO-i puni: dodijeli na najmanje
+     *     opterećen ODO (bez kapacitetnog ograničenja) s penalom za prekoračenje,
+     *     čime se overflow ravnomjerno raspoređuje po susjednim ODO-ima.
+     */
+    private function reassignToNearest(
+        array &$cabinets,
+        array $houses,
+        int $maxH,
+        array $routePaths = [],
+        float $maxDrop = 150.0
+    ): void {
+        foreach ($cabinets as &$cab) {
+            $cab['house_ids']   = [];
+            $cab['house_count'] = 0;
+            $cab['splitters']   = 1;
+        }
+        unset($cab);
+
+        if (empty($cabinets) || empty($houses)) {
+            return;
+        }
+
+        // ── 1. Predizračunaj sve (kuća, ODO) scoreove ────────────────────────
+        $pairs = []; // [hIdx, cabIdx, score]
+
+        foreach ($houses as $hIdx => $house) {
+            $hLat = (float) $house['latitude'];
+            $hLng = (float) $house['longitude'];
+
+            foreach ($cabinets as $cabIdx => $cab) {
+                $dOdo     = PlannerGeometry::haversine($hLat, $hLng, (float) $cab['lat'], (float) $cab['lng']);
+                $branchId = $cab['branch_temp_id'] ?? null;
+
+                if ($branchId && isset($routePaths[$branchId])) {
+                    $proj  = PlannerGeometry::projectPointToPath($hLat, $hLng, $routePaths[$branchId]);
+                    $score = $proj['distance_m'] + $dOdo * 0.3;
+                } else {
+                    $score = $dOdo;
+                }
+
+                $pairs[] = [$hIdx, $cabIdx, $score];
+            }
+        }
+
+        // ── 2. Sortiraj parove po score-u (manji = bolji) ────────────────────
+        usort($pairs, fn ($a, $b) => $a[2] <=> $b[2]);
+
+        // ── 3. Greedy dodjela uz poštivanje kapaciteta ───────────────────────
+        $assignedHouses = []; // hIdx → true
+
+        foreach ($pairs as [$hIdx, $cabIdx, $score]) {
+            if (isset($assignedHouses[$hIdx])) {
+                continue; // kuća već dodijeljena
+            }
+            if ($cabinets[$cabIdx]['house_count'] >= $maxH) {
+                continue; // ODO pun → sljedeći par u listi
+            }
+
+            $cabinets[$cabIdx]['house_ids'][]  = $houses[$hIdx]['id'];
+            $cabinets[$cabIdx]['house_count']++;
+            $cabinets[$cabIdx]['splitters']    = $this->calcSplitters($cabinets[$cabIdx]['house_count']);
+            $assignedHouses[$hIdx]             = true;
+        }
+
+        // ── 4. Fallback: kuće kojima su svi ODO-i bili puni ─────────────────
+        // Svrstaj na najmanje opterećeni ODO s penalom za svaku kuću iznad maxH.
+        // Pen 50m/kuća drži overflow na najblizem ODO, a ne na slučajnom.
+        foreach ($houses as $hIdx => $house) {
+            if (isset($assignedHouses[$hIdx])) {
+                continue;
+            }
+
+            $hLat      = (float) $house['latitude'];
+            $hLng      = (float) $house['longitude'];
+            $bestIdx   = null;
+            $bestScore = PHP_FLOAT_MAX;
+
+            foreach ($cabinets as $cabIdx => $cab) {
+                $dOdo     = PlannerGeometry::haversine($hLat, $hLng, (float) $cab['lat'], (float) $cab['lng']);
+                $branchId = $cab['branch_temp_id'] ?? null;
+                $overload = max(0, $cab['house_count'] - $maxH);
+
+                if ($branchId && isset($routePaths[$branchId])) {
+                    $proj  = PlannerGeometry::projectPointToPath($hLat, $hLng, $routePaths[$branchId]);
+                    $score = $proj['distance_m'] + $dOdo * 0.3 + $overload * 50;
+                } else {
+                    $score = $dOdo + $overload * 50;
+                }
+
+                if ($score < $bestScore) {
+                    $bestScore = $score;
+                    $bestIdx   = $cabIdx;
+                }
+            }
+
+            if ($bestIdx !== null) {
+                $cabinets[$bestIdx]['house_ids'][]  = $house['id'];
+                $cabinets[$bestIdx]['house_count']++;
+                $cabinets[$bestIdx]['splitters']    = $this->calcSplitters($cabinets[$bestIdx]['house_count']);
+            }
+        }
     }
 
     private function emptyPlan(array $options, int $odfCount, int $houseCount): array

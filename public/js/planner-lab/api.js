@@ -11,10 +11,21 @@
         },
 
         preview: async function (projectId, options) {
+            const body = Object.assign({}, options);
+            // Ako korisnik ima učitane/nacrtane ceste — proslijedi ih backendu
+            const roads = PlannerLab.roads?.polylines;
+            if (roads && roads.length > 0) {
+                body.road_polylines = roads;
+                body.useOsm = false;
+            }
+            const excluded = PlannerLab.roads?.getExcludedPolygons?.();
+            if (excluded && excluded.length > 0) {
+                body.excluded_polygons = excluded;
+            }
             const res = await fetch('/planner-lab/projects/' + projectId + '/preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                body: JSON.stringify(options),
+                body: JSON.stringify(body),
             });
             if (!res.ok) throw new Error('Greška pri generisanju pregleda');
             return res.json();

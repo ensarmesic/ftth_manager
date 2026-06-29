@@ -8,41 +8,41 @@ class PlannerCabinetEngine
 
     public function groupHouses(array $houses, array $options): array
     {
-        $max = $options['maxHousesPerCabinet'] ?? 12;
-        $unassigned = array_filter($houses, fn ($h) => empty($h['cabinet_id']));
-        $unassigned = array_values($unassigned);
+        $max     = $options['maxHousesPerCabinet'] ?? 12;
+        $maxDrop = (float) ($options['maxDropDistance'] ?? 150);
+        $unassigned = array_values(array_filter($houses, fn ($h) => empty($h['cabinet_id'])));
 
         if (empty($unassigned)) {
             return [];
         }
 
-        return $this->clusterByDistance($unassigned, $max);
+        return $this->clusterByDistance($unassigned, $max, $maxDrop);
     }
 
-    private function clusterByDistance(array $houses, int $maxSize): array
+    private function clusterByDistance(array $houses, int $maxSize, float $maxDrop): array
     {
         $clusters = [];
         $assigned = [];
 
         foreach ($houses as $i => $house) {
-            if (in_array($i, $assigned)) {
+            if (isset($assigned[$i])) {
                 continue;
             }
 
-            $cluster = [$house];
-            $assigned[] = $i;
+            $cluster    = [$house];
+            $assigned[$i] = true;
 
             foreach ($houses as $j => $other) {
-                if (in_array($j, $assigned) || count($cluster) >= $maxSize) {
+                if (isset($assigned[$j]) || count($cluster) >= $maxSize) {
                     continue;
                 }
                 $dist = PlannerGeometry::haversine(
                     $house['latitude'], $house['longitude'],
                     $other['latitude'], $other['longitude']
                 );
-                if ($dist <= 150) {
-                    $cluster[] = $other;
-                    $assigned[] = $j;
+                if ($dist <= $maxDrop) {
+                    $cluster[]    = $other;
+                    $assigned[$j] = true;
                 }
             }
 
@@ -52,7 +52,7 @@ class PlannerCabinetEngine
         return $clusters;
     }
 
-    public function placeCabinet(array $group, array $routes = []): array
+    public function placeCabinet(array $group): array
     {
         $this->counter++;
         $pos = PlannerGeometry::medoid($group);

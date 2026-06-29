@@ -24,6 +24,8 @@ window.PlannerLab = {
         warnings: [],
     },
 
+    _toastTimer: null,
+
     _existingLayers: {
         odfs: [],
         houses: [],

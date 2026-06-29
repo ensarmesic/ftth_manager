@@ -32,6 +32,83 @@ class PlannerRoadGraphEngine
     // ── Javni API ─────────────────────────────────────────────────────────
 
     /**
+     * Izgradi graph iz korisničkih polilajnova (WGS84 [[lat,lng],...] arrays).
+     * Isti output format kao buildGraph() — kompatibilno s ostatkom pipeline-a.
+     */
+    public function buildGraphFromPolylines(array $polylines, array $excludedPolygons = []): array
+    {
+        $osmLike = [];
+        foreach ($polylines as $pl) {
+            if (count($pl) < 2) {
+                continue;
+            }
+            $osmLike[] = [
+                'geometry' => array_map(fn ($p) => ['lat' => (float) $p[0], 'lon' => (float) $p[1]], $pl),
+            ];
+        }
+
+        $graph = $this->buildGraph($osmLike);
+
+        if (! empty($excludedPolygons)) {
+            $graph = $this->removeExcludedEdges($graph, $excludedPolygons);
+        }
+
+        return $graph;
+    }
+
+    /**
+     * Ukloni graph edges čija sredina pada unutar bilo kojeg od izuzetih poligona.
+     * Koristi se kad korisnik izuzme privatne katastarske parcele.
+     */
+    private function removeExcludedEdges(array $graph, array $polygons): array
+    {
+        foreach ($graph['adj'] as $nodeId => &$edges) {
+            $fromNode = $graph['nodes'][$nodeId] ?? null;
+            if (! $fromNode) {
+                continue;
+            }
+            $edges = array_values(array_filter($edges, function ($edge) use ($fromNode, $graph, $polygons) {
+                [$toId] = $edge;
+                $toNode = $graph['nodes'][$toId] ?? null;
+                if (! $toNode) {
+                    return true;
+                }
+                $midLat = ((float) $fromNode['lat'] + (float) $toNode['lat']) / 2;
+                $midLng = ((float) $fromNode['lng'] + (float) $toNode['lng']) / 2;
+                foreach ($polygons as $poly) {
+                    if ($this->pointInPolygon($midLat, $midLng, $poly)) {
+                        return false;
+                    }
+                }
+                return true;
+            }));
+        }
+        unset($edges);
+        return $graph;
+    }
+
+    private function pointInPolygon(float $lat, float $lng, array $polygon): bool
+    {
+        $n = count($polygon);
+        if ($n < 3) {
+            return false;
+        }
+        $inside = false;
+        $j      = $n - 1;
+        for ($i = 0; $i < $n; $i++) {
+            $yi = (float) $polygon[$i][0];
+            $xi = (float) $polygon[$i][1];
+            $yj = (float) $polygon[$j][0];
+            $xj = (float) $polygon[$j][1];
+            if ((($yi > $lat) !== ($yj > $lat)) && ($lng < ($xj - $xi) * ($lat - $yi) / ($yj - $yi) + $xi)) {
+                $inside = ! $inside;
+            }
+            $j = $i;
+        }
+        return $inside;
+    }
+
+    /**
      * Učitaj OSM ways za bounding box.
      * Cachuje rezultat 2 sata (isti bbox → nema ponovnog API poziva).
      */
@@ -293,22 +370,20 @@ class PlannerRoadGraphEngine
         $query = "[out:json][timeout:25];(way[\"highway\"~\"^({$types})$\"]({$bbox}););out geom;";
 
         // Pokušaj Overpass
-        foreach ([self::OVERPASS] as $url) {
-            try {
-                $response = Http::timeout(20)
-                    ->withoutVerifying()
-                    ->withHeaders(['Accept' => '*/*', 'User-Agent' => 'ftth-planner/1.0'])
-                    ->asForm()
-                    ->post($url, ['data' => $query]);
+        try {
+            $response = Http::timeout(20)
+                ->withoutVerifying()
+                ->withHeaders(['Accept' => '*/*', 'User-Agent' => 'ftth-planner/1.0'])
+                ->asForm()
+                ->post(self::OVERPASS, ['data' => $query]);
 
-                if ($response->ok()) {
-                    $elements = $response->json()['elements'] ?? [];
-                    if (! empty($elements)) {
-                        return $elements;
-                    }
+            if ($response->ok()) {
+                $elements = $response->json()['elements'] ?? [];
+                if (! empty($elements)) {
+                    return $elements;
                 }
-            } catch (\Throwable) {}
-        }
+            }
+        } catch (\Throwable) {}
 
         // Fallback: direktni OSM API (XML)
         return $this->fetchOsmDirect($minLat, $minLng, $maxLat, $maxLng);
