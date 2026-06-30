@@ -22,13 +22,6 @@ class PlannerGeometry
         return round($total, 1);
     }
 
-    public static function centroid(array $points): array
-    {
-        $lat = array_sum(array_column($points, 'latitude')) / count($points);
-        $lng = array_sum(array_column($points, 'longitude')) / count($points);
-        return ['lat' => $lat, 'lng' => $lng];
-    }
-
     public static function medoid(array $points): array
     {
         $best = null;

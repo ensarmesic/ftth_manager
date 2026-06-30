@@ -29,7 +29,7 @@ class PlannerScoringEngine
         // Kuće bez ormarića
         if (isset($plan['summary']['unassigned_houses']) && $plan['summary']['unassigned_houses'] > 0) {
             $score -= min(20, $plan['summary']['unassigned_houses'] * 2);
-            $reasons[] = $plan['summary']['unassigned_houses'] . ' kuća nije dodijeljeno niti jednom ormariu';
+            $reasons[] = $plan['summary']['unassigned_houses'] . ' kuća nije dodijeljeno niti jednom ormaru';
         }
 
         // Dužina trasa

@@ -14,6 +14,10 @@
         poor: { color: '#dc2626', bg: '#fee2e2', label: 'Los' },
     };
 
+    function saveButtonHtml() {
+        return '<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293z"/></svg> Sacuvaj plan u bazu';
+    }
+
     PlannerLab.ui = {
         setLoading: function (loading) {
             const btn = document.getElementById('btn-preview');
@@ -58,6 +62,14 @@
             const g = GRADE[s.grade] || GRADE.fair;
             const result = document.getElementById('pl-result');
             if (!result) return;
+
+            // Svaki novi plan je nesačuvan — vrati dugme u aktivno stanje
+            // (ostaje onemogućeno od prošlog snimanja ako se ovo ne resetuje).
+            const saveBtn = document.getElementById('btn-save');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = saveButtonHtml();
+            }
 
             let html = '<div class="r-score" style="background:' + g.bg + '">';
             html += '<div class="r-score-num" style="color:' + g.color + '">' + escapeHtml(s.score ?? 0) + '</div>';
@@ -165,7 +177,7 @@
             if (emp) emp.style.display = 'flex';
             if (save) {
                 save.disabled = false;
-                save.innerHTML = '<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293z"/></svg> Sacuvaj plan u bazu';
+                save.innerHTML = saveButtonHtml();
             }
         },
 
@@ -193,7 +205,7 @@
                 PlannerLab.ui.toast('Greska: ' + e.message, 'err');
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293z"/></svg> Sacuvaj plan u bazu';
+                    btn.innerHTML = saveButtonHtml();
                 }
             }
         },

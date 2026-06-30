@@ -308,59 +308,6 @@ class PlannerRoadGraphEngine
         ];
     }
 
-    /**
-     * Spoji više Dijkstra pathova u jednu mrežu bez duplikata.
-     *
-     * Input: array of ['cab' => cabinet_data, 'dijkstra' => dijkstra_result]
-     *
-     * Vraća branches array gdje svaka grana ima:
-     *   'cab'           => cabinet
-     *   'path'          => puni polyline (za tooltip i bounds)
-     *   'new_segments'  => segmenti koji se crtaju prvi put (za bojenje)
-     *   'length_m'      => dužina
-     */
-    public function mergePaths(array $pathEntries): array
-    {
-        $drawnEdges = []; // edgeKey → branchIdx that first drew it
-        $branches   = [];
-
-        foreach ($pathEntries as $idx => $entry) {
-            $cab      = $entry['cab'];
-            $dijkstra = $entry['dijkstra'];
-
-            if ($dijkstra === null) {
-                continue;
-            }
-
-            $nodeSeq = $dijkstra['node_sequence'];
-            $segs    = $dijkstra['segments'];
-            $newSegs = [];
-
-            for ($i = 0, $n = count($nodeSeq) - 1; $i < $n; $i++) {
-                $fromId = $nodeSeq[$i];
-                $toId   = $nodeSeq[$i + 1];
-                $seg    = $segs[$i] ?? [];
-
-                $key = $this->edgeKey($fromId, $toId);
-
-                if (! isset($drawnEdges[$key])) {
-                    $drawnEdges[$key] = $idx;
-                    $newSegs[]        = $seg; // nový segment → crtati s bojom grane
-                }
-                // Stari segment → preskočiti (već ucrtan prethodnom granom)
-            }
-
-            $branches[] = [
-                'cab'          => $cab,
-                'path'         => $dijkstra['path'],
-                'new_segments' => $newSegs,
-                'length_m'     => $dijkstra['length_m'],
-            ];
-        }
-
-        return $branches;
-    }
-
     // ── Private ───────────────────────────────────────────────────────────
 
     private function fetchOverpass(float $minLat, float $minLng, float $maxLat, float $maxLng): array
@@ -470,10 +417,5 @@ class PlannerRoadGraphEngine
     private function nid(float $lat, float $lng): string
     {
         return number_format($lat, 6, '.', '') . '_' . number_format($lng, 6, '.', '');
-    }
-
-    private function edgeKey(string $a, string $b): string
-    {
-        return $a < $b ? "{$a}|{$b}" : "{$b}|{$a}";
     }
 }

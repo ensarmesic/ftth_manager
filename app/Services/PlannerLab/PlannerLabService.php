@@ -618,19 +618,6 @@ class PlannerLabService
     }
 
     /**
-     * Straight-line udaljenost ODO → kuća, koristi se za odluku o grupiranju.
-     * Straight-line je praktičnija mjera od T-forme (chainage+perp je prevelika kazna
-     * za kuće na dugim Dijkstra kracima i dovodi do fragmentacije).
-     */
-    private function dropLengthOnPath(array $house, array $odoPt, array $path): float
-    {
-        return PlannerGeometry::haversine(
-            (float) $odoPt[0], (float) $odoPt[1],
-            (float) $house['latitude'], (float) $house['longitude']
-        );
-    }
-
-    /**
      * Odsijeci path na zadanoj chainageu — vraća prefiks putanje do te dužine.
      * Ako je maxCh veći od ukupne dužine patha, vraća cijeli path.
      */
@@ -658,62 +645,6 @@ class PlannerLabService
             $ch      += $segLen;
         }
         return $result;
-    }
-
-    /**
-     * Spoji grupe s malo kuća (<$minFill) s najbližim susjedom, dokle god
-     * kapacitet i maxDrop to dozvoljavaju. Cilj: svaki ODO ima ≥$minFill kuća.
-     * Ponavlja prolaz jer spajanje može otvoriti nove prilike.
-     */
-    private function mergeSmallGroups(
-        array $groups, array $path, int $maxH, float $maxDropM, int $minFill = 6
-    ): array {
-        if (count($groups) <= 1) {
-            return $groups;
-        }
-
-        $changed = true;
-        while ($changed) {
-            $changed = false;
-            $n       = count($groups);
-
-            for ($i = 0; $i < $n; $i++) {
-                if (count($groups[$i]) >= $minFill) {
-                    continue; // grupa je dovoljno popunjena
-                }
-
-                // Pokušaj spojiti s prethodnom grupom
-                if ($i > 0) {
-                    $candidate = array_merge($groups[$i - 1], $groups[$i]);
-                    if (count($candidate) <= $maxH && $this->groupMaxDrop($candidate, $path) <= $maxDropM) {
-                        $groups[$i - 1] = $candidate;
-                        array_splice($groups, $i, 1);
-                        $changed = true;
-                        break;
-                    }
-                }
-
-                // Pokušaj spojiti sa sljedećom grupom
-                if ($i < $n - 1) {
-                    $candidate = array_merge($groups[$i], $groups[$i + 1]);
-                    if (count($candidate) <= $maxH && $this->groupMaxDrop($candidate, $path) <= $maxDropM) {
-                        $groups[$i] = $candidate;
-                        array_splice($groups, $i + 1, 1);
-                        $changed = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        return $groups;
-    }
-
-    /** Max drop u grupi ako bi ODO bio na medoidu. */
-    private function groupMaxDrop(array $houses, array $path): float
-    {
-        $odoPt = $this->medoidOdoOnPath($houses, $path);
-        return max(array_map(fn ($h) => $this->dropLengthOnPath($h, $odoPt, $path), $houses));
     }
 
     // ════════════════════════════════════════════════════════════════════════

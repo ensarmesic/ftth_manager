@@ -6,6 +6,7 @@ use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
 use App\Models\Project;
+use App\Services\BranchSyncService;
 use App\Services\PlannerLab\PlannerLabService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,10 @@ use Illuminate\View\View;
 
 class PlannerLabController extends Controller
 {
-    public function __construct(protected PlannerLabService $plannerLab) {}
+    public function __construct(
+        protected PlannerLabService $plannerLab,
+        protected BranchSyncService $branchSync,
+    ) {}
 
     public function index(): View
     {
@@ -112,7 +116,7 @@ class PlannerLabController extends Controller
                 $cabinet = Cabinet::create([
                     'project_id'         => $project->id,
                     'odf_id'             => $odfId,
-                    'name'               => $cab['name'],
+                    'name'               => $this->uniqueName(Cabinet::class, $project->id, $cab['name']),
                     'address'            => 'Planner Lab ' . round((float) $cab['lat'], 5) . ', ' . round((float) $cab['lng'], 5),
                     'latitude'           => $cab['lat'],
                     'longitude'          => $cab['lng'],
@@ -123,15 +127,77 @@ class PlannerLabController extends Controller
                 $savedCabinets++;
             }
 
-            foreach ($plan['planned_routes'] ?? [] as $route) {
-                $length = (int) round((float) ($route['length_m'] ?? 0));
+            // Krak (branch_temp_id) → ruta. Svaki planirani krak postaje JEDNA NetworkRoute
+            // i JEDNA NetworkBranch; svi ODO-i tog kraka se vežu na tu granu preko
+            // cabinets.branch_id (isti obrazac kao kad korisnik ručno doda ODO na granu
+            // na glavnoj mapi — vidi CabinetController::storeCabinet).
+            $consumedRouteTempIds = [];
+
+            foreach ($plan['planned_branches'] ?? [] as $branch) {
+                $branchTempId = $branch['temp_id'] ?? null;
+                $route = collect($plan['planned_routes'] ?? [])
+                    ->first(fn ($r) => ($r['branch_temp_id'] ?? null) === $branchTempId);
+
+                if (! $route) {
+                    continue;
+                }
+                $consumedRouteTempIds[] = $route['temp_id'] ?? null;
+
+                $length    = (int) round((float) ($route['length_m'] ?? 0));
                 $routePath = $route['path'] ?? [];
                 $midPoint  = $routePath[intval(count($routePath) / 2)] ?? ($routePath[0] ?? null);
                 $odfId     = $midPoint ? $nearestOdfId((float) $midPoint[0], (float) $midPoint[1]) : $odfs->first()->id;
+
+                $createdRoute = NetworkRoute::create([
+                    'project_id'        => $project->id,
+                    'odf_id'            => $odfId,
+                    'from_type'         => 'odf',
+                    'from_id'           => $odfId,
+                    'name'              => $this->uniqueName(NetworkRoute::class, $project->id, $route['name']),
+                    'route_type'        => 'distribution',
+                    'installation_type' => $route['installation'] ?? 'underground',
+                    'path'              => $route['path'],
+                    'duct_length_m'     => $length,
+                    'fiber_length_m'    => $length,
+                    'fiber_count'       => 12,
+                    'microduct_count'   => 1,
+                    'microduct_type'    => '14/10',
+                ]);
+                $savedRoutes++;
+
+                $createdBranch = $this->branchSync->createBranchForRoute($createdRoute);
+
+                if ($createdBranch) {
+                    foreach (($branch['cabinets'] ?? []) as $order => $cab) {
+                        $realId = $tempToReal[$cab['temp_id'] ?? ''] ?? null;
+                        if ($realId) {
+                            Cabinet::where('id', $realId)->update([
+                                'branch_id'    => $createdBranch->id,
+                                'branch_order' => $order,
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // Rute koje (zbog nekonzistentnih podataka) nisu povezane ni s jednim krakom —
+            // ipak ih sačuvaj da se geometrija ne izgubi, samo bez grane.
+            foreach ($plan['planned_routes'] ?? [] as $route) {
+                if (in_array($route['temp_id'] ?? null, $consumedRouteTempIds, true)) {
+                    continue;
+                }
+
+                $length    = (int) round((float) ($route['length_m'] ?? 0));
+                $routePath = $route['path'] ?? [];
+                $midPoint  = $routePath[intval(count($routePath) / 2)] ?? ($routePath[0] ?? null);
+                $odfId     = $midPoint ? $nearestOdfId((float) $midPoint[0], (float) $midPoint[1]) : $odfs->first()->id;
+
                 NetworkRoute::create([
                     'project_id'        => $project->id,
                     'odf_id'            => $odfId,
-                    'name'              => $route['name'],
+                    'from_type'         => 'odf',
+                    'from_id'           => $odfId,
+                    'name'              => $this->uniqueName(NetworkRoute::class, $project->id, $route['name']),
                     'route_type'        => 'distribution',
                     'installation_type' => $route['installation'] ?? 'underground',
                     'path'              => $route['path'],
@@ -167,7 +233,7 @@ class PlannerLabController extends Controller
                     'project_id'        => $project->id,
                     'odf_id'            => $dropOdfId,
                     'cabinet_id'        => $realCabId,
-                    'name'              => $drop['name'],
+                    'name'              => $this->uniqueName(NetworkRoute::class, $project->id, $drop['name']),
                     'route_type'        => 'drop',
                     'installation_type' => $drop['installation'] ?? 'underground',
                     'path'              => $drop['path'],
@@ -206,5 +272,31 @@ class PlannerLabController extends Controller
             'filename' => 'planner-lab-' . $project->id . '-' . now()->format('Ymd-His') . '.json',
             'data' => $validated['plan'],
         ]);
+    }
+
+    /**
+     * Isto ponašanje kao ManagesFtthData::uniqueProjectName() — temp_id brojači
+     * (LAB-ODO-001, K-1, ...) kreću ispočetka svaki preview() poziv, pa bi ponovno
+     * snimanje plana bez ovoga dupliciralo nazive unutar istog projekta.
+     */
+    private function uniqueName(string $model, int $projectId, string $base): string
+    {
+        $base = trim($base);
+        if ($base === '') {
+            $base = 'Naziv';
+        }
+
+        if (! $model::query()->where('project_id', $projectId)->where('name', $base)->exists()) {
+            return $base;
+        }
+
+        for ($suffix = 2; $suffix < 1000; $suffix++) {
+            $candidate = "{$base}-{$suffix}";
+            if (! $model::query()->where('project_id', $projectId)->where('name', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        abort(422, 'Nije moguće generisati jedinstven naziv.');
     }
 }
