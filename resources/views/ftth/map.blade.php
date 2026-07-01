@@ -93,7 +93,7 @@
     .sdot-violet { background: #8b5cf6; }
     .sdot-slate  { background: #94a3b8; }
     .sidebar-bd { padding: 11px 13px; max-height: 320px; overflow-y: auto; }
-    #bulk-plan-form > .sidebar-bd { max-height: none; overflow-y: visible; }
+    #bulk-plan-form .sidebar-bd { max-height: none; overflow-y: visible; }
     .ctx-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04); }
     .ctx-panel-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 13px; border-bottom: 1px solid #e8edf3; background: linear-gradient(180deg,#f8fafc 0%,#f3f6fa 100%); }
     /* Sidebar inputs */
@@ -204,6 +204,7 @@
     .ftth-cabinet-title { display: block; font-size: 7px; font-weight: 900; line-height: 1; letter-spacing: 0; opacity: .75; }
     .ftth-cabinet-code { display: block; font-size: 9px; font-weight: 900; line-height: 1.05; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .ftth-tag.house { width: 10px; height: 10px; border: 2px solid #fff; border-radius: 999px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
+    .ftth-house-icon .ftth-tag { left: 50%; top: 50%; }
     .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }
     .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
@@ -401,6 +402,22 @@
     .pp-new-submit:hover { background: #4f46e5; }
     #pp-new-status { font-size: 11px; color: #64748b; margin-top: 6px; }
     .pp-empty { padding: 28px 20px; text-align: center; color: #94a3b8; font-size: 13px; }
+    /* ── Custom checkbox ────────────────────────────────────────── */
+    .cb-custom {
+        -webkit-appearance: none; appearance: none;
+        width: 16px; height: 16px; min-width: 16px;
+        border: 2px solid #fbbf24; border-radius: 4px;
+        background: #fff; cursor: pointer; position: relative;
+        transition: background .15s, border-color .15s;
+    }
+    .cb-custom:checked { background: #f59e0b; border-color: #d97706; }
+    .cb-custom:checked::after {
+        content: ''; display: block; position: absolute;
+        left: 3px; top: 0px; width: 6px; height: 4px;
+        border: 2px solid #fff; border-top: none; border-right: none;
+        transform: rotate(-45deg);
+    }
+    .cb-custom:focus-visible { outline: 2px solid rgba(245,158,11,.5); outline-offset: 2px; }
 </style>
 
 {{-- Project picker modal --}}
@@ -529,8 +546,15 @@
         <div id="map-container" class="min-h-0 flex-1 w-full relative">
             <div id="network-map" class="w-full h-full"></div>
             <div id="select-rubber-band" style="display:none;position:absolute;border:2px solid #3b82f6;background:rgba(59,130,246,0.08);pointer-events:none;z-index:2000;box-sizing:border-box;"></div>
-            <div id="select-actions" style="display:none;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:2001;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;padding:6px 12px;align-items:center;gap:10px;font-size:12px;color:#e2e8f0;white-space:nowrap;">
+            <div id="cabinet-assign-panel" style="display:none;position:absolute;bottom:54px;left:50%;transform:translateX(-50%);z-index:2002;background:#1e293b;border:1px solid #7c3aed;border-radius:10px;padding:10px 12px;min-width:260px;max-width:340px;box-shadow:0 8px 28px rgba(0,0,0,.4);">
+                <div style="font:700 11px/1 system-ui,sans-serif;color:#ddd6fe;margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">Dodijeli ODO</div>
+                <div id="cabinet-assign-list" style="max-height:210px;overflow-y:auto;display:grid;gap:3px;"></div>
+                <div id="cabinet-assign-status" style="display:none;font:600 11px/1.4 system-ui;color:#a78bfa;margin-top:8px;"></div>
+                <button id="cabinet-assign-cancel" type="button" style="margin-top:8px;width:100%;padding:5px;border:1px solid #475569;border-radius:5px;background:transparent;color:#94a3b8;cursor:pointer;font:600 11px/1 system-ui,sans-serif;">Otkaži</button>
+            </div>
+            <div id="select-actions" style="display:none;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:2001;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;padding:6px 12px;align-items:center;gap:8px;font-size:12px;color:#e2e8f0;white-space:nowrap;">
                 <span id="select-count">0 selektovano</span>
+                <button id="select-assign-btn" type="button" class="tc tc-violet" style="display:none;padding:2px 10px;font-size:11px;">⤵ Dodijeli ODO</button>
                 <button id="select-delete-btn" class="tc tc-danger" style="padding:2px 10px;font-size:11px;">Obriši selektovano</button>
                 <button id="select-cancel-btn" class="tc tc-ghost" style="padding:2px 8px;font-size:11px;">✕</button>
             </div>
@@ -615,13 +639,15 @@
         </div>
 
         <!-- Plan projekta -->
-        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form" class="sidebar-card">
+        <details class="sidebar-card" open>
+        <summary class="sidebar-hd">
+            <span class="sdot sdot-indigo"></span>
+            Plan projekta
+            <span id="bulk-plan-summary" class="text-[10px] font-normal text-slate-400 truncate" style="max-width:110px">0 ODF</span>
+            <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+        </summary>
+        <form method="POST" action="{{ route('map.plan.store') }}" id="bulk-plan-form">
             @csrf
-            <div class="sidebar-hd" style="cursor:default">
-                <span class="sdot sdot-indigo"></span>
-                Plan projekta
-                <span id="bulk-plan-summary" class="ml-auto text-[10px] font-normal text-slate-400 truncate" style="max-width:130px">0 ODF</span>
-            </div>
             <div class="sidebar-bd grid gap-3">
                 <select id="active-project-id" name="project_id" class="sb-sel" required>
                     <option value="">Svi projekti</option>
@@ -646,7 +672,7 @@
                 <div class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5">
                     <div class="flex items-start justify-between gap-2">
                         <div class="text-xs font-semibold text-amber-900">Obracun rova</div>
-                        <span id="route-trench-status" class="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold text-white whitespace-nowrap">tip trase odlucuje</span>
+                        <span id="route-trench-status" class="rounded bg-amber-200 px-2 py-1 text-[10px] font-bold text-amber-900 whitespace-nowrap">tip trase odlucuje</span>
                     </div>
                     <div class="mt-1 text-xs text-amber-700 leading-5">Najpre Glavni rov, zatim mikrocijevi/krakovi.</div>
                 </div>
@@ -702,10 +728,10 @@
                         <div id="route-branch-list" class="grid max-h-28 gap-1 overflow-y-auto text-xs text-amber-900"></div>
                     </div>
                 </details>
-                <label class="flex items-center gap-2 cursor-pointer select-none rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                    <input type="checkbox" id="osm-routing-toggle" class="rounded border-slate-400 accent-amber-500">
+                <label class="flex items-center gap-2.5 cursor-pointer select-none rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 transition-colors hover:bg-amber-100">
+                    <input type="checkbox" id="osm-routing-toggle" class="cb-custom">
                     <span class="text-xs font-semibold text-amber-900">Prati ulice (OSM)</span>
-                    <span class="ml-auto text-[10px] text-slate-400 font-mono">[R]</span>
+                    <span class="ml-auto text-[10px] font-mono font-semibold text-amber-400 bg-amber-100 border border-amber-200 rounded px-1">[R]</span>
                 </label>
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
@@ -720,6 +746,7 @@
                 <div id="bulk-plan-status" class="text-xs font-semibold text-emerald-700"></div>
             </div>
         </form>
+        </details>
 
         <!-- Provjera projekta -->
         <details class="sidebar-card" open>
@@ -958,12 +985,6 @@ window.ftthMapConfig = {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin="anonymous"></script>
 <script src="{{ asset('js/ftth-dxf-layer.js') }}?v={{ filemtime(public_path('js/ftth-dxf-layer.js')) }}"></script>
-<style>
-#dxf-dropzone.dxf-dragover {
-    background: #e0e7ff !important;
-    border-color: #6366f1 !important;
-}
-</style>
 <style>
 #dxf-dropzone.dxf-dragover {
     background: #e0e7ff !important;

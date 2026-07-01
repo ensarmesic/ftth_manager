@@ -72,6 +72,9 @@ function icon(type, text = '', color = null) {
             : `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}>ODO</span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span></span></div>`;
         return L.divIcon({ className: 'ftth-label', html, iconSize: [2, 2], iconAnchor: [1, 1] });
     }
+    if (cls === 'house' || cls === 'suggest') {
+        return L.divIcon({ className: 'ftth-label ftth-house-icon', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
+    }
     return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
 function normalizeFtthDisplayCode(code) {

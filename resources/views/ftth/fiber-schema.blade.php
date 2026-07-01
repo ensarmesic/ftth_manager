@@ -148,9 +148,20 @@
     .rack-unassigned-section { display: grid; gap: .42rem; margin-bottom: .7rem; }
     .rack-unassigned-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #d97706; padding: .22rem .1rem .18rem; margin-bottom: .32rem; color: #92400e; font-size: .73rem; font-weight: 900; letter-spacing: .01em; }
     .rack-unassigned-badge { border: 1px solid #fde68a; border-radius: 999px; background: #fef3c7; padding: .1rem .48rem; color: #92400e; font-size: .66rem; font-weight: 900; }
+    /* ── Project filter bar ─────────────────────────────────────────────── */
+    .fiber-project-filter { display: flex; flex-wrap: wrap; gap: .4rem; padding: .6rem 0 .25rem; }
+    .fpf-btn { border: 1.5px solid #dbe7f3; border-radius: .45rem; background: #fff; padding: .38rem .8rem; color: #475569; font-size: .76rem; font-weight: 800; cursor: pointer; transition: background .12s, border-color .12s, color .12s; white-space: nowrap; }
+    .fpf-btn:hover { border-color: #93c5fd; background: #f0f7ff; color: #1d4ed8; }
+    .fpf-btn.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; box-shadow: inset 0 -2px 0 #2563eb; }
 </style>
 
-<section class="schema-page">
+<div class="fiber-project-filter" id="fiber-project-filter">
+    @foreach($projects as $p)
+        <button type="button" class="fpf-btn" data-filter="{{ $p->id }}">{{ $p->name }}</button>
+    @endforeach
+</div>
+
+<section class="schema-page" id="schema-page">
 @forelse($projects as $project)
     @php
         $cabinets = $project->odfs->flatMap->cabinets;
@@ -218,7 +229,7 @@
             $fiberWarnings[] = $unassignedCabs->count().' ormarić(a) nije dodjeljeno grani — vlakna nisu alocirana: '.$names.'.';
         }
     @endphp
-    <article class="schema-project">
+    <article class="schema-project" data-project-id="{{ $project->id }}">
         <div class="schema-head">
             <div>
                 <h2 class="text-base font-black text-slate-950">{{ $project->name }}</h2>
@@ -810,5 +821,30 @@ document.querySelectorAll('[data-trace-house]').forEach(button => {
         localStorage.setItem('ftthTraceHouseId', button.dataset.traceHouse);
     });
 });
+
+// ── Project filter ───────────────────────────────────────────────────────────
+(function () {
+    const buttons  = document.querySelectorAll('#fiber-project-filter .fpf-btn');
+    const articles = document.querySelectorAll('#schema-page .schema-project');
+
+    function applyFilter(projectId) {
+        articles.forEach(el => {
+            el.style.display = (!projectId || el.dataset.projectId === projectId) ? '' : 'none';
+        });
+        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.filter === projectId));
+
+        // Persist selection
+        if (projectId) sessionStorage.setItem('fiberProjectFilter', projectId);
+        else sessionStorage.removeItem('fiberProjectFilter');
+    }
+
+    buttons.forEach(btn => btn.addEventListener('click', () => applyFilter(btn.dataset.filter)));
+
+    // Restore last selection, otherwise default to first project
+    const saved = sessionStorage.getItem('fiberProjectFilter');
+    const firstId = buttons[0]?.dataset.filter ?? '';
+    const initial = (saved && [...articles].some(el => el.dataset.projectId === saved)) ? saved : firstId;
+    applyFilter(initial);
+})();
 </script>
 @endsection

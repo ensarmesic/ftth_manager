@@ -204,12 +204,17 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
 
 // ─── BOX SELECT ──────────────────────────────────────────────────────────────
 (function initBoxSelect() {
-    const rb      = document.getElementById('select-rubber-band');
-    const actPanel = document.getElementById('select-actions');
-    const countEl  = document.getElementById('select-count');
-    const delBtn   = document.getElementById('select-delete-btn');
-    const cancelBtn = document.getElementById('select-cancel-btn');
-    const mapCont  = document.getElementById('map-container');
+    const rb         = document.getElementById('select-rubber-band');
+    const actPanel   = document.getElementById('select-actions');
+    const countEl    = document.getElementById('select-count');
+    const delBtn     = document.getElementById('select-delete-btn');
+    const cancelBtn  = document.getElementById('select-cancel-btn');
+    const assignBtn  = document.getElementById('select-assign-btn');
+    const assignPanel = document.getElementById('cabinet-assign-panel');
+    const assignList  = document.getElementById('cabinet-assign-list');
+    const assignStatus = document.getElementById('cabinet-assign-status');
+    const assignCancel = document.getElementById('cabinet-assign-cancel');
+    const mapCont    = document.getElementById('map-container');
 
     let dragStart = null;
     let dragging  = false;
@@ -238,7 +243,132 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
     }
     function hideActionsPanel() {
         actPanel.style.display = 'none';
+        hideAssignPanel();
     }
+
+    // ── Cabinet assign panel ──────────────────────────────────────────────────
+    function selectedHouseIds() {
+        const base = appConfig.housesBase;
+        return currentSelection
+            .filter(e => !e.isDxf && e.url && e.url.startsWith(base))
+            .map(e => parseInt(e.url.split('/').pop(), 10))
+            .filter(id => !isNaN(id));
+    }
+
+    function updateAssignBtn() {
+        const count = selectedHouseIds().length;
+        assignBtn.style.display = count > 0 ? 'inline-flex' : 'none';
+        if (count > 0) assignBtn.textContent = `⤵ Dodijeli ODO (${count} kuća)`;
+    }
+
+    function hideAssignPanel() {
+        assignPanel.style.display = 'none';
+        assignStatus.style.display = 'none';
+        assignStatus.textContent = '';
+    }
+
+    function showAssignPanel() {
+        const projectId = parseInt(document.getElementById('active-project-id')?.value, 10);
+        const cabinets = (data.cabinets || []).filter(c => !projectId || c.project_id === projectId);
+
+        if (!cabinets.length) {
+            assignStatus.textContent = 'Nema ODO ormarića za ovaj projekat.';
+            assignStatus.style.display = 'block';
+            assignList.innerHTML = '';
+            assignPanel.style.display = 'block';
+            return;
+        }
+
+        assignList.innerHTML = cabinets.map(c => {
+            const free = c.free_ports ?? (c.capacity - (c.used_ports ?? 0));
+            const pct  = c.capacity > 0 ? Math.round((c.used_ports ?? 0) / c.capacity * 100) : 0;
+            const barColor = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#22c55e';
+            const disabled = free <= 0;
+            return `<button type="button" data-cabinet-id="${c.id}"
+                style="width:100%;text-align:left;padding:7px 9px;border-radius:6px;
+                       border:1px solid ${disabled ? '#374151' : '#4c1d95'};
+                       background:${disabled ? '#111827' : '#1e0a3c'};
+                       color:${disabled ? '#6b7280' : '#e2e8f0'};
+                       cursor:${disabled ? 'not-allowed' : 'pointer'};
+                       font:600 11px/1.3 system-ui,sans-serif;display:grid;gap:3px;"
+                ${disabled ? 'disabled' : ''}>
+                <span style="display:flex;justify-content:space-between;">
+                    <span>${c.name}</span>
+                    <span style="color:${disabled ? '#6b7280' : '#a78bfa'};font-size:10px;">${free}/${c.capacity} slobodnih</span>
+                </span>
+                <span style="height:3px;border-radius:2px;background:#374151;overflow:hidden;">
+                    <span style="display:block;height:100%;width:${pct}%;background:${barColor};border-radius:2px;"></span>
+                </span>
+            </button>`;
+        }).join('');
+
+        assignStatus.style.display = 'none';
+        assignPanel.style.display = 'block';
+
+        assignList.querySelectorAll('[data-cabinet-id]').forEach(btn => {
+            btn.addEventListener('click', () => assignHousesToCabinet(parseInt(btn.dataset.cabinetId, 10)));
+        });
+    }
+
+    async function assignHousesToCabinet(cabinetId) {
+        const houseIds = selectedHouseIds();
+        if (!houseIds.length) return;
+
+        assignList.querySelectorAll('button').forEach(b => b.disabled = true);
+        assignStatus.textContent = 'Dodjeljivanje...';
+        assignStatus.style.display = 'block';
+
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        try {
+            const res = await fetch(`${appConfig.cabinetsBase}/${cabinetId}/povezi-kuce`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ house_ids: houseIds }),
+            });
+
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                assignStatus.textContent = json.message || 'Greška pri dodjeli.';
+                assignList.querySelectorAll('button').forEach(b => b.disabled = false);
+                return;
+            }
+
+            // Ažuriraj boje markera dodijeljenih kuća
+            const color = cabinetColor(cabinetId);
+            houseIds.forEach(hid => {
+                const marker = houseMarkerById[hid];
+                if (marker) marker.setIcon(icon('house', '', color));
+            });
+
+            // Ažuriraj slobodne portove u data.cabinets za ovaj session
+            const cab = (data.cabinets || []).find(c => c.id === cabinetId);
+            if (cab) {
+                cab.used_ports = (cab.used_ports ?? 0) + houseIds.length;
+                cab.free_ports = Math.max(0, cab.capacity - cab.used_ports);
+            }
+
+            hideAssignPanel();
+            clearSelection();
+            setMode('pan');
+            document.getElementById('cad-command').textContent =
+                `Dodijeljeno ${houseIds.length} kuca ODO-u ${cab?.name ?? cabinetId}. Drop trase su kreirane automatski.`;
+
+        } catch (err) {
+            assignStatus.textContent = 'Greška: ' + err.message;
+            assignList.querySelectorAll('button').forEach(b => b.disabled = false);
+        }
+    }
+
+    assignBtn.addEventListener('click', () => {
+        if (assignPanel.style.display === 'block') hideAssignPanel();
+        else showAssignPanel();
+    });
+    assignCancel.addEventListener('click', hideAssignPanel);
 
     function applyHighlight(entry, on) {
         if (on && !entry._origStyles) entry._origStyles = {};
@@ -268,6 +398,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
             }
         });
         currentSelection = [];
+        assignBtn.style.display = 'none';
         hideActionsPanel();
         countEl.textContent = '0 selektovano';
     }
@@ -316,9 +447,12 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
 
         if (currentSelection.length > 0) {
             countEl.textContent = currentSelection.length + ' selektovano';
+            updateAssignBtn();
             showActionsPanel();
+            const hCount = selectedHouseIds().length;
+            const hint = hCount > 0 ? ` (${hCount} kuća → "Dodijeli ODO")` : '';
             document.getElementById('cad-command').textContent =
-                `SELEKT: ${currentSelection.length} element(a) selektovano. Klikni "Obriši selektovano" ili ESC.`;
+                `SELEKT: ${currentSelection.length} element(a) selektovano${hint}. Klikni akciju ili ESC.`;
         } else {
             document.getElementById('cad-command').textContent = 'SELEKT: drag da označiš elemente.';
         }
