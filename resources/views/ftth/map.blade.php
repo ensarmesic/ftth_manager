@@ -158,6 +158,7 @@
     .layer-row input[type=checkbox] { accent-color: #6366f1; flex-shrink: 0; }
     .layer-lock-btn { padding: 2px 8px; border-radius: 5px; border: 1px solid #dde3ea; background: #f8fafc; font: 500 11px/1.5 system-ui, sans-serif; color: #64748b; cursor: pointer; flex-shrink: 0; transition: background .1s; }
     .layer-lock-btn:hover { background: #edf0f4; }
+    .layer-opacity-slider { width: 44px; height: 3px; flex-shrink: 0; accent-color: #94a3b8; cursor: pointer; }
     /* ── Snap indicator ─────────────────────────────────────────── */
     @keyframes snap-pulse {
         0%   { transform: translate(-50%,-50%) scale(1);    opacity: .85; }
@@ -541,7 +542,7 @@
                 </button>
             </div>
         </div>
-        <p class="shrink-0 border-b border-slate-800 bg-slate-900 px-4 py-1 text-[10px] text-slate-500">Desni klik: obriši / premjesti · ESC prekid · ENTER završi · CTRL+Z undo · O ortho</p>
+        <p class="shrink-0 border-b border-slate-800 bg-slate-900 px-4 py-1 text-[10px] text-slate-500">Desni klik: obriši / premjesti · ESC prekid · ENTER završi · CTRL+Z undo · O ortho · G GIS graf · Selekcija: K kopiraj, P pomjeri, V rotiraj, Z zrcali, S skaliraj, N niz</p>
 
         <div id="map-container" class="min-h-0 flex-1 w-full relative">
             <div id="network-map" class="w-full h-full"></div>
@@ -555,8 +556,29 @@
             <div id="select-actions" style="display:none;position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:2001;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;padding:6px 12px;align-items:center;gap:8px;font-size:12px;color:#e2e8f0;white-space:nowrap;">
                 <span id="select-count">0 selektovano</span>
                 <button id="select-assign-btn" type="button" class="tc tc-violet" style="display:none;padding:2px 10px;font-size:11px;">⤵ Dodijeli ODO</button>
+                <span style="width:1px;height:16px;background:#334155;"></span>
+                <button id="xf-copy-btn" type="button" class="tc tc-ghost" title="Kopiraj [K]" style="padding:2px 8px;font-size:11px;">Kopiraj</button>
+                <button id="xf-move-btn" type="button" class="tc tc-ghost" title="Pomjeri [P]" style="padding:2px 8px;font-size:11px;">Pomjeri</button>
+                <button id="xf-rotate-btn" type="button" class="tc tc-ghost" title="Rotiraj [V]" style="padding:2px 8px;font-size:11px;">Rotiraj</button>
+                <button id="xf-mirror-btn" type="button" class="tc tc-ghost" title="Zrcali [Z]" style="padding:2px 8px;font-size:11px;">Zrcali</button>
+                <button id="xf-scale-btn" type="button" class="tc tc-ghost" title="Skaliraj [S]" style="padding:2px 8px;font-size:11px;">Skaliraj</button>
+                <button id="xf-array-btn" type="button" class="tc tc-ghost" title="Niz [N]" style="padding:2px 8px;font-size:11px;">Niz</button>
+                <button id="xf-align-btn" type="button" class="tc tc-ghost" title="Poravnaj" style="padding:2px 8px;font-size:11px;">Poravnaj</button>
+                <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:#94a3b8;">
+                    <input type="checkbox" id="xf-keep-original" checked style="accent-color:#3b82f6;">Original
+                </label>
+                <span style="width:1px;height:16px;background:#334155;"></span>
                 <button id="select-delete-btn" class="tc tc-danger" style="padding:2px 10px;font-size:11px;">Obriši selektovano</button>
                 <button id="select-cancel-btn" class="tc tc-ghost" style="padding:2px 8px;font-size:11px;">✕</button>
+            </div>
+            <div id="xf-value-panel" style="display:none;position:absolute;bottom:54px;left:50%;transform:translateX(-50%);z-index:2002;background:#1e293b;border:1px solid #3b82f6;border-radius:10px;padding:10px 12px;min-width:220px;box-shadow:0 8px 28px rgba(0,0,0,.4);">
+                <div id="xf-value-label" style="font:700 11px/1 system-ui,sans-serif;color:#bfdbfe;margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">Ugao</div>
+                <input id="xf-value-input" type="number" step="any" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font:600 12px system-ui;">
+                <input id="xf-value-input-2" type="number" step="any" style="display:none;width:100%;margin-top:6px;padding:6px 8px;border-radius:6px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font:600 12px system-ui;">
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                    <button id="xf-value-confirm" type="button" style="flex:1;padding:5px;border:none;border-radius:5px;background:#2563eb;color:#fff;cursor:pointer;font:600 11px/1 system-ui,sans-serif;">Primijeni</button>
+                    <button id="xf-value-cancel" type="button" style="padding:5px 10px;border:1px solid #475569;border-radius:5px;background:transparent;color:#94a3b8;cursor:pointer;font:600 11px/1 system-ui,sans-serif;">Otkaži</button>
+                </div>
             </div>
 
             {{-- Pretraga markera --}}
@@ -733,6 +755,11 @@
                     <span class="text-xs font-semibold text-amber-900">Prati ulice (OSM)</span>
                     <span class="ml-auto text-[10px] font-mono font-semibold text-amber-400 bg-amber-100 border border-amber-200 rounded px-1">[R]</span>
                 </label>
+                <label class="flex items-center gap-2.5 cursor-pointer select-none rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 transition-colors hover:bg-sky-100">
+                    <input type="checkbox" id="gis-routing-toggle" class="cb-custom">
+                    <span class="text-xs font-semibold text-sky-900">Interni GIS graf</span>
+                    <span class="ml-auto text-[10px] font-mono font-semibold text-sky-500 bg-sky-100 border border-sky-200 rounded px-1">BETA</span>
+                </label>
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
                     <button type="button" id="save-draft" class="sb-btn sb-btn-outline">Radna verzija</button>
@@ -817,8 +844,12 @@
                     <div class="sb-kicker">Max m<input id="planner-max-drop" type="number" min="20" value="90" class="sb-inp mt-1"></div>
                     <div class="flex items-end"><button type="button" id="clear-suggestions" class="sb-btn sb-btn-outline">Ocisti</button></div>
                 </div>
-                <button type="button" id="suggest-cabinets" class="sb-btn sb-btn-violet">Predlozi FTTH</button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="suggest-cabinets" class="sb-btn sb-btn-violet">Predlozi FTTH</button>
+                    <button type="button" id="preview-gis-plan" class="sb-btn sb-btn-blue">GIS plan</button>
+                </div>
                 <div id="suggestion-output" class="max-h-52 overflow-auto rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600 leading-5">Nacrtaj trasu i oznaci kuce.</div>
+                <button type="button" id="save-gis-plan" class="hidden sb-btn sb-btn-blue">Snimi GIS mrezu</button>
                 <button type="button" id="save-suggestions" class="hidden sb-btn sb-btn-violet">Potvrdi raspored</button>
             </div>
         </details>
@@ -832,7 +863,7 @@
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-0.5 py-2">
-                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'dxf' => ['DXF','#9333ea'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
+                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'gis' => ['GIS ceste','#0284c7'], 'dxf' => ['DXF','#9333ea'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
                 <div class="layer-row">
                     <label class="flex flex-1 items-center gap-2 cursor-pointer select-none min-w-0">
                         <input type="checkbox" data-layer-toggle="{{ $layer }}" checked>
@@ -840,6 +871,7 @@
                         <span class="text-slate-700 truncate">{{ $label }}</span>
                         <span data-layer-count="{{ $layer }}" class="text-[10px] text-slate-400 ml-auto shrink-0">0</span>
                     </label>
+                    <input type="range" data-layer-opacity="{{ $layer }}" min="10" max="100" value="100" title="Providnost sloja" class="layer-opacity-slider">
                     <button type="button" data-layer-lock="{{ $layer }}" class="layer-lock-btn">&#x1F513;</button>
                 </div>
                 @endforeach
@@ -928,6 +960,8 @@ window.ftthMapConfig = {
     endpoints: {
         autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),
         autoOdoConfirmBaseUrl: @json(url('/projekti/__ID__/odo-plan/confirm')),
+        gisPlanPreviewBaseUrl: @json(url('/projekti/__ID__/gis-plan/preview')),
+        gisPlanConfirmBaseUrl: @json(url('/projekti/__ID__/gis-plan/confirm')),
         projectValidationBaseUrl: @json(url('/projekti/__ID__/validacija')),
         projectDropFillBaseUrl: @json(url('/projekti/__ID__/drop-trase/popuni')),
         projectGeoJsonBaseUrl: @json(url('/projekti/__ID__/geojson')),
@@ -938,6 +972,7 @@ window.ftthMapConfig = {
         odfsBase: "{{ url('/odf') }}",
         housesBase: "{{ url('/kuce') }}",
         routesStore: "{{ route('routes.store') }}",
+        mapAutoRoute: "{{ route('map.auto-route') }}",
         mapDraftStore: "{{ route('map.draft.store') }}",
         projectsStore: "{{ route('projects.store') }}",
     },
@@ -949,6 +984,7 @@ window.ftthMapConfig = {
 <script src="{{ asset('js/map/layers.js') }}?v={{ filemtime(public_path('js/map/layers.js')) }}"></script>
 <script src="{{ asset('js/map/markers.js') }}?v={{ filemtime(public_path('js/map/markers.js')) }}"></script>
 <script src="{{ asset('js/map/context.js') }}?v={{ filemtime(public_path('js/map/context.js')) }}"></script>
+<script src="{{ asset('js/map/transform.js') }}?v={{ filemtime(public_path('js/map/transform.js')) }}"></script>
 <script src="{{ asset('js/map/routes.js') }}?v={{ filemtime(public_path('js/map/routes.js')) }}"></script>
 <script src="{{ asset('js/map/connect.js') }}?v={{ filemtime(public_path('js/map/connect.js')) }}"></script>
 <script src="{{ asset('js/map/edit.js') }}?v={{ filemtime(public_path('js/map/edit.js')) }}"></script>

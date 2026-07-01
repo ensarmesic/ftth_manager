@@ -146,6 +146,40 @@ function angleFromCenter(center, point) {
     const north = (point.lat - center.lat) * 111320;
     return normalizeAngle(Math.atan2(north, east) * 180 / Math.PI);
 }
+// ── TRANSFORM GEOMETRY (local-cartesian, meters, same approach as metersOffset/toCartesian) ──
+function toLocalMeters(origin, point) {
+    const latRad = origin.lat * Math.PI / 180;
+    return {
+        x: (point.lng - origin.lng) * 111320 * Math.max(Math.cos(latRad), 0.00001),
+        y: (point.lat - origin.lat) * 111320,
+    };
+}
+function translateLatLng(point, dLat, dLng) {
+    return L.latLng(point.lat + dLat, point.lng + dLng);
+}
+function rotateLatLng(pivot, point, angleDeg) {
+    const { x, y } = toLocalMeters(pivot, point);
+    const rad = angleDeg * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const rx = x * cos - y * sin;
+    const ry = x * sin + y * cos;
+    return metersOffset(pivot, rx, ry);
+}
+function scaleLatLng(pivot, point, factor) {
+    const { x, y } = toLocalMeters(pivot, point);
+    return metersOffset(pivot, x * factor, y * factor);
+}
+function mirrorLatLng(a, b, point) {
+    // Reflect `point` across the infinite line through a-b, all in local meters relative to a.
+    const p = toLocalMeters(a, point);
+    const d = toLocalMeters(a, b);
+    const len2 = Math.max(0.000001, d.x * d.x + d.y * d.y);
+    const t = (p.x * d.x + p.y * d.y) / len2;
+    const projX = d.x * t, projY = d.y * t;
+    const mx = 2 * projX - p.x;
+    const my = 2 * projY - p.y;
+    return metersOffset(a, mx, my);
+}
 function formatMeters(value) {
     return `${Number(value || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
 }
@@ -249,6 +283,26 @@ function removeAppendixDraftItem(item) {
 function draftNetworkPoints() { return [...branches, activeBranch].filter(b => b.length > 1); }
 function allNetworkPoints() { return [...savedRoutePoints, ...branches, activeBranch].filter(b => b.length > 1); }
 function allDistance() { return draftNetworkPoints().reduce((sum, b) => sum + distance(b), 0); }
+function entryKind(url) {
+    if (!url) return null;
+    if (url.startsWith(appConfig.routesBase)) return 'route';
+    if (url.startsWith(appConfig.odfsBase)) return 'odf';
+    if (url.startsWith(appConfig.cabinetsBase)) return 'cabinet';
+    if (url.startsWith(appConfig.housesBase)) return 'house';
+    return null;
+}
+function entryId(url) {
+    const id = parseInt(String(url || '').split('/').pop(), 10);
+    return Number.isNaN(id) ? null : id;
+}
+function gisSegmentStyle(type) {
+    const styles = {
+        road: { color: '#0284c7', weight: 2.5, opacity: .75 },
+        corridor: { color: '#16a34a', weight: 3, opacity: .7, dashArray: '8 6' },
+        sidewalk: { color: '#0d9488', weight: 2, opacity: .65, dashArray: '4 5' },
+    };
+    return styles[type] || styles.road;
+}
 function routeTypeLabel(type) {
     return type === 'trench' ? 'Glavni rov' : type === 'backbone' ? 'Backbone' : type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
 }

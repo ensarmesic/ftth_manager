@@ -34,7 +34,7 @@ FTTH Manager is a single-user Laravel 13 + SQLite desktop-class web app for desi
 
 ### Map flow (most critical path)
 
-The map at `/mapa` is a Leaflet.js canvas. `MapController::map()` loads all network elements and serialises them into `window.ftthMapConfig` (a JSON blob injected into the Blade view). The entire 4,300-line `public/js/ftth-map.js` reads from this config and makes REST calls back to the API.
+The map at `/mapa` is a Leaflet.js canvas. `MapController::map()` loads all network elements and serialises them into `window.ftthMapConfig` (a JSON blob injected into the Blade view). The JS modules under `public/js/map/` (see "Frontend JS" below) read from this config and make REST calls back to the API.
 
 **Two-phase persistence:**
 1. **Draft** (`POST /mapa/draft`) — auto-saves drawing state to `map_drafts` every 700 ms while the user is drawing. Restores on next page load.
@@ -90,7 +90,7 @@ Key model notes:
 
 ### Frontend JS
 
-`public/js/ftth-map.js` is plain (non-transpiled) JavaScript loaded directly in the Blade template — it is **not** part of the Vite pipeline. Edit it directly; no build step needed for map changes. `public/js/ftth-dxf-layer.js` handles DXF/DWG background layer rendering via canvas.
+The map's JS lives in `public/js/map/*.js` — plain (non-transpiled) scripts loaded directly, in order, by `resources/views/ftth/map.blade.php` (`state.js`, `utils.js`, `layers.js`, `markers.js`, `context.js`, `routes.js`, `connect.js`, `edit.js`, `draw.js`, `autoplan.js`, `draft.js`, `toolbar.js`, `init.js`). They are **not** part of the Vite pipeline — edit them directly, no build step needed. `init.js` bootstraps the map and holds most event-listener wiring; `state.js` declares shared globals (`data`, `map`, `layerRegistry`, undo stacks, etc.) that the other modules rely on, so it must load first. `public/js/ftth-dxf-layer.js` handles DXF/DWG background layer rendering via canvas.
 
 DXF background layers are stored in the **browser's IndexedDB**, not on the server. `MapLayerController::upload()` only handles coordinate-system detection and passes the result back for the browser to store.
 

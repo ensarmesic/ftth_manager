@@ -43,4 +43,14 @@ class Project extends Model
     {
         return $this->hasMany(ProjectAppendixItem::class);
     }
+
+    public function gisSegments(): HasMany
+    {
+        return $this->hasMany(GisSegment::class);
+    }
+
+    public function gisRestrictedAreas(): HasMany
+    {
+        return $this->hasMany(GisRestrictedArea::class);
+    }
 }

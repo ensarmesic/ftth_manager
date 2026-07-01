@@ -78,6 +78,31 @@ data.routes.forEach(route => {
     }, [], () => deleteRouteWithHistory(route, [hitLine, line, ...labels]));
     points.forEach(p => bounds.push([p.lat, p.lng]));
 });
+(data.gis_segments || []).forEach(segment => {
+    if (!segment.path?.length) return;
+    const points = segment.path.map(point => L.latLng(point[0], point[1]));
+    const line = L.polyline(points, gisSegmentStyle(segment.segment_type))
+        .bindPopup(`<b>${segment.name || 'GIS segment'}</b><br>${segment.segment_type}<br>${segment.length_m || distance(points)} m<br>${segment.project || ''}`)
+        .addTo(map);
+    trackLayer(line, 'gis');
+    points.forEach(p => bounds.push([p.lat, p.lng]));
+});
+(data.gis_restricted_areas || []).forEach(area => {
+    if (!area.polygon?.length) return;
+    const points = area.polygon.map(point => L.latLng(point[0], point[1]));
+    const polygon = L.polygon(points, {
+        color: '#dc2626',
+        weight: 2,
+        opacity: .85,
+        fillColor: '#ef4444',
+        fillOpacity: .18,
+        dashArray: '6 5',
+    })
+        .bindPopup(`<b>${area.name || 'Zabranjena zona'}</b><br>${area.area_type || 'restricted'}<br>${area.project || ''}`)
+        .addTo(map);
+    trackLayer(polygon, 'gis');
+    points.forEach(p => bounds.push([p.lat, p.lng]));
+});
 data.odfs.forEach(odf => {
     const p = L.latLng(odf.lat, odf.lng);
     const connectedCabinets = data.cabinets.filter(c => c.odf === odf.name).length;
@@ -197,6 +222,10 @@ document.getElementById('osm-routing-toggle').addEventListener('change', functio
     osmRoutingEnabled = this.checked;
     updateCommandBar();
 });
+document.getElementById('gis-routing-toggle')?.addEventListener('change', function () {
+    gisRoutingEnabled = this.checked;
+    updateCommandBar();
+});
 
 document.getElementById('mode-trench-draw').addEventListener('click', () => {
     document.getElementById('route-draw-type').value = 'trench';
@@ -243,6 +272,8 @@ document.getElementById('undo-element').addEventListener('click', () => {
 });
 document.getElementById('suggest-cabinets').addEventListener('click', suggest);
 document.getElementById('clear-suggestions').addEventListener('click', clearSuggestions);
+document.getElementById('preview-gis-plan')?.addEventListener('click', previewGisPlan);
+document.getElementById('save-gis-plan')?.addEventListener('click', saveGisPlan);
 document.getElementById('active-odf-index').addEventListener('change', event => setActiveDraftOdf(event.target.value));
 document.querySelectorAll('[data-guide-mode]').forEach(button => {
     button.addEventListener('click', () => setMode(button.dataset.guideMode));
@@ -265,6 +296,9 @@ document.querySelectorAll('[data-layer-lock]').forEach(button => {
         button.classList.toggle('text-red-700', layerLocks[type]);
         document.getElementById('cad-command').textContent = `Layer ${type}: ${layerLocks[type] ? 'zaključan' : 'otključan'}.`;
     });
+});
+document.querySelectorAll('[data-layer-opacity]').forEach(input => {
+    input.addEventListener('input', () => applyLayerOpacity(input.dataset.layerOpacity, input.value));
 });
 Object.keys(layerRegistry).forEach(updateLayerCount);
 
@@ -537,6 +571,14 @@ document.addEventListener('keydown', event => {
         osmRoutingEnabled = !osmRoutingEnabled;
         const cb = document.getElementById('osm-routing-toggle');
         if (cb) cb.checked = osmRoutingEnabled;
+        updateCommandBar();
+    }
+
+    if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        gisRoutingEnabled = !gisRoutingEnabled;
+        const cb = document.getElementById('gis-routing-toggle');
+        if (cb) cb.checked = gisRoutingEnabled;
         updateCommandBar();
     }
 });

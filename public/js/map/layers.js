@@ -2,6 +2,7 @@
 function trackLayer(layer, type) {
     if (layerRegistry[type]) layerRegistry[type].push(layer);
     layer._ftthLayerType = type;
+    if (layerOpacity[type] !== undefined) setLayerOpacity(layer, layerOpacity[type]);
     applyLayerVisibility(type);
     updateLayerCount(type);
     return layer;
@@ -28,6 +29,18 @@ function applyLayerVisibility(type) {
         }
     });
 }
+function applyLayerOpacity(type, percent) {
+    const opacity = Math.max(0, Math.min(100, Number(percent))) / 100;
+    layerOpacity[type] = opacity;
+    (layerRegistry[type] || []).forEach(layer => setLayerOpacity(layer, opacity));
+}
+function setLayerOpacity(layer, opacity) {
+    if (typeof layer.setStyle === 'function') {
+        layer.setStyle({ opacity, fillOpacity: opacity * 0.3 });
+    } else if (typeof layer.setOpacity === 'function') {
+        layer.setOpacity(opacity);
+    }
+}
 function updateCommandBar(snap = '-', previewPoint = null) {
     if (routeEdit) {
         updateRouteEditStatus();
@@ -41,7 +54,7 @@ function updateCommandBar(snap = '-', previewPoint = null) {
         segment = Math.round(map.distance(activeBranch[activeBranch.length - 1], previewPoint));
         total += segment;
     }
-    metrics.textContent = `Points: ${activeBranch.length} | Total: ${total}m | Segment: ${segment}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'} | OSM: ${osmRoutingEnabled ? (osmRoutingLoading ? '...' : 'ON') : 'OFF'}`;
+    metrics.textContent = `Points: ${activeBranch.length} | Total: ${total}m | Segment: ${segment}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'} | OSM: ${osmRoutingEnabled ? (osmRoutingLoading ? '...' : 'ON') : 'OFF'} | GIS: ${gisRoutingEnabled ? 'ON' : 'OFF'}`;
 }
 function pushUndo(action) {
     undoStack.push(action);

@@ -9,6 +9,8 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use App\Services\AutoGisPlannerService;
+use App\Services\RouteGraphService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -92,6 +94,28 @@ class ProjectController extends Controller
         }
     }
 
+    public function previewGisPlan(Request $request, Project $project, AutoGisPlannerService $planner)
+    {
+        $data = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:300'],
+        ]);
+
+        return response()->json($planner->preview($project, (int) ($data['limit'] ?? 80)));
+    }
+
+    public function confirmGisPlan(Request $request, Project $project, AutoGisPlannerService $planner)
+    {
+        $data = $request->validate([
+            'limit' => ['nullable', 'integer', 'min:1', 'max:300'],
+        ]);
+
+        try {
+            return response()->json($planner->confirm($project, (int) ($data['limit'] ?? 80)), 201);
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+    }
+
     public function confirmOdoPlan(Request $request, Project $project)
     {
         $data = $request->validate([
@@ -142,7 +166,7 @@ class ProjectController extends Controller
         return redirect()->back();
     }
 
-    public function createMissingDropRoutes(Project $project)
+    public function createMissingDropRoutes(Project $project, RouteGraphService $graph)
     {
         $existingDropHouseIds = array_flip(
             NetworkRoute::where('project_id', $project->id)
@@ -161,14 +185,21 @@ class ProjectController extends Controller
             ->get()
             ->reject(fn (House $house) => isset($existingDropHouseIds[$house->id]));
 
-        $routes = DB::transaction(function () use ($project, $houses) {
-            return $houses->map(function (House $house) use ($project) {
+        $routes = DB::transaction(function () use ($project, $houses, $graph) {
+            return $houses->map(function (House $house) use ($project, $graph) {
                 $cabinet = $house->cabinet;
                 if (! $cabinet || $cabinet->latitude === null || $cabinet->longitude === null) {
                     return null;
                 }
 
-                $path = $this->dropPathForHouse($cabinet, $house);
+                $gisRoute = $graph->shortestPath(
+                    $project->id,
+                    [(float) $cabinet->latitude, (float) $cabinet->longitude],
+                    [(float) $house->latitude, (float) $house->longitude],
+                );
+                $path = ($gisRoute && ($gisRoute['graph']['source'] ?? null) === 'gis')
+                    ? $gisRoute['path']
+                    : $this->dropPathForHouse($cabinet, $house);
                 $length = $this->polylineLength($path);
 
                 return NetworkRoute::create([
@@ -188,6 +219,7 @@ class ProjectController extends Controller
                     'microduct_type' => '10/8',
                     'status' => 'planned',
                     'path' => $path,
+                    'note' => ($gisRoute && ($gisRoute['graph']['source'] ?? null) === 'gis') ? 'Automatski rutirano kroz GIS graf.' : null,
                 ]);
             })->filter()->values();
         });

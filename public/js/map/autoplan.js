@@ -203,6 +203,128 @@ function renderAutoOdoPlan(plan) {
 
     refreshPlanSummary();
 }
+function addSavedCabinetToMap(cabinet) {
+    const enriched = {
+        ...cabinet,
+        project_id: cabinet.project_id || document.getElementById('active-project-id')?.value,
+        project: cabinet.project || '',
+        capacity: cabinet.capacity || ((cabinet.splitter_count || 1) * 4),
+        used_ports: cabinet.used_ports || 0,
+        free_ports: Math.max((cabinet.capacity || ((cabinet.splitter_count || 1) * 4)) - (cabinet.used_ports || 0), 0),
+        utilization: Math.round(((cabinet.used_ports || 0) / Math.max(cabinet.capacity || ((cabinet.splitter_count || 1) * 4), 1)) * 100),
+    };
+    const marker = L.marker([enriched.lat, enriched.lng], { icon: icon('cabinet', enriched.name, cabinetColor(enriched.id)), draggable: false })
+        .bindTooltip(`${enriched.name} · ${enriched.used_ports}/${enriched.capacity}`, { direction: 'top', offset: [0, -10] })
+        .bindPopup(`<b>FTTH: ${enriched.name}</b><br>Kapacitet: ${enriched.capacity}<br>Zauzeto: ${enriched.used_ports}`)
+        .addTo(map);
+    data.cabinets.push(enriched);
+    cabinetMarkerById[enriched.id] = marker;
+    trackLayer(marker, 'odo');
+    return marker;
+}
+
+async function previewGisPlan() {
+    clearSuggestions();
+    const projectId = document.getElementById('active-project-id').value;
+    const output = document.getElementById('suggestion-output');
+    if (!projectId) { output.innerHTML = '<b class="text-red-700">Odaberi projekat prije GIS plana.</b>'; return; }
+    output.innerHTML = 'Racunam GIS plan od ODF-a do kuca...';
+    try {
+        const url = window.ftthMapConfig.endpoints.gisPlanPreviewBaseUrl.replace('__ID__', projectId);
+        const response = await fetch(`${url}?limit=120`, { headers: { Accept: 'application/json' } });
+        const plan = await readJsonResponse(response, 'GIS plan nije izracunat.');
+        currentGisPlan = plan;
+        renderGisPlanPreview(plan);
+    } catch (error) {
+        output.innerHTML = `<b class="text-red-700">${error.message}</b>`;
+    }
+}
+
+function renderGisPlanPreview(plan) {
+    const color = '#0284c7';
+    const maxLoad = Math.max(1, ...(plan.network_segments || []).map(segment => Number(segment.house_count) || 1));
+    (plan.network_segments || []).forEach(segment => {
+        const points = (segment.path || []).map(point => L.latLng(point[0], point[1]));
+        if (points.length < 2) return;
+        const load = Number(segment.house_count) || 1;
+        const line = trackLayer(L.polyline(points, {
+            color: load > 1 ? '#0369a1' : color,
+            weight: 2 + Math.min(6, load / maxLoad * 5),
+            opacity: .88,
+        })
+            .bindPopup(`<b>GIS mrežni segment</b><br>${segment.length_m} m<br>Korisnika: ${load}<br>${(segment.houses || []).slice(0, 12).join(', ')}`)
+            .addTo(map), 'preview');
+        suggestionLayers.push(line);
+    });
+    (plan.cabinets || []).forEach(cabinet => {
+        const marker = trackLayer(L.marker([cabinet.lat, cabinet.lng], { icon: icon('suggest', cabinet.name, '#0ea5e9') })
+            .bindTooltip(`${cabinet.name} · ${cabinet.house_count}/12`, { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>${cabinet.name}</b><br>ODF: ${cabinet.odf?.name || '-'}<br>${cabinet.house_count} kuca<br>Splitteri: ${cabinet.splitter_count}`)
+            .addTo(map), 'preview');
+        suggestionLayers.push(marker);
+    });
+
+    const summary = plan.summary || {};
+    const warningsHtml = (plan.warnings || []).slice(0, 6).map(warning =>
+        `<div class="rounded bg-amber-50 px-2 py-1 text-amber-800">${warning}</div>`
+    ).join('');
+    const odfsHtml = (plan.odfs || []).map(odf =>
+        `<div class="rounded bg-white px-2 py-1"><b>${odf.name}</b>: ${odf.house_count} kuca · ${odf.splitter_count}/${odf.fiber_capacity || '-'} vlakana · ${odf.utilization_percent || 0}%</div>`
+    ).join('');
+    const routesHtml = (plan.network_segments || []).slice(0, 20).map(segment =>
+        `<div class="border-b border-slate-200 py-1"><b>${segment.house_count} korisnika</b> -> ${segment.length_m} m<br><span class="text-slate-400">${(segment.houses || []).slice(0, 8).join(', ')}</span></div>`
+    ).join('');
+    document.getElementById('suggestion-output').innerHTML = `
+        <div class="mb-2 rounded-md bg-sky-50 p-2 text-xs font-semibold text-sky-800">
+            GIS score ${summary.score ?? '-'} / 100 · ${summary.routed_houses || 0}/${summary.houses_total || 0} kuca · ODF ${summary.used_odf_count || 0}/${summary.odf_count || 0} · ODO ${summary.cabinet_count || 0}<br>
+            Rov ${summary.unique_network_m || 0} m · drop avg ${summary.average_drop_m || 0} m · max ${summary.max_drop_m || 0} m · ODO popunjenost ${summary.average_utilization_percent || 0}%
+        </div>
+        ${odfsHtml ? `<div class="mb-2 grid gap-1">${odfsHtml}</div>` : ''}
+        ${warningsHtml ? `<div class="mb-2 grid gap-1">${warningsHtml}</div>` : ''}
+        ${routesHtml || '<b class="text-red-700">Nema mrežnih segmenata kroz GIS graf.</b>'}
+        ${(summary.unrouted_houses || 0) ? `<div class="mt-2 rounded bg-amber-50 p-2 text-amber-800">Bez rute: ${summary.unrouted_houses} kuca.</div>` : ''}
+    `;
+    document.getElementById('save-suggestions').classList.add('hidden');
+    document.getElementById('save-gis-plan')?.classList.remove('hidden');
+    refreshPlanSummary();
+}
+
+async function saveGisPlan() {
+    const projectId = document.getElementById('active-project-id').value;
+    const output = document.getElementById('suggestion-output');
+    if (!projectId || !currentGisPlan) { output.innerHTML = '<b class="text-red-700">Prvo izracunaj GIS plan.</b>'; return; }
+    const button = document.getElementById('save-gis-plan');
+    button.disabled = true;
+    button.textContent = 'Snimam GIS mrezu...';
+    try {
+        const url = window.ftthMapConfig.endpoints.gisPlanConfirmBaseUrl.replace('__ID__', projectId);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ limit: 120 }),
+        });
+        const result = await readJsonResponse(response, 'GIS mreza nije snimljena.');
+        (result.routes || []).forEach(route => addSavedRouteToMap({ ...route, type: route.type || 'distribution' }));
+        (result.cabinets || []).forEach(cabinet => addSavedCabinetToMap(cabinet));
+        suggestionLayers.forEach(layer => map.removeLayer(layer));
+        suggestionLayers = [];
+        currentGisPlan = null;
+        output.innerHTML = `<b class="text-emerald-700">GIS mreza je snimljena: ${result.created || 0} trasa, ${result.created_cabinets || 0} ODO, ${result.created_drop_routes || 0} drop trasa.</b>`;
+        button.classList.add('hidden');
+        refreshStats();
+    } catch (error) {
+        output.innerHTML = `<b class="text-red-700">${error.message}</b>`;
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Snimi GIS mrezu';
+    }
+}
+
 function nearestDraftOdf(point) {
     if (!draftOdfs.length) return null;
     return draftOdfs

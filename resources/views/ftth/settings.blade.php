@@ -39,6 +39,50 @@
     </form>
 
     <div class="grid gap-5 content-start">
+        <article class="page-form">
+            <div class="page-form-header">
+                <div class="page-form-icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.145c.186-.1.446-.25.757-.448.62-.394 1.445-1.012 2.274-1.84C15.302 14.833 17 12.352 17 9A7 7 0 103 9c0 3.352 1.698 5.833 3.354 7.489a15.31 15.31 0 002.274 1.84 11.78 11.78 0 00.976.544l.066.03.018.008.006.003zM10 11.5A2.5 2.5 0 1010 6a2.5 2.5 0 000 5.5z" clip-rule="evenodd"/></svg>
+                </div>
+                <h2>GIS import cesta</h2>
+            </div>
+            <form method="POST" action="{{ route('gis.import') }}" enctype="multipart/form-data" class="page-form-body">
+                @csrf
+                <div class="grid gap-2">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Projekat</label>
+                    <select name="project_id" id="gis-project-select" class="field-input" required>
+                        @foreach(\App\Models\Project::orderBy('name')->get() as $project)
+                            <option value="{{ $project->id }}">{{ $project->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid gap-2">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">GeoJSON fajl</label>
+                    <input type="file" name="geojson" accept=".geojson,.json,application/geo+json,application/json" class="field-input" required>
+                </div>
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <label class="grid gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tip sloja
+                        <select name="segment_type" class="field-input normal-case tracking-normal">
+                            <option value="road">Ceste / putevi</option>
+                            <option value="corridor">Dozvoljeni koridor</option>
+                            <option value="sidewalk">Trotoar / ivica puta</option>
+                            <option value="restricted">Zabranjena zona</option>
+                        </select>
+                    </label>
+                    <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                        <input type="checkbox" name="replace_existing" value="1" class="w-4 h-4 rounded accent-blue-600">
+                        Zamijeni postojeći sloj
+                    </label>
+                </div>
+                <button class="btn-save">Učitaj GIS sloj</button>
+                <p class="text-xs text-slate-400 text-center -mt-1">Podržani su LineString/MultiLineString za ceste i Polygon/MultiPolygon za zabranjene zone. Interni GIS graf koristi ove slojeve za automatsko praćenje ceste bez prelaska preko privatnih parcela.</p>
+            </form>
+            <div class="page-form-body pt-0">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Uvezeni slojevi (odabrani projekat)</label>
+                <div id="gis-layers-list" class="grid gap-1.5 text-sm"></div>
+            </div>
+        </article>
+
         {{-- System info --}}
         <article class="page-form">
             <div class="page-form-header">
@@ -149,6 +193,76 @@
         st.textContent = 'Postavke su sačuvane.';
         setTimeout(() => { st.textContent = ''; }, 3000);
     });
+})();
+
+(function () {
+    const select = document.getElementById('gis-project-select');
+    const list = document.getElementById('gis-layers-list');
+    if (!select || !list) return;
+
+    const typeLabels = {
+        road: 'Ceste / putevi',
+        corridor: 'Dozvoljeni koridor',
+        sidewalk: 'Trotoar / ivica puta',
+        restricted: 'Zabranjena zona (linije)',
+        restricted_areas: 'Zabranjena zona (poligoni)',
+    };
+    const layersUrlBase = @json(url('/postavke/gis/__ID__/slojevi'));
+
+    async function loadLayers() {
+        const projectId = select.value;
+        if (!projectId) { list.innerHTML = ''; return; }
+        list.innerHTML = '<div class="text-xs text-slate-400">Učitavanje...</div>';
+        try {
+            const response = await fetch(layersUrlBase.replace('__ID__', projectId), { headers: { Accept: 'application/json' } });
+            const data = await response.json();
+            renderLayers(data.layers || []);
+        } catch (e) {
+            list.innerHTML = '<div class="text-xs text-red-600">Greška pri učitavanju slojeva.</div>';
+        }
+    }
+
+    function renderLayers(layers) {
+        if (!layers.length) {
+            list.innerHTML = '<div class="text-xs text-slate-400">Nema uvezenih slojeva za ovaj projekat.</div>';
+            return;
+        }
+        list.innerHTML = layers.map(layer => `
+            <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="min-w-0">
+                    <div class="text-xs font-semibold text-slate-700">${typeLabels[layer.type] || layer.type}</div>
+                    <div class="text-xs text-slate-400">${layer.count} objekata${layer.length_m !== null ? ' · ' + layer.length_m + ' m' : ''}</div>
+                </div>
+                <button type="button" data-delete-layer="${layer.type}" class="shrink-0 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">Obriši</button>
+            </div>
+        `).join('');
+    }
+
+    list.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-delete-layer]');
+        if (!button) return;
+        const type = button.dataset.deleteLayer;
+        if (!confirm(`Obrisati sloj "${typeLabels[type] || type}" za odabrani projekat?`)) return;
+        button.disabled = true;
+        try {
+            const response = await fetch(layersUrlBase.replace('__ID__', select.value) + '/' + type, {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            if (!response.ok) throw new Error('Brisanje nije uspjelo.');
+            await loadLayers();
+        } catch (e) {
+            alert(e.message);
+            button.disabled = false;
+        }
+    });
+
+    select.addEventListener('change', loadLayers);
+    loadLayers();
 })();
 </script>
 @endpush

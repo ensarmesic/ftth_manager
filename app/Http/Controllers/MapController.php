@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
+use App\Models\GisRestrictedArea;
+use App\Models\GisSegment;
 use App\Models\House;
 use App\Models\MapDraft;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
+use App\Services\RouteGraphService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -64,6 +67,17 @@ class MapController extends Controller
             ->when($scope, fn ($q) => $q->where('project_id', $projectId))
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
+            ->get();
+
+        $gisSegments = GisSegment::with('project')
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
+            ->where('is_allowed', true)
+            ->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])
+            ->get();
+
+        $gisRestrictedAreas = GisRestrictedArea::with('project')
+            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
+            ->where('area_type', 'restricted')
             ->get();
 
         $allProjects = Project::orderBy('name')->get();
@@ -162,6 +176,25 @@ class MapController extends Controller
                         [(float) $route->odf->latitude, (float) $route->odf->longitude],
                         [(float) $route->cabinet->latitude, (float) $route->cabinet->longitude],
                     ] : []),
+                ]),
+                'gis_segments' => $gisSegments->map(fn (GisSegment $segment) => [
+                    'id' => $segment->id,
+                    'project_id' => $segment->project_id,
+                    'project' => $segment->project->name,
+                    'name' => $segment->name,
+                    'source' => $segment->source,
+                    'segment_type' => $segment->segment_type,
+                    'length_m' => $segment->length_m,
+                    'path' => $segment->path,
+                ]),
+                'gis_restricted_areas' => $gisRestrictedAreas->map(fn (GisRestrictedArea $area) => [
+                    'id' => $area->id,
+                    'project_id' => $area->project_id,
+                    'project' => $area->project->name,
+                    'name' => $area->name,
+                    'source' => $area->source,
+                    'area_type' => $area->area_type,
+                    'polygon' => $area->polygon,
                 ]),
                 'appendix_items' => $appendixItems->map(fn (ProjectAppendixItem $item) => [
                     'id' => $item->id,
@@ -405,5 +438,30 @@ class MapController extends Controller
             'message' => 'Nacrt projekta je sacuvan.',
             'updated_at' => $draft->updated_at?->format('Y-m-d H:i'),
         ]);
+    }
+
+    public function autoRoute(Request $request, RouteGraphService $graph)
+    {
+        $data = $request->validate([
+            'project_id' => ['required', 'exists:projects,id'],
+            'from_lat' => $this->latitudeRules(true),
+            'from_lng' => $this->longitudeRules(true),
+            'to_lat' => $this->latitudeRules(true),
+            'to_lng' => $this->longitudeRules(true),
+        ]);
+
+        $result = $graph->shortestPath(
+            (int) $data['project_id'],
+            [(float) $data['from_lat'], (float) $data['from_lng']],
+            [(float) $data['to_lat'], (float) $data['to_lng']],
+        );
+
+        if (! $result) {
+            return response()->json([
+                'message' => 'Nema dovoljno postojece trase/GIS grafa za automatsku rutu.',
+            ], 422);
+        }
+
+        return response()->json($result);
     }
 }

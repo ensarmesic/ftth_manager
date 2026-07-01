@@ -54,7 +54,9 @@ const snapPixelTolerance = 30;
 let orthoEnabled = false;
 let osmRoutingEnabled = false;
 let osmRoutingLoading = false;
+let gisRoutingEnabled = false;
 let currentAutoPlan = null;
+let currentGisPlan = null;
 const undoStack = [];
 const redoStack = [];
 const routeEditUndoStack = [];
@@ -123,12 +125,14 @@ const layerRegistry = {
     backbone: [],
     distribution: [],
     drop: [],
+    gis: [],
     dxf: [],
     preview: [],
     measure: [],
     trace: [],
 };
 const layerLocks = {};
+const layerOpacity = {};
 const draftsByProject = {};
 const deleteUrls = {
     odf: id => `${appConfig.odfsBase}/${id}`,

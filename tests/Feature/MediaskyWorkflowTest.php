@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Cabinet;
+use App\Models\GisRestrictedArea;
+use App\Models\GisSegment;
 use App\Models\House;
 use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
@@ -36,6 +38,412 @@ class MediaskyWorkflowTest extends TestCase
         $this->post(route('routes.dxf.import'), ['project_id' => $project->id, 'dxf' => UploadedFile::fake()->createWithContent('trasa.dxf', $dxf)])->assertRedirect();
 
         $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'DXF trasa 1', 'microduct_type' => '14/10']);
+    }
+
+    public function test_geojson_import_creates_gis_segments_for_auto_routing(): void
+    {
+        $project = Project::create(['name' => 'GIS', 'code' => 'GIS', 'location' => 'Test', 'status' => 'planning']);
+        $geojson = json_encode([
+            'type' => 'FeatureCollection',
+            'features' => [[
+                'type' => 'Feature',
+                'properties' => ['name' => 'Test cesta'],
+                'geometry' => [
+                    'type' => 'LineString',
+                    'coordinates' => [[18.6498, 44.4493], [18.6508, 44.4493], [18.6508, 44.4503]],
+                ],
+            ]],
+        ]);
+
+        $this->post(route('gis.import'), [
+            'project_id' => $project->id,
+            'segment_type' => 'road',
+            'geojson' => UploadedFile::fake()->createWithContent('ceste.geojson', $geojson),
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('gis_segments', ['project_id' => $project->id, 'name' => 'Test cesta', 'segment_type' => 'road']);
+        $this->assertSame(1, GisSegment::where('project_id', $project->id)->count());
+
+        $this->getJson(route('map.auto-route', [
+            'project_id' => $project->id,
+            'from_lat' => 44.4493,
+            'from_lng' => 18.6498,
+            'to_lat' => 44.4503,
+            'to_lng' => 18.6508,
+        ]))->assertOk()
+            ->assertJsonPath('graph.source', 'gis')
+            ->assertJsonCount(3, 'path');
+    }
+
+    public function test_geojson_import_creates_restricted_polygon_areas(): void
+    {
+        $project = Project::create(['name' => 'GIS zone', 'code' => 'GIS-ZONE', 'location' => 'Test', 'status' => 'planning']);
+        $geojson = json_encode([
+            'type' => 'FeatureCollection',
+            'features' => [[
+                'type' => 'Feature',
+                'properties' => ['name' => 'Privatna parcela'],
+                'geometry' => [
+                    'type' => 'Polygon',
+                    'coordinates' => [[
+                        [18.6505, 44.4490],
+                        [18.6511, 44.4490],
+                        [18.6511, 44.4496],
+                        [18.6505, 44.4496],
+                        [18.6505, 44.4490],
+                    ]],
+                ],
+            ]],
+        ]);
+
+        $this->post(route('gis.import'), [
+            'project_id' => $project->id,
+            'segment_type' => 'restricted',
+            'geojson' => UploadedFile::fake()->createWithContent('parcele.geojson', $geojson),
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('gis_restricted_areas', ['project_id' => $project->id, 'name' => 'Privatna parcela', 'area_type' => 'restricted']);
+        $this->assertSame(1, GisRestrictedArea::where('project_id', $project->id)->count());
+    }
+
+    public function test_gis_layers_can_be_listed_and_deleted(): void
+    {
+        $project = Project::create(['name' => 'GIS layers', 'code' => 'GIS-LAYERS', 'location' => 'Test', 'status' => 'planning']);
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Cesta 1',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 100,
+            'path' => [[44.4493, 18.6498], [44.4503, 18.6508]],
+        ]);
+        GisRestrictedArea::create([
+            'project_id' => $project->id,
+            'name' => 'Parcela',
+            'source' => 'test',
+            'area_type' => 'restricted',
+            'polygon' => [[44.4490, 18.6505], [44.4490, 18.6511], [44.4496, 18.6511], [44.4490, 18.6505]],
+        ]);
+
+        $this->getJson(route('gis.layers', $project))
+            ->assertOk()
+            ->assertJsonFragment(['type' => 'road', 'count' => 1, 'length_m' => 100])
+            ->assertJsonFragment(['type' => 'restricted_areas', 'count' => 1, 'length_m' => null]);
+
+        $this->deleteJson(route('gis.layers.destroy', [$project, 'road']))
+            ->assertOk()
+            ->assertJsonPath('deleted', 1);
+        $this->assertSame(0, GisSegment::where('project_id', $project->id)->where('segment_type', 'road')->count());
+
+        $this->deleteJson(route('gis.layers.destroy', [$project, 'restricted_areas']))
+            ->assertOk()
+            ->assertJsonPath('deleted', 1);
+        $this->assertSame(0, GisRestrictedArea::where('project_id', $project->id)->count());
+    }
+
+    public function test_auto_routing_avoids_restricted_polygon_areas(): void
+    {
+        $project = Project::create(['name' => 'GIS avoid', 'code' => 'GIS-AVOID', 'location' => 'Test', 'status' => 'planning']);
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Direktna cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6518]],
+        ]);
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Obilaznica',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4503, 18.6498], [44.4503, 18.6518], [44.4493, 18.6518]],
+        ]);
+        GisRestrictedArea::create([
+            'project_id' => $project->id,
+            'name' => 'Privatna parcela',
+            'source' => 'test',
+            'area_type' => 'restricted',
+            'polygon' => [
+                [44.4490, 18.6505],
+                [44.4490, 18.6511],
+                [44.4496, 18.6511],
+                [44.4496, 18.6505],
+                [44.4490, 18.6505],
+            ],
+        ]);
+
+        $response = $this->getJson(route('map.auto-route', [
+            'project_id' => $project->id,
+            'from_lat' => 44.4493,
+            'from_lng' => 18.6498,
+            'to_lat' => 44.4493,
+            'to_lng' => 18.6518,
+        ]))->assertOk()
+            ->assertJsonPath('graph.source', 'gis')
+            ->assertJsonPath('graph.restricted_areas', 1)
+            ->json();
+
+        $this->assertContains([44.4503, 18.6498], $response['path']);
+        $this->assertContains([44.4503, 18.6518], $response['path']);
+    }
+
+    public function test_missing_drop_routes_use_gis_graph_when_available(): void
+    {
+        $project = Project::create(['name' => 'GIS drop', 'code' => 'GIS-DROP', 'location' => 'Test', 'status' => 'planning']);
+        $cabinet = Cabinet::create([
+            'project_id' => $project->id,
+            'name' => 'FTTH 1-1-1',
+            'address' => 'Cesta',
+            'splitter_count' => 1,
+            'ports_per_splitter' => 4,
+            'latitude' => 44.4493,
+            'longitude' => 18.6498,
+        ]);
+        House::create([
+            'project_id' => $project->id,
+            'cabinet_id' => $cabinet->id,
+            'label' => 'K-001',
+            'address' => 'Kuca',
+            'status' => 'planned',
+            'latitude' => 44.4503,
+            'longitude' => 18.6508,
+        ]);
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Drop cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6508], [44.4503, 18.6508]],
+        ]);
+
+        $this->postJson(route('projects.drop-routes.fill', $project))
+            ->assertOk()
+            ->assertJsonPath('created', 1)
+            ->assertJsonPath('routes.0.note', 'Automatski rutirano kroz GIS graf.');
+
+        $this->assertDatabaseHas('routes', [
+            'project_id' => $project->id,
+            'route_type' => 'drop',
+            'note' => 'Automatski rutirano kroz GIS graf.',
+        ]);
+    }
+
+    public function test_gis_plan_preview_routes_houses_from_odf(): void
+    {
+        $project = Project::create(['name' => 'GIS plan', 'code' => 'GIS-PLAN', 'location' => 'Test', 'status' => 'planning']);
+        Odf::create([
+            'project_id' => $project->id,
+            'name' => 'ODF-1',
+            'address' => 'Centar',
+            'fiber_capacity' => 144,
+            'port_count' => 48,
+            'latitude' => 44.4493,
+            'longitude' => 18.6498,
+        ]);
+        House::create([
+            'project_id' => $project->id,
+            'label' => 'K-001',
+            'address' => 'Kuca',
+            'status' => 'planned',
+            'latitude' => 44.4503,
+            'longitude' => 18.6508,
+        ]);
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Plan cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6508], [44.4503, 18.6508]],
+        ]);
+
+        $this->getJson(route('projects.gis-plan.preview', $project))
+            ->assertOk()
+            ->assertJsonPath('summary.status', 'ok')
+            ->assertJsonPath('summary.routed_houses', 1)
+            ->assertJsonPath('summary.graph_source', 'gis')
+            ->assertJsonPath('summary.cabinet_count', 1)
+            ->assertJsonPath('summary.score', 92)
+            ->assertJsonPath('summary.max_drop_m', 0)
+            ->assertJsonPath('warnings.0', 'GIS ODO 1 je slabo popunjen (25%).')
+            ->assertJsonPath('routes.0.house.label', 'K-001');
+    }
+
+    public function test_gis_plan_confirm_creates_unique_network_routes(): void
+    {
+        $project = Project::create(['name' => 'GIS confirm', 'code' => 'GIS-CONFIRM', 'location' => 'Test', 'status' => 'planning']);
+        Odf::create([
+            'project_id' => $project->id,
+            'name' => 'ODF-1',
+            'address' => 'Centar',
+            'fiber_capacity' => 144,
+            'port_count' => 48,
+            'latitude' => 44.4493,
+            'longitude' => 18.6498,
+        ]);
+        foreach ([[1, 44.4503, 18.6508], [2, 44.4506, 18.6508]] as [$idx, $lat, $lng]) {
+            House::create([
+                'project_id' => $project->id,
+                'label' => 'K-00'.$idx,
+                'address' => 'Kuca',
+                'status' => 'planned',
+                'latitude' => $lat,
+                'longitude' => $lng,
+            ]);
+        }
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Plan cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6508], [44.4503, 18.6508], [44.4506, 18.6508]],
+        ]);
+
+        $this->postJson(route('projects.gis-plan.confirm', $project))
+            ->assertCreated()
+            ->assertJsonPath('summary.routed_houses', 2)
+            ->assertJsonPath('created_cabinets', 1)
+            ->assertJsonPath('created_drop_routes', 2);
+
+        $this->assertSame(3, NetworkRoute::where('project_id', $project->id)->where('route_type', 'distribution')->count());
+        $this->assertSame(2, NetworkRoute::where('project_id', $project->id)->where('route_type', 'drop')->count());
+        $this->assertSame(1, Cabinet::where('project_id', $project->id)->count());
+        $this->assertSame(2, House::where('project_id', $project->id)->whereNotNull('cabinet_id')->count());
+        $this->assertSame(3, NetworkBranch::where('project_id', $project->id)->count());
+        $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'fiber_count' => 4]);
+    }
+
+    public function test_gis_plan_assigns_houses_to_nearest_odf(): void
+    {
+        $project = Project::create(['name' => 'Multi ODF', 'code' => 'MULTI-ODF', 'location' => 'Test', 'status' => 'planning']);
+        $left = Odf::create([
+            'project_id' => $project->id,
+            'name' => 'ODF-L',
+            'address' => 'L',
+            'fiber_capacity' => 144,
+            'port_count' => 48,
+            'latitude' => 44.4493,
+            'longitude' => 18.6498,
+        ]);
+        $right = Odf::create([
+            'project_id' => $project->id,
+            'name' => 'ODF-R',
+            'address' => 'R',
+            'fiber_capacity' => 144,
+            'port_count' => 48,
+            'latitude' => 44.4493,
+            'longitude' => 18.6548,
+        ]);
+        House::create(['project_id' => $project->id, 'label' => 'K-L', 'address' => 'L', 'status' => 'planned', 'latitude' => 44.4493, 'longitude' => 18.6508]);
+        House::create(['project_id' => $project->id, 'label' => 'K-R', 'address' => 'R', 'status' => 'planned', 'latitude' => 44.4493, 'longitude' => 18.6538]);
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Glavna cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6508], [44.4493, 18.6538], [44.4493, 18.6548]],
+        ]);
+
+        $preview = $this->getJson(route('projects.gis-plan.preview', $project))
+            ->assertOk()
+            ->assertJsonPath('summary.used_odf_count', 2)
+            ->json();
+
+        $this->assertEqualsCanonicalizing(['ODF-L', 'ODF-R'], collect($preview['odfs'])->pluck('name')->all());
+
+        $this->postJson(route('projects.gis-plan.confirm', $project))
+            ->assertCreated()
+            ->assertJsonPath('created_cabinets', 2);
+
+        $this->assertSame(1, Cabinet::where('project_id', $project->id)->where('odf_id', $left->id)->count());
+        $this->assertSame(1, Cabinet::where('project_id', $project->id)->where('odf_id', $right->id)->count());
+    }
+
+    public function test_gis_plan_warns_when_odf_capacity_is_near_limit(): void
+    {
+        $project = Project::create(['name' => 'ODF cap', 'code' => 'ODF-CAP', 'location' => 'Test', 'status' => 'planning']);
+        Odf::create([
+            'project_id' => $project->id,
+            'name' => 'ODF-MALI',
+            'address' => 'Centar',
+            'fiber_capacity' => 1,
+            'port_count' => 48,
+            'latitude' => 44.4493,
+            'longitude' => 18.6498,
+        ]);
+        House::create(['project_id' => $project->id, 'label' => 'K-001', 'address' => 'Kuca', 'status' => 'planned', 'latitude' => 44.4493, 'longitude' => 18.6508]);
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6508]],
+        ]);
+
+        $this->getJson(route('projects.gis-plan.preview', $project))
+            ->assertOk()
+            ->assertJsonPath('odfs.0.splitter_count', 1)
+            ->assertJsonPath('odfs.0.fiber_capacity', 1)
+            ->assertJsonPath('odfs.0.utilization_percent', 100)
+            ->assertJsonFragment(['ODF-MALI je blizu kapaciteta (100%).']);
+    }
+
+    public function test_gis_plan_balances_houses_when_nearest_odf_is_full(): void
+    {
+        $project = Project::create(['name' => 'ODF balance', 'code' => 'ODF-BALANCE', 'location' => 'Test', 'status' => 'planning']);
+        Odf::create([
+            'project_id' => $project->id,
+            'name' => 'ODF-MALI',
+            'address' => 'L',
+            'fiber_capacity' => 1,
+            'port_count' => 48,
+            'latitude' => 44.4493,
+            'longitude' => 18.6498,
+        ]);
+        Odf::create([
+            'project_id' => $project->id,
+            'name' => 'ODF-REZERVA',
+            'address' => 'R',
+            'fiber_capacity' => 10,
+            'port_count' => 48,
+            'latitude' => 44.4493,
+            'longitude' => 18.6548,
+        ]);
+        foreach ([[1, 18.6502], [2, 18.6504], [3, 18.6506], [4, 18.6508], [5, 18.6510]] as [$idx, $lng]) {
+            House::create(['project_id' => $project->id, 'label' => 'K-00'.$idx, 'address' => 'Kuca', 'status' => 'planned', 'latitude' => 44.4493, 'longitude' => $lng]);
+        }
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6502], [44.4493, 18.6504], [44.4493, 18.6506], [44.4493, 18.6508], [44.4493, 18.6510], [44.4493, 18.6548]],
+        ]);
+
+        $preview = $this->getJson(route('projects.gis-plan.preview', $project))
+            ->assertOk()
+            ->assertJsonFragment(['1 kuca je prebaceno na drugi ODF zbog kapaciteta.'])
+            ->json();
+
+        $byName = collect($preview['odfs'])->keyBy('name');
+        $this->assertSame(4, $byName['ODF-MALI']['house_count']);
+        $this->assertSame(1, $byName['ODF-REZERVA']['house_count']);
     }
 
     public function test_map_plan_saves_route_path_without_cabinet_link(): void

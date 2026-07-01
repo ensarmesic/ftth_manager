@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CabinetController;
+use App\Http\Controllers\GisController;
 use App\Http\Controllers\HouseController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapLayerController;
@@ -19,6 +20,7 @@ Route::get('/mapa', [MapController::class, 'map'])->name('map.dashboard');
 Route::redirect('/mapa/editor', '/')->name('map.index');
 Route::post('/mapa/plan', [MapController::class, 'storePlan'])->name('map.plan.store');
 Route::post('/mapa/draft', [MapController::class, 'storeDraft'])->name('map.draft.store');
+Route::get('/mapa/auto-route', [MapController::class, 'autoRoute'])->name('map.auto-route');
 Route::post('/mapa/sugestije', [CabinetController::class, 'storeSuggestedCabinets'])->name('map.suggestions.store');
 Route::get('/izvjestaji', [ReportController::class, 'reports'])->name('reports.index');
 Route::post('/izvjestaji/projekti/{project}/stavke-priloga', [ReportController::class, 'storeAppendixItem'])->name('reports.appendix-items.store');
@@ -35,12 +37,17 @@ Route::delete('/krakovi/{id}', [BranchController::class, 'deleteBranch'])->name(
 Route::get('/provjera-projekta', [ProjectController::class, 'projectCheck'])->name('project-check.index');
 Route::get('/postavke', [ProjectController::class, 'settings'])->name('settings.index');
 Route::get('/postavke/backup', [ProjectController::class, 'backup'])->name('settings.backup');
+Route::post('/postavke/gis/import', [GisController::class, 'import'])->name('gis.import');
+Route::get('/postavke/gis/{project}/slojevi', [GisController::class, 'layers'])->name('gis.layers');
+Route::delete('/postavke/gis/{project}/slojevi/{type}', [GisController::class, 'destroyLayer'])->name('gis.layers.destroy');
 
 Route::get('/projekti', [ProjectController::class, 'projects'])->name('projects.index');
 Route::post('/projekti', [ProjectController::class, 'storeProject'])->name('projects.store');
 Route::get('/projekti/{project}/pregled', [ProjectController::class, 'showProject'])->name('projects.show');
 Route::match(['put', 'patch'], '/projekti/{id}', [ProjectController::class, 'updateProject'])->name('projects.update');
 Route::post('/projekti/{project}/odo-plan/preview', [ProjectController::class, 'previewOdoPlan'])->name('projects.odo-plan.preview');
+Route::get('/projekti/{project}/gis-plan/preview', [ProjectController::class, 'previewGisPlan'])->name('projects.gis-plan.preview');
+Route::post('/projekti/{project}/gis-plan/confirm', [ProjectController::class, 'confirmGisPlan'])->name('projects.gis-plan.confirm');
 Route::post('/projekti/{project}/odo-plan/confirm', [ProjectController::class, 'confirmOdoPlan'])->name('projects.odo-plan.confirm');
 Route::get('/projekti/{project}/validacija', [ProjectController::class, 'validateProject'])->name('projects.validation');
 Route::post('/projekti/{project}/materijali/izracunaj', [ProjectController::class, 'calculateMaterials'])->name('materials.calculate');

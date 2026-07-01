@@ -235,6 +235,25 @@ async function fetchOsmRoute(from, to) {
     return data.routes[0].geometry.coordinates;
 }
 
+async function fetchGisRoute(from, to) {
+    const projectId = document.getElementById('active-project-id')?.value || window.ftthMapConfig.projectId;
+    if (!projectId) throw new Error('Nema aktivnog projekta.');
+    const params = new URLSearchParams({
+        project_id: projectId,
+        from_lat: from.lat.toFixed(7),
+        from_lng: from.lng.toFixed(7),
+        to_lat: to.lat.toFixed(7),
+        to_lng: to.lng.toFixed(7),
+    });
+    const response = await fetch(`${appConfig.mapAutoRoute}?${params.toString()}`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+    });
+    const result = await readJsonResponse(response, 'Interni GIS graf nije pronasao rutu.');
+    if (!response.ok || !result.path?.length) throw new Error(result.message || 'Interni GIS graf nije pronasao rutu.');
+    return result.path.map(p => [Number(p[1]), Number(p[0])]); // [[lng, lat], ...]
+}
+
 async function addDrawPoint(latlng) {
     if (osmRoutingLoading) return;
     if (previewBranchLine) map.removeLayer(previewBranchLine);
@@ -245,13 +264,13 @@ async function addDrawPoint(latlng) {
     hideSnapIndicator();
 
     let intermediates = [];
-    if (osmRoutingEnabled && activeBranch.length > 0) {
+    if ((gisRoutingEnabled || osmRoutingEnabled) && activeBranch.length > 0) {
         osmRoutingLoading = true;
         updateCommandBar();
         document.getElementById('cad-command').textContent = 'Tražim rutu po ulicama...';
         const from = activeBranch[activeBranch.length - 1];
         try {
-            const coords = await fetchOsmRoute(from, point);
+            const coords = gisRoutingEnabled ? await fetchGisRoute(from, point) : await fetchOsmRoute(from, point);
             intermediates = coords.slice(1, -1).map(c => L.latLng(c[1], c[0]));
         } catch (e) {
             // fallback to straight line

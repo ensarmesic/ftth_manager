@@ -425,6 +425,8 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
                 }
             }
             if (hit) {
+                entry.kind = entryKind(entry.url);
+                entry.id = entryId(entry.url);
                 currentSelection.push(entry);
                 applyHighlight(entry, true);
             }
