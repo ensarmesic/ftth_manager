@@ -490,6 +490,7 @@
             <div class="tc-sep"></div>
             <button type="button" id="mode-draw" class="tc tc-amber">Trasa</button>
             <button type="button" id="mode-trench-draw" class="tc tc-slate">Rov</button>
+            <button type="button" id="mode-trace-branch" class="tc tc-amber">Krak po liniji</button>
             <button type="button" id="mode-ruler" class="tc tc-rose">Mjerač</button>
             <div class="tc-sep"></div>
             <button type="button" id="mode-connect" class="tc tc-blue">ODF↔ODO</button>

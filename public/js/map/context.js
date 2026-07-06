@@ -101,6 +101,8 @@ function registerBranchContext(line) {
     };
     line.on('contextmenu', openMenu);
     line.on('click', event => {
+        if (mode === 'trace-branch') { L.DomEvent.stop(event); handleTraceBranchClick(event.latlng); return; }
+        if (mode === 'draw') { L.DomEvent.stop(event); map.closePopup(); addDrawPoint(event.latlng); return; }
         if (mode === 'pan') openMenu(event);
     });
 }
@@ -187,6 +189,16 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
     };
     triggerLayer.on('contextmenu', openMenu);
     triggerLayer.on('click', event => {
+        if (mode === 'trace-branch') { L.DomEvent.stop(event); handleTraceBranchClick(event.latlng); return; }
+        // A saved route line (markers already handle 'draw' mode via their own
+        // dedicated click listener, registered before this one — don't
+        // duplicate the point insertion for them here).
+        if (mode === 'draw' && typeof triggerLayer.getLatLng !== 'function') {
+            L.DomEvent.stop(event);
+            triggerLayer.closePopup?.();
+            addDrawPoint(event.latlng);
+            return;
+        }
         if (!['pan', 'join'].includes(mode)) return;
         if (layerLocked(triggerLayer._ftthLayerType)) {
             document.getElementById('cad-command').textContent = `Layer ${triggerLayer._ftthLayerType} je zaključan.`;

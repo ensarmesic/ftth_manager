@@ -4,6 +4,10 @@ const appConfig = window.ftthMapConfig.endpoints;
 const defaultCenter = [44.4493, 18.6498];
 const map = L.map('network-map', { zoomSnap: 0.25 }).setView(defaultCenter, 17);
 window.ftthNetworkMap = map;
+// The map's container height depends on sibling panels (branch list, status bar,
+// accordions) that change size as the user works — without this, Leaflet keeps
+// stale pixel dimensions and every click/snap/pixel calc drifts off the real map.
+new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('network-map'));
 let mode = 'pan';
 let mapViewMode = 'cad';
 let activeBranch = [];
@@ -12,6 +16,9 @@ let quickBranchWorkflow = false;
 let activeBranchMarkers = [];
 let activeBranchLine = null;
 let previewBranchLine = null;
+let traceBranchStart = null;
+let traceBranchStartSnap = null;
+let traceBranchPreviewLine = null;
 let snapIndicator = null;
 let routeEdit = null;
 let selectedAttributeRoute = null;

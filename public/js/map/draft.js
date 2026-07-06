@@ -225,7 +225,9 @@ function restoreDraft(payload) {
     });
 
     (payload.odfs || []).forEach((point, index) => {
-        const latLng = L.latLng(point[0], point[1]);
+        const lat = Array.isArray(point) ? point[0] : point.lat;
+        const lng = Array.isArray(point) ? point[1] : point.lng;
+        const latLng = L.latLng(lat, lng);
         const item = { marker: null, name: Array.isArray(point) ? `ODF-${String(index + 1).padStart(2, '00')}` : (point.name || `ODF-${String(index + 1).padStart(2, '00')}`) };
         const marker = L.marker(latLng, { icon: icon('odf', 'ODF'), draggable: true }).bindTooltip('ODF · 0 FTTH', { direction: 'top', offset: [0, -10] }).addTo(map);
         item.marker = marker;

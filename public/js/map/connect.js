@@ -293,6 +293,118 @@ function shortestTraceNetworkPath(fromPoint, toPoint) {
     }
     return keys.map(key => graph.nodes[key] || L.latLng(...key.split(',').map(Number)));
 }
+// Same graph/Dijkstra approach as above, but also includes not-yet-saved draft
+// branches, so a krak can be auto-traced along a route that was just drawn
+// (e.g. the "Krak po liniji" tool) and not only along already-saved routes.
+function traceGraphSources() {
+    const saved = data.routes
+        .filter(route => route.type !== 'drop' && route.path?.length > 1)
+        .map(route => ({ key: `saved:${route.id}`, path: route.path }));
+    const drafts = branches
+        .map((points, index) => ({ index, points }))
+        .filter(({ index, points }) => points.length > 1 && branchMeta[index]?.route_type !== 'drop')
+        .map(({ index, points }) => ({ key: `draft:${index}`, path: points.map(p => [p.lat, p.lng]) }));
+    return [...saved, ...drafts];
+}
+// Two routes that meet at a T-junction rarely share pixel-identical coordinates
+// (the branch was drawn/snapped independently of the trunk's exact vertex), so
+// matching graph nodes by exact lat/lng breaks the connection right at the
+// junction. Merge vertices that are within a couple of metres of each other
+// into the same graph node instead. Only used for route-to-route topology
+// edges — the click-point-to-projection edges keep exact keys untouched.
+function traceGraphNodeKey(graph, point, toleranceMeters = 3) {
+    const exactKey = networkNodeKey(point);
+    if (graph.nodes[exactKey]) return exactKey;
+    let bestKey = null, bestDistance = toleranceMeters;
+    for (const key in graph.nodes) {
+        const distance = map.distance(graph.nodes[key], point);
+        if (distance <= bestDistance) { bestDistance = distance; bestKey = key; }
+    }
+    return bestKey || exactKey;
+}
+function addTraceGraphVertexEdge(graph, a, b) {
+    const ak = traceGraphNodeKey(graph, a), bk = traceGraphNodeKey(graph, b), weight = map.distance(a, b);
+    graph.nodes[ak] ??= a;
+    graph.nodes[bk] ??= b;
+    graph.edges[ak] ??= [];
+    graph.edges[bk] ??= [];
+    graph.edges[ak].push({ key: bk, weight });
+    graph.edges[bk].push({ key: ak, weight });
+}
+function traceGraphProjection(point, sources) {
+    let best = null;
+    sources.forEach(source => {
+        const path = source.path.map(p => L.latLng(p[0], p[1]));
+        for (let i = 1; i < path.length; i++) {
+            const projected = projectOnSegment(point, path[i - 1], path[i]);
+            const distance = map.distance(point, projected);
+            if (!best || distance < best.distance) best = { source, point: projected, distance, segmentIndex: i };
+        }
+    });
+    return best;
+}
+function buildTraceGraph(fromPoint, toPoint, fromHint = null, toHint = null) {
+    const sources = traceGraphSources();
+    // If the caller already knows exactly which route the point snapped to
+    // (e.g. from traceSnapTarget), trust that instead of re-searching for the
+    // globally nearest route — two routes running a metre apart would
+    // otherwise make this pick whichever one is a hair closer, regardless of
+    // which line the user actually clicked on.
+    const fromProjection = fromHint?.source ? { source: fromHint.source, point: fromPoint, segmentIndex: fromHint.segmentIndex } : traceGraphProjection(fromPoint, sources);
+    const toProjection = toHint?.source ? { source: toHint.source, point: toPoint, segmentIndex: toHint.segmentIndex } : traceGraphProjection(toPoint, sources);
+    const graph = { nodes: {}, edges: {}, startKey: networkNodeKey(fromPoint), endKey: networkNodeKey(toPoint) };
+    const insertsBySource = {};
+    if (fromProjection) {
+        insertsBySource[fromProjection.source.key] ??= [];
+        insertsBySource[fromProjection.source.key].push({ ...fromProjection, sourcePoint: fromPoint, sourceKey: graph.startKey });
+    }
+    if (toProjection) {
+        insertsBySource[toProjection.source.key] ??= [];
+        insertsBySource[toProjection.source.key].push({ ...toProjection, sourcePoint: toPoint, sourceKey: graph.endKey });
+    }
+    sources.forEach(source => {
+        const path = source.path.map(p => L.latLng(p[0], p[1]));
+        for (let i = 1; i < path.length; i++) {
+            const segmentPoints = [
+                { point: path[i - 1], t: 0 },
+                { point: path[i], t: 1 },
+                ...(insertsBySource[source.key] || [])
+                    .filter(insert => insert.segmentIndex === i)
+                    .map(insert => ({ point: insert.point, t: 0.5, sourcePoint: insert.sourcePoint, sourceKey: insert.sourceKey })),
+            ].sort((a, b) => a.t - b.t);
+            for (let j = 1; j < segmentPoints.length; j++) addTraceGraphVertexEdge(graph, segmentPoints[j - 1].point, segmentPoints[j].point);
+            segmentPoints.filter(item => item.sourcePoint).forEach(item => addNetworkEdge(graph, item.sourcePoint, item.point));
+        }
+    });
+    return graph;
+}
+function shortestTracePath(fromPoint, toPoint, fromHint = null, toHint = null) {
+    const graph = buildTraceGraph(fromPoint, toPoint, fromHint, toHint);
+    const distances = { [graph.startKey]: 0 };
+    const previous = {};
+    const queue = new Set([graph.startKey, graph.endKey, ...Object.keys(graph.nodes)]);
+    while (queue.size) {
+        const current = [...queue].sort((a, b) => (distances[a] ?? Infinity) - (distances[b] ?? Infinity))[0];
+        if (!current || (distances[current] ?? Infinity) === Infinity) break;
+        queue.delete(current);
+        if (current === graph.endKey) break;
+        (graph.edges[current] || []).forEach(edge => {
+            const nextDistance = distances[current] + edge.weight;
+            if (nextDistance < (distances[edge.key] ?? Infinity)) {
+                distances[edge.key] = nextDistance;
+                previous[edge.key] = current;
+                queue.add(edge.key);
+            }
+        });
+    }
+    if (!previous[graph.endKey] && graph.startKey !== graph.endKey) return null;
+    const keys = [];
+    for (let key = graph.endKey; key; key = previous[key]) {
+        keys.unshift(key);
+        if (key === graph.startKey) break;
+    }
+    return keys.map(key => graph.nodes[key] || L.latLng(...key.split(',').map(Number)));
+}
 function showFiberTrace(houseId) {
     clearFiberTrace();
     const house = data.houses.find(item => Number(item.id) === Number(houseId));

@@ -8,6 +8,11 @@ function setMode(next) {
     if (next !== 'join') resetJoinRoutes();
     if (next !== 'draw') hideSnapIndicator();
     if (next !== 'split') hideSplitPreview();
+    if (next !== 'trace-branch') {
+        traceBranchStart = null;
+        traceBranchStartSnap = null;
+        if (traceBranchPreviewLine) { map.removeLayer(traceBranchPreviewLine); traceBranchPreviewLine = null; }
+    }
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-zinc-900'));
     const button = document.getElementById(`mode-${next}`);
     if (button) button.classList.add('ring-2', 'ring-zinc-900');
@@ -22,6 +27,7 @@ function setMode(next) {
         'boring-fi-130': 'RAKETA FI130: klikni lokaciju podbusivanja ispod ceste.',
         ruler: 'MJERAČ: klikni prvu tačku. Svaki naredni klik mjeri od prethodne tačke. ESC završava.',
         'branch-source': 'NOVI KRAK IZ ODO: klikni ormarić iz kojeg novi krak polazi.',
+        'trace-branch': 'KRAK PO LINIJI: klikni početnu tačku na nacrtanoj liniji (rov ili trasa).',
         connect: 'CONNECT: odaberi ODF',
         'connect-houses': 'CONNECT HOUSES: odaberi ODO',
         trace: 'TRACE: klikni kuću za prikaz optičkog puta',
@@ -405,6 +411,28 @@ function getSnapTarget(latlng) {
     });
     return bestSec && bestSec.distance <= snapPixelTolerance ? bestSec : null;
 }
+// getSnapTarget() only reports a bare point/label — it never says WHICH route a
+// 'segment'/'vertex' match came from. When two routes run close and parallel
+// (a trench and a cable following the same street a metre apart), the trace
+// graph would otherwise search "nearest route" all over again on its own and
+// can silently pick the OTHER line. This re-derives the exact same winning
+// route from getSnapTarget's own result so the trace always follows what the
+// snap indicator actually shows the user.
+function traceSnapTarget(latlng) {
+    const snap = getSnapTarget(latlng);
+    if (!snap || ['odf', 'cabinet', 'house'].includes(snap.type)) return snap ? { ...snap, source: null } : null;
+    const sources = traceGraphSources();
+    let best = null;
+    sources.forEach(source => {
+        const path = source.path.map(p => L.latLng(p[0], p[1]));
+        for (let i = 1; i < path.length; i++) {
+            const projected = projectOnSegment(snap.latlng, path[i - 1], path[i]);
+            const distance = map.distance(snap.latlng, projected);
+            if (!best || distance < best.distance) best = { source, segmentIndex: i, distance };
+        }
+    });
+    return { ...snap, source: best?.source || null, segmentIndex: best?.segmentIndex };
+}
 function showSnapIndicator(target) {
     if (!target) { hideSnapIndicator(); return; }
     const color = (target.type === 'odf' || target.type === 'cabinet') ? '#22c55e'
@@ -474,6 +502,82 @@ function networkDropDistance(cabinetPoint, housePoint) {
 function snapCabinetToRoute(point) {
     const snapped = nearestOnNetwork(point);
     return snapped.point || point;
+}
+// When picking the SECOND (end) point, prefer staying on the exact route the
+// trace started from — only cross to a different one (e.g. a real T-junction
+// where the branch visibly diverges) if the end click isn't reasonably close
+// to the starting route at all. Without this, two routes running a metre or
+// two apart (a trench and a cable following the same street) would make the
+// end point silently "lane switch" onto whichever is a hair closer, even
+// though the user never left the line they started tracing.
+function resolveTraceEndPoint(clickLatlng, snappedPoint, snap, startSnap) {
+    // A marker (ODF/ormarić/kuća) always wins — only prefer "stay on the same
+    // route" when the click would otherwise resolve to an ambiguous route point.
+    if (['odf', 'cabinet', 'house'].includes(snap?.type)) return { point: snappedPoint, hint: snap };
+    if (startSnap?.source) {
+        const sameSourceProjection = traceGraphProjection(clickLatlng, [startSnap.source]);
+        if (sameSourceProjection && layerPixelDistance(clickLatlng, sameSourceProjection.point) <= snapPixelTolerance) {
+            return { point: sameSourceProjection.point, hint: { source: startSnap.source, segmentIndex: sameSourceProjection.segmentIndex } };
+        }
+    }
+    return { point: snappedPoint, hint: snap };
+}
+// When the map is showing "Svi projekti", data.odfs/data.cabinets includes
+// markers from every project — snapping the trace's from/to link onto one of
+// those would try to save a route with an ODF/ormarić id that doesn't belong
+// to the project actually being saved, which the server correctly rejects.
+function snapBelongsToActiveProject(snapItem) {
+    if (!snapItem || !['odf', 'cabinet'].includes(snapItem.type)) return true;
+    const activeProjectId = Number(document.getElementById('active-project-id')?.value || 0);
+    if (!activeProjectId) return false;
+    const list = snapItem.type === 'odf' ? data.odfs : data.cabinets;
+    const match = list.find(entry => Number(entry.id) === Number(snapItem.id));
+    return !match || Number(match.project_id) === activeProjectId;
+}
+function handleTraceBranchClick(latlng) {
+    const snap = traceSnapTarget(latlng);
+    const point = snap?.latlng || latlng;
+    if (!traceBranchStart) {
+        traceBranchStart = point;
+        traceBranchStartSnap = snap;
+        document.getElementById('cad-command').textContent = 'KRAK PO LINIJI: klikni krajnju tačku.';
+        return;
+    }
+    const startPoint = traceBranchStart;
+    const startSnap = traceBranchStartSnap;
+    traceBranchStart = null;
+    traceBranchStartSnap = null;
+    if (traceBranchPreviewLine) { map.removeLayer(traceBranchPreviewLine); traceBranchPreviewLine = null; }
+
+    const { point: endPoint, hint: endHint } = resolveTraceEndPoint(latlng, point, snap, startSnap);
+    const path = shortestTracePath(startPoint, endPoint, startSnap, endHint) || networkPathBetween(startPoint, endPoint);
+    if (!path || path.length < 2) {
+        document.getElementById('cad-command').textContent = 'KRAK PO LINIJI: nije pronađena linija u blizini obe tačke.';
+        return;
+    }
+
+    // Anchor from_type/from_id/odf_id on whichever end actually touched a real
+    // ODF/ormarić (start takes priority), so the traced krak is really linked
+    // to it — not just visually touching it. When the map shows "Svi
+    // projekti", data.odfs/data.cabinets includes markers from OTHER projects
+    // too — snapping to one of those would save an ODF/ormarić id that
+    // doesn't belong to the project being saved and the plan save rejects it
+    // ("ODF #X nije validan za ovaj projekat"). Only anchor on a marker that
+    // actually belongs to the active project.
+    const anchorSnap = snapBelongsToActiveProject(startSnap) && ['odf', 'cabinet'].includes(startSnap?.type)
+        ? startSnap
+        : (snapBelongsToActiveProject(snap) && ['odf', 'cabinet'].includes(snap?.type) ? snap : null);
+    const startSource = document.getElementById('route-start-source');
+    const originalStartSource = startSource.value;
+    startSource.value = anchorSnap ? `${anchorSnap.type}:${anchorSnap.id}` : '';
+
+    const endTarget = snapBelongsToActiveProject(snap) ? snap : null;
+    activeBranch = path;
+    activeBranchSnapTargets = path.map(() => null);
+    activeBranchSnapTargets[activeBranchSnapTargets.length - 1] = endTarget || null;
+    finishBranch();
+    startSource.value = originalStartSource;
+    document.getElementById('cad-command').textContent += ' Klikni novu početnu tačku za sljedeći krak ili promijeni alat.';
 }
 function nearestOdf(point) {
     return data.odfs.map(o => ({...o, distance: Math.round(map.distance(point, L.latLng(o.lat, o.lng)))})).sort((a,b) => a.distance-b.distance)[0] || null;

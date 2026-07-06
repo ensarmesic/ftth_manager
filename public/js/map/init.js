@@ -212,7 +212,7 @@ savedHouseCount = housePoints.length;
 if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 }); else map.setView(defaultCenter, 17);
 
 // ── MODE BUTTON LISTENERS ──────────────────────────────────────────────────────
-['pan','select','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','connect','connect-houses','trace','join','split'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
+['pan','select','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','trace-branch','connect','connect-houses','trace','join','split'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
     setMode(m);
     if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
         document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
@@ -362,11 +362,6 @@ document.getElementById('bulk-plan-form').addEventListener('submit', async event
             body: new FormData(form),
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || 'Plan nije snimljen. Provjeri podatke.');
-        }
-
         const result = await readJsonResponse(response, 'Plan nije snimljen. Provjeri podatke.');
         delete draftsByProject[form.elements.project_id.value];
         status.textContent = `${result.message} Osvjezavam trajno spremljenu mapu...`;
@@ -491,6 +486,16 @@ map.on('mousemove', e => {
         }
         return;
     }
+    if (mode === 'trace-branch' && traceBranchStart) {
+        const snap = traceSnapTarget(e.latlng);
+        showSnapIndicator(snap);
+        const point = snap?.latlng || e.latlng;
+        const { point: endPoint, hint: endHint } = resolveTraceEndPoint(e.latlng, point, snap, traceBranchStartSnap);
+        const path = shortestTracePath(traceBranchStart, endPoint, traceBranchStartSnap, endHint) || networkPathBetween(traceBranchStart, endPoint);
+        if (traceBranchPreviewLine) traceBranchPreviewLine.setLatLngs(path);
+        else traceBranchPreviewLine = L.polyline(path, { color: '#f59e0b', weight: 3, opacity: .8, dashArray: '4 7' }).addTo(map);
+        return;
+    }
     redrawPreviewBranch(e.latlng);
     if (mode !== 'draw') updateCommandBar();
 });
@@ -522,6 +527,11 @@ document.addEventListener('keydown', event => {
         }
         if (mode === 'ruler') {
             clearRuler();
+        }
+        if (mode === 'trace-branch') {
+            traceBranchStart = null;
+            traceBranchStartSnap = null;
+            if (traceBranchPreviewLine) { map.removeLayer(traceBranchPreviewLine); traceBranchPreviewLine = null; }
         }
         setMode('pan');
         return;
@@ -586,6 +596,7 @@ document.addEventListener('keydown', event => {
 map.on('click', e => {
     const lat = e.latlng.lat.toFixed(7), lng = e.latlng.lng.toFixed(7);
     if (mode === 'draw') { addDrawPoint(e.latlng); return; }
+    if (mode === 'trace-branch') { handleTraceBranchClick(e.latlng); return; }
     if (mode === 'split') {
         if (splitPreview) {
             const { route, latlng, line, labels } = splitPreview;
