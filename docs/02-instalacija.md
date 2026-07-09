@@ -10,9 +10,9 @@
 | Disk | 200 MB | 500 MB |
 | RAM | 512 MB | 1 GB+ |
 
-Za veliki DXF/DWG fajlove potrebno je `memory_limit = 1G` u PHP konfiguraciji.
+Za velike DXF fajlove potrebno je `memory_limit = 1G` u PHP konfiguraciji.
 
-Za automatsku konverziju DWG→DXF potreban je `dwg2dxf` (LibreDWG) instaliran i dostupan u `$PATH`. Bez njega, fajl treba ručno sačuvati kao DXF iz AutoCAD-a ili FreeCAD-a.
+Pozadinski slojevi na mapi podržavaju samo DXF. DWG fajlovi nisu podržani — sačuvaj ih kao DXF (Save As → DXF) iz AutoCAD-a ili FreeCAD-a prije uvoza.
 
 ---
 

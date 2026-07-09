@@ -286,7 +286,7 @@ class MapController extends Controller
         $createdHouses = collect();
         $createdSecondaryBranches = collect();
 
-        DB::transaction(function () use ($plan, $projectId, $resolveOdfId, $resolveCabinetId, &$createdOdfs, &$createdCabinets, &$createdHouses, &$createdSecondaryBranches): void {
+        DB::transaction(function () use ($plan, $projectId, $resolveOdfId, $resolveCabinetId, &$projectOdfIds, &$projectCabinetIds, &$createdOdfs, &$createdCabinets, &$createdHouses, &$createdSecondaryBranches): void {
             foreach (($plan['odfs'] ?? []) as $index => $odf) {
                 $createdOdfs[$index] = Odf::create([
                     'project_id' => $projectId,

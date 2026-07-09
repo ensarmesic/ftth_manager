@@ -22,7 +22,9 @@ class MapLayerController extends Controller
             $path = $file->getPathname();
 
             if ($ext === 'dwg') {
-                return $this->handleDwg($path, $name);
+                return response()->json([
+                    'error' => 'DWG nije podržan. Sačuvaj fajl kao DXF (Save As → DXF) iz AutoCAD-a/FreeCAD-a i pokušaj ponovo.',
+                ], 422);
             }
 
             $geojson = $this->dxfToGeoJson($path, $name);
@@ -297,27 +299,4 @@ class MapLayerController extends Controller
         return (string) preg_replace('/[\x80-\xFF]/', '', $s);
     }
 
-    private function handleDwg(string $path, string $name): JsonResponse
-    {
-        $out = sys_get_temp_dir().'/'.uniqid('dxf_').'.dxf';
-
-        $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
-        @exec('dwg2dxf -o '.escapeshellarg($out).' '.escapeshellarg($path).' 2>'.$null, $_, $code);
-
-        if ($code === 0 && file_exists($out)) {
-            $result = $this->dxfToGeoJson($out, $name);
-            @unlink($out);
-
-            return response()->json($result);
-        }
-
-        if (file_exists($out)) {
-            @unlink($out);
-        }
-
-        return response()->json([
-            'error' => 'DWG fajl nije moguće automatski konvertovati. '
-                     .'Otvorite u AutoCAD-u ili FreeCAD-u i snimite kao DXF (ASCII R12/2000).',
-        ], 422);
-    }
 }

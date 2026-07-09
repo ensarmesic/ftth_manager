@@ -90,7 +90,7 @@ Key model notes:
 
 ### Frontend JS
 
-The map's JS lives in `public/js/map/*.js` — plain (non-transpiled) scripts loaded directly, in order, by `resources/views/ftth/map.blade.php` (`state.js`, `utils.js`, `layers.js`, `markers.js`, `context.js`, `routes.js`, `connect.js`, `edit.js`, `draw.js`, `autoplan.js`, `draft.js`, `toolbar.js`, `init.js`). They are **not** part of the Vite pipeline — edit them directly, no build step needed. `init.js` bootstraps the map and holds most event-listener wiring; `state.js` declares shared globals (`data`, `map`, `layerRegistry`, undo stacks, etc.) that the other modules rely on, so it must load first. `public/js/ftth-dxf-layer.js` handles DXF/DWG background layer rendering via canvas.
+The map's JS lives in `public/js/map/*.js` — plain (non-transpiled) scripts loaded directly, in order, by `resources/views/ftth/map.blade.php` (`state.js`, `utils.js`, `layers.js`, `markers.js`, `context.js`, `routes.js`, `connect.js`, `edit.js`, `draw.js`, `autoplan.js`, `draft.js`, `toolbar.js`, `init.js`). They are **not** part of the Vite pipeline — edit them directly, no build step needed. `init.js` bootstraps the map and holds most event-listener wiring; `state.js` declares shared globals (`data`, `map`, `layerRegistry`, undo stacks, etc.) that the other modules rely on, so it must load first. `public/js/ftth-dxf-layer.js` handles DXF background layer rendering via canvas (DWG is not supported — must be saved as DXF first).
 
 DXF background layers are stored in the **browser's IndexedDB**, not on the server. `MapLayerController::upload()` only handles coordinate-system detection and passes the result back for the browser to store.
 

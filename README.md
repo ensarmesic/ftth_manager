@@ -95,13 +95,13 @@ Web aplikacija za planiranje, vizualizaciju i dokumentaciju pasivnih optičkih F
 
 ### Preporučeno
 
-| Komponenta         | Preporuka                                 |
-| ------------------ | ----------------------------------------- |
-| RAM                | 1 GB ili više                             |
-| PHP `memory_limit` | `256M` minimalno · `1G` za veliki DXF/DWG |
+| Komponenta         | Preporuka                              |
+| ------------------ | --------------------------------------- |
+| RAM                | 1 GB ili više                           |
+| PHP `memory_limit` | `256M` minimalno · `1G` za veliki DXF   |
 | OS                 | Windows 10/11 · Ubuntu 22.04+ · macOS 13+ |
 
-> **DWG fajlovi:** Automatska DWG→DXF konverzija zahtijeva `dwg2dxf` (LibreDWG) instaliran i dostupan u `$PATH`. Bez njega, snimi fajl kao DXF iz AutoCAD-a ili FreeCAD-a.
+> **Podloge:** Mapa učitava samo DXF pozadinske slojeve. DWG fajlovi nisu podržani — sačuvaj ih kao DXF (Save As → DXF) iz AutoCAD-a/FreeCAD-a prije uvoza.
 
 ---
 

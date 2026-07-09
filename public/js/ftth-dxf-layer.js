@@ -1,5 +1,5 @@
 /**
- * FTTH DXF/DWG Layer Manager
+ * FTTH DXF Layer Manager
  * Koordinatna transformacija: MGI Gauss-Krüger (zone 6/7) → WGS84
  * Zahtijeva proj4.js
  */
@@ -674,8 +674,12 @@
     const PALETTE = ['#d946ef', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4'];
 
     async function upload(file) {
-        if (!/\.(dxf|dwg)$/i.test(file.name)) {
-            showErr('Molimo odaberi DXF ili DWG fajl.');
+        if (/\.dwg$/i.test(file.name)) {
+            showErr('DWG nije podržan. Sačuvaj fajl kao DXF (Save As → DXF) iz AutoCAD-a/FreeCAD-a i pokušaj ponovo.');
+            return;
+        }
+        if (!/\.dxf$/i.test(file.name)) {
+            showErr('Molimo odaberi DXF fajl.');
             return;
         }
         setBusy(true);

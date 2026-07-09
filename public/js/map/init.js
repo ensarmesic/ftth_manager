@@ -645,15 +645,23 @@ map.on('click', e => {
         return;
     }
     if (mode === 'odf') {
-        if (selectedDraftElement?.item.pending) closeDraftElementEditor();
-        const item = { marker: null, name: '', pending: true };
+        const defaultName = defaultDraftName('odf', draftOdfs.length);
+        const item = { marker: null, name: defaultName, pending: false };
         const marker = L.marker(e.latlng, { icon: icon('odf','ODF'), draggable: true })
             .addTo(map)
-            .bindTooltip('ODF · 0 FTTH', { direction: 'top', offset: [0, -10] })
-            .bindPopup('Unesi naziv ODF-a')
+            .bindTooltip(`${defaultName} · 0 FTTH`, { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>ODF: ${defaultName}</b>`)
             .openPopup();
         item.marker = marker;
         marker.on('dragend', event => { const p = event.target.getLatLng(); document.getElementById('odf-lat').value=p.lat.toFixed(7); document.getElementById('odf-lng').value=p.lng.toFixed(7); });
+        marker.on('drag', () => { refreshDraftTooltips(); refreshPlanSummary(); });
+        marker.on('click', () => { setActiveDraftOdf(draftOdfs.indexOf(item)); selectDraftElement('odf', item); });
+        draftElements.push({ type: 'odf', marker });
+        draftOdfs.push(item);
+        registerDraftContext(item.marker, item.name);
+        setActiveDraftOdf(draftOdfs.length - 1);
+        refreshDraftTooltips();
+        refreshPlanSummary();
         selectDraftElement('odf', item);
         document.getElementById('odf-lat').value=lat; document.getElementById('odf-lng').value=lng; return;
     }
