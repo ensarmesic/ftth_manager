@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class NetworkRoute extends Model
 {
+    use HasFactory;
+
     protected $table = 'routes';
 
     protected $fillable = ['project_id', 'odf_id', 'cabinet_id', 'from_type', 'from_id', 'to_type', 'to_id', 'name', 'route_type', 'installation_type', 'trench_group', 'counts_as_trench', 'trench_length_m', 'duct_length_m', 'fiber_length_m', 'fiber_count', 'microduct_count', 'microduct_type', 'cable_type', 'status', 'path', 'coordinates_json', 'note'];

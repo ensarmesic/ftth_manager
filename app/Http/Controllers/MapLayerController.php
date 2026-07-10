@@ -298,5 +298,4 @@ class MapLayerController extends Controller
         // Posljednji fallback: ukloni non-ASCII bajtove
         return (string) preg_replace('/[\x80-\xFF]/', '', $s);
     }
-
 }

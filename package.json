@@ -4,7 +4,9 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "check:js": "node scripts/check-js.mjs",
+        "test:e2e": "node e2e/map-smoke.mjs"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

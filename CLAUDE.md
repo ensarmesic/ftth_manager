@@ -19,12 +19,23 @@ php artisan test
 # Run a specific test
 php artisan test --filter FtthIntelligenceTest
 
+# Full quality gate before committing (Pint style check + JS syntax check + all tests)
+composer run check
+
 # Lint PHP (Laravel Pint)
 ./vendor/bin/pint
+
+# Syntax-check the hand-written map JS (public/js/**, no build step)
+npm run check:js
+
+# Browser smoke test for the map (needs `composer run dev` running; opt-in, not in `check`)
+npm run test:e2e
 
 # Production build
 npm run build && php artisan optimize
 ```
+
+A pre-commit hook that runs `composer run check` lives in `.githooks/`. Enable it once per clone with `git config core.hooksPath .githooks` (bypass a single commit with `git commit --no-verify`).
 
 ## Architecture
 

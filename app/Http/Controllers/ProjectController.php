@@ -851,37 +851,6 @@ class ProjectController extends Controller
         $tmpPath = tempnam(sys_get_temp_dir(), 'ftth_dxf_');
         $fh = fopen($tmpPath, 'wb');
 
-        // Diagnostic: logiraj GK koordinate da provjerimo alignment
-        if ($hasBbox) {
-            \Log::info('DXF Export FTTH bbox (GK Zone '.$zone.')', [
-                'minX' => round($bboxMinX), 'maxX' => round($bboxMaxX),
-                'minY' => round($bboxMinY), 'maxY' => round($bboxMaxY),
-            ]);
-        }
-        if (! empty($bgEntityFiles)) {
-            // Logiraj prvu background koordinatu iz cache-a
-            foreach ($request->input('background_layers', []) as $bg) {
-                $ck = preg_replace('/[^a-f0-9\-]/i', '', (string) ($bg['cache_key'] ?? ''));
-                $sp = 'dxf_layers/'.$ck.'.json';
-                if (Storage::exists($sp)) {
-                    $sample = json_decode(Storage::get($sp), true);
-                    $firstF = $sample[0] ?? null;
-                    if ($firstF) {
-                        $fc = ($firstF['geometry']['coordinates'][0] ?? $firstF['geometry']['coordinates']) ?? null;
-                        if ($fc && isset($fc[0])) {
-                            [$bgX, $bgY] = $this->rawCoordToGk((float) $fc[0], (float) $fc[1], $zone);
-                            \Log::info('DXF Export BG first point (GK Zone '.$zone.')', [
-                                'raw' => [$fc[0], $fc[1]],
-                                'gk' => [round($bgX), round($bgY)],
-                            ]);
-                        }
-                    }
-                    unset($sample);
-                    break;
-                }
-            }
-        }
-
         // Piši FTTH dio (mali array, OK u memoriji)
         fwrite($fh, implode("\r\n", $lines)."\r\n");
         unset($lines);

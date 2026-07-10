@@ -288,7 +288,17 @@ class MapController extends Controller
 
         DB::transaction(function () use ($plan, $projectId, $resolveOdfId, $resolveCabinetId, &$projectOdfIds, &$projectCabinetIds, &$createdOdfs, &$createdCabinets, &$createdHouses, &$createdSecondaryBranches): void {
             foreach (($plan['odfs'] ?? []) as $index => $odf) {
-                $createdOdfs[$index] = Odf::create([
+                // Re-saving a plan must not spawn a second ODF at the same spot.
+                // Reuse an existing ODF at the identical position instead of
+                // creating a duplicate (guards against multi-save duplication).
+                $existingOdf = Odf::where('project_id', $projectId)
+                    ->whereNotNull('latitude')
+                    ->whereNotNull('longitude')
+                    ->get()
+                    ->first(fn (Odf $candidate) => abs((float) $candidate->latitude - (float) $odf['lat']) < 1e-6
+                        && abs((float) $candidate->longitude - (float) $odf['lng']) < 1e-6);
+
+                $createdOdfs[$index] = $existingOdf ?? Odf::create([
                     'project_id' => $projectId,
                     'name' => $odf['name'] ?? 'ODF-'.str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
                     'address' => $odf['address'] ?? 'Sa mape',
@@ -335,8 +345,37 @@ class MapController extends Controller
                 ]));
             }
 
+            $routeSignature = static function (?array $path, ?string $type): ?string {
+                if (! $path || count($path) < 2) {
+                    return null;
+                }
+
+                // Type is part of the key: a cable and a trench legitimately
+                // share a path (cable laid inside the trench), so only a same-type
+                // route on the same geometry counts as a duplicate.
+                return md5(($type ?? '').'|'.json_encode(array_map(static fn ($point) => [round((float) $point[0], 6), round((float) $point[1], 6)], $path)));
+            };
+            $existingRouteSignatures = NetworkRoute::query()
+                ->where('project_id', $projectId)
+                ->whereNotNull('path')
+                ->get(['route_type', 'path'])
+                ->reduce(function (array $carry, NetworkRoute $existing) use ($routeSignature): array {
+                    if ($signature = $routeSignature($existing->path, $existing->route_type)) {
+                        $carry[$signature] = true;
+                    }
+
+                    return $carry;
+                }, []);
+
             foreach (($plan['routes'] ?? []) as $index => $route) {
                 $routeType = $route['route_type'] ?? 'distribution';
+
+                // Re-saving a plan must not clone a route that already exists at
+                // the same geometry and type — skip a drawn route already stored.
+                $routeSig = $routeSignature($route['path'] ?? null, $routeType);
+                if ($routeSig && isset($existingRouteSignatures[$routeSig])) {
+                    continue;
+                }
                 $routeOdfId = isset($route['odf_index'], $createdOdfs[$route['odf_index']])
                     ? $createdOdfs[$route['odf_index']]->id
                     : $resolveOdfId(isset($route['odf_id']) ? (int) $route['odf_id'] : null);
@@ -383,6 +422,9 @@ class MapController extends Controller
                 $createdBranch = $this->createBranchForRoute($createdRoute);
                 if ($createdBranch && $createdBranch->type === 'secondary' && count($createdRoute->path ?? []) > 1) {
                     $createdSecondaryBranches->push(['branch' => $createdBranch, 'route' => $createdRoute]);
+                }
+                if ($routeSig) {
+                    $existingRouteSignatures[$routeSig] = true;
                 }
             }
 

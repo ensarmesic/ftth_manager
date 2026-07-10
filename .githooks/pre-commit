@@ -1,0 +1,22 @@
+#!/bin/sh
+#
+# Runs the quality gate (Pint style check + JS syntax check + PHP tests)
+# before every commit. Enable once with:
+#
+#     git config core.hooksPath .githooks
+#
+# Bypass in an emergency with:  git commit --no-verify
+#
+echo "→ pre-commit: composer run check (pint + js + tests)"
+
+composer run check
+status=$?
+
+if [ $status -ne 0 ]; then
+    echo ""
+    echo "✗ Provjera nije prošla — commit zaustavljen. Popravi greške ili koristi 'git commit --no-verify'."
+    exit 1
+fi
+
+echo "✓ Provjera prošla."
+exit 0

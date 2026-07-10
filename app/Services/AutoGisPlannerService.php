@@ -31,7 +31,10 @@ class AutoGisPlannerService
             ];
         }
 
+        // Only plan houses that are not yet on an ODO, so re-running the GIS plan
+        // is incremental (like Auto ODO) instead of cloning the whole network.
         $houses = $project->houses()
+            ->whereNull('cabinet_id')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->orderBy('id')

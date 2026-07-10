@@ -371,6 +371,35 @@ class MediaskyWorkflowTest extends TestCase
         $this->assertSame(1, Cabinet::where('project_id', $project->id)->where('odf_id', $right->id)->count());
     }
 
+    public function test_rerunning_gis_plan_confirm_does_not_duplicate_the_network(): void
+    {
+        $project = Project::create(['name' => 'GIS rerun', 'code' => 'GIS-RERUN', 'location' => 'Test', 'status' => 'planning']);
+        Odf::create(['project_id' => $project->id, 'name' => 'ODF-1', 'address' => 'Centar', 'fiber_capacity' => 144, 'port_count' => 48, 'latitude' => 44.4493, 'longitude' => 18.6498]);
+        foreach ([[1, 44.4503, 18.6508], [2, 44.4506, 18.6508]] as [$idx, $lat, $lng]) {
+            House::create(['project_id' => $project->id, 'label' => 'K-00'.$idx, 'address' => 'Kuca', 'status' => 'planned', 'latitude' => $lat, 'longitude' => $lng]);
+        }
+        GisSegment::create([
+            'project_id' => $project->id,
+            'name' => 'Plan cesta',
+            'segment_type' => 'road',
+            'source' => 'test',
+            'is_allowed' => true,
+            'length_m' => 0,
+            'path' => [[44.4493, 18.6498], [44.4493, 18.6508], [44.4503, 18.6508], [44.4506, 18.6508]],
+        ]);
+
+        $this->postJson(route('projects.gis-plan.confirm', $project))->assertCreated();
+        $cabinetsAfterFirst = Cabinet::where('project_id', $project->id)->count();
+        $routesAfterFirst = NetworkRoute::where('project_id', $project->id)->count();
+
+        // Second run: all houses are already on an ODO, so there is nothing left
+        // to plan and the network must not grow.
+        $this->postJson(route('projects.gis-plan.confirm', $project))->assertStatus(422);
+
+        $this->assertSame($cabinetsAfterFirst, Cabinet::where('project_id', $project->id)->count());
+        $this->assertSame($routesAfterFirst, NetworkRoute::where('project_id', $project->id)->count());
+    }
+
     public function test_gis_plan_warns_when_odf_capacity_is_near_limit(): void
     {
         $project = Project::create(['name' => 'ODF cap', 'code' => 'ODF-CAP', 'location' => 'Test', 'status' => 'planning']);
@@ -1109,5 +1138,40 @@ class MediaskyWorkflowTest extends TestCase
         ])->assertUnprocessable();
 
         $this->assertNull($parent->fresh()->parent_branch_id);
+    }
+
+    public function test_resaving_plan_reuses_odf_at_same_position_instead_of_duplicating(): void
+    {
+        $project = Project::create(['name' => 'Re-save', 'code' => 'RESAVE', 'location' => 'Test', 'status' => 'planning']);
+        $plan = ['odfs' => [['name' => 'ODF-01', 'lat' => 44.4034196, 'lng' => 18.5256805]]];
+
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+
+        $this->assertSame(1, Odf::where('project_id', $project->id)->count());
+    }
+
+    public function test_resaving_plan_does_not_duplicate_routes_with_same_geometry(): void
+    {
+        $project = Project::create(['name' => 'Re-save trase', 'code' => 'RESAVE2', 'location' => 'Test', 'status' => 'planning']);
+        // The cable ("distribution") and the trench ("trench") deliberately share
+        // the SAME path — a cable laid inside a trench — and must both persist.
+        $sharedPath = [[44.4493, 18.6498], [44.4500, 18.6505]];
+        $plan = ['routes' => [
+            ['name' => 'Sekundarni krak I-3', 'route_type' => 'distribution', 'duct_length_m' => 42, 'path' => $sharedPath],
+            ['name' => 'Glavni rov 1', 'route_type' => 'trench', 'duct_length_m' => 30, 'path' => $sharedPath],
+        ]];
+
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($plan)])->assertOk();
+
+        // Cable + trench on the same path both persist, but re-saves add nothing.
+        $this->assertSame(2, NetworkRoute::where('project_id', $project->id)->count());
+        $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'distribution')->count());
+        $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'trench')->count());
+        $this->assertSame(0, NetworkRoute::where('project_id', $project->id)->where('name', 'like', '%-2')->count());
+        $this->assertSame(1, NetworkBranch::where('project_id', $project->id)->count());
     }
 }

@@ -8,7 +8,6 @@ use App\Models\Material;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Models\Subscriber;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -42,38 +41,24 @@ class DatabaseSeeder extends Seeder
             ['odf_id' => $odf->id, 'address' => 'Ulica Zmaja od Bosne 44', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 43.855100, 'longitude' => 18.405700]
         );
 
+        // Most houses are wired to a cabinet so the demo shows realistic ODO
+        // utilisation; the last one stays unconnected to exercise the
+        // "Nepovezane kuce" / Auto ODO planning path.
         foreach ([
-            ['Amir Hodzic', 'Branilaca 14', $cabinetA->id, 1, 1],
-            ['Lejla Basic', 'Branilaca 16', $cabinetA->id, 1, 2],
-            ['Dino Kadic', 'Zmaja od Bosne 46', $cabinetB->id, 1, 1],
-        ] as [$name, $address, $cabinetId, $splitter, $port]) {
-            Subscriber::firstOrCreate(
-                ['project_id' => $project->id, 'name' => $name],
-                [
-                    'cabinet_id' => $cabinetId,
-                    'address' => $address,
-                    'service_status' => 'planned',
-                    'splitter_no' => $splitter,
-                    'port_no' => $port,
-                ]
-            );
-        }
-
-        foreach ([
-            ['K-001', 'Branilaca 14', 43.858320, 18.416520],
-            ['K-002', 'Branilaca 16', 43.858180, 18.416780],
-            ['K-003', 'Branilaca 18', 43.857920, 18.416560],
-            ['K-004', 'Branilaca 20', 43.857720, 18.416180],
-            ['K-005', 'Branilaca 22', 43.857510, 18.415950],
-            ['K-006', 'Branilaca 24', 43.857240, 18.415650],
-            ['K-007', 'Zmaja od Bosne 46', 43.855300, 18.406100],
-            ['K-008', 'Zmaja od Bosne 48', 43.855020, 18.405420],
-            ['K-009', 'Zmaja od Bosne 50', 43.854810, 18.405920],
-        ] as [$label, $address, $lat, $lng]) {
+            ['K-001', 'Branilaca 14', 43.858320, 18.416520, $cabinetA->id],
+            ['K-002', 'Branilaca 16', 43.858180, 18.416780, $cabinetA->id],
+            ['K-003', 'Branilaca 18', 43.857920, 18.416560, $cabinetA->id],
+            ['K-004', 'Branilaca 20', 43.857720, 18.416180, $cabinetA->id],
+            ['K-005', 'Branilaca 22', 43.857510, 18.415950, $cabinetA->id],
+            ['K-006', 'Branilaca 24', 43.857240, 18.415650, $cabinetA->id],
+            ['K-007', 'Zmaja od Bosne 46', 43.855300, 18.406100, $cabinetB->id],
+            ['K-008', 'Zmaja od Bosne 48', 43.855020, 18.405420, $cabinetB->id],
+            ['K-009', 'Zmaja od Bosne 50', 43.854810, 18.405920, null],
+        ] as [$label, $address, $lat, $lng, $cabinetId]) {
             House::updateOrCreate(
                 ['project_id' => $project->id, 'label' => $label],
                 [
-                    'cabinet_id' => null,
+                    'cabinet_id' => $cabinetId,
                     'address' => $address,
                     'latitude' => $lat,
                     'longitude' => $lng,

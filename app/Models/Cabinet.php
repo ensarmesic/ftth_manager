@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cabinet extends Model
 {
+    use HasFactory;
+
     protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'branch_id', 'branch_order', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude'];
 
     public function project(): BelongsTo

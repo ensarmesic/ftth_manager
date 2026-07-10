@@ -105,7 +105,7 @@ data.routes.forEach(route => {
 });
 data.odfs.forEach(odf => {
     const p = L.latLng(odf.lat, odf.lng);
-    const connectedCabinets = data.cabinets.filter(c => c.odf === odf.name).length;
+    const connectedCabinets = data.cabinets.filter(c => c.odf_id === odf.id).length;
     const marker = L.marker(p, { icon: icon('odf', 'ODF'), draggable: false })
         .bindTooltip(`${odf.name} · ${connectedCabinets} FTTH`, { direction: 'top', offset: [0, -10] })
         .bindPopup(`<b>ODF: ${odf.name}</b><br>${odf.address}<br>FTTH ormarića: ${connectedCabinets}`)

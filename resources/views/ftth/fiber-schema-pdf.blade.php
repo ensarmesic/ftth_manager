@@ -245,7 +245,7 @@
         <div class="unlinked-title">Nepovezane kuce ({{ $project->houses->count() }})</div>
         <div class="unlinked-list">
             @foreach($project->houses as $house)
-                {{ $house->label }}@if($house->address) ({{ $house->address }})@endif@if(!$loop->last), @endif
+                {{ $house->label }}@if($house->address) ({{ $house->address }})@endif{{ $loop->last ? '' : ',' }}
             @endforeach
         </div>
     </div>
