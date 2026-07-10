@@ -350,10 +350,16 @@ class MapController extends Controller
                     return null;
                 }
 
+                $normalized = array_map(static fn ($point) => [round((float) $point[0], 6), round((float) $point[1], 6)], $path);
+                // Direction-agnostic: a route drawn A→B is the same as B→A, so the
+                // signature uses whichever orientation sorts first.
+                $reversed = array_reverse($normalized);
+                $canonical = json_encode($normalized) <= json_encode($reversed) ? $normalized : $reversed;
+
                 // Type is part of the key: a cable and a trench legitimately
                 // share a path (cable laid inside the trench), so only a same-type
                 // route on the same geometry counts as a duplicate.
-                return md5(($type ?? '').'|'.json_encode(array_map(static fn ($point) => [round((float) $point[0], 6), round((float) $point[1], 6)], $path)));
+                return md5(($type ?? '').'|'.json_encode($canonical));
             };
             $existingRouteSignatures = NetworkRoute::query()
                 ->where('project_id', $projectId)

@@ -1173,5 +1173,12 @@ class MediaskyWorkflowTest extends TestCase
         $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'trench')->count());
         $this->assertSame(0, NetworkRoute::where('project_id', $project->id)->where('name', 'like', '%-2')->count());
         $this->assertSame(1, NetworkBranch::where('project_id', $project->id)->count());
+
+        // The same cable drawn in the REVERSED direction is still a duplicate.
+        $reversedPlan = ['routes' => [
+            ['name' => 'Sekundarni krak I-3 obrnuto', 'route_type' => 'distribution', 'duct_length_m' => 42, 'path' => array_reverse($sharedPath)],
+        ]];
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($reversedPlan)])->assertOk();
+        $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'distribution')->count());
     }
 }

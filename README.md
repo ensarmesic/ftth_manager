@@ -10,7 +10,7 @@ Web aplikacija za planiranje, vizualizaciju i dokumentaciju pasivnih optičkih F
 - **Interaktivni map editor** — crtanje trasa, postavljanje ODF-a, ormarića i kuća direktno na satelitskoj mapi
 - **Automatski raspored ODO ormarića** — algoritam grupiše kuće po krakovima i predlaže optimalan raspored
 - **Krakovi i grane** — organizacija mreže u primarne i sekundarne krakove s drag-and-drop sortiranjem
-- **DXF / DWG podloge** — uvoz katastarske ili projektne podloge kao pozadinski sloj na mapi, s automatskom transformacijom koordinata (MGI Gauss-Krüger → WGS84)
+- **DXF podloge** — uvoz katastarske ili projektne podloge kao pozadinski sloj na mapi, s automatskom transformacijom koordinata (MGI Gauss-Krüger → WGS84). DWG nije podržan — sačuvaj ga kao DXF prije uvoza.
 - **Izvještaji** — fiber shema, prilog 3, pregled splittera, obračun materijala
 - **Eksport** — GeoJSON, DXF crteži, PDF, print prikaz
 - **Provjera projekta** — automatska detekcija neuređenih drop trasa, nepokrivanog kapaciteta, grešaka u vezama
@@ -46,9 +46,9 @@ Web aplikacija za planiranje, vizualizaciju i dokumentaciju pasivnih optičkih F
 - **Sekundarni krak** — ormarić → ormarić
 - **Drop trasa** — ormarić → kuća (mikrocijev 10/8, 4 niti)
 
-### DXF / DWG podloge (po projektu)
+### DXF podloge (po projektu)
 
-- Uvoz `.dxf` i `.dwg` fajlova kao mapu pozadinu
+- Uvoz `.dxf` fajlova kao mapu pozadinu (DWG nije podržan — sačuvaj kao DXF)
 - Automatska detekcija projekcije: MGI zona 6, MGI zona 7 ili WGS84
 - Canvas rendering — nema usporavanja ni za velike fajlove
 - Svaka podloga je vezana za projekat i ne prelazi u druge projekte
