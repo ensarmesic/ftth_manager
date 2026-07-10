@@ -56,4 +56,9 @@ class Project extends Model
     {
         return $this->hasMany(GisRestrictedArea::class);
     }
+
+    public function surveyPoints(): HasMany
+    {
+        return $this->hasMany(SurveyPoint::class);
+    }
 }

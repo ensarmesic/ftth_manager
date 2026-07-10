@@ -528,6 +528,7 @@
                 <button type="button" id="toggle-cable-specs" class="tc tc-ghost" title="Specifikacije kabela">Specs</button>
                 <button type="button" id="btn-coord-jump" class="tc tc-ghost" title="Skok na koordinate">Goto</button>
                 <button type="button" id="dxf-layer-btn" onclick="var p=document.getElementById('dxf-layer-panel');p.style.display=p.style.display==='none'?'block':'none';" class="tc tc-indigo" title="Učitaj DXF">DXF</button>
+                <button type="button" id="survey-panel-btn" onclick="var p=document.getElementById('survey-panel');p.style.display=p.style.display==='none'?'block':'none';" class="tc tc-indigo" title="Uvoz geodetskih tačaka (TXT)">Tačke</button>
                 <button type="button" id="toggle-map-view" class="tc tc-ghost">GIS</button>
                 <button type="button" id="expand-map" class="tc tc-ghost" title="Proširena mapa">⛶</button>
                 <div class="tc-sep"></div>
@@ -1020,8 +1021,26 @@ window.ftthMapConfig = {
     </div>
 </div>
 
+{{-- Survey points import floating panel --}}
+<div id="survey-panel" style="display:none;position:fixed;top:120px;right:350px;z-index:9999;width:320px;background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);overflow:hidden;font-family:inherit">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:linear-gradient(135deg,#ecfdf5,#f0f9ff)">
+        <span style="font-size:13px;font-weight:700;color:#065f46">Geodetske tačke (TXT)</span>
+        <button type="button" onclick="document.getElementById('survey-panel').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;padding:0 2px">&times;</button>
+    </div>
+    <div style="padding:10px 12px">
+        <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Format: <code>broj&nbsp;X&nbsp;Y&nbsp;Z&nbsp;opis</code> (Gauss-Krüger). Rovovi se spajaju u linije, ZO/ODF/šahtovi postaju elementi mreže.</p>
+        <button id="survey-choose-btn" type="button" style="width:100%;border-radius:7px;background:#059669;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Odaberi TXT fajl</button>
+        <input id="survey-file-input" type="file" accept=".txt" style="display:none">
+        <div id="survey-status" style="display:none;margin-top:8px;border-radius:6px;border:1px solid #bbf7d0;background:#f0fdf4;padding:7px 10px;font-size:11px;font-weight:600;color:#166534"></div>
+        <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
+        <button id="survey-confirm-btn" type="button" disabled style="width:100%;margin-top:10px;border-radius:7px;background:#2563eb;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;opacity:1">Uvezi u projekat</button>
+    </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin="anonymous"></script>
 <script src="{{ asset('js/ftth-dxf-layer.js') }}?v={{ filemtime(public_path('js/ftth-dxf-layer.js')) }}"></script>
+{{-- survey.js mora doci NAKON #survey-panel HTML-a da bi dugmad postojala pri bindanju --}}
+<script src="{{ asset('js/map/survey.js') }}?v={{ filemtime(public_path('js/map/survey.js')) }}"></script>
 <style>
 #dxf-dropzone.dxf-dragover {
     background: #e0e7ff !important;

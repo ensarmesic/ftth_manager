@@ -1,0 +1,53 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Project;
+use App\Services\SurveyPointImportService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use InvalidArgumentException;
+
+class SurveyPointController extends Controller
+{
+    public function __construct(private readonly SurveyPointImportService $importer) {}
+
+    public function preview(Request $request, Project $project): JsonResponse
+    {
+        $data = $request->validate([
+            'points_file' => ['required', 'file', 'max:10240', 'mimes:txt'],
+        ]);
+
+        try {
+            return response()->json($this->importer->preview(
+                $project,
+                $data['points_file']->get(),
+                $data['points_file']->getClientOriginalName(),
+            ));
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+    }
+
+    public function import(Request $request, Project $project): JsonResponse
+    {
+        $data = $request->validate([
+            'points_file' => ['required', 'file', 'max:10240', 'mimes:txt'],
+        ]);
+
+        try {
+            $created = $this->importer->confirm(
+                $project,
+                $data['points_file']->get(),
+                $data['points_file']->getClientOriginalName(),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => "Uvezeno: {$created['points']} tacaka, {$created['trenches']} rovova, {$created['cabinets']} ZO, {$created['odfs']} ODF, {$created['manholes']} sahtova.",
+            'created' => $created,
+        ], 201);
+    }
+}

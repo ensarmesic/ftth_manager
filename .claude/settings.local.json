@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:8000\" -UseBasicParsing -TimeoutSec 5)",
+      "Bash(php artisan *)",
+      "Bash(node -e ' *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

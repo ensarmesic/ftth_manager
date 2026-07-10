@@ -10,6 +10,7 @@ use App\Http\Controllers\OdfController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RouteController;
+use App\Http\Controllers\SurveyPointController;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
@@ -52,6 +53,8 @@ Route::post('/projekti/{project}/odo-plan/confirm', [ProjectController::class, '
 Route::get('/projekti/{project}/validacija', [ProjectController::class, 'validateProject'])->name('projects.validation');
 Route::post('/projekti/{project}/materijali/izracunaj', [ProjectController::class, 'calculateMaterials'])->name('materials.calculate');
 Route::post('/projekti/{project}/drop-trase/popuni', [ProjectController::class, 'createMissingDropRoutes'])->name('projects.drop-routes.fill');
+Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->name('projects.survey-points.preview');
+Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->name('projects.survey-points.import');
 Route::get('/projekti/{project}/geojson', [ProjectController::class, 'exportGeoJson'])->name('projects.geojson');
 Route::post('/projekti/{project}/dxf', [ProjectController::class, 'exportDxf'])->name('projects.dxf');
 Route::get('/projekti/{project}/fiber-schema-dxf', [ProjectController::class, 'exportFiberSchema'])->name('projects.fiber-schema-dxf');

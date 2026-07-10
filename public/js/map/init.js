@@ -51,12 +51,15 @@ mapLegend.addTo(map);
 
 // ── DATA LOADING ──────────────────────────────────────────────────────────────
 const bounds = [];
+applyRouteStacking(data.routes);
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
     const occupancy = route.occupancy || {};
-    const line = L.polyline(points, { ...routeLineStyle(route.type, routeLineColor(route)), interactive: false })
+    const baseStyle = routeLineStyle(route.type, routeLineColor(route));
+    if (route._stack) baseStyle.weight = routeStackedWeight(route, baseStyle.weight);
+    const line = L.polyline(points, { ...baseStyle, interactive: false })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
     const hitLine = L.polyline(points, { weight: 14, opacity: 0, interactive: true }).addTo(map);

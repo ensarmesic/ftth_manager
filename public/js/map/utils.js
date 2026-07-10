@@ -336,16 +336,49 @@ function routeLineStyle(type, color = routeColor(type)) {
         lineJoin: 'round',
     };
 }
+// Stvarne boje mikrocijevi iz geodetskog snimka (naziv rute "MC 14/10 Zelena"...)
+const microductColorWords = {
+    zelena: '#16a34a', crvena: '#dc2626', plava: '#2563eb', zuta: '#ca8a04',
+    bjela: '#94a3b8', bijela: '#94a3b8', narandzasta: '#ea580c', ljubicasta: '#7c3aed', siva: '#64748b',
+};
+function microductRouteColor(route) {
+    if (!route.name || !route.name.startsWith('MC ')) return null;
+    const lower = route.name.toLowerCase();
+    for (const word in microductColorWords) {
+        if (lower.includes(word)) return microductColorWords[word];
+    }
+    return null;
+}
 function routeLineColor(route) {
     if (route.type === 'trench') return routeColor('trench');
+    const surveyColor = microductRouteColor(route);
+    if (surveyColor && !colorByFibers) return surveyColor;
     const fibers = route.fiber_count || route.fibers;
     if (colorByFibers && fibers) return fiberCountColor(fibers);
-    return route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type);
+    return surveyColor || (route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type));
+}
+// Vise mikrocijevi dijeli istu putanju rova — svaku crtamo tanju od prethodne
+// da se boje vide jedna unutar druge (poput presjeka cijevi).
+function routeStackedWeight(route, baseWeight) {
+    return Math.max(2, baseWeight + 1.5 - (route._stack || 0) * 2);
+}
+function applyRouteStacking(routes) {
+    const seen = {};
+    routes.forEach(route => {
+        if (!route.path || route.path.length < 2 || route.type === 'trench') return;
+        const key = JSON.stringify([route.path[0], route.path[route.path.length - 1], route.path.length]);
+        route._stack = seen[key] || 0;
+        seen[key] = route._stack + 1;
+    });
 }
 function refreshAllRouteStyles() {
     data.routes.forEach(route => {
         const line = routeLayerById[route.id];
-        if (line?.setStyle) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+        if (line?.setStyle) {
+            const style = routeLineStyle(route.type, routeLineColor(route));
+            if (route._stack) style.weight = routeStackedWeight(route, style.weight);
+            line.setStyle(style);
+        }
     });
     branchLines.forEach((line, idx) => {
         const meta = branchMeta[idx] || {};
