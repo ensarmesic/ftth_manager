@@ -30,7 +30,7 @@ function refreshTrenchGroupStatus() {
 }
 function routeLabelPlacement(points, position = .5) {
     if (!points.length) return null;
-    if (points.length === 1) return { latlng: points[0], angle: 0 };
+    if (points.length === 1) return { latlng: points[0], angle: 0, perpEast: 0, perpNorth: 0 };
     const total = distance(points);
     const target = total * position;
     let walked = 0;
@@ -47,23 +47,37 @@ function routeLabelPlacement(points, position = .5) {
             let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
             if (angle > 90 || angle < -90) angle += 180;
 
-            return { latlng, angle };
+            // Direction of this segment in local east/north terms, rotated 90° to get
+            // the perpendicular a stacked-route label can be pushed along.
+            const dirEast = (points[i].lng - points[i - 1].lng) * Math.cos(latlng.lat * Math.PI / 180);
+            const dirNorth = points[i].lat - points[i - 1].lat;
+            const dirLen = Math.hypot(dirEast, dirNorth) || 1e-9;
+
+            return { latlng, angle, perpEast: -dirNorth / dirLen, perpNorth: dirEast / dirLen };
         }
         walked += segment;
     }
-    return { latlng: points[Math.floor(points.length / 2)], angle: 0 };
+    return { latlng: points[Math.floor(points.length / 2)], angle: 0, perpEast: 0, perpNorth: 0 };
 }
-function addRouteLabel(points, name, track = true, specs = null) {
+// Same physical trench often carries several ducts along (near-)identical geometry —
+// `lane` (see applyRouteStacking's route._stack) pushes each one's label a few metres
+// off the line so overlapping duct labels don't render on top of each other.
+const ROUTE_LABEL_LANE_METERS = 4.5;
+function addRouteLabel(points, name, track = true, specs = null, lane = 0) {
     const labelName = normalizeRouteDisplayName(name);
     const specsText = showCableSpecs && specs ? ` <span style="opacity:.65;font-size:.85em">${specs}</span>` : '';
     const labelHtml = `${labelName}${specsText}`;
     const markers = [];
     const total = distance(points);
     const positions = total > 500 ? [.2, .5, .8] : (total > 180 ? [.3, .7] : [.5]);
+    const laneOffsetM = (lane || 0) * ROUTE_LABEL_LANE_METERS;
     positions.forEach(position => {
         const placement = routeLabelPlacement(points, position);
         if (!placement) return;
-        const marker = L.marker(placement.latlng, {
+        const latlng = laneOffsetM
+            ? metersOffset(placement.latlng, placement.perpEast * laneOffsetM, placement.perpNorth * laneOffsetM)
+            : placement.latlng;
+        const marker = L.marker(latlng, {
             interactive: false,
             keyboard: false,
             icon: L.divIcon({

@@ -11,7 +11,7 @@ class Cabinet extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'branch_id', 'branch_order', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude'];
+    protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'branch_id', 'branch_order', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude', 'import_batch'];
 
     public function project(): BelongsTo
     {

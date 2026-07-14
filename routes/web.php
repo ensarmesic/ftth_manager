@@ -55,6 +55,7 @@ Route::post('/projekti/{project}/materijali/izracunaj', [ProjectController::clas
 Route::post('/projekti/{project}/drop-trase/popuni', [ProjectController::class, 'createMissingDropRoutes'])->name('projects.drop-routes.fill');
 Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->name('projects.survey-points.preview');
 Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->name('projects.survey-points.import');
+Route::delete('/projekti/{project}/tacke', [SurveyPointController::class, 'destroy'])->name('projects.survey-points.destroy');
 Route::get('/projekti/{project}/geojson', [ProjectController::class, 'exportGeoJson'])->name('projects.geojson');
 Route::post('/projekti/{project}/dxf', [ProjectController::class, 'exportDxf'])->name('projects.dxf');
 Route::get('/projekti/{project}/fiber-schema-dxf', [ProjectController::class, 'exportFiberSchema'])->name('projects.fiber-schema-dxf');

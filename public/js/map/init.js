@@ -52,6 +52,7 @@ mapLegend.addTo(map);
 // ── DATA LOADING ──────────────────────────────────────────────────────────────
 const bounds = [];
 applyRouteStacking(data.routes);
+applyRouteLabelLanes(data.routes);
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
@@ -64,7 +65,7 @@ data.routes.forEach(route => {
         .addTo(map);
     const hitLine = L.polyline(points, { weight: 14, opacity: 0, interactive: true }).addTo(map);
     if (route.type === 'trench') { line.bringToBack(); hitLine.bringToBack(); }
-    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
+    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route), route._labelLane);
     routeLayerById[route.id] = line;
     routeHitLayerById[route.id] = hitLine;
     routeLabelsById[route.id] = labels || [];
@@ -202,6 +203,18 @@ data.appendix_items?.forEach(item => {
     const p = L.latLng(item.lat, item.lng);
     if (item.type === 'boring_fi_130') {
         drawSavedBoring(item);
+    } else if (item.type === 'splice') {
+        const marker = L.marker(p, { icon: icon('splice', 'S'), draggable: false })
+            .bindTooltip('Spojnica', { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>Spojnica</b>${item.note ? `<br>${item.note}` : ''}`)
+            .addTo(map);
+        trackLayer(marker, 'preview');
+    } else if (item.type === 'loop') {
+        const marker = L.marker(p, { icon: icon('loop', 'R'), draggable: false })
+            .bindTooltip('Rezerva/slinga', { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>Rezerva/slinga</b>${item.note ? `<br>${item.note}` : ''}`)
+            .addTo(map);
+        trackLayer(marker, 'preview');
     } else {
         const marker = L.marker(p, { icon: icon('manhole', 'S'), draggable: false })
             .bindTooltip(`Prolazni saht: ${item.quantity} ${item.unit}`, { direction: 'top', offset: [0, -10] })

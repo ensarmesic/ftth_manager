@@ -99,7 +99,7 @@ function refreshRouteLabels(route, oldLayerType = null) {
     }
 
     const points = route.path.map(point => L.latLng(point[0], point[1]));
-    routeLabelsById[route.id] = addRouteLabel(points, route.name, false, routeLabelSpecs(route));
+    routeLabelsById[route.id] = addRouteLabel(points, route.name, false, routeLabelSpecs(route), route._labelLane);
     routeLabelsById[route.id].forEach(label => trackLayer(label, routeLayerType(route.type)));
 }
 function renderRouteEditVertices() {

@@ -33,21 +33,41 @@ class SurveyPointController extends Controller
     {
         $data = $request->validate([
             'points_file' => ['required', 'file', 'max:10240', 'mimes:txt'],
+            'overrides' => ['nullable', 'string'],
         ]);
+
+        $cabinetOverrides = [];
+        if (! empty($data['overrides'])) {
+            $decoded = json_decode($data['overrides'], true);
+            if (is_array($decoded)) {
+                $cabinetOverrides = array_map('intval', $decoded);
+            }
+        }
 
         try {
             $created = $this->importer->confirm(
                 $project,
                 $data['points_file']->get(),
                 $data['points_file']->getClientOriginalName(),
+                $cabinetOverrides,
             );
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
 
         return response()->json([
-            'message' => "Uvezeno: {$created['points']} tacaka, {$created['trenches']} rovova, {$created['cabinets']} ZO, {$created['odfs']} ODF, {$created['manholes']} sahtova.",
+            'message' => "Uvezeno: {$created['points']} tacaka, {$created['trenches']} rovova, {$created['cabinets']} ZO, {$created['odfs']} ODF, {$created['manholes']} sahtova, {$created['splices']} spojnica, {$created['borings']} busenja, {$created['loops']} rezervi.",
             'created' => $created,
         ], 201);
+    }
+
+    public function destroy(Project $project): JsonResponse
+    {
+        $removed = $this->importer->clearImportedData($project);
+
+        return response()->json([
+            'message' => "Obrisano: {$removed['points']} tacaka, {$removed['trenches']} rovova, {$removed['ducts']} mikrocijevi, {$removed['cabinets']} ZO, {$removed['odfs']} ODF, {$removed['houses']} kuca, {$removed['manholes']} sahtova, {$removed['splices']} spojnica, {$removed['borings']} busenja, {$removed['loops']} rezervi. Rucno nacrtani elementi nisu dirani.",
+            'removed' => $removed,
+        ]);
     }
 }

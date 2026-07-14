@@ -209,6 +209,8 @@
     .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }
     .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
+    .ftth-tag.splice { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
+    .ftth-tag.loop { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #0891b2; box-shadow: 0 0 0 1px #0f172a; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
     .boring-grip { border: 0; background: transparent; }
     .boring-grip span {
         display: grid;
@@ -280,6 +282,8 @@
     #map-workspace.zoom-far .ftth-tag.suggest { display: none; }
     #map-workspace.zoom-far .ftth-tag.manhole { display: none; }
     #map-workspace.zoom-far .ftth-tag.boring { display: none; }
+    #map-workspace.zoom-far .ftth-tag.splice { display: none; }
+    #map-workspace.zoom-far .ftth-tag.loop { display: none; }
     #map-workspace.zoom-far .boring-length-label { display: none; }
     /* Zoom-based scaling: markers grow with the map so they stay readable when zoomed in */
     #map-workspace.z20 .ftth-tag:not(.ftth-cabinet-tag) { transform: translate(-50%,-50%) scale(1.6); }
@@ -1034,6 +1038,7 @@ window.ftthMapConfig = {
         <div id="survey-status" style="display:none;margin-top:8px;border-radius:6px;border:1px solid #bbf7d0;background:#f0fdf4;padding:7px 10px;font-size:11px;font-weight:600;color:#166534"></div>
         <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
         <button id="survey-confirm-btn" type="button" disabled style="width:100%;margin-top:10px;border-radius:7px;background:#2563eb;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;opacity:1">Uvezi u projekat</button>
+        <button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fecaca;cursor:pointer;font-family:inherit">Obriši uvezene tačke iz projekta</button>
     </div>
 </div>
 

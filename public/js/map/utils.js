@@ -61,7 +61,7 @@ function rulerClick(latlng) {
     rulerStartMarker = L.circleMarker(latlng, { radius: 5, color: '#b91c1c', weight: 2, fillColor: '#fee2e2', fillOpacity: 1, interactive: false }).addTo(map);
 }
 function icon(type, text = '', color = null) {
-    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : 'house';
+    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : type === 'splice' ? 'splice' : type === 'loop' ? 'loop' : 'house';
     const style = color ? ` style="background:${color}"` : '';
     if (type === 'cabinet') {
         const match = String(text || '').trim().match(/^FTTH\s+(.+)$/i);
@@ -369,6 +369,22 @@ function applyRouteStacking(routes) {
         const key = JSON.stringify([route.path[0], route.path[route.path.length - 1], route.path.length]);
         route._stack = seen[key] || 0;
         seen[key] = route._stack + 1;
+    });
+}
+// Ducts imported from a survey commonly leave the SAME physical point (the start of a
+// shared trench) but peel off at different lengths, so applyRouteStacking's exact
+// start+end+length match won't group them. Group by shared origin alone (~1m snap) so
+// their map labels can be fanned into separate lanes — see ROUTE_LABEL_LANE_METERS in
+// markers.js. Kept separate from _stack, which drives line THICKNESS and must stay
+// limited to true full-path duplicates.
+function applyRouteLabelLanes(routes) {
+    const seen = {};
+    routes.forEach(route => {
+        if (!route.path || route.path.length < 2 || route.type === 'trench') return;
+        const [lat, lng] = route.path[0];
+        const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+        route._labelLane = seen[key] || 0;
+        seen[key] = route._labelLane + 1;
     });
 }
 function refreshAllRouteStyles() {

@@ -18,6 +18,7 @@ class ProjectAppendixItem extends Model
         'angle_deg',
         'width_m',
         'note',
+        'import_batch',
     ];
 
     public function project(): BelongsTo

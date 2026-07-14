@@ -10,7 +10,7 @@ class House extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'cabinet_id', 'branch_id', 'label', 'address', 'latitude', 'longitude', 'status'];
+    protected $fillable = ['project_id', 'cabinet_id', 'branch_id', 'label', 'address', 'latitude', 'longitude', 'status', 'import_batch'];
 
     public function project(): BelongsTo
     {

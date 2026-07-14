@@ -9,6 +9,7 @@ use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
 use App\Models\SurveyPoint;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -104,7 +105,7 @@ class SurveyPointImportService
     /**
      * Classify a free-hand surveyor description.
      *
-     * @return array{kind:string,microduct_type:?string,microduct_count:int,colors:array,zo_tag:?string,has_sling:bool}
+     * @return array{kind:string,microduct_type:?string,microduct_count:int,colors:array,zo_tag:?string}
      */
     public function classify(string $code): array
     {
@@ -116,6 +117,16 @@ class SurveyPointImportService
             $microductType = '14/10';
         } elseif (preg_match('/10\s*\/\s*[78]|10\/\/8|\dx10|mc\s*10\b|mc\.\s*10/', $n)) {
             $microductType = '10/8';
+        }
+
+        // "MD" (the shared reserve/casing duct bundled alongside the coloured ones) is its
+        // own physical duct that keeps running after the colours have all split away — it's
+        // tracked the same way a colour is (see below) so it reads as one continuous line
+        // instead of vanishing once the point stops restating a colour. In this file it's
+        // always 14/10 even on later points that no longer spell that out.
+        $hasReserveDuct = (bool) preg_match('/\bmd\b/', $n);
+        if ($microductType === null && $hasReserveDuct) {
+            $microductType = '14/10';
         }
 
         $microductCount = 1;
@@ -138,6 +149,9 @@ class SurveyPointImportService
                 $colors[$color] = $color;
             }
         }
+        if ($hasReserveDuct) {
+            $colors['MD'] = 'MD';
+        }
         $colors = array_values($colors);
 
         // Which cabinet the duct belongs to: "- ZO 3", "_ZO_1.1", "-Z0-02", "Z 7.00"...
@@ -155,7 +169,10 @@ class SurveyPointImportService
             $isHousePoint => 'sling',
             (bool) preg_match('/\brov\b|\brob\b|rov\+|^mikrodukt/', $n) => 'trench',
             (bool) preg_match('/spojnic/', $n) => 'splice',
-            (bool) preg_match('/sling|slinga|izvod|sluga\b/', $n) => 'sling',
+            // A bare "sling/slinga/izvod" with no house word is a cable RESERVE loop
+            // (extra coiled length for a future splice), not a customer connection —
+            // 'sling' is reserved for points that actually name a house (see above).
+            (bool) preg_match('/sling|slinga|izvod|sluga\b/', $n) => 'loop',
             (bool) preg_match('/\bsaht\b/', $n) => 'manhole',
             (bool) preg_match('/busenje/', $n) => 'boring',
             (bool) preg_match('/\bstub\b/', $n) => 'pole',
@@ -171,9 +188,6 @@ class SurveyPointImportService
             'colors' => $colors,
             'zo_tag' => $zoTag,
             'duct_identities' => $this->parseMultipleDuctIdentities($n),
-            // "Rov +Šlinga ..." — a trench point that ALSO marks a prepared
-            // house connection at that spot.
-            'has_sling' => $kind === 'trench' && (bool) preg_match('/sling|linga/', $n),
         ];
     }
 
@@ -245,7 +259,9 @@ class SurveyPointImportService
     public function buildNetwork(array $points): array
     {
         $trenchPoints = array_values(array_filter($points, fn ($p) => $p['kind'] === 'trench'));
-        $ductPoints = array_values(array_filter($points, fn ($p) => $p['kind'] === 'trench' || $p['kind'] === 'sling'));
+        // 'loop' (a reserve coil, no house) still carries the duct through it, same as a
+        // plain unmarked trench point — only 'sling' (an explicit house) ends a duct.
+        $ductPoints = array_values(array_filter($points, fn ($p) => in_array($p['kind'], ['trench', 'sling', 'loop'], true)));
 
         [$trenchNodes, $trenchEdges] = $this->buildGraph($trenchPoints);
         $trenches = [];
@@ -266,7 +282,7 @@ class SurveyPointImportService
             }
         }
 
-        [$ductNodes, $ductEdges] = $this->buildGraph($ductPoints);
+        [$ductNodes, $ductEdges, $dropCheckpointNodes] = $this->buildGraph($ductPoints);
 
         // --- ducts: per-identity subgraph, additionally cut where count changes ---
         $identAttrs = [];
@@ -281,23 +297,46 @@ class SurveyPointImportService
         $ducts = [];
         foreach ($identEdges as $ik => $edgeIndexes) {
             $sub = array_map(fn (int $ei) => $ductEdges[$ei] + ['group' => $ductEdges[$ei]['idents'][$ik]['count']], $edgeIndexes);
+            $attrs = $identAttrs[$ik];
+            $componentOf = $this->connectedComponents($sub);
+
             $byCount = [];
-            foreach ($this->walkChains($sub, $ductNodes, fn (array $e) => $e['group']) as $chain) {
-                if (count($chain['nodes']) < 2) {
-                    continue;
+            if ($attrs['type'] === '10/8') {
+                // Customer drops: a survey walk often passes house/loop A on its way to B.
+                // Each one still needs its OWN full path back to the shared trunk/cabinet
+                // (not a continuation through A's drop), so emit one path per checkpoint
+                // reached, reusing the shared prefix — see walkHouseDropChains().
+                foreach ($this->walkHouseDropChains($sub, $dropCheckpointNodes, fn (array $e) => $e['group']) as $chain) {
+                    if (count($chain['nodes']) < 2) {
+                        continue;
+                    }
+                    $byCount[$chain['group']][] = [
+                        'path' => array_map(fn (int $node) => $ductNodes[$node], $chain['nodes']),
+                        'component' => $componentOf[$chain['nodes'][0]] ?? $chain['nodes'][0],
+                    ];
                 }
-                $chainCount = $sub[$chain['edges'][0]]['group'];
-                $byCount[$chainCount][] = array_map(fn (int $node) => $ductNodes[$node], $chain['nodes']);
+            } else {
+                foreach ($this->walkChains($sub, $ductNodes, fn (array $e) => $e['group']) as $chain) {
+                    if (count($chain['nodes']) < 2) {
+                        continue;
+                    }
+                    $chainCount = $sub[$chain['edges'][0]]['group'];
+                    $byCount[$chainCount][] = [
+                        'path' => array_map(fn (int $node) => $ductNodes[$node], $chain['nodes']),
+                        'component' => $componentOf[$chain['nodes'][0]] ?? $chain['nodes'][0],
+                    ];
+                }
             }
 
-            $attrs = $identAttrs[$ik];
             foreach ($byCount as $chainCount => $paths) {
-                // A colour identifies ONE physical duct network-wide, so its
-                // chain ends weld across the small unsurveyed skips at taps.
-                if ($attrs['color'] !== null) {
+                // A colour or ZO tag identifies ONE physical duct network-wide, so its chain
+                // ends weld across the small unsurveyed skips where a walk jumped back near
+                // an earlier junction to record another branch (see weldChainEnds() for why
+                // this is safe against the multi-house case above).
+                if ($attrs['color'] !== null || $attrs['tag'] !== null) {
                     $paths = $this->weldChainEnds($paths, 10.0);
                 }
-                foreach ($paths as $path) {
+                foreach ($paths as $entry) {
                     $ducts[] = [
                         'key' => $ik,
                         'label' => $this->ductLabel($attrs, (int) $chainCount),
@@ -305,8 +344,8 @@ class SurveyPointImportService
                         'microduct_count' => (int) $chainCount,
                         'color' => $attrs['color'],
                         'zo_tag' => $attrs['tag'],
-                        'path' => $path,
-                        'length_m' => $this->geometry->polylineLength($path),
+                        'path' => $entry['path'],
+                        'length_m' => $this->geometry->polylineLength($entry['path']),
                     ];
                 }
             }
@@ -319,13 +358,14 @@ class SurveyPointImportService
      * Build a graph from ordered survey points by merging nearby nodes and
      * creating edges between consecutive points in the original walk.
      *
-     * @return array{0: array<int,array<float,float>>,1: array}
+     * @return array{0: array<int,array<float,float>>,1: array,2: array<int,bool>} nodes, edges,
+     *                                                                             and the subset of node indices that are a house or reserve loop ('sling'/'loop')
      */
     private function buildGraph(array $points): array
     {
         $count = count($points);
         if ($count < 2) {
-            return [[], []];
+            return [[], [], []];
         }
 
         $parent = range(0, $count - 1);
@@ -353,10 +393,16 @@ class SurveyPointImportService
 
         $nodeOf = [];
         $nodes = [];
+        // Both an explicit house ('sling') and a bare reserve loop ('loop') get their own
+        // dedicated drop — see walkHouseDropChains() — so both act as checkpoints here.
+        $dropCheckpointNodes = [];
         for ($i = 0; $i < $count; $i++) {
             $root = $find($i);
             if (! isset($nodes[$root])) {
                 $nodes[$root] = [$points[$root]['lat'], $points[$root]['lng']];
+            }
+            if (in_array($points[$i]['kind'], ['sling', 'loop'], true)) {
+                $dropCheckpointNodes[$root] = true;
             }
             $nodeOf[$i] = $root;
         }
@@ -403,7 +449,7 @@ class SurveyPointImportService
             }
         }
 
-        return [$nodes, array_values($edges)];
+        return [$nodes, array_values($edges), $dropCheckpointNodes];
     }
 
     /**
@@ -581,8 +627,18 @@ class SurveyPointImportService
     }
 
     /**
-     * Weld chains of the SAME physical duct whose endpoints nearly touch —
-     * covers the few unsurveyed metres at a tap where the walk skipped.
+     * Weld chains of the SAME physical duct whose endpoints nearly touch — covers a survey
+     * walk jumping back near an earlier junction (a few unsurveyed metres, not close enough
+     * to auto-merge as one node) to record another branch, which otherwise reads as a
+     * floating, disconnected fragment instead of part of the same network.
+     *
+     * Only welds chains from DIFFERENT connected components (see connectedComponents()) —
+     * chains from the SAME walk (e.g. several houses sharing a prefix, see
+     * walkHouseDropChains) already share a real, deliberate common point and must never be
+     * spliced into each other.
+     *
+     * @param  array<int, array{path: array, component: int}>  $paths
+     * @return array<int, array{path: array, component: int}>
      */
     private function weldChainEnds(array $paths, float $toleranceM): array
     {
@@ -592,9 +648,12 @@ class SurveyPointImportService
             $n = count($paths);
             for ($i = 0; $i < $n && ! $merged; $i++) {
                 for ($j = $i + 1; $j < $n && ! $merged; $j++) {
+                    if ($paths[$i]['component'] === $paths[$j]['component']) {
+                        continue;
+                    }
                     foreach ([[true, false], [true, true], [false, false], [false, true]] as [$iAtEnd, $jAtEnd]) {
-                        $a = $paths[$i];
-                        $b = $paths[$j];
+                        $a = $paths[$i]['path'];
+                        $b = $paths[$j]['path'];
                         $pa = $iAtEnd ? end($a) : $a[0];
                         $pb = $jAtEnd ? end($b) : $b[0];
                         if ($this->geometry->distanceBetweenPoints($pa, $pb) > $toleranceM) {
@@ -606,7 +665,7 @@ class SurveyPointImportService
                         if ($this->geometry->distanceBetweenPoints(end($first), $second[0]) < 0.5) {
                             array_shift($second);
                         }
-                        $paths[$i] = array_merge($first, $second);
+                        $paths[$i] = ['path' => array_merge($first, $second), 'component' => $paths[$i]['component']];
                         array_splice($paths, $j, 1);
                         $merged = true;
                         break;
@@ -616,6 +675,35 @@ class SurveyPointImportService
         }
 
         return array_values($paths);
+    }
+
+    /**
+     * Union-find over the node ids touched by $edges.
+     *
+     * @param  array  $edges  each ['a' => nodeId, 'b' => nodeId, ...]
+     * @return array<int,int> node id => connected-component root id
+     */
+    private function connectedComponents(array $edges): array
+    {
+        $parent = [];
+        $find = function (int $x) use (&$parent, &$find): int {
+            if (! isset($parent[$x])) {
+                $parent[$x] = $x;
+            }
+
+            return $parent[$x] === $x ? $x : ($parent[$x] = $find($parent[$x]));
+        };
+        foreach ($edges as $edge) {
+            $parent[$find($edge['a'])] = $find($edge['b']);
+        }
+
+        $components = [];
+        foreach ($edges as $edge) {
+            $components[$edge['a']] = $find($edge['a']);
+            $components[$edge['b']] = $find($edge['b']);
+        }
+
+        return $components;
     }
 
     /**
@@ -699,6 +787,102 @@ class SurveyPointImportService
         return $chains;
     }
 
+    /**
+     * Walk a customer-drop (10/8) identity's subgraph, emitting one path PER checkpoint
+     * (house or reserve loop) it reaches — each path runs from the walk's true origin (a
+     * junction, i.e. the shared trunk/cabinet end) up to and including that checkpoint,
+     * reusing whatever an earlier one's path already covered. A survey often keeps walking
+     * straight past house/loop A to reach house/loop B; without this, B's drop would start
+     * at A instead of running independently back to the trunk. Still hard-cuts on
+     * structural junctions and on $groupOf changes (count changes), same as walkChains —
+     * the two just diverge on whether reaching a checkpoint stops the walk (walkChains) or
+     * only checkpoints it.
+     *
+     * @param  array  $edgeList  each ['a' => nodeId, 'b' => nodeId, ...]
+     * @param  array<int,bool>  $checkpointNodes  node ids that are a house or reserve loop
+     * @param  callable|null  $groupOf  fn(edge): scalar
+     * @return array<int, array{nodes: int[], group: mixed}>
+     */
+    private function walkHouseDropChains(array $edgeList, array $checkpointNodes, ?callable $groupOf): array
+    {
+        $adjacency = [];
+        foreach ($edgeList as $index => $edge) {
+            $adjacency[$edge['a']][] = $index;
+            $adjacency[$edge['b']][] = $index;
+        }
+
+        $isHardCut = function (int $node) use ($adjacency, $edgeList, $groupOf): bool {
+            $incident = $adjacency[$node] ?? [];
+            if (count($incident) !== 2) {
+                return true;
+            }
+
+            return $groupOf !== null
+                && $groupOf($edgeList[$incident[0]]) !== $groupOf($edgeList[$incident[1]]);
+        };
+
+        $visited = [];
+        $chains = [];
+
+        $walk = function (int $startNode, int $firstEdge) use (&$visited, $adjacency, $edgeList, $isHardCut, $checkpointNodes, $groupOf, &$chains): void {
+            $chainNodes = [$startNode];
+            $current = $startNode;
+            $edge = $firstEdge;
+            $group = $groupOf !== null ? $groupOf($edgeList[$edge]) : null;
+            $reachedCheckpoint = false;
+
+            while (true) {
+                $visited[$edge] = true;
+                $current = $edgeList[$edge]['a'] === $current ? $edgeList[$edge]['b'] : $edgeList[$edge]['a'];
+                $chainNodes[] = $current;
+
+                if (isset($checkpointNodes[$current])) {
+                    $chains[] = ['nodes' => $chainNodes, 'group' => $group];
+                    $reachedCheckpoint = true;
+                }
+
+                if ($isHardCut($current)) {
+                    break;
+                }
+                $next = null;
+                foreach ($adjacency[$current] as $candidate) {
+                    if (empty($visited[$candidate])) {
+                        $next = $candidate;
+                        break;
+                    }
+                }
+                if ($next === null) {
+                    break;
+                }
+                $edge = $next;
+            }
+
+            // No house/loop anywhere on this walk (not yet surveyed to a customer, or a
+            // plain ZO-tagged run) — keep it as one duct, same as walkChains would.
+            if (! $reachedCheckpoint) {
+                $chains[] = ['nodes' => $chainNodes, 'group' => $group];
+            }
+        };
+
+        foreach (array_keys($adjacency) as $node) {
+            if (! $isHardCut($node)) {
+                continue;
+            }
+            foreach ($adjacency[$node] as $edgeIndex) {
+                if (empty($visited[$edgeIndex])) {
+                    $walk($node, $edgeIndex);
+                }
+            }
+        }
+        foreach ($edgeList as $edgeIndex => $edge) {
+            if (empty($visited[$edgeIndex])) {
+                $walk($edge['a'], $edgeIndex);
+            }
+        }
+
+        return $chains;
+    }
+
     // -------------------------------------------------------------------------
     // Preview & confirm
     // -------------------------------------------------------------------------
@@ -714,6 +898,30 @@ class SurveyPointImportService
         $alreadyImported = SurveyPoint::where('project_id', $project->id)->where('import_batch', $batch)->exists();
 
         $network = $this->buildNetwork($points);
+        // Same reasoning as houses below: a cabinet point from THIS batch isn't a real
+        // Cabinet row yet either, so it's added as a stand-in (id=null) alongside real DB
+        // cabinets — otherwise the most common case (one file with both the ZO points and
+        // its ducts) would preview every duct as unmatched, then bind correctly on confirm().
+        $cabinets = Cabinet::where('project_id', $project->id)->whereNotNull('latitude')->get()
+            ->concat(
+                collect($points)->where('kind', 'cabinet')->map(fn ($p) => (object) [
+                    'id' => null,
+                    'name' => $this->cabinetLabel($p['code']),
+                    'latitude' => $p['lat'],
+                    'longitude' => $p['lng'],
+                ])
+            );
+        $odfs = Odf::where('project_id', $project->id)->whereNotNull('latitude')->get();
+        // Sling points from THIS batch aren't persisted as House rows yet (preview never
+        // writes), so they're added as house-shaped stand-ins alongside real DB houses —
+        // otherwise a duct ending at a brand new house would preview as non-drop and then
+        // flip to 'drop' on confirm(), where houses are created before ducts.
+        $houseCandidates = House::where('project_id', $project->id)->whereNotNull('latitude')->get()
+            ->concat(
+                collect($points)
+                    ->where('kind', 'sling')
+                    ->map(fn ($p) => (object) ['id' => null, 'latitude' => $p['lat'], 'longitude' => $p['lng']])
+            );
 
         return [
             'batch' => $batch,
@@ -729,16 +937,26 @@ class SurveyPointImportService
                 'microduct_count' => 0,
             ])->values()->all(),
             'trench_total_m' => array_sum(array_column($network['trenches'], 'length_m')),
-            'ducts' => collect($network['ducts'])->map(fn (array $duct) => [
-                'label' => $duct['label'],
-                'length_m' => $duct['length_m'],
-                'color' => $duct['color'],
-                'zo_tag' => $duct['zo_tag'],
-            ])->values()->all(),
+            'ducts' => collect($network['ducts'])->map(function (array $duct) use ($cabinets, $odfs, $houseCandidates) {
+                $binding = $this->resolveDuctBinding($duct, $cabinets, $odfs, $houseCandidates);
+
+                return [
+                    'key' => $duct['key'],
+                    'label' => $duct['label'],
+                    'length_m' => $duct['length_m'],
+                    'color' => $duct['color'],
+                    'zo_tag' => $duct['zo_tag'],
+                    'route_type' => $binding['route_type'],
+                    'matched_cabinet_id' => $binding['cabinet']?->id,
+                    'matched_cabinet_name' => $binding['cabinet']?->name,
+                    'match_confidence' => $binding['match_confidence'],
+                    'candidates' => $binding['candidates'],
+                ];
+            })->values()->all(),
             'cabinets' => collect($points)->where('kind', 'cabinet')->map(fn ($p) => ['code' => $p['code'], 'lat' => $p['lat'], 'lng' => $p['lng']])->values()->all(),
             'odfs' => $this->mergeOdfPoints($points),
             'manholes' => collect($points)->where('kind', 'manhole')->count(),
-            'houses' => collect($points)->filter(fn ($p) => $p['kind'] === 'sling' || ! empty($p['has_sling']))->count(),
+            'houses' => collect($points)->where('kind', 'sling')->count(),
             'unrecognized_codes' => collect($points)->where('kind', 'other')->pluck('code')->filter()->unique()->values()->all(),
             'bounds' => [
                 'lat' => [collect($points)->min('lat'), collect($points)->max('lat')],
@@ -747,7 +965,10 @@ class SurveyPointImportService
         ];
     }
 
-    public function confirm(Project $project, string $contents, string $filename = ''): array
+    /**
+     * @param  array<string,int>  $cabinetOverrides  duct key => cabinet id, from a user-reviewed preview
+     */
+    public function confirm(Project $project, string $contents, string $filename = '', array $cabinetOverrides = []): array
     {
         $points = $this->parse($contents);
         if (count($points) < 1) {
@@ -759,9 +980,9 @@ class SurveyPointImportService
             throw new InvalidArgumentException('Ovaj fajl je vec uvezen u ovaj projekat.');
         }
 
-        $created = ['points' => 0, 'trenches' => 0, 'ducts' => 0, 'cabinets' => 0, 'odfs' => 0, 'manholes' => 0, 'houses' => 0];
+        $created = ['points' => 0, 'trenches' => 0, 'ducts' => 0, 'cabinets' => 0, 'odfs' => 0, 'manholes' => 0, 'borings' => 0, 'splices' => 0, 'loops' => 0, 'houses' => 0];
 
-        DB::transaction(function () use ($project, $points, $batch, $filename, &$created): void {
+        DB::transaction(function () use ($project, $points, $batch, $filename, $cabinetOverrides, &$created): void {
             foreach ($points as $point) {
                 SurveyPoint::create([
                     'project_id' => $project->id,
@@ -792,6 +1013,7 @@ class SurveyPointImportService
                     'ports_per_splitter' => 4,
                     'latitude' => $point['lat'],
                     'longitude' => $point['lng'],
+                    'import_batch' => $batch,
                 ]);
                 $created['cabinets']++;
             }
@@ -809,16 +1031,46 @@ class SurveyPointImportService
                     'port_count' => 48,
                     'latitude' => $odfPoint['lat'],
                     'longitude' => $odfPoint['lng'],
+                    'import_batch' => $batch,
                 ]);
                 $created['odfs']++;
             }
             $allOdfs = Odf::where('project_id', $project->id)->whereNotNull('latitude')->get();
 
+            // 2. Slings (points that explicitly name a house) mark a prepared house
+            //    connection — create unassigned houses BEFORE ducts, so a duct ending at
+            //    one can be bound and typed as a 'drop'. A bare reserve loop ('loop' kind,
+            //    no house named) does NOT create a house — it's just a coiled cable reserve.
+            $slingPoints = collect($points)->where('kind', 'sling');
+            foreach ($slingPoints as $point) {
+                if ($this->existsNearby(House::class, $project->id, $point['lat'], $point['lng'])) {
+                    continue;
+                }
+                House::create([
+                    'project_id' => $project->id,
+                    'label' => $this->uniqueHouseLabel($project->id, 'Kuca t'.$point['point_no']),
+                    'address' => $point['code'] ?: 'Geodetski snimak',
+                    'status' => 'planned',
+                    'latitude' => $point['lat'],
+                    'longitude' => $point['lng'],
+                    'import_batch' => $batch,
+                ]);
+                $created['houses']++;
+            }
+            $allHouses = House::where('project_id', $project->id)->whereNotNull('latitude')->get();
+
             $network = $this->buildNetwork($points);
 
-            // 2. Physical trenches.
+            // buildNetwork() already resolved this file's own topology (e.g. which branches
+            // are genuinely separate at a junction) — findExisting*() must never second-guess
+            // that by merging two routes THIS SAME call just created into each other just
+            // because they happen to touch at a shared point. It only exists to continue a
+            // route from an EARLIER, separate import, so freshly-created ids are excluded.
+            $freshRouteIds = [];
+
+            // 3. Physical trenches.
             foreach ($network['trenches'] as $index => $chain) {
-                $existing = $this->findExistingRouteGeometry($project->id, 'trench', $chain['path']);
+                $existing = $this->findExistingRouteGeometry($project->id, 'trench', $chain['path'], $freshRouteIds);
                 if ($existing) {
                     $mergedPath = $this->mergeTouchingPaths($existing->path ?? [], $chain['path']);
                     $existing->update([
@@ -830,7 +1082,7 @@ class SurveyPointImportService
                     continue;
                 }
 
-                NetworkRoute::create([
+                $trench = NetworkRoute::create([
                     'project_id' => $project->id,
                     'name' => $this->uniqueName(NetworkRoute::class, $project->id, 'Rov '.($index + 1)),
                     'route_type' => 'trench',
@@ -844,15 +1096,21 @@ class SurveyPointImportService
                     'status' => 'planned',
                     'path' => $chain['path'],
                     'note' => 'Geodetski snimak: '.$chain['code'],
+                    'import_batch' => $batch,
                 ]);
+                $freshRouteIds[] = $trench->id;
                 $created['trenches']++;
             }
 
-            // 3. Microducts as distribution routes, bound to their cabinet/ODF.
+            // 4. Microducts as routes, bound to their cabinet/ODF/house and typed by topology.
             foreach ($network['ducts'] as $duct) {
-                $cabinet = $this->matchCabinet($duct, $allCabinets);
-                $odf = $this->nearestWithin($allOdfs, $duct['path'][0], self::DUCT_ENDPOINT_BIND_M);
-                $existing = $this->findExistingDuctRoute($project->id, $duct);
+                $binding = $this->resolveDuctBinding($duct, $allCabinets, $allOdfs, $allHouses, $cabinetOverrides);
+                $cabinet = $binding['cabinet'];
+                $odf = $binding['odf'];
+                $house = $binding['house'];
+                $routeType = $binding['route_type'];
+
+                $existing = $this->findExistingDuctRoute($project->id, $duct, $routeType, $house?->id, $freshRouteIds);
                 if ($existing) {
                     $mergedPath = $this->mergeTouchingPaths($existing->path ?? [], $duct['path']);
                     $existing->update([
@@ -865,16 +1123,22 @@ class SurveyPointImportService
                     continue;
                 }
 
+                // A drop always runs cabinet(ODO) -> house; feeder/distribution keep the
+                // existing odf -> cabinet wiring, only route_type changes between them.
+                [$fromType, $fromId, $toType, $toId] = $routeType === 'drop'
+                    ? ['cabinet', $cabinet?->id, 'house', $house?->id]
+                    : [$odf ? 'odf' : null, $odf?->id, $cabinet ? 'cabinet' : null, $cabinet?->id];
+
                 $route = NetworkRoute::create([
                     'project_id' => $project->id,
                     'odf_id' => $odf?->id,
                     'cabinet_id' => $cabinet?->id,
-                    'from_type' => $odf ? 'odf' : null,
-                    'from_id' => $odf?->id,
-                    'to_type' => $cabinet ? 'cabinet' : null,
-                    'to_id' => $cabinet?->id,
+                    'from_type' => $fromType,
+                    'from_id' => $fromId,
+                    'to_type' => $toType,
+                    'to_id' => $toId,
                     'name' => $this->uniqueName(NetworkRoute::class, $project->id, $duct['label']),
-                    'route_type' => 'distribution',
+                    'route_type' => $routeType,
                     'installation_type' => 'underground',
                     'counts_as_trench' => false,
                     'duct_length_m' => $duct['length_m'],
@@ -885,61 +1149,91 @@ class SurveyPointImportService
                     'status' => 'planned',
                     'path' => $duct['path'],
                     'note' => $this->ductImportNote($duct),
+                    'import_batch' => $batch,
                 ]);
+                $freshRouteIds[] = $route->id;
                 $this->branchSync->createBranchForRoute($route);
                 $created['ducts']++;
             }
 
-            // 4. Manholes.
-            foreach (collect($points)->where('kind', 'manhole') as $point) {
-                $nearby = ProjectAppendixItem::where('project_id', $project->id)
-                    ->where('type', 'manhole')
-                    ->get()
-                    ->contains(fn ($item) => $item->latitude !== null && $this->geometry->distanceMeters(
-                        (float) $item->latitude, (float) $item->longitude, $point['lat'], $point['lng']
-                    ) <= self::EXISTING_ELEMENT_TOLERANCE_M);
-                if ($nearby) {
-                    continue;
-                }
-                ProjectAppendixItem::create([
-                    'project_id' => $project->id,
-                    'type' => 'manhole',
-                    'quantity' => 1,
-                    'unit' => 'KOMADA',
-                    'latitude' => $point['lat'],
-                    'longitude' => $point['lng'],
-                    'note' => 'Geodetski snimak',
-                ]);
-                $created['manholes']++;
-            }
-
-            // 5. Slings mark a prepared house connection — create unassigned houses.
-            //    Includes "Rov +Šlinga" points (trench carrying a house tap).
-            $slingPoints = collect($points)->filter(fn ($p) => $p['kind'] === 'sling' || ! empty($p['has_sling']));
-            foreach ($slingPoints as $point) {
-                if ($this->existsNearby(House::class, $project->id, $point['lat'], $point['lng'])) {
-                    continue;
-                }
-                House::create([
-                    'project_id' => $project->id,
-                    'label' => $this->uniqueHouseLabel($project->id, 'Kuca t'.$point['point_no']),
-                    'address' => $point['code'] ?: 'Geodetski snimak',
-                    'status' => 'planned',
-                    'latitude' => $point['lat'],
-                    'longitude' => $point['lng'],
-                ]);
-                $created['houses']++;
-            }
+            // 5. Appendix-item point kinds: manholes, borings (FI 130), splices, reserve loops.
+            $created['manholes'] = $this->createAppendixPointsFromSurvey($project->id, $points, 'manhole', 'manhole', $batch);
+            $created['borings'] = $this->createAppendixPointsFromSurvey($project->id, $points, 'boring', 'boring_fi_130', $batch);
+            $created['splices'] = $this->createAppendixPointsFromSurvey($project->id, $points, 'splice', 'splice', $batch);
+            $created['loops'] = $this->createAppendixPointsFromSurvey($project->id, $points, 'loop', 'loop', $batch);
         });
 
         return $created;
     }
 
-    private function findExistingDuctRoute(int $projectId, array $duct): ?NetworkRoute
+    /**
+     * Remove everything a geodetic survey import created in this project — routes,
+     * cabinets, ODFs, houses, appendix items (all tagged with an `import_batch` at
+     * creation time, never on a merge/extend of a pre-existing route — see confirm()),
+     * plus all raw survey_points — so the same TXT file can be re-imported. Elements the
+     * user drew manually are never tagged and are therefore never touched here, even if a
+     * later import extended one of their routes.
+     *
+     * @return array<string,int> counts removed, keyed like confirm()'s $created
+     */
+    public function clearImportedData(Project $project): array
+    {
+        $removed = ['points' => 0, 'trenches' => 0, 'ducts' => 0, 'cabinets' => 0, 'odfs' => 0, 'manholes' => 0, 'borings' => 0, 'splices' => 0, 'loops' => 0, 'houses' => 0];
+
+        DB::transaction(function () use ($project, &$removed): void {
+            $routes = NetworkRoute::where('project_id', $project->id)->whereNotNull('import_batch')->get();
+            foreach ($routes as $route) {
+                $removed[$route->route_type === 'trench' ? 'trenches' : 'ducts']++;
+                $this->branchSync->deleteRouteWithBranch($route);
+            }
+
+            $removed['cabinets'] = Cabinet::where('project_id', $project->id)->whereNotNull('import_batch')->count();
+            Cabinet::where('project_id', $project->id)->whereNotNull('import_batch')->delete();
+
+            $removed['odfs'] = Odf::where('project_id', $project->id)->whereNotNull('import_batch')->count();
+            Odf::where('project_id', $project->id)->whereNotNull('import_batch')->delete();
+
+            $removed['houses'] = House::where('project_id', $project->id)->whereNotNull('import_batch')->count();
+            House::where('project_id', $project->id)->whereNotNull('import_batch')->delete();
+
+            foreach (['manhole', 'boring_fi_130', 'splice', 'loop'] as $appendixType) {
+                $key = match ($appendixType) {
+                    'manhole' => 'manholes',
+                    'boring_fi_130' => 'borings',
+                    'splice' => 'splices',
+                    'loop' => 'loops',
+                };
+                $removed[$key] = ProjectAppendixItem::where('project_id', $project->id)
+                    ->where('type', $appendixType)->whereNotNull('import_batch')->count();
+                ProjectAppendixItem::where('project_id', $project->id)
+                    ->where('type', $appendixType)->whereNotNull('import_batch')->delete();
+            }
+
+            $removed['points'] = SurveyPoint::where('project_id', $project->id)->count();
+            SurveyPoint::where('project_id', $project->id)->delete();
+        });
+
+        return $removed;
+    }
+
+    /**
+     * @param  int[]  $excludeIds  routes created earlier in THIS SAME confirm() call — never
+     *                             a match candidate, see the comment where $freshRouteIds is built
+     */
+    private function findExistingDuctRoute(int $projectId, array $duct, string $routeType, ?int $houseId, array $excludeIds): ?NetworkRoute
     {
         $query = NetworkRoute::where('project_id', $projectId)
-            ->where('route_type', 'distribution')
-            ->where('microduct_type', $duct['microduct_type']);
+            ->where('route_type', $routeType)
+            ->where('microduct_type', $duct['microduct_type'])
+            ->whereNotIn('id', $excludeIds);
+
+        if ($routeType === 'drop' && $houseId !== null) {
+            // Neighbouring houses on the same trunk now get independent, overlapping
+            // full-length paths (see walkHouseDropChains) — match strictly by destination
+            // house rather than geometry, so house B's drop is never merged into house A's
+            // just because it shares that prefix.
+            return $query->where('to_type', 'house')->where('to_id', $houseId)->first();
+        }
 
         if ($duct['zo_tag'] !== null) {
             $query->where('note', 'like', '%ZO '.$duct['zo_tag'].'%');
@@ -958,9 +1252,12 @@ class SurveyPointImportService
         return null;
     }
 
-    private function findExistingRouteGeometry(int $projectId, string $type, array $path): ?NetworkRoute
+    /**
+     * @param  int[]  $excludeIds  routes created earlier in THIS SAME confirm() call
+     */
+    private function findExistingRouteGeometry(int $projectId, string $type, array $path, array $excludeIds): ?NetworkRoute
     {
-        foreach (NetworkRoute::where('project_id', $projectId)->where('route_type', $type)->get() as $route) {
+        foreach (NetworkRoute::where('project_id', $projectId)->where('route_type', $type)->whereNotIn('id', $excludeIds)->get() as $route) {
             if ($this->pathsTouchOrOverlap($route->path ?? [], $path)) {
                 return $route;
             }
@@ -1052,20 +1349,113 @@ class SurveyPointImportService
     // Element binding helpers
     // -------------------------------------------------------------------------
 
-    private function matchCabinet(array $duct, $cabinets): ?Cabinet
+    /**
+     * Resolve which cabinet/ODF/house a duct binds to, and the route_type that follows from
+     * that binding. Shared by preview() (read-only display) and confirm() (persists), so the
+     * two never disagree about what an import will do.
+     *
+     * @param  Collection  $cabinets  Cabinet models, or cabinet-shaped stand-ins with id=null
+     * @param  Collection  $odfs
+     * @param  Collection  $houses  House models, or house-shaped stand-ins with id=null
+     * @param  array<string,int>  $cabinetOverrides  duct key => cabinet id, from a reviewed preview
+     * @return array{cabinet:?object,odf:?Odf,house:?object,route_type:string,match_confidence:string,candidates:array}
+     */
+    private function resolveDuctBinding(array $duct, $cabinets, $odfs, $houses, array $cabinetOverrides = []): array
     {
-        // Prefer the explicit ZO tag from the description.
-        if ($duct['zo_tag'] !== null) {
-            foreach ($cabinets as $cabinet) {
-                if ($this->cabinetTag($cabinet->name) === $duct['zo_tag']) {
-                    return $cabinet;
-                }
+        $house = $this->nearestWithin($houses, end($duct['path']), self::EXISTING_ELEMENT_TOLERANCE_M)
+            ?? $this->nearestWithin($houses, $duct['path'][0], self::EXISTING_ELEMENT_TOLERANCE_M);
+        $odf = $this->nearestWithin($odfs, $duct['path'][0], self::DUCT_ENDPOINT_BIND_M);
+
+        $cabinet = null;
+        $matchConfidence = 'none';
+        $candidates = [];
+
+        if (isset($cabinetOverrides[$duct['key']])) {
+            $cabinet = $cabinets->firstWhere('id', (int) $cabinetOverrides[$duct['key']]);
+            $matchConfidence = $cabinet ? 'manual' : 'none';
+        } elseif ($duct['zo_tag'] !== null) {
+            // Search real cabinets first — an existing, already-named cabinet is a firmer
+            // match than a same-batch stand-in that merely happens to share a ZO tag.
+            $cabinet = $cabinets->first(fn ($c) => $c->id !== null && $this->cabinetTag($c->name) === $duct['zo_tag'])
+                ?? $cabinets->first(fn ($c) => $this->cabinetTag($c->name) === $duct['zo_tag']);
+            $matchConfidence = $cabinet ? 'exact' : 'none';
+        }
+
+        if ($cabinet === null) {
+            $start = $duct['path'][0];
+            $end = end($duct['path']);
+            $nearby = $cabinets
+                ->map(fn ($c) => ['cabinet' => $c, 'distance_m' => min(
+                    $this->geometry->distanceMeters((float) $c->latitude, (float) $c->longitude, $end[0], $end[1]),
+                    $this->geometry->distanceMeters((float) $c->latitude, (float) $c->longitude, $start[0], $start[1]),
+                )])
+                ->filter(fn (array $row) => $row['distance_m'] <= self::DUCT_ENDPOINT_BIND_M)
+                ->sortBy('distance_m')
+                ->values();
+
+            if ($nearby->isNotEmpty()) {
+                $cabinet = $nearby->first()['cabinet'];
+                $matchConfidence = 'ambiguous';
+                // Only cabinets that already have a real id can be picked from the review
+                // UI — a same-batch stand-in has no id to send back as an override yet.
+                $candidates = $nearby->filter(fn (array $row) => $row['cabinet']->id !== null)
+                    ->map(fn (array $row) => [
+                        'id' => $row['cabinet']->id,
+                        'name' => $row['cabinet']->name,
+                        'distance_m' => round($row['distance_m'], 1),
+                    ])->values()->all();
             }
         }
 
-        // Otherwise the cabinet standing at either end of the duct.
-        return $this->nearestWithin($cabinets, end($duct['path']), self::DUCT_ENDPOINT_BIND_M)
-            ?? $this->nearestWithin($cabinets, $duct['path'][0], self::DUCT_ENDPOINT_BIND_M);
+        $routeType = match (true) {
+            $house !== null => 'drop',
+            $odf !== null => 'feeder',
+            default => 'distribution',
+        };
+
+        return [
+            'cabinet' => $cabinet,
+            'odf' => $odf,
+            'house' => $house,
+            'route_type' => $routeType,
+            'match_confidence' => $matchConfidence,
+            'candidates' => $candidates,
+        ];
+    }
+
+    /**
+     * Persist a classified survey `kind` (manhole/boring/splice) as ProjectAppendixItem rows,
+     * skipping any within EXISTING_ELEMENT_TOLERANCE_M of an already-stored item of the same type.
+     * A survey point only records a location, never a measured length — boring length_m stays
+     * null (quantity 0) so it doesn't corrupt the report's length-based BOM total.
+     */
+    private function createAppendixPointsFromSurvey(int $projectId, array $points, string $kind, string $appendixType, string $batch): int
+    {
+        $existing = ProjectAppendixItem::where('project_id', $projectId)->where('type', $appendixType)->get(['latitude', 'longitude']);
+        $created = 0;
+
+        foreach (collect($points)->where('kind', $kind) as $point) {
+            $nearby = $existing->contains(fn ($item) => $item->latitude !== null && $this->geometry->distanceMeters(
+                (float) $item->latitude, (float) $item->longitude, $point['lat'], $point['lng']
+            ) <= self::EXISTING_ELEMENT_TOLERANCE_M);
+            if ($nearby) {
+                continue;
+            }
+
+            $existing->push(ProjectAppendixItem::create([
+                'project_id' => $projectId,
+                'type' => $appendixType,
+                'quantity' => $appendixType === 'boring_fi_130' ? 0 : 1,
+                'unit' => $appendixType === 'boring_fi_130' ? 'metara' : 'KOMADA',
+                'latitude' => $point['lat'],
+                'longitude' => $point['lng'],
+                'note' => 'Geodetski snimak',
+                'import_batch' => $batch,
+            ]));
+            $created++;
+        }
+
+        return $created;
     }
 
     private function nearestWithin($models, array $point, float $maxMeters)

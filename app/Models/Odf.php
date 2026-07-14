@@ -11,7 +11,7 @@ class Odf extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'name', 'address', 'fiber_capacity', 'port_count', 'latitude', 'longitude', 'notes'];
+    protected $fillable = ['project_id', 'name', 'address', 'fiber_capacity', 'port_count', 'latitude', 'longitude', 'notes', 'import_batch'];
 
     public function project(): BelongsTo
     {

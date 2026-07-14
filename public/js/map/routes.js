@@ -156,7 +156,7 @@ async function joinSelectedRoutes() {
             map.removeLayer(label);
             untrackLayer(label);
         });
-        routeLabelsById[first.route.id] = first.route.type === 'trench' ? [] : addRouteLabel(points, first.route.name, false, routeLabelSpecs(first.route));
+        routeLabelsById[first.route.id] = first.route.type === 'trench' ? [] : addRouteLabel(points, first.route.name, false, routeLabelSpecs(first.route), first.route._labelLane);
         routeLabelsById[first.route.id].forEach(label => trackLayer(label, routeLayerType(first.route.type)));
         routeHitLayerById[first.route.id]?.setLatLngs(points);
         const removedLine = routeLayerById[result.deleted_route_id];
@@ -297,7 +297,7 @@ async function patchRouteGeometryOnMap(routeId, points) {
         route.duct_length_m = result.route.length;
         line.setPopupContent(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${result.route.length} m`);
         (routeLabelsById[routeId] || []).forEach(l => { map.removeLayer(l); untrackLayer(l); });
-        const newLabels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
+        const newLabels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route), route._labelLane);
         routeLabelsById[routeId] = newLabels || [];
         newLabels?.forEach(l => trackLayer(l, routeLayerType(route.type)));
     }
