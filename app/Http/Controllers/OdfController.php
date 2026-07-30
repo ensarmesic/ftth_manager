@@ -8,6 +8,7 @@ use App\Models\Odf;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class OdfController extends Controller
@@ -82,7 +83,7 @@ class OdfController extends Controller
     {
         $odf = Odf::findOrFail($id);
         $odf->update($request->validate([
-            'project_id' => ['required', 'exists:projects,id'],
+            'project_id' => ['required', Rule::in([$odf->project_id])],
             'name' => ['required', 'max:255'],
             'address' => ['required', 'max:255'],
             'fiber_capacity' => ['required', 'integer', 'min:1'],

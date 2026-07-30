@@ -374,7 +374,7 @@ class RouteController extends Controller
     {
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
-            'dxf' => ['required', 'file', 'max:10240'],
+            'dxf' => ['required', 'file', 'max:10240', 'extensions:dxf'],
         ]);
 
         $entities = $this->parseDxfPolylines($data['dxf']->get());

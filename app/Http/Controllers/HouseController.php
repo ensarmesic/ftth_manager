@@ -10,6 +10,7 @@ use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class HouseController extends Controller
@@ -71,7 +72,7 @@ class HouseController extends Controller
     {
         $house = House::findOrFail($id);
         $data = $request->validate([
-            'project_id' => ['required', 'exists:projects,id'],
+            'project_id' => ['required', Rule::in([$house->project_id])],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'label' => ['required', 'max:255'],
             'address' => ['nullable', 'max:255'],

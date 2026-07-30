@@ -18,6 +18,8 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/public/vendor/leaflet
+/public/vendor/proj4
 /storage/*.key
 /storage/pail
 /vendor

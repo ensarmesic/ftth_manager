@@ -3,7 +3,7 @@
 @section('subtitle', 'Lokalne postavke prikaza FTTH Manager aplikacije.')
 @section('content')
 
-<section class="grid gap-5 xl:grid-cols-[480px_1fr]">
+<section class="settings-shell">
 
     {{-- Display settings --}}
     <form id="display-settings" class="page-form">
@@ -38,7 +38,34 @@
         </div>
     </form>
 
-    <div class="grid gap-5 content-start">
+    <div class="settings-stack">
+        <article class="page-form">
+            <div class="page-form-header">
+                <div class="page-form-icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm2 6V6a2 2 0 10-4 0v2h4z" clip-rule="evenodd"/></svg>
+                </div>
+                <h2>Sigurnost računa</h2>
+            </div>
+            <form method="POST" action="{{ route('password.update') }}" class="page-form-body account-security-form">
+                @csrf
+                @method('PUT')
+                <label class="grid gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Trenutna lozinka
+                    <input type="password" name="current_password" autocomplete="current-password" class="field-input normal-case tracking-normal" required>
+                </label>
+                <label class="grid gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Nova lozinka
+                    <input type="password" name="password" autocomplete="new-password" class="field-input normal-case tracking-normal" required>
+                </label>
+                <label class="grid gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Ponovi novu lozinku
+                    <input type="password" name="password_confirmation" autocomplete="new-password" class="field-input normal-case tracking-normal" required>
+                </label>
+                <button class="btn-save">Promijeni lozinku</button>
+                <p class="text-center text-xs text-slate-400">Najmanje 12 znakova, velika i mala slova te broj.</p>
+            </form>
+        </article>
+
         <article class="page-form">
             <div class="page-form-header">
                 <div class="page-form-icon">

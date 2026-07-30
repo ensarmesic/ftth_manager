@@ -6,14 +6,19 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Throwable;
 
 class MapLayerController extends Controller
 {
+    private const MAX_FEATURES = 100000;
+
     public function upload(Request $request): JsonResponse
     {
         ini_set('memory_limit', '1G');
 
-        $request->validate(['file' => 'required|file|max:102400']);
+        $request->validate([
+            'file' => ['required', 'file', 'max:102400', 'extensions:dxf,dwg'],
+        ]);
 
         try {
             $file = $request->file('file');
@@ -42,9 +47,11 @@ class MapLayerController extends Controller
                 200, [],
                 JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
             );
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
+            report($e);
+
             return response()->json([
-                'error' => 'PHP greška: '.$e->getMessage().' u '.basename($e->getFile()).':'.$e->getLine(),
+                'error' => 'DXF fajl nije moguće obraditi. Provjeri format i pokušaj ponovo.',
             ], 500);
         }
     }
@@ -104,6 +111,9 @@ class MapLayerController extends Controller
             }
             if ($code !== '0' || ! in_array($value, $supported, true)) {
                 continue;
+            }
+            if (count($features) >= self::MAX_FEATURES) {
+                throw new \RuntimeException('DXF sadrži previše podržanih entiteta.');
             }
 
             $entityType = $value;

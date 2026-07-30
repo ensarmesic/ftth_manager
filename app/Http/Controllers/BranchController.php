@@ -44,7 +44,8 @@ class BranchController extends Controller
 
     public function updateBranch(Request $request, $id)
     {
-        NetworkBranch::findOrFail($id)->update($this->branchData($request, $id));
+        $branch = NetworkBranch::findOrFail($id);
+        $branch->update($this->branchData($request, $id, $branch->project_id));
 
         return back()->with('success', 'Krak je azuriran.');
     }
@@ -61,9 +62,16 @@ class BranchController extends Controller
 
     public function reorderBranches(Request $request)
     {
-        $ids = $request->validate(['ids' => 'required|array', 'ids.*' => 'integer|exists:network_branches,id'])['ids'];
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'distinct', 'exists:network_branches,id'],
+        ])['ids'];
+        $projectIds = NetworkBranch::whereIn('id', $ids)->pluck('project_id')->unique();
+        abort_if($projectIds->count() !== 1, 422, 'Redoslijed se može mijenjati samo unutar jednog projekta.');
+        $projectId = $projectIds->first();
+
         foreach ($ids as $position => $id) {
-            NetworkBranch::where('id', $id)->update(['sort_order' => $position + 1]);
+            NetworkBranch::where('project_id', $projectId)->whereKey($id)->update(['sort_order' => $position + 1]);
         }
 
         return response()->json(['ok' => true]);

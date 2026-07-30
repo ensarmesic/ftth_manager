@@ -198,10 +198,10 @@ trait ManagesFtthData
     // Validation helpers
     // -------------------------------------------------------------------------
 
-    protected function branchData(Request $request, ?int $branchId = null): array
+    protected function branchData(Request $request, ?int $branchId = null, ?int $currentProjectId = null): array
     {
         $data = $request->validate([
-            'project_id' => ['required', 'exists:projects,id'], 'odf_id' => ['nullable', 'exists:odfs,id'],
+            'project_id' => ['required', $currentProjectId ? Rule::in([$currentProjectId]) : 'exists:projects,id'], 'odf_id' => ['nullable', 'exists:odfs,id'],
             'parent_branch_id' => ['nullable', 'exists:network_branches,id'],
             'route_id' => ['nullable', 'exists:routes,id', Rule::unique('network_branches', 'route_id')->ignore($branchId)],
             'name' => ['required', 'max:255'], 'code' => ['nullable', 'max:100'], 'type' => ['required', 'in:primary,secondary,rov'],

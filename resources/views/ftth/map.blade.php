@@ -5,7 +5,7 @@
 @section('wide', '1')
 
 @section('content')
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}">
 
 <style>
     /* ── Map workspace ──────────────────────────────────────────── */
@@ -953,7 +953,7 @@
     </aside>
 </section>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
 <script>
 window.MapEditor = window.MapEditor || {};
 if (window.MapEditor.initialized) {
@@ -1042,7 +1042,7 @@ window.ftthMapConfig = {
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin="anonymous"></script>
+<script src="{{ asset('vendor/proj4/proj4.js') }}"></script>
 <script src="{{ asset('js/ftth-dxf-layer.js') }}?v={{ filemtime(public_path('js/ftth-dxf-layer.js')) }}"></script>
 {{-- survey.js mora doci NAKON #survey-panel HTML-a da bi dugmad postojala pri bindanju --}}
 <script src="{{ asset('js/map/survey.js') }}?v={{ filemtime(public_path('js/map/survey.js')) }}"></script>

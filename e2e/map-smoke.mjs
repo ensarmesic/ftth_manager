@@ -13,6 +13,8 @@ import { chromium } from 'playwright';
 
 const baseUrl = process.env.BASE_URL ?? 'http://127.0.0.1:8000';
 const target = `${baseUrl}/mapa`;
+const username = process.env.E2E_USERNAME;
+const password = process.env.E2E_PASSWORD;
 
 function fail(message) {
     process.stderr.write(`✗ ${message}\n`);
@@ -38,6 +40,19 @@ page.on('pageerror', (error) => pageErrors.push(error.message));
 try {
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
+    if (page.url().includes('/prijava')) {
+        if (!username || !password) {
+            throw new Error('E2E_USERNAME i E2E_PASSWORD su obavezni za prijavu.');
+        }
+        await page.fill('input[name="username"]', username);
+        await page.fill('input[name="password"]', password);
+        await Promise.all([
+            page.waitForURL(`${baseUrl}/**`, { timeout: 15000 }),
+            page.click('button[type="submit"]'),
+        ]);
+        await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    }
+
     // 1. Leaflet mounted the map — it stamps `leaflet-container` onto #network-map itself.
     await page.waitForSelector('#network-map.leaflet-container', { timeout: 15000 });
 
@@ -58,6 +73,7 @@ try {
     }
 } catch (error) {
     fail(`Smoke test nije prošao: ${error.message}`);
+    await page.screenshot({ path: 'storage/logs/map-smoke-failure.png', fullPage: true });
     if (pageErrors.length > 0) process.stderr.write(`  JS greške: ${pageErrors.join(' | ')}\n`);
 } finally {
     await browser.close();

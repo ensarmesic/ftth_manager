@@ -12,6 +12,7 @@ use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class CabinetController extends Controller
@@ -113,7 +114,7 @@ class CabinetController extends Controller
     {
         $cabinet = Cabinet::findOrFail($id);
         $data = $request->validate([
-            'project_id' => ['required', 'exists:projects,id'],
+            'project_id' => ['required', Rule::in([$cabinet->project_id])],
             'odf_id' => ['nullable', 'exists:odfs,id'],
             'parent_cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'branch_id' => ['nullable', 'exists:network_branches,id'],

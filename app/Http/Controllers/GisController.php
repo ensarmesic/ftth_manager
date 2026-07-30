@@ -19,7 +19,7 @@ class GisController extends Controller
     {
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
-            'geojson' => ['required', 'file', 'max:20480'],
+            'geojson' => ['required', 'file', 'max:20480', 'extensions:json,geojson'],
             'segment_type' => ['nullable', 'in:road,corridor,sidewalk,restricted'],
             'replace_existing' => ['nullable', 'boolean'],
         ]);

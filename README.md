@@ -131,11 +131,35 @@ Pokreće paralelno:
 - Laravel app na `http://127.0.0.1:8000`
 - Vite HMR na `http://127.0.0.1:5173`
 
+### Prvi administratorski račun
+
+Nakon migracija kreiraj početni račun samo ako baza još nema korisnika:
+
+```bash
+php artisan ftth:ensure-admin --email=admin@example.com --name="Administrator"
+```
+
+Početno korisničko ime je `admin`, a komanda generiše jednokratnu jaku lozinku. Nakon prve prijave promijeni je u
+**Postavke → Sigurnost računa**. Sve aplikacijske, API i backup rute zahtijevaju
+prijavu.
+
 ### Produkcijski build
 
 ```bash
 npm run build
 php artisan optimize
+```
+
+Build lokalno kopira Leaflet i Proj4 u `public/vendor`, tako da se editor mape
+inicijalizuje i kada vanjski CDN nije dostupan. Pozadinske satelitske pločice i
+dalje zahtijevaju mrežni pristup.
+
+Server-side DXF cache se automatski čisti kroz Laravel scheduler nakon 30 dana.
+Ručno ga možeš pregledati ili očistiti:
+
+```bash
+php artisan ftth:prune-dxf-cache --days=30 --dry-run
+php artisan ftth:prune-dxf-cache --days=30
 ```
 
 Serviraj s Apache, Nginx ili drugim web serverom — `public/` direktorij je web root.

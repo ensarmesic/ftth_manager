@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>FTTH Manager</title>
-    @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <script src="https://cdn.tailwindcss.com"></script>
-    @endif
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('css/ftth-app.css') }}">
     <style>
         body { line-height: 1.4; }
@@ -60,7 +56,7 @@
     if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarica nema povezani ODF.");
     if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehnicke podatke.");
 @endphp
-<body class="h-screen overflow-hidden bg-slate-100 font-sans text-slate-950 antialiased">
+<body class="{{ $isDashboard || request()->routeIs('fiber-schema.index') ? 'workspace-page' : 'standard-page' }} h-screen overflow-hidden bg-slate-100 font-sans text-slate-950 antialiased">
 <div class="flex h-screen overflow-hidden">
     <aside class="hidden w-52 shrink-0 bg-linear-to-b from-[#004f7d] to-[#003558] text-white lg:flex lg:flex-col" style="box-shadow: 4px 0 24px rgba(0,0,0,.18);">
         <a href="{{ route('dashboard') }}" class="flex h-11 items-center gap-3 border-b border-white/10 px-5 xl:h-12 xl:px-6">
@@ -135,9 +131,9 @@
                 {{-- Profile button --}}
                 <button type="button" id="btn-profile"
                     class="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-slate-100">
-                    <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style="background:linear-gradient(135deg,#308dcc,#004f7d)">EM</span>
+                    <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style="background:linear-gradient(135deg,#308dcc,#004f7d)">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr(auth()->user()->name, 0, 2)) }}</span>
                     <span class="hidden sm:block text-left leading-tight">
-                        <b class="block text-xs font-semibold text-slate-800">Ensar Mešić</b>
+                        <b class="block max-w-32 truncate text-xs font-semibold text-slate-800">{{ auth()->user()->name }}</b>
                         <small class="block text-[10px] font-normal text-slate-400">Administrator</small>
                     </span>
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 text-slate-400"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
@@ -341,10 +337,10 @@ document.documentElement.classList.toggle('hide-header-notifications', savedFtth
 </div>
 <div id="profile-menu" class="fixed right-3 top-14 hidden w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:right-5" style="z-index:99999">
     <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white" style="background:linear-gradient(135deg,#308dcc,#004f7d)">EM</span>
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white" style="background:linear-gradient(135deg,#308dcc,#004f7d)">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr(auth()->user()->name, 0, 2)) }}</span>
         <div class="min-w-0">
-            <div class="truncate text-sm font-semibold text-slate-900">Ensar Mešić</div>
-            <div class="text-xs text-slate-400">Administrator</div>
+            <div class="truncate text-sm font-semibold text-slate-900">{{ auth()->user()->name }}</div>
+            <div class="truncate text-xs text-slate-400">{{ auth()->user()->email }}</div>
         </div>
     </div>
     <div class="p-1.5">
@@ -356,6 +352,13 @@ document.documentElement.classList.toggle('hide-header-notifications', savedFtth
             <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0 text-slate-400"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd"/></svg>
             Izvještaji
         </a>
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button type="submit" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 shrink-0"><path fill-rule="evenodd" d="M3 4a2 2 0 012-2h5a1 1 0 010 2H5v12h5a1 1 0 110 2H5a2 2 0 01-2-2V4zm10.293 2.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L14.586 11H8a1 1 0 110-2h6.586l-1.293-1.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                Odjava
+            </button>
+        </form>
     </div>
 </div>
 @stack('scripts')

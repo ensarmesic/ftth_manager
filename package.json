@@ -3,8 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
+        "build": "npm run vendor:sync && vite build",
         "dev": "vite",
+        "vendor:sync": "node scripts/sync-map-vendor.mjs",
         "check:js": "node scripts/check-js.mjs",
         "test:e2e": "node e2e/map-smoke.mjs"
     },
@@ -15,5 +16,9 @@
         "playwright": "^1.61.1",
         "tailwindcss": "^4.0.0",
         "vite": "^8.0.0"
+    },
+    "dependencies": {
+        "leaflet": "^1.9.4",
+        "proj4": "^2.19.10"
     }
 }
