@@ -232,6 +232,83 @@ class FtthIntelligenceTest extends TestCase
         $this->assertEquals(44.4492, (float) Cabinet::firstOrFail()->latitude);
     }
 
+    public function test_map_suggestion_reassignment_replaces_the_old_drop_route(): void
+    {
+        $project = $this->projectWithHouses(2);
+        $houses = $project->houses;
+        $house = $houses->first();
+        $otherHouse = $houses->last();
+        $oldCabinet = Cabinet::factory()->for($project)->create();
+        $otherCabinet = Cabinet::factory()->for($project)->create();
+        $house->update(['cabinet_id' => $oldCabinet->id]);
+        $otherHouse->update(['cabinet_id' => $otherCabinet->id]);
+        $oldDrop = NetworkRoute::factory()->for($project)->create([
+            'cabinet_id' => $oldCabinet->id,
+            'from_type' => 'cabinet',
+            'from_id' => $oldCabinet->id,
+            'to_type' => 'house',
+            'to_id' => $house->id,
+            'route_type' => 'drop',
+        ]);
+        NetworkRoute::factory()->for($project)->create([
+            'cabinet_id' => $otherCabinet->id,
+            'from_type' => 'cabinet',
+            'from_id' => $otherCabinet->id,
+            'to_type' => 'house',
+            'to_id' => $otherHouse->id,
+            'route_type' => 'drop',
+        ]);
+
+        $this->postJson(route('map.suggestions.store'), [
+            'project_id' => $project->id,
+            'cabinets' => [[
+                'name' => 'Novi ODO',
+                'latitude' => 44.45,
+                'longitude' => 18.65,
+                'splitter_count' => 1,
+                'houses' => $houses->map(fn (House $item) => [
+                    'id' => $item->id,
+                    'latitude' => (float) $item->latitude,
+                    'longitude' => (float) $item->longitude,
+                ])->all(),
+            ]],
+        ])->assertOk()->assertJsonPath('created_routes', 2);
+
+        $newCabinet = Cabinet::where('name', 'Novi ODO')->firstOrFail();
+        $this->assertSame($newCabinet->id, $house->fresh()->cabinet_id);
+        $this->assertDatabaseMissing('routes', ['id' => $oldDrop->id]);
+        $this->assertDatabaseCount('routes', 2);
+        $this->assertDatabaseHas('routes', [
+            'to_type' => 'house',
+            'to_id' => $house->id,
+            'cabinet_id' => $newCabinet->id,
+        ]);
+    }
+
+    public function test_map_suggestion_rejects_more_houses_than_cabinet_capacity(): void
+    {
+        $project = $this->projectWithHouses(5);
+
+        $this->postJson(route('map.suggestions.store'), [
+            'project_id' => $project->id,
+            'cabinets' => [[
+                'name' => 'Premali ODO',
+                'latitude' => 44.45,
+                'longitude' => 18.65,
+                'splitter_count' => 1,
+                'houses' => $project->houses->map(fn (House $house) => [
+                    'id' => $house->id,
+                    'latitude' => (float) $house->latitude,
+                    'longitude' => (float) $house->longitude,
+                ])->all(),
+            ]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('cabinets');
+
+        $this->assertDatabaseMissing('cabinets', ['name' => 'Premali ODO']);
+        $this->assertSame(0, House::whereNotNull('cabinet_id')->count());
+        $this->assertDatabaseCount('routes', 0);
+    }
+
     public function test_houses_from_different_branches_are_never_mixed(): void
     {
         $project = Project::create(['name' => 'Krakovi', 'code' => 'KR', 'location' => 'Test', 'status' => 'planning']);

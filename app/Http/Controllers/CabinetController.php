@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class CabinetController extends Controller
@@ -160,7 +161,7 @@ class CabinetController extends Controller
             'cabinets.*.splitter_count' => ['required', 'integer', 'min:1', 'max:3'],
             'cabinets.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
             'cabinets.*.houses' => ['nullable', 'array'],
-            'cabinets.*.houses.*.id' => ['nullable', 'integer', 'exists:houses,id'],
+            'cabinets.*.houses.*.id' => ['nullable', 'integer', 'distinct', 'exists:houses,id'],
             'cabinets.*.houses.*.latitude' => $this->latitudeRules(true),
             'cabinets.*.houses.*.longitude' => $this->longitudeRules(true),
             'cabinets.*.houses.*.path' => ['nullable', 'array', 'min:2'],
@@ -169,6 +170,20 @@ class CabinetController extends Controller
         ]);
 
         $projectId = $data['project_id'];
+        $submittedHouseIds = collect($data['cabinets'])
+            ->flatMap(fn (array $cabinet) => collect($cabinet['houses'] ?? [])->pluck('id'))
+            ->filter()
+            ->map(fn ($id) => (int) $id);
+        $projectHouseCount = House::query()
+            ->where('project_id', $projectId)
+            ->whereIn('id', $submittedHouseIds)
+            ->count();
+        if ($projectHouseCount !== $submittedHouseIds->unique()->count()) {
+            throw ValidationException::withMessages([
+                'cabinets' => 'Sve odabrane kuce moraju pripadati izabranom projektu.',
+            ]);
+        }
+
         $createdCount = 0;
         $linkedHouseCount = 0;
         $createdRouteCount = 0;
@@ -207,6 +222,15 @@ class CabinetController extends Controller
                 }
 
                 if ($createdCabinet) {
+                    $resultingHouseCount = $createdCabinet->houses()
+                        ->whereNotIn('id', $houseIds)
+                        ->count() + $houseIds->count();
+                    $capacity = (int) $cabinet['splitter_count'] * 4;
+                    if ($resultingHouseCount > $capacity) {
+                        throw ValidationException::withMessages([
+                            'cabinets' => "ODO {$cabinetName} ima kapacitet {$capacity}, a raspored bi mu dodijelio {$resultingHouseCount} kuca.",
+                        ]);
+                    }
                     $createdCabinet->update([
                         'odf_id' => $cabinet['odf_id'] ?? null,
                         'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
@@ -216,6 +240,12 @@ class CabinetController extends Controller
                         'longitude' => $cabinet['longitude'],
                     ]);
                 } else {
+                    $capacity = (int) $cabinet['splitter_count'] * 4;
+                    if ($houseIds->count() > $capacity) {
+                        throw ValidationException::withMessages([
+                            'cabinets' => "ODO {$cabinetName} ima kapacitet {$capacity}, a odabrano je {$houseIds->count()} kuca.",
+                        ]);
+                    }
                     $createdCabinet = Cabinet::create([
                         'project_id' => $projectId,
                         'odf_id' => $cabinet['odf_id'] ?? null,
@@ -245,6 +275,13 @@ class CabinetController extends Controller
                         continue;
                     }
 
+                    NetworkRoute::query()
+                        ->where('project_id', $projectId)
+                        ->where('route_type', 'drop')
+                        ->where('to_type', 'house')
+                        ->where('to_id', $house->id)
+                        ->get()
+                        ->each(fn (NetworkRoute $route) => $this->deleteRouteWithBranch($route));
                     $house->update(['cabinet_id' => $createdCabinet->id]);
                     $path = $point['path'] ?? [[(float) $createdCabinet->latitude, (float) $createdCabinet->longitude], [(float) $house->latitude, (float) $house->longitude]];
                     $length = $this->polylineLength($path);
