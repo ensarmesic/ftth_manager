@@ -64,6 +64,8 @@ class RouteController extends Controller
             'duct_length_m' => ['required', 'integer', 'min:0'],
             'fiber_length_m' => ['required', 'integer', 'min:0'],
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
+            'installation_type' => ['required', 'in:underground,aerial'],
+            'microduct_count' => ['nullable', 'integer', 'min:0', 'max:48'],
             'microduct_count' => ['required', 'integer', 'min:0'],
             'microduct_type' => ['nullable', 'in:14/10,10/8'],
             'status' => ['required', 'in:planned,in_progress,built'],
@@ -154,6 +156,7 @@ class RouteController extends Controller
         if ($data['route_type'] === 'trench') {
             $data['microduct_type'] = null;
             $data['fiber_count'] = 4;
+            $data['microduct_count'] = 0;
         }
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $route->project_id, 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $route->project_id, 'cabinet_id');
@@ -164,15 +167,15 @@ class RouteController extends Controller
         $route->load(['odf', 'cabinet']);
 
         if (! $request->expectsJson()) {
-            return back()->with('success', 'Podaci trase su sacuvani.');
+            return back()->with('success', 'Podaci trase su sačuvani.');
         }
 
         return response()->json([
-            'message' => 'Podaci trase su sacuvani.',
+            'message' => 'Podaci trase su sačuvani.',
             'route' => [
                 'id' => $route->id, 'name' => $route->name, 'from' => $this->routeStartLabel($route),
                 'to' => $route->cabinet?->name ?? '-', 'type' => $route->route_type, 'length' => $route->duct_length_m,
-                'microduct' => $route->microduct_type, 'fibers' => $route->fiber_count, 'path' => $route->path,
+                'microduct' => $route->microduct_type, 'microduct_count' => $route->microduct_count, 'fibers' => $route->fiber_count, 'installation_type' => $route->installation_type, 'path' => $route->path,
                 'note' => $route->note, 'odf_id' => $route->odf_id, 'from_type' => $route->from_type, 'from_id' => $route->from_id,
                 'to_type' => $route->to_type, 'to_id' => $route->to_id, 'cabinet_id' => $route->cabinet_id,
             ],

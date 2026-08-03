@@ -143,7 +143,7 @@ async function suggest() {
         currentAutoPlan = plan;
         renderAutoOdoPlan(plan);
     } catch (error) {
-        output.innerHTML = `<b class="text-red-700">${error.message}</b>`;
+        output.innerHTML = `<b class="text-red-700">${escapeHtml(error.message)}</b>`;
     }
 }
 function renderAutoOdoPlan(plan) {
@@ -190,7 +190,7 @@ function renderAutoOdoPlan(plan) {
         `<div class="rounded bg-white p-2"><b>Krak ${branch.branch_index}</b> -> ${branch.house_count} kuca<br>${branch.odo_count} FTTH</div>`
     ).join('');
     const cabinetHtml = (plan.cabinets || []).map(cabinet =>
-        `<div class="border-b border-zinc-200 py-2"><b>${cabinet.confirmed_name || cabinet.name}</b><br>Krak ${cabinet.branch_index}, ${cabinet.house_count}/12 kuca<br>${(cabinet.houses || []).map(house => `${house.label} -> ${house.chainage_m}m`).join('<br>')}</div>`
+        `<div class="border-b border-zinc-200 py-2"><b>${escapeHtml(cabinet.confirmed_name || cabinet.name)}</b><br>Krak ${cabinet.branch_index}, ${cabinet.house_count}/12 kuca<br>${(cabinet.houses || []).map(house => `${escapeHtml(house.label)} -> ${house.chainage_m}m`).join('<br>')}</div>`
     ).join('');
     const unassigned = plan.summary?.unassigned_house_count || 0;
     document.getElementById('cabinet-count').textContent = suggestedCabinets.length;
@@ -236,7 +236,7 @@ async function previewGisPlan() {
         currentGisPlan = plan;
         renderGisPlanPreview(plan);
     } catch (error) {
-        output.innerHTML = `<b class="text-red-700">${error.message}</b>`;
+        output.innerHTML = `<b class="text-red-700">${escapeHtml(error.message)}</b>`;
     }
 }
 
@@ -266,13 +266,13 @@ function renderGisPlanPreview(plan) {
 
     const summary = plan.summary || {};
     const warningsHtml = (plan.warnings || []).slice(0, 6).map(warning =>
-        `<div class="rounded bg-amber-50 px-2 py-1 text-amber-800">${warning}</div>`
+        `<div class="rounded bg-amber-50 px-2 py-1 text-amber-800">${escapeHtml(warning)}</div>`
     ).join('');
     const odfsHtml = (plan.odfs || []).map(odf =>
         `<div class="rounded bg-white px-2 py-1"><b>${odf.name}</b>: ${odf.house_count} kuca · ${odf.splitter_count}/${odf.fiber_capacity || '-'} vlakana · ${odf.utilization_percent || 0}%</div>`
     ).join('');
     const routesHtml = (plan.network_segments || []).slice(0, 20).map(segment =>
-        `<div class="border-b border-slate-200 py-1"><b>${segment.house_count} korisnika</b> -> ${segment.length_m} m<br><span class="text-slate-400">${(segment.houses || []).slice(0, 8).join(', ')}</span></div>`
+        `<div class="border-b border-slate-200 py-1"><b>${segment.house_count} korisnika</b> -> ${segment.length_m} m<br><span class="text-slate-400">${escapeHtml((segment.houses || []).slice(0, 8).join(', '))}</span></div>`
     ).join('');
     document.getElementById('suggestion-output').innerHTML = `
         <div class="mb-2 rounded-md bg-sky-50 p-2 text-xs font-semibold text-sky-800">
@@ -367,12 +367,32 @@ function defaultDraftName(type, index) {
 }
 function selectDraftElement(type, item) {
     selectedDraftElement = { type, item };
+    const model = type === 'house' ? (item.meta || item) : item;
     document.getElementById('element-editor').classList.remove('hidden');
-    document.getElementById('element-editor-type').textContent = type === 'odf' ? 'ODF lokacija' : 'Draft FTTH ormarić';
-    document.getElementById('element-editor-name').value = item.pending ? '' : item.name;
+    document.getElementById('element-editor-type').textContent = type === 'odf' ? 'ODF lokacija' : type === 'cabinet' ? 'FTTH ormarić' : 'Kućni priključak';
+    document.getElementById('element-editor-name').value = item.pending ? '' : (model.name || model.label || '');
+    document.getElementById('element-editor-address').value = model.address || '';
+    document.getElementById('element-editor-odf-fields').classList.toggle('hidden', type !== 'odf');
+    document.getElementById('element-editor-cabinet-fields').classList.toggle('hidden', type !== 'cabinet');
+    document.getElementById('element-editor-capacity').classList.toggle('hidden', type === 'house');
+    if (type === 'odf') {
+        document.getElementById('element-editor-fiber-capacity').value = String(item.fiber_capacity || 144);
+        document.getElementById('element-editor-port-count').value = item.port_count || 48;
+        document.getElementById('element-editor-capacity').textContent = `${item.fiber_capacity || 144} vlakana · ${item.port_count || 48} priključnih portova`;
+    }
+    if (type === 'cabinet') {
+        document.getElementById('element-editor-splitter-count').value = item.splitter_count || 3;
+        document.getElementById('element-editor-ports-per-splitter').value = item.ports_per_splitter || 4;
+        const odfSelect = document.getElementById('element-editor-odf');
+        odfSelect.innerHTML = '<option value="">Nije povezan</option>'
+            + data.odfs.map(odf => `<option value="saved:${odf.id}">${escapeHtml(odf.name)}</option>`).join('')
+            + draftOdfs.map((odf, index) => `<option value="draft:${index}">${escapeHtml(odf.name || defaultDraftName('odf', index))}</option>`).join('');
+        odfSelect.value = item.odf_id ? `saved:${item.odf_id}` : (item.odf_index !== null && item.odf_index !== undefined ? `draft:${item.odf_index}` : '');
+        document.getElementById('element-editor-capacity').textContent = `${(item.splitter_count || 3) * (item.ports_per_splitter || 4)} priključaka ukupnog kapaciteta`;
+    }
     document.getElementById('element-editor-status').textContent = item.pending
         ? 'Unos naziva je obavezan da bi ODF bio dodat.'
-        : 'Upiši naziv i klikni Sačuvaj naziv.';
+        : 'Izmijeni podatke i potvrdi spremanje.';
     document.getElementById('element-editor-name').focus();
 }
 function closeDraftElementEditor() {
@@ -380,14 +400,80 @@ function closeDraftElementEditor() {
     selectedDraftElement = null;
     document.getElementById('element-editor').classList.add('hidden');
 }
-function saveSelectedDraftElementName() {
+async function saveSelectedDraftElementName() {
     if (!selectedDraftElement) return;
     const name = document.getElementById('element-editor-name').value.trim();
     if (!name) {
         document.getElementById('element-editor-status').textContent = 'Naziv je obavezan.';
         return;
     }
-    selectedDraftElement.item.name = name;
+    const { type, item } = selectedDraftElement;
+    const address = document.getElementById('element-editor-address').value.trim();
+    if (type === 'house') {
+        const houseModel = item.meta || item;
+        houseModel.label = name;
+        houseModel.address = address;
+        item.marker.setPopupContent(`<b>${escapeHtml(name)}</b>${address ? `<br>${escapeHtml(address)}` : ''}`);
+    } else {
+        item.name = name;
+        item.address = address;
+    }
+    if (type === 'odf') {
+        const fiberCapacity = Number(document.getElementById('element-editor-fiber-capacity').value);
+        const portCount = Number(document.getElementById('element-editor-port-count').value);
+        if (!Number.isInteger(fiberCapacity) || fiberCapacity < 1 || !Number.isInteger(portCount) || portCount < 1) {
+            document.getElementById('element-editor-status').textContent = 'Kapacitet vlakana i broj portova moraju biti pozitivni cijeli brojevi.';
+            return;
+        }
+        item.fiber_capacity = fiberCapacity;
+        item.port_count = portCount;
+        document.getElementById('element-editor-capacity').textContent = `${fiberCapacity} vlakana · ${portCount} priključnih portova`;
+    }
+    if (type === 'cabinet') {
+        const splitterCount = Number(document.getElementById('element-editor-splitter-count').value);
+        const portsPerSplitter = Number(document.getElementById('element-editor-ports-per-splitter').value);
+        if (!Number.isInteger(splitterCount) || splitterCount < 1 || splitterCount > 3 || !Number.isInteger(portsPerSplitter) || portsPerSplitter < 1 || portsPerSplitter > 4) {
+            document.getElementById('element-editor-status').textContent = 'Ormarić podržava najviše 3 splittera sa po 4 porta.';
+            return;
+        }
+        item.splitter_count = splitterCount;
+        item.ports_per_splitter = portsPerSplitter;
+        const odfValue = document.getElementById('element-editor-odf').value;
+        item.odf_index = odfValue.startsWith('draft:') ? Number(odfValue.split(':')[1]) : null;
+        item.odf_id = odfValue.startsWith('saved:') ? Number(odfValue.split(':')[1]) : null;
+        document.getElementById('element-editor-capacity').textContent = `${splitterCount * portsPerSplitter} priključaka ukupnog kapaciteta`;
+    }
+    if (item.saved) {
+        const position = item.marker.getLatLng();
+        const payload = { project_id: item.project_id, name, address, latitude: position.lat, longitude: position.lng };
+        if (type === 'odf') Object.assign(payload, { fiber_capacity: item.fiber_capacity, port_count: item.port_count });
+        if (type === 'cabinet') Object.assign(payload, {
+            odf_id: item.odf_id, parent_cabinet_id: item.parent_cabinet_id || null, branch_id: item.branch_id || null,
+            branch_order: item.branch_order || 0, splitter_count: item.splitter_count, ports_per_splitter: item.ports_per_splitter,
+        });
+        if (type === 'house') Object.assign(payload, { label: name, cabinet_id: item.cabinet_id || null, status: item.status || 'planned' });
+        const base = type === 'odf' ? '/odf/' : type === 'cabinet' ? '/ormarici/' : '/kuce/';
+        const status = document.getElementById('element-editor-status');
+        status.textContent = 'Čuvam trajne izmjene…';
+        const response = await fetch(`${base}${item.id}`, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const result = await response.json().catch(() => ({}));
+            status.textContent = Object.values(result.errors || {})[0]?.[0] || result.message || 'Izmjena nije sačuvana.';
+            return;
+        }
+        if (type === 'cabinet') item.marker.setIcon(icon('cabinet', name));
+        item.marker.setPopupContent(`<b>${escapeHtml(name)}</b>${address ? `<br>${escapeHtml(address)}` : ''}`);
+        status.textContent = `Trajne izmjene za "${name}" su sačuvane.`;
+        document.getElementById('cad-command').textContent = `UPDATE: ${name}`;
+        return;
+    }
     const wasPendingOdf = selectedDraftElement.item.pending && selectedDraftElement.type === 'odf';
     if (wasPendingOdf) {
         const item = selectedDraftElement.item;
@@ -401,12 +487,12 @@ function saveSelectedDraftElementName() {
         registerDraftContext(item.marker, item.name);
         setActiveDraftOdf(draftOdfs.length - 1);
     }
-    if (selectedDraftElement.type === 'cabinet') selectedDraftElement.item.marker.setIcon(icon('cabinet', name));
+    if (type === 'cabinet') item.marker.setIcon(icon('cabinet', name));
     refreshDraftTooltips();
     refreshPlanSummary();
-    document.getElementById('element-editor-status').textContent = selectedDraftElement.type === 'odf'
+    document.getElementById('element-editor-status').textContent = type === 'odf'
         ? `ODF "${name}" je sačuvan.`
-        : `Naziv "${name}" je sačuvan.`;
+        : `Podaci za "${name}" su sačuvani.`;
     if (wasPendingOdf) {
         const savedItem = selectedDraftElement.item;
         setTimeout(() => {
@@ -428,7 +514,7 @@ function setActiveDraftOdf(index) {
     const value = activeOdfSelection ? `${activeOdfSelection.type}:${activeOdfSelection.type === 'saved' ? activeOdfSelection.id : activeOdfSelection.index}` : '';
     document.getElementById('active-odf-index').value = value;
     const label = activeOdfLabel();
-    document.getElementById('odf-link-status').textContent = label ? `Novi FTTH ormarici se vezu na ${label}.` : 'Odaberi ODF prije redanja FTTH ormarica.';
+    document.getElementById('odf-link-status').textContent = label ? `Novi FTTH ormarići se vežu na ${label}.` : 'Odaberi ODF prije redanja FTTH ormarića.';
     refreshDraftTooltips();
 }
 function renderDraftOdfPicker() {
@@ -444,7 +530,7 @@ function renderDraftOdfPicker() {
     const value = activeOdfSelection ? `${activeOdfSelection.type}:${activeOdfSelection.type === 'saved' ? activeOdfSelection.id : activeOdfSelection.index}` : '';
     select.value = value;
     const label = activeOdfLabel();
-    document.getElementById('odf-link-status').textContent = label ? `Novi FTTH ormarici se vezu na ${label}.` : 'Postavi ODF, zatim postavljaj FTTH ormarice.';
+    document.getElementById('odf-link-status').textContent = label ? `Novi FTTH ormarići se vežu na ${label}.` : 'Postavi ODF, zatim postavljaj FTTH ormariće.';
     refreshRouteOdfStatus();
 }
 function refreshDraftTooltips() {

@@ -82,7 +82,7 @@ class ProjectController extends Controller
             'description' => ['nullable', 'max:2000'],
         ]));
 
-        return back()->with('success', 'Projekat je azuriran.');
+        return back()->with('success', 'Projekat je ažuriran.');
     }
 
     public function previewOdoPlan(Request $request, Project $project)
@@ -303,8 +303,10 @@ class ProjectController extends Controller
             'features' => $features->values()->all(),
         ];
 
+        $exportCode = str($project->code ?: $project->name)->slug()->value() ?: 'projekat-'.$project->id;
+
         return response()->json($payload, 200, [
-            'Content-Disposition' => 'attachment; filename="'.$project->code.'-ftth.geojson"',
+            'Content-Disposition' => 'attachment; filename="'.$exportCode.'-ftth.geojson"',
         ], JSON_UNESCAPED_UNICODE);
     }
 
@@ -868,7 +870,8 @@ class ProjectController extends Controller
         fwrite($fh, "0\r\nENDSEC\r\n0\r\nEOF\r\n");
         fclose($fh);
 
-        $filename = $project->code.'-ftth.dxf';
+        $exportCode = str($project->code ?: $project->name)->slug()->value() ?: 'projekat-'.$project->id;
+        $filename = $exportCode.'-ftth.dxf';
 
         return response()->download($tmpPath, $filename, [
             'Content-Type' => 'application/dxf',
@@ -1068,9 +1071,11 @@ class ProjectController extends Controller
 
         array_push($L, '0', 'ENDSEC', '0', 'EOF');
 
+        $exportCode = str($project->code ?: $project->name)->slug()->value() ?: 'projekat-'.$project->id;
+
         return response(implode("\r\n", $L)."\r\n", 200, [
             'Content-Type' => 'application/dxf',
-            'Content-Disposition' => 'attachment; filename="'.$project->code.'-fiber-schema.dxf"',
+            'Content-Disposition' => 'attachment; filename="'.$exportCode.'-fiber-schema.dxf"',
         ]);
     }
 

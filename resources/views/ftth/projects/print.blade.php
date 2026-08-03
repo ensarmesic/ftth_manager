@@ -66,6 +66,14 @@
         .v-ok { color: #166534; font-weight: 700; }
         .validation-summary { display: flex; gap: 16px; font-size: 10px; margin-bottom: 8px; }
         .validation-summary span { font-weight: 700; }
+        .executive { display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px; margin: 0 0 20px; }
+        .executive-card { border: 1px solid #cbd5e1; padding: 12px 14px; }
+        .executive-card h3 { margin: 0 0 6px; font: 900 9px/1.2 system-ui; color: #475569; text-transform: uppercase; letter-spacing: .08em; }
+        .executive-card p { margin: 0; font-size: 10px; color: #334155; }
+        .readiness { display: flex; align-items: center; gap: 10px; }
+        .readiness-score { width: 44px; height: 44px; border: 4px solid #16a34a; border-radius: 50%; display: grid; place-items: center; font: 900 13px/1 system-ui; color: #166534; }
+        .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 34px; break-inside: avoid; }
+        .signature { border-top: 1px solid #64748b; padding-top: 5px; color: #475569; font-size: 9px; }
 
         /* Print */
         @media print {
@@ -87,6 +95,21 @@
         <a class="btn secondary" href="{{ route('projects.geojson', $project) }}">GeoJSON</a>
         <a class="btn secondary" href="{{ route('projects.dxf', $project) }}">DXF</a>
         <span class="toolbar-date">Generisano: {{ now()->format('d.m.Y \u\ H:i') }}</span>
+    </div>
+
+    @php
+        $reportProblems = collect($validationItems ?? [])->whereIn('level', ['error', 'warning']);
+        $readiness = max(0, 100 - ($reportProblems->where('level', 'error')->count() * 20) - ($reportProblems->where('level', 'warning')->count() * 5));
+    @endphp
+    <div class="executive">
+        <div class="executive-card">
+            <h3>Sažetak za investitora</h3>
+            <p>Projekt obuhvata {{ $project->houses->count() }} planiranih priključaka kroz {{ $project->cabinets->count() }} distribucijskih ormarića i {{ $project->odfs->count() }} centralnih ODF tačaka. Ukupno je projektovano {{ number_format($project->routes->sum('duct_length_m')) }} m mrežne trase. Dokument objedinjuje kapacitete, materijalni obračun, trasiranje i kontrolu kvaliteta projekta.</p>
+        </div>
+        <div class="executive-card readiness">
+            <div class="readiness-score">{{ $readiness }}%</div>
+            <div><h3>Spremnost projekta</h3><p>{{ $reportProblems->count() ? $reportProblems->count().' otvorenih kontrolnih stavki' : 'Bez otvorenih kontrolnih stavki' }}</p></div>
+        </div>
     </div>
 
     {{-- Header --}}
@@ -328,6 +351,12 @@
             </tbody>
         </table>
     @endif
+
+    <div class="signatures">
+        <div class="signature">Projektant / odgovorna osoba</div>
+        <div class="signature">Tehnička kontrola</div>
+        <div class="signature">Investitor / naručilac</div>
+    </div>
 
 </main>
 </body>

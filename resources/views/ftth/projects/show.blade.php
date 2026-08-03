@@ -3,6 +3,87 @@
 @section('subtitle', $project->code . ' · ' . ($project->location ?? ''))
 @section('content')
 
+<style>
+    .project-overview { --card-border:#dbe5ef; }
+    .standard-page:has(.project-overview) .ftth-page-header { display:none; }
+    .project-breadcrumb { margin-bottom:12px; }
+    .project-hero { position:relative; overflow:hidden; border:1px solid var(--card-border); background:linear-gradient(135deg,#fff 0%,#f8fbff 68%,#eefbf5 100%); box-shadow:0 14px 34px rgba(15,23,42,.07); }
+    .project-hero::after { content:""; position:absolute; width:210px; height:210px; right:-90px; bottom:-145px; border-radius:999px; border:28px solid rgba(14,165,233,.07); pointer-events:none; }
+    .project-identity { display:flex; align-items:flex-start; gap:14px; }
+    .project-monogram { display:grid; width:48px; height:48px; flex:none; place-items:center; border-radius:13px; color:#fff; font-size:14px; font-weight:900; background:linear-gradient(145deg,#0786bd,#075985); box-shadow:0 8px 18px rgba(7,89,133,.22); }
+    .project-meta-line { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:8px; color:#64748b; font-size:12px; }
+    .project-meta-line span { display:inline-flex; align-items:center; gap:6px; }
+    .project-meta-line span::before { content:""; width:5px; height:5px; border-radius:999px; background:#94a3b8; }
+    .project-kpis .stat-card { min-height:112px; padding:18px; border-color:var(--card-border); box-shadow:0 8px 22px rgba(15,23,42,.055); }
+    .project-kpis .stat-label { font-size:11px; letter-spacing:.07em; }
+    .project-kpis .stat-value { margin-top:7px; font-size:26px; line-height:1; }
+    .project-command-grid { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(360px,.85fr); gap:18px; align-items:start; }
+    .project-column { display:flex; min-width:0; flex-direction:column; gap:18px; }
+    .project-section-label { grid-row:1; }
+    .project-column-network { grid-column:1; grid-row:2; }
+    .project-column-resources { grid-column:2; grid-row:2; }
+    .project-column-network, .project-column-resources { height:100%; }
+    .project-column-network .project-card-branches,
+    .project-column-resources .project-card-materials { flex:1; }
+    .project-column-resources .project-card-occupancy { order:1; }
+    .project-column-resources .project-card-materials { order:2; }
+    .project-column-validation { display:contents; }
+    .project-card-validation { grid-column:1/-1; grid-row:3; }
+    .project-card-capacity { grid-column:1/-1; grid-row:4; }
+    .project-card-capacity > .divide-y { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); }
+    .project-card-capacity > .divide-y > div { border-right:1px solid #eef2f7; }
+    .project-card { overflow:hidden; border:1px solid var(--card-border); border-radius:16px; background:#fff; box-shadow:0 10px 25px rgba(15,23,42,.055); }
+    .project-card > :first-child { min-height:52px; padding:15px 18px; background:linear-gradient(180deg,#fff,#fbfdff); }
+    .project-card h2 { font-size:14px; color:#1e293b; }
+    .project-card table { font-size:13px; }
+    .project-card th { background:#f8fafc; font-size:11px; text-transform:uppercase; letter-spacing:.045em; }
+    .project-card td, .project-card th { padding-top:11px; padding-bottom:11px; }
+    .project-validation-list { max-height:360px; }
+    .project-validation-item { position:relative; padding:13px 16px 13px 20px; background:#fff !important; }
+    .project-validation-item::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:#f59e0b; }
+    .project-validation-item.is-error::before { background:#ef4444; }
+    .project-validation-item:hover { background:#f8fafc !important; }
+    .project-validation-item { display:block; text-decoration:none; }
+    .project-validation-item .validation-open { margin-left:auto; flex:none; align-self:center; color:#0284c7; font-size:11px; font-weight:800; white-space:nowrap; }
+    .validation-filters { display:flex; flex-wrap:wrap; gap:6px; }
+    .validation-filter { min-height:28px; padding:4px 9px; border:1px solid #dbe5ef; border-radius:8px; background:#fff; color:#64748b; font-size:10px; font-weight:800; cursor:pointer; }
+    .validation-filter:hover { border-color:#94a3b8; color:#334155; }
+    .validation-filter.is-active { border-color:#0ea5e9; background:#eaf7fd; color:#03658e; box-shadow:0 0 0 2px rgba(14,165,233,.08); }
+    .validation-summary-strip { display:flex; flex-wrap:wrap; gap:7px; padding:9px 16px; border-bottom:1px solid #eef2f7; background:#fbfdff; }
+    .validation-summary-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border:1px solid #e2e8f0; border-radius:999px; background:#fff; color:#64748b; font-size:10px; font-weight:750; }
+    .validation-summary-chip b { color:#1e293b; }
+    .validation-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:48px; padding:9px 16px; border-top:1px solid #e2e8f0; background:#f8fafc; }
+    .validation-more { padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#334155; font-size:11px; font-weight:800; }
+    .validation-more:hover { border-color:#38bdf8; color:#03658e; }
+    .quality-action { display:inline-flex; align-items:center; min-height:30px; padding:5px 10px; border:1px solid #f5c45e; border-radius:8px; background:#fff8e8; color:#9a5b00; font-size:10px; font-weight:850; cursor:pointer; }
+    .quality-action:disabled { cursor:wait; opacity:.6; }
+    .project-section-label { grid-column:1/-1; display:flex; align-items:center; gap:10px; margin:2px 0 -4px; color:#64748b; font-size:11px; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
+    .project-section-label::after { content:""; height:1px; flex:1; background:#dbe5ef; }
+    .project-validation-item .validation-message { font-size:13px; line-height:1.35; }
+    .project-validation-item .validation-recommendation { font-size:12px; margin-top:4px; }
+    @media (max-width:1100px) {
+        .project-command-grid { grid-template-columns:1fr; }
+        .project-section-label, .project-column-network, .project-column-resources { grid-column:1; grid-row:auto; }
+        .project-column-network { order:1; }
+        .project-column-resources { order:2; }
+        .project-column-validation { display:contents; }
+        .project-card-validation, .project-card-capacity { grid-column:1; grid-row:auto; }
+        .project-card-validation { order:3; }
+        .project-card-capacity { order:4; }
+    }
+    @media (max-width:640px) {
+        .project-hero { padding:18px !important; }
+        .project-monogram { width:42px; height:42px; }
+        .project-actions { display:grid !important; width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+        .project-actions .tbl-btn { justify-content:center; min-height:38px; }
+        .project-kpis { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+        .project-kpis .stat-card { min-height:96px; padding:14px; }
+        .project-kpis .stat-value { font-size:22px; }
+        .project-command-grid { gap:14px; }
+        .project-card { border-radius:13px; }
+    }
+</style>
+
 @php
     $statusLabels = ['planning' => 'Planiranje', 'active' => 'Aktivan', 'paused' => 'Pauziran', 'completed' => 'Završen'];
     $statusColors = ['active' => 'green', 'completed' => 'violet', 'planning' => 'amber', 'paused' => 'slate'];
@@ -11,6 +92,8 @@
     $valErrors   = $validationItems->where('level', 'error');
     $valWarnings = $validationItems->where('level', 'warning');
     $valOks      = $validationItems->where('level', 'ok');
+    $missingDropCount = $validationItems->filter(fn ($item) => str_contains($item['message'] ?? '', 'nema drop trasu'))->count();
+    $validationByElement = $validationItems->whereIn('level', ['error', 'warning'])->groupBy('element_type')->map->count();
 
     $capacity   = $project->cabinets->sum(fn ($c) => $c->capacity);
     $usedPorts  = $project->cabinets->sum('houses_count');
@@ -22,15 +105,18 @@
 @endphp
 
 {{-- NAVIGACIJA NAZAD --}}
-<div class="mb-4 flex items-center gap-2 text-sm text-slate-400">
+<div class="project-breadcrumb flex items-center gap-2 text-sm text-slate-400">
     <a href="{{ route('projects.index') }}" class="hover:text-slate-700">Projekti</a>
     <span>/</span>
     <span class="text-slate-700 font-medium">{{ $project->name }}</span>
 </div>
 
 {{-- HEADER PROJEKTA --}}
-<div class="mb-5 flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-    <div>
+<div class="project-overview">
+<div class="project-hero mb-5 flex flex-wrap items-start justify-between gap-5 rounded-2xl px-7 py-6">
+    <div class="project-identity">
+        <div class="project-monogram">{{ Illuminate\Support\Str::upper(Illuminate\Support\Str::substr($project->name, 0, 2)) }}</div>
+        <div>
         <div class="flex flex-wrap items-center gap-2 mb-1">
             <h1 class="text-xl font-bold text-slate-900">{{ $project->name }}</h1>
             <span class="ftth-badge {{ $statusColor }}"><span class="ftth-badge-dot"></span>{{ $statusLabels[$project->status] ?? $project->status }}</span>
@@ -48,23 +134,26 @@
                 </span>
             @endif
         </div>
-        <div class="text-sm text-slate-400 space-x-3">
-            @if($project->investor)<span>Investitor: <span class="text-slate-600">{{ $project->investor }}</span></span>@endif
-            @if($project->start_date)<span>Početak: <span class="text-slate-600">{{ $project->start_date }}</span></span>@endif
-            @if($project->deadline)<span>Rok: <span class="text-slate-600">{{ $project->deadline }}</span></span>@endif
+        <div class="project-meta-line">
+            <span>{{ $project->code }}</span>
+            @if($project->location)<span>{{ $project->location }}</span>@endif
+            @if($project->investor)<span>Investitor: {{ $project->investor }}</span>@endif
+            @if($project->start_date)<span>Početak: {{ $project->start_date }}</span>@endif
+            @if($project->deadline)<span>Rok: {{ $project->deadline }}</span>@endif
         </div>
         @if($project->description)
             <p class="mt-2 text-sm text-slate-500">{{ $project->description }}</p>
         @endif
+        </div>
     </div>
-    <div class="flex flex-wrap gap-2 shrink-0">
+    <div class="project-actions flex flex-wrap gap-2 shrink-0">
         <a href="{{ route('map.dashboard', ['project' => $project->id]) }}" class="tbl-btn" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe">
             <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M8.879.879a2.25 2.25 0 00-1.757 0L.879 3.697A2.25 2.25 0 000 5.754v4.492a2.25 2.25 0 00.879 1.757l6.243 2.818a2.25 2.25 0 001.757 0l6.243-2.818A2.25 2.25 0 0016 10.246V5.754a2.25 2.25 0 00-.879-1.757L8.879.879z" clip-rule="evenodd"/></svg>
             Mapa
         </a>
         <a href="{{ route('projects.print', $project->id) }}" target="_blank" class="tbl-btn" style="background:#f0fdf4;color:#14532d;border-color:#bbf7d0">
             <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M3.75 1A1.75 1.75 0 002 2.75v1.5H1.75a.75.75 0 000 1.5H2v5.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 11.25v-5.5h.25a.75.75 0 000-1.5H14v-1.5A1.75 1.75 0 0012.25 1h-8.5zm0 1.5h8.5a.25.25 0 01.25.25V4.25H3.5V2.75a.25.25 0 01.25-.25zM3.5 11.25v-5.5h9v5.5a.25.25 0 01-.25.25h-8.5a.25.25 0 01-.25-.25zM6 8a.75.75 0 000 1.5h4a.75.75 0 000-1.5H6z"/></svg>
-            Print
+            Izvještaj
         </a>
         <a href="{{ route('reports.project-appendix', $project->id) }}" target="_blank" class="tbl-btn" style="background:#faf5ff;color:#6b21a8;border-color:#e9d5ff">
             <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M4 2a2 2 0 012-2h4.586A2 2 0 0112 .586L15.414 4A2 2 0 0116 5.414V14a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2zm4.5 7.25a.75.75 0 000 1.5h3.25a.75.75 0 000-1.5H8.5zm-3 0a.75.75 0 000 1.5h.5a.75.75 0 000-1.5h-.5zm.75-3.25a.75.75 0 01.75-.75h5.25a.75.75 0 010 1.5H7a.75.75 0 01-.75-.75zm-2-2A.75.75 0 015.5 3h5.25a.75.75 0 010 1.5H5.5A.75.75 0 014.75 4z" clip-rule="evenodd"/></svg>
@@ -82,7 +171,7 @@
 </div>
 
 {{-- KPI STRIP --}}
-<div class="mb-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+<div class="project-kpis mb-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
     @foreach([
         ['ODF-ovi',    $project->odfs->count(),     'sky',    '<path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"/>'],
         ['ODO ormarići', $project->cabinets->count(), 'blue', '<path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>'],
@@ -100,44 +189,61 @@
     @endforeach
 </div>
 
-<div class="grid gap-5 lg:grid-cols-3">
+<div class="project-command-grid">
+
+    <div class="project-section-label">Operativno stanje mreže</div>
 
     {{-- LIJEVA KOLONA: Validacija + ODF kapacitet --}}
-    <div class="space-y-5">
+    <div class="project-column project-column-validation">
 
         {{-- VALIDACIJA --}}
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-                <h2 class="text-sm font-semibold text-slate-700">Validacija projekta</h2>
-                <div class="flex gap-1.5">
-                    @if($valErrors->count())<span class="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600">{{ $valErrors->count() }} grešaka</span>@endif
-                    @if($valWarnings->count())<span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-600">{{ $valWarnings->count() }} upozorenja</span>@endif
-                    @if(!$valErrors->count() && !$valWarnings->count())<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-600">OK</span>@endif
+        <div class="project-card project-card-validation">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+                <div><h2 class="text-sm font-semibold text-slate-700">Kontrola kvaliteta projekta</h2><p class="mt-0.5 text-[11px] text-slate-400">Klik na stavku otvara tačan element na mapi.</p></div>
+                <div class="validation-filters" role="group" aria-label="Filter validacije">
+                    <button type="button" class="validation-filter is-active" data-validation-filter="all">Sve {{ $valErrors->count() + $valWarnings->count() }}</button>
+                    <button type="button" class="validation-filter" data-validation-filter="error">Greške {{ $valErrors->count() }}</button>
+                    <button type="button" class="validation-filter" data-validation-filter="warning">Upozorenja {{ $valWarnings->count() }}</button>
+                    @if($missingDropCount)<button type="button" id="project-fill-missing-drops" class="quality-action" data-url="{{ route('projects.drop-routes.fill', $project) }}">Popuni {{ $missingDropCount }} drop trasa</button>@endif
                 </div>
             </div>
-            <div class="divide-y divide-slate-50 max-h-80 overflow-y-auto">
+            @if($validationByElement->isNotEmpty())
+            <div class="validation-summary-strip">
+                @foreach(['house' => 'Kuće', 'cabinet' => 'ODO ormarići', 'odf' => 'ODF', 'route' => 'Trase', 'project' => 'Projekat'] as $type => $label)
+                    @if($validationByElement->get($type))<span class="validation-summary-chip">{{ $label }} <b>{{ $validationByElement->get($type) }}</b></span>@endif
+                @endforeach
+            </div>
+            @endif
+            <div class="project-validation-list divide-y divide-slate-100 overflow-y-auto">
                 @forelse($validationItems->whereIn('level', ['error', 'warning', 'info']) as $item)
                 @php
                     $vColors = ['error' => ['bg-red-50','text-red-700','text-red-500'], 'warning' => ['bg-amber-50','text-amber-700','text-amber-500'], 'info' => ['bg-slate-50','text-slate-600','text-slate-400']];
                     [$vBg, $vText, $vSub] = $vColors[$item['level']] ?? ['bg-slate-50','text-slate-600','text-slate-400'];
                 @endphp
-                <div class="px-4 py-3 {{ $vBg }}">
+                <a href="{{ route('map.dashboard', array_filter(['project' => $project->id, 'focus_type' => $item['element_type'] ?? null, 'focus_id' => $item['element_id'] ?? null])) }}" data-validation-level="{{ $item['level'] }}" class="project-validation-item {{ $item['level'] === 'error' ? 'is-error' : '' }}">
                     <div class="flex items-start gap-2">
                         <span class="mt-0.5 shrink-0 text-[10px] font-bold uppercase {{ $vText }} opacity-60">{{ $item['level'] }}</span>
                         <div>
-                            <div class="text-xs font-medium {{ $vText }}">{{ $item['message'] }}</div>
-                            @if($item['recommendation'])<div class="text-[11px] {{ $vSub }} mt-0.5">{{ $item['recommendation'] }}</div>@endif
+                            <div class="validation-message font-medium {{ $vText }}">{{ $item['message'] }}</div>
+                            @if($item['recommendation'])<div class="validation-recommendation {{ $vSub }}">{{ $item['recommendation'] }}</div>@endif
                         </div>
+                        @if(!empty($item['element_id']))<span class="validation-open">Mapa →</span>@endif
                     </div>
-                </div>
+                </a>
                 @empty
                 <div class="px-5 py-4 text-sm text-slate-400">Nema validacijskih stavki.</div>
                 @endforelse
             </div>
+            @if($validationItems->whereIn('level', ['error', 'warning', 'info'])->isNotEmpty())
+            <div class="validation-footer">
+                <span id="validation-visible-summary" class="text-[11px] text-slate-500"></span>
+                <button type="button" id="validation-show-more" class="validation-more">Prikaži još</button>
+            </div>
+            @endif
         </div>
 
         {{-- ODF KAPACITET --}}
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="project-card project-card-capacity">
             <div class="border-b border-slate-100 px-5 py-3.5">
                 <h2 class="text-sm font-semibold text-slate-700">Kapacitet ODF-a</h2>
             </div>
@@ -166,10 +272,10 @@
     </div>
 
     {{-- SREDNJA KOLONA: Trase + Krakovi --}}
-    <div class="space-y-5">
+    <div class="project-column project-column-network">
 
         {{-- TRASE PO TIPU --}}
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="project-card project-card-routes">
             <div class="border-b border-slate-100 px-5 py-3.5">
                 <h2 class="text-sm font-semibold text-slate-700">Trase</h2>
             </div>
@@ -210,7 +316,7 @@
         </div>
 
         {{-- KRAKOVI --}}
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="project-card project-card-branches">
             <div class="border-b border-slate-100 px-5 py-3.5">
                 <h2 class="text-sm font-semibold text-slate-700">Krakovi mreže</h2>
             </div>
@@ -247,10 +353,10 @@
     </div>
 
     {{-- DESNA KOLONA: Materijali + Popunjenost ODO --}}
-    <div class="space-y-5">
+    <div class="project-column project-column-resources">
 
         {{-- MATERIJALI --}}
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="project-card project-card-materials">
             <div class="border-b border-slate-100 px-5 py-3.5">
                 <h2 class="text-sm font-semibold text-slate-700">Materijali (sa {{ $materials['reserve_percent'] }}% rezerve)</h2>
             </div>
@@ -296,7 +402,7 @@
         </div>
 
         {{-- POPUNJENOST ODO --}}
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="project-card project-card-occupancy">
             <div class="border-b border-slate-100 px-5 py-3.5">
                 <h2 class="text-sm font-semibold text-slate-700">Popunjenost ODO ormarića</h2>
             </div>
@@ -339,10 +445,63 @@
     </div>
 
 </div>
+</div>
 
 @push('scripts')
 <script>
 (function () {
+    let validationLevel = 'all';
+    let validationLimit = 12;
+    function renderValidationItems() {
+        const items = [...document.querySelectorAll('[data-validation-level]')];
+        const matching = items.filter(item => validationLevel === 'all' || item.dataset.validationLevel === validationLevel);
+        items.forEach(item => { item.hidden = true; });
+        matching.slice(0, validationLimit).forEach(item => { item.hidden = false; });
+        const summary = document.getElementById('validation-visible-summary');
+        const more = document.getElementById('validation-show-more');
+        if (summary) summary.textContent = `Prikazano ${Math.min(validationLimit, matching.length)} od ${matching.length} stavki`;
+        if (more) more.hidden = validationLimit >= matching.length;
+    }
+    document.querySelectorAll('[data-validation-filter]').forEach(button => {
+        button.addEventListener('click', () => {
+            validationLevel = button.dataset.validationFilter;
+            validationLimit = 12;
+            document.querySelectorAll('[data-validation-filter]').forEach(item => item.classList.toggle('is-active', item === button));
+            renderValidationItems();
+        });
+    });
+    document.getElementById('validation-show-more')?.addEventListener('click', () => {
+        validationLimit += 12;
+        renderValidationItems();
+    });
+    renderValidationItems();
+
+    document.getElementById('project-fill-missing-drops')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
+        if (!window.confirm('Kreirati nedostajuće drop trase za sve kuće koje imaju dodijeljen ODO?')) return;
+        const original = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Kreiram trase…';
+        try {
+            const response = await fetch(button.dataset.url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || 'Drop trase nisu kreirane.');
+            button.textContent = `Kreirano: ${result.created}`;
+            window.setTimeout(() => window.location.reload(), 650);
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = original;
+            window.alert(error.message);
+        }
+    });
+
     const DB = 'ftth_dxf_v1', ST = 'layers', VER = 1;
     let _db = null;
     function openDb() {

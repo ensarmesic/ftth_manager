@@ -13,7 +13,16 @@ class SurveyPoint extends Model
     protected $fillable = [
         'project_id', 'import_batch', 'source_file', 'point_no',
         'x', 'y', 'z', 'latitude', 'longitude', 'code', 'kind',
+        'source', 'session_uuid', 'sequence', 'accuracy_m', 'note', 'photo_path', 'captured_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'captured_at' => 'datetime',
+            'accuracy_m' => 'float',
+        ];
+    }
 
     public function project(): BelongsTo
     {

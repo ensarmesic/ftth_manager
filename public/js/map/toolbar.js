@@ -71,7 +71,7 @@ async function fillMissingDropRoutes() {
         return;
     }
 
-    summary.textContent = 'Popunjavam nedostajuce drop trase...';
+    summary.textContent = 'Popunjavam nedostajuće drop trase...';
     const response = await fetch(appConfig.projectDropFillBaseUrl.replace('__ID__', projectId), {
         method: 'POST',
         headers: {
@@ -99,8 +99,8 @@ function projectCheckItemHtml(item, index) {
 
     return `<button type="button" data-check-index="${index}" class="grid gap-1 rounded-md border px-2 py-2 text-left ${color}">
         <span class="font-bold uppercase">${item.level} · ${item.element_type || 'project'}</span>
-        <span>${item.message || ''}</span>
-        <small>${item.recommendation || ''}</small>
+        <span>${escapeHtml(item.message || '')}</span>
+        <small>${escapeHtml(item.recommendation || '')}</small>
     </button>`;
 }
 
@@ -127,6 +127,20 @@ function focusValidationItem(item) {
     }
 
     document.getElementById('cad-command').textContent = `CHECK: ${item.message}`;
+}
+
+function focusRequestedMapElement() {
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get('focus_type');
+    const id = Number(params.get('focus_id'));
+    if (!type || !id) return;
+    requestAnimationFrame(() => {
+        focusValidationItem({ element_type: type, element_id: id, message: 'Element otvoren iz kontrole projekta.' });
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('focus_type');
+        cleanUrl.searchParams.delete('focus_id');
+        window.history.replaceState({}, '', cleanUrl);
+    });
 }
 
 function clearValidationHighlights() {
@@ -200,9 +214,11 @@ function pickProject(id) {
 async function ppCreateProject() {
     const nameInput = document.getElementById('pp-new-name');
     const status = document.getElementById('pp-new-status');
+    const submit = document.querySelector('.pp-new-submit');
     const name = nameInput.value.trim();
     if (!name) { status.textContent = 'Upiši naziv projekta.'; return; }
     status.textContent = 'Kreiram...';
+    if (submit) { submit.disabled = true; submit.setAttribute('aria-busy', 'true'); }
     try {
         const body = new FormData();
         body.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
@@ -214,9 +230,11 @@ async function ppCreateProject() {
             body,
         });
         const result = await readJsonResponse(response, 'Projekat nije kreiran.');
+        if (!response.ok) throw new Error(result.message || 'Projekat nije kreiran.');
         status.textContent = `${result.project.name} je kreiran. Učitavam...`;
         pickProject(result.project.id);
     } catch (err) {
         status.textContent = err.message;
+        if (submit) { submit.disabled = false; submit.removeAttribute('aria-busy'); }
     }
 }

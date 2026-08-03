@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -49,5 +50,45 @@ class AuthenticationTest extends TestCase
             'username' => $user->username,
             'password' => 'NovaSigurnaLozinka456',
         ])->assertRedirect(route('dashboard'));
+    }
+
+    public function test_login_is_rate_limited_after_five_failed_attempts(): void
+    {
+        auth()->logout();
+        User::factory()->create(['username' => 'limit-admin', 'password' => 'IspravnaLozinka123']);
+
+        foreach (range(1, 5) as $_attempt) {
+            $this->post(route('login.store'), [
+                'username' => 'limit-admin',
+                'password' => 'PogresnaLozinka',
+            ])->assertSessionHasErrors('username');
+        }
+
+        $response = $this->post(route('login.store'), [
+            'username' => 'limit-admin',
+            'password' => 'IspravnaLozinka123',
+        ])->assertSessionHasErrors('username');
+
+        $this->assertStringContainsString('Previše pokušaja prijave', $response->getSession()->get('errors')->first('username'));
+        $this->assertGuest();
+    }
+
+    public function test_successful_login_clears_previous_failed_attempts(): void
+    {
+        auth()->logout();
+        User::factory()->create(['username' => 'reset-admin', 'password' => 'IspravnaLozinka123']);
+
+        $this->post(route('login.store'), [
+            'username' => 'reset-admin',
+            'password' => 'PogresnaLozinka',
+        ])->assertSessionHasErrors('username');
+
+        $this->post(route('login.store'), [
+            'username' => 'reset-admin',
+            'password' => 'IspravnaLozinka123',
+        ])->assertRedirect(route('dashboard'));
+
+        $key = 'reset-admin|127.0.0.1';
+        $this->assertSame(0, RateLimiter::attempts($key));
     }
 }

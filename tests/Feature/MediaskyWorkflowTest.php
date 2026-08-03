@@ -484,7 +484,7 @@ class MediaskyWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'S-01', 'duct_length_m' => 42]);
         $this->get(route('map.dashboard'))->assertOk()->assertSee('S-01')->assertSee('Predlozi FTTH');
-        $this->get(route('map.index'))->assertRedirect(route('dashboard'));
+        $this->get(route('map.index'))->assertRedirect(route('map.dashboard'));
     }
 
     public function test_map_plan_saves_trench_route_without_fiber_or_microduct(): void

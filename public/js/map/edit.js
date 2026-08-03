@@ -35,7 +35,20 @@ function openRouteAttributePanel(route) {
     document.getElementById('route-attr-type').value = route.type || 'distribution';
     document.getElementById('route-attr-microduct').value = route.microduct_type || route.microduct || '';
     document.getElementById('route-attr-fibers').value = route.fiber_count || route.fibers || 12;
+    document.getElementById('route-attr-installation').value = route.installation_type || 'underground';
+    document.getElementById('route-attr-microduct-count').value = route.microduct_count ?? 1;
     document.getElementById('route-attr-note').value = route.note || '';
+    syncRouteAttributeFields();
+}
+
+function syncRouteAttributeFields() {
+    const isTrench = document.getElementById('route-attr-type').value === 'trench';
+    ['route-attr-microduct', 'route-attr-fibers', 'route-attr-microduct-count'].forEach(id => {
+        const field = document.getElementById(id);
+        field.disabled = isTrench;
+        field.closest('label')?.classList.toggle('opacity-50', isTrench);
+    });
+    document.getElementById('route-attribute-status').title = isTrench ? 'Glavni rov nema optički kabel ni mikrocijev u svom obračunu.' : '';
 }
 
 function closeRouteAttributePanel() {
@@ -60,6 +73,8 @@ async function saveRouteAttributes() {
             route_type: document.getElementById('route-attr-type').value,
             microduct_type: document.getElementById('route-attr-microduct').value || null,
             fiber_count: Number(document.getElementById('route-attr-fibers').value || 12),
+            installation_type: document.getElementById('route-attr-installation').value,
+            microduct_count: Number(document.getElementById('route-attr-microduct-count').value || 0),
             note: document.getElementById('route-attr-note').value,
             odf_id: route.odf_id || null,
             from_type: route.from_type || null,
@@ -69,11 +84,13 @@ async function saveRouteAttributes() {
             cabinet_id: route.cabinet_id || null,
         }),
     });
-    const result = await readJsonResponse(response, 'Podaci trase nisu sacuvani.');
+    const result = await readJsonResponse(response, 'Podaci trase nisu sačuvani.');
     Object.assign(route, result.route, {
         type: result.route.type,
         microduct_type: result.route.microduct,
         fiber_count: result.route.fibers,
+        installation_type: result.route.installation_type,
+        microduct_count: result.route.microduct_count,
     });
     const line = routeLayerById[route.id];
     if (line) {
@@ -83,8 +100,8 @@ async function saveRouteAttributes() {
         line.setPopupContent(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length ?? route.duct_length_m ?? 0} m`);
     }
     refreshRouteLabels(route, oldLayerType);
-    document.getElementById('route-attribute-status').textContent = 'Podaci trase su sacuvani.';
-    document.getElementById('cad-command').textContent = `TRASA: ${route.name} sacuvana.`;
+    document.getElementById('route-attribute-status').textContent = 'Podaci trase su sačuvani.';
+    document.getElementById('cad-command').textContent = `TRASA: ${route.name} sačuvana.`;
 }
 
 function refreshRouteLabels(route, oldLayerType = null) {

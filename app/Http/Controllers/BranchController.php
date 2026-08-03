@@ -47,7 +47,7 @@ class BranchController extends Controller
         $branch = NetworkBranch::findOrFail($id);
         $branch->update($this->branchData($request, $id, $branch->project_id));
 
-        return back()->with('success', 'Krak je azuriran.');
+        return back()->with('success', 'Krak je ažuriran.');
     }
 
     public function deleteBranch($id)

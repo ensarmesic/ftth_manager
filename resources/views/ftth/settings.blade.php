@@ -49,6 +49,13 @@
             <form method="POST" action="{{ route('password.update') }}" class="page-form-body account-security-form">
                 @csrf
                 @method('PUT')
+                <div class="account-security-note">
+                    <div>
+                        <b>Zaštiti administratorski pristup</b>
+                        <span>Koristi jedinstvenu lozinku koju ne koristiš na drugim servisima.</span>
+                    </div>
+                    <span class="account-security-badge">12+ znakova</span>
+                </div>
                 <label class="grid gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Trenutna lozinka
                     <input type="password" name="current_password" autocomplete="current-password" class="field-input normal-case tracking-normal" required>

@@ -2,11 +2,11 @@
 function planPayload() {
     const odfs = draftOdfs.map((item, index) => {
         const p = item.marker.getLatLng();
-        return { name: item.name || defaultDraftName('odf', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), fiber_capacity: 144 };
+        return { name: item.name || defaultDraftName('odf', index), address: item.address || 'Sa mape', lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), fiber_capacity: Number(item.fiber_capacity || 144), port_count: Number(item.port_count || 48) };
     });
     const manualCabinets = draftCabinets.map((item, index) => {
         const p = item.marker.getLatLng();
-        return { name: item.name || defaultDraftName('cabinet', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: 3, odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
+        return { name: item.name || defaultDraftName('cabinet', index), address: item.address || 'Sa mape', lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: Number(item.splitter_count || 3), ports_per_splitter: Number(item.ports_per_splitter || 4), odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
     });
     const suggestedCabinetPayload = suggestedCabinets.map(cabinet => ({
         name: cabinet.name,
@@ -22,7 +22,8 @@ function planPayload() {
         const key = pointKey(p.lat, p.lng);
         const cabinetIndex = cabinets.findIndex(cabinet => (cabinet.houseKeys || []).includes(key));
         return {
-            label: `K-${String(index+1).padStart(3,'0')}`,
+            label: draftHouseMeta[index]?.label || `K-${String(index+1).padStart(3,'0')}`,
+            address: draftHouseMeta[index]?.address || null,
             lat: Number(p.lat.toFixed(7)),
             lng: Number(p.lng.toFixed(7)),
             cabinet_index: cabinetIndex >= 0 ? cabinetIndex : null,
@@ -77,6 +78,10 @@ function refreshPlanSummary() {
         .filter(item => item.type === 'boring_fi_130')
         .reduce((sum, item) => sum + Number(item.length_m || item.quantity || 0), 0);
     document.getElementById('bulk-plan-summary').textContent = `Draft: ${payload.odfs.length} ODF, ${payload.cabinets.length} FTTH, ${payload.houses.length} kuca, ${payload.routes.length} trasa (${trenchCount} glavni rov), ${payload.appendix_items.length} stavki, FI130 ${Math.round(boringMeters)} m.`;
+    const preflightPanel = document.getElementById('preflight-panel');
+    if (preflightPanel && !preflightPanel.classList.contains('hidden') && typeof collectDraftPreflightIssues === 'function') {
+        renderDraftPreflight(collectDraftPreflightIssues(payload));
+    }
     scheduleDraftAutosave();
 }
 
@@ -121,13 +126,18 @@ function draftPayload() {
     return {
         odfs: draftOdfs.map((item, index) => {
             const p = item.marker.getLatLng();
-            return { name: item.name || defaultDraftName('odf', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)) };
+            return { name: item.name || defaultDraftName('odf', index), address: item.address || '', fiber_capacity: Number(item.fiber_capacity || 144), port_count: Number(item.port_count || 48), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)) };
         }),
         cabinets: draftCabinets.map((item, index) => {
             const p = item.marker.getLatLng();
-            return { name: item.name || defaultDraftName('cabinet', index), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
+            return { name: item.name || defaultDraftName('cabinet', index), address: item.address || '', splitter_count: Number(item.splitter_count || 3), ports_per_splitter: Number(item.ports_per_splitter || 4), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
         }),
-        houses: housePoints.slice(savedHouseCount).map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
+        houses: housePoints.slice(savedHouseCount).map((p, index) => ({
+            label: draftHouseMeta[index]?.label || `K-${String(index + 1).padStart(3, '0')}`,
+            address: draftHouseMeta[index]?.address || '',
+            lat: Number(p.lat.toFixed(7)),
+            lng: Number(p.lng.toFixed(7)),
+        })),
         branches: branches.map((branch, index) => ({
             path: branch.map(p => [Number(p.lat.toFixed(7)), Number(p.lng.toFixed(7))]),
             meta: branchMeta[index] || {},
@@ -163,6 +173,7 @@ function restoreDraft(payload) {
     clearDraw();
     houseMarkers.forEach(marker => map.removeLayer(marker));
     houseMarkers = [];
+    draftHouseMeta = [];
     housePoints = data.houses.map(h => L.latLng(h.lat, h.lng));
     draftAppendixItems.forEach(removeAppendixDraftItem);
     draftElements.forEach(item => {
@@ -207,12 +218,15 @@ function restoreDraft(payload) {
 
     let restoredHouseIndex = 0;
     (payload.houses || []).forEach((point) => {
-        if (savedHouseKeys.has(pointKey(point[0], point[1]))) return;
+        const pointLat = Array.isArray(point) ? point[0] : point.lat;
+        const pointLng = Array.isArray(point) ? point[1] : point.lng;
+        if (savedHouseKeys.has(pointKey(pointLat, pointLng))) return;
         const latLng = L.latLng(Array.isArray(point) ? point[0] : point.lat, Array.isArray(point) ? point[1] : point.lng);
-        const item = { marker: null, name: Array.isArray(point) ? defaultDraftName('odf', restoredHouseIndex) : (point.name || defaultDraftName('odf', restoredHouseIndex)) };
+        const item = { marker: null, name: Array.isArray(point) ? `K-${String(restoredHouseIndex + 1).padStart(3, '0')}` : (point.label || point.name || `K-${String(restoredHouseIndex + 1).padStart(3, '0')}`), address: Array.isArray(point) ? '' : (point.address || '') };
         const houseIndex = restoredHouseIndex++;
         housePoints.push(latLng);
-        const marker = L.marker(latLng, { icon: icon('house'), draggable: true }).bindPopup(`Kuca ${houseIndex + 1}`).addTo(map);
+        draftHouseMeta.push({ label: item.name, address: item.address });
+        const marker = L.marker(latLng, { icon: icon('house'), draggable: true }).bindPopup(`Kuća ${houseIndex + 1}`).addTo(map);
         houseMarkerByKey[pointKey(latLng.lat, latLng.lng)] = marker;
         marker.on('drag', event => {
             const next = event.target.getLatLng();
@@ -220,6 +234,7 @@ function restoreDraft(payload) {
             houseMarkerByKey[pointKey(next.lat, next.lng)] = marker;
             refreshStats();
         });
+        marker.on('click', () => selectDraftElement('house', { marker, houseIndex, meta: draftHouseMeta[houseIndex] }));
         registerHouseContext(marker);
         houseMarkers.push(marker);
     });
@@ -228,7 +243,7 @@ function restoreDraft(payload) {
         const lat = Array.isArray(point) ? point[0] : point.lat;
         const lng = Array.isArray(point) ? point[1] : point.lng;
         const latLng = L.latLng(lat, lng);
-        const item = { marker: null, name: Array.isArray(point) ? `ODF-${String(index + 1).padStart(2, '00')}` : (point.name || `ODF-${String(index + 1).padStart(2, '00')}`) };
+        const item = { marker: null, name: Array.isArray(point) ? `ODF-${String(index + 1).padStart(2, '00')}` : (point.name || `ODF-${String(index + 1).padStart(2, '00')}`), address: point.address || '', fiber_capacity: point.fiber_capacity || 144, port_count: point.port_count || 48 };
         const marker = L.marker(latLng, { icon: icon('odf', 'ODF'), draggable: true }).bindTooltip('ODF · 0 FTTH', { direction: 'top', offset: [0, -10] }).addTo(map);
         item.marker = marker;
         marker.on('drag', () => { refreshDraftTooltips(); refreshPlanSummary(); });
@@ -243,7 +258,7 @@ function restoreDraft(payload) {
         const lat = Array.isArray(point) ? point[0] : point.lat;
         const lng = Array.isArray(point) ? point[1] : point.lng;
         const latLng = L.latLng(lat, lng);
-        const item = { marker: null, name: Array.isArray(point) ? defaultDraftName('cabinet', index) : (point.name || defaultDraftName('cabinet', index)), odf_index: Array.isArray(point) ? (nearestDraftOdf(latLng)?.index ?? null) : (point.odf_index ?? null), odf_id: Array.isArray(point) ? null : (point.odf_id ?? null) };
+        const item = { marker: null, name: Array.isArray(point) ? defaultDraftName('cabinet', index) : (point.name || defaultDraftName('cabinet', index)), address: point.address || '', splitter_count: point.splitter_count || 3, ports_per_splitter: point.ports_per_splitter || 4, odf_index: Array.isArray(point) ? (nearestDraftOdf(latLng)?.index ?? null) : (point.odf_index ?? null), odf_id: Array.isArray(point) ? null : (point.odf_id ?? null) };
         const marker = L.marker(latLng, { icon: icon('cabinet', item.name), draggable: true }).bindTooltip('0/12', { direction: 'top', offset: [0, -10] }).addTo(map);
         item.marker = marker;
         marker.on('drag', () => {
@@ -353,7 +368,7 @@ async function saveSuggestions() {
         output.innerHTML = `<b class="text-emerald-700">${result.message} Povezano kuca: ${result.linked_houses}.</b>`;
         keepSavedSuggestionsOnMap();
     } catch (error) {
-        output.innerHTML = `<b class="text-red-700">Greska: ${error.message}</b>`;
+        output.innerHTML = `<b class="text-red-700">Greska: ${escapeHtml(error.message)}</b>`;
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;
@@ -365,7 +380,7 @@ function keepSavedSuggestionsOnMap() {
     suggestedCabinets = [];
     currentAutoPlan = null;
     document.getElementById('save-suggestions').classList.add('hidden');
-    document.getElementById('suggestion-output').innerHTML = '<b class="text-emerald-700">FTTH ormarici su snimljeni. Osvjezavam mapu...</b>';
+    document.getElementById('suggestion-output').innerHTML = '<b class="text-emerald-700">FTTH ormarići su snimljeni. Osvježavam mapu...</b>';
     refreshPlanSummary();
     window.setTimeout(() => window.location.reload(), 500);
 }

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\SurveyPoint;
 use App\Services\SurveyPointImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
 class SurveyPointController extends Controller
@@ -69,5 +72,62 @@ class SurveyPointController extends Controller
             'message' => "Obrisano: {$removed['points']} tacaka, {$removed['trenches']} rovova, {$removed['ducts']} mikrocijevi, {$removed['cabinets']} ZO, {$removed['odfs']} ODF, {$removed['houses']} kuca, {$removed['manholes']} sahtova, {$removed['splices']} spojnica, {$removed['borings']} busenja, {$removed['loops']} rezervi. Rucno nacrtani elementi nisu dirani.",
             'removed' => $removed,
         ]);
+    }
+
+    public function storeFieldPoint(Request $request, Project $project): JsonResponse
+    {
+        $data = $request->validate([
+            'session_uuid' => ['required', 'uuid'],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'accuracy_m' => ['nullable', 'numeric', 'min:0', 'max:10000'],
+            'kind' => ['required', Rule::in(['trench', 'cabinet', 'odf', 'manhole', 'splice', 'sling', 'loop', 'boring', 'pole', 'other'])],
+            'code' => ['required', 'string', 'max:255'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'captured_at' => ['nullable', 'date'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+        ]);
+
+        $sequence = (int) SurveyPoint::where('project_id', $project->id)
+            ->where('session_uuid', $data['session_uuid'])
+            ->max('sequence') + 1;
+        $photoPath = $request->file('photo')?->store("field-photos/{$project->id}", 'local');
+
+        $point = SurveyPoint::create([
+            'project_id' => $project->id,
+            'import_batch' => 'field-'.$data['session_uuid'],
+            'source_file' => null,
+            'point_no' => $sequence,
+            'x' => 0,
+            'y' => 0,
+            'z' => null,
+            'latitude' => $data['latitude'],
+            'longitude' => $data['longitude'],
+            'code' => $data['code'],
+            'kind' => $data['kind'],
+            'source' => 'gps',
+            'session_uuid' => $data['session_uuid'],
+            'sequence' => $sequence,
+            'accuracy_m' => $data['accuracy_m'] ?? null,
+            'note' => $data['note'] ?? null,
+            'photo_path' => $photoPath,
+            'captured_at' => $data['captured_at'] ?? now(),
+        ]);
+
+        return response()->json([
+            'message' => "GPS tačka #{$sequence} je sačuvana.",
+            'point' => [
+                'id' => $point->id, 'sequence' => $point->sequence, 'kind' => $point->kind,
+                'code' => $point->code, 'lat' => (float) $point->latitude, 'lng' => (float) $point->longitude,
+                'accuracy_m' => $point->accuracy_m, 'has_photo' => filled($point->photo_path),
+            ],
+        ], 201);
+    }
+
+    public function fieldPointPhoto(Project $project, SurveyPoint $point)
+    {
+        abort_unless($point->project_id === $project->id && filled($point->photo_path), 404);
+
+        return Storage::disk('local')->response($point->photo_path);
     }
 }

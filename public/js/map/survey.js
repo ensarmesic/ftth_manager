@@ -9,7 +9,16 @@
     const clearBtn = document.getElementById('survey-clear-btn');
     const statusBox = document.getElementById('survey-status');
     const summaryBox = document.getElementById('survey-summary');
+    const gpsReadBtn = document.getElementById('field-gps-read');
+    const gpsPositionBox = document.getElementById('field-gps-position');
+    const fieldSaveBtn = document.getElementById('field-point-save');
+    const fieldKind = document.getElementById('field-point-kind');
+    const fieldCode = document.getElementById('field-point-code');
+    const fieldNote = document.getElementById('field-point-note');
+    const fieldPhoto = document.getElementById('field-point-photo');
+    const fieldStatus = document.getElementById('field-point-status');
     let selectedFile = null;
+    let fieldPosition = null;
 
     function projectId() {
         return document.getElementById('active-project-id')?.value || '';
@@ -21,6 +30,27 @@
         statusBox.style.background = isError ? '#fef2f2' : '#f0fdf4';
         statusBox.style.borderColor = isError ? '#fecaca' : '#bbf7d0';
         statusBox.style.color = isError ? '#b91c1c' : '#166534';
+    }
+
+    function setFieldStatus(message, isError = false) {
+        fieldStatus.textContent = message;
+        fieldStatus.style.display = message ? 'block' : 'none';
+        fieldStatus.style.background = isError ? '#fef2f2' : '#ecfdf5';
+        fieldStatus.style.color = isError ? '#b91c1c' : '#065f46';
+        fieldStatus.style.border = `1px solid ${isError ? '#fecaca' : '#a7f3d0'}`;
+    }
+
+    function fieldSessionUuid() {
+        const key = `ftth-field-session-${projectId()}`;
+        let uuid = localStorage.getItem(key);
+        if (!uuid) {
+            uuid = crypto.randomUUID?.() || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+                const value = Math.random() * 16 | 0;
+                return (char === 'x' ? value : (value & 0x3 | 0x8)).toString(16);
+            });
+            localStorage.setItem(key, uuid);
+        }
+        return uuid;
     }
 
     async function requestJson(url, file, overrides) {
@@ -148,6 +178,78 @@
         } catch (error) {
             confirmBtn.disabled = false;
             setStatus(error.message, true);
+        }
+    });
+
+    gpsReadBtn?.addEventListener('click', () => {
+        if (!projectId()) return setFieldStatus('Prvo odaberi projekat.', true);
+        if (!window.isSecureContext) return setFieldStatus('GPS u browseru zahtijeva HTTPS vezu. Otvori aplikaciju preko sigurnog HTTPS servera.', true);
+        if (!navigator.geolocation) return setFieldStatus('Ovaj uređaj ne podržava GPS lokaciju.', true);
+        gpsReadBtn.disabled = true;
+        gpsReadBtn.textContent = 'Čekam preciznu GPS lokaciju…';
+        navigator.geolocation.getCurrentPosition(position => {
+            fieldPosition = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                capturedAt: new Date(position.timestamp).toISOString(),
+            };
+            const accuracyColor = fieldPosition.accuracy <= 5 ? '#047857' : fieldPosition.accuracy <= 15 ? '#b45309' : '#b91c1c';
+            gpsPositionBox.style.display = 'block';
+            gpsPositionBox.innerHTML = `<b>${fieldPosition.latitude.toFixed(7)}, ${fieldPosition.longitude.toFixed(7)}</b><br>Procijenjena preciznost: <b style="color:${accuracyColor}">±${fieldPosition.accuracy.toFixed(1)} m</b>`;
+            if (!fieldCode.value.trim()) fieldCode.value = fieldKind.options[fieldKind.selectedIndex].text;
+            fieldSaveBtn.disabled = false;
+            fieldSaveBtn.style.opacity = '1';
+            gpsReadBtn.disabled = false;
+            gpsReadBtn.textContent = 'Ponovo očitaj GPS lokaciju';
+            setFieldStatus(fieldPosition.accuracy > 15 ? 'GPS signal je slab. Sačekaj bolju preciznost prije spremanja ako je moguće.' : 'Lokacija je spremna za evidentiranje.', fieldPosition.accuracy > 30);
+        }, error => {
+            gpsReadBtn.disabled = false;
+            gpsReadBtn.textContent = 'Očitaj trenutnu GPS lokaciju';
+            setFieldStatus(error.code === 1 ? 'Dozvoli pristup lokaciji u postavkama browsera.' : 'GPS lokacija trenutno nije dostupna.', true);
+        }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    });
+
+    fieldSaveBtn?.addEventListener('click', async () => {
+        if (!fieldPosition || !projectId()) return;
+        if (!fieldCode.value.trim()) return setFieldStatus('Upiši naziv ili opis tačke.', true);
+        const body = new FormData();
+        body.append('session_uuid', fieldSessionUuid());
+        body.append('latitude', fieldPosition.latitude);
+        body.append('longitude', fieldPosition.longitude);
+        body.append('accuracy_m', fieldPosition.accuracy);
+        body.append('captured_at', fieldPosition.capturedAt);
+        body.append('kind', fieldKind.value);
+        body.append('code', fieldCode.value.trim());
+        body.append('note', fieldNote.value.trim());
+        if (fieldPhoto.files?.[0]) body.append('photo', fieldPhoto.files[0]);
+        fieldSaveBtn.disabled = true;
+        fieldSaveBtn.textContent = 'Spremam terensku tačku…';
+        try {
+            const response = await fetch(`/projekti/${projectId()}/teren/tacke`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body,
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(Object.values(payload.errors || {})[0]?.[0] || payload.message || 'Tačka nije sačuvana.');
+            const point = payload.point;
+            L.circleMarker([point.lat, point.lng], { radius: 7, color: '#0f766e', weight: 3, fillColor: '#5eead4', fillOpacity: .8 })
+                .bindPopup(`<b>#${point.sequence} ${escapeHtml(point.code)}</b><br>GPS ±${Number(point.accuracy_m || 0).toFixed(1)} m${point.has_photo ? '<br>Fotografija spremljena' : ''}`)
+                .addTo(map).openPopup();
+            map.setView([point.lat, point.lng], Math.max(map.getZoom(), 20));
+            setFieldStatus(payload.message);
+            fieldCode.value = '';
+            fieldNote.value = '';
+            fieldPhoto.value = '';
+            fieldPosition = null;
+            gpsPositionBox.style.display = 'none';
+            fieldSaveBtn.textContent = 'Sačuvaj GPS tačku';
+            fieldSaveBtn.style.opacity = '.55';
+        } catch (error) {
+            fieldSaveBtn.disabled = false;
+            fieldSaveBtn.textContent = 'Sačuvaj GPS tačku';
+            setFieldStatus(error.message, true);
         }
     });
 

@@ -173,6 +173,8 @@ APP_NAME="FTTH Manager"
 APP_ENV=local        # production za produkciju
 APP_DEBUG=true       # false u produkciji
 APP_URL=http://localhost
+APP_TIMEZONE=Europe/Sarajevo
+APP_LOCALE=bs
 
 DB_CONNECTION=sqlite # SQLite — nije potreban host/port
 ```

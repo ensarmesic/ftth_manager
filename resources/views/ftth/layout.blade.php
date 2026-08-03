@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>FTTH Manager</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <link rel="stylesheet" href="{{ asset('css/ftth-app.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/ftth-app.css') }}?v={{ filemtime(public_path('css/ftth-app.css')) }}">
     <style>
         body { line-height: 1.4; }
         .app-content table { font-size: .875rem; }
@@ -18,14 +18,15 @@
     $isWide = trim($__env->yieldContent('wide'));
     $isDashboard = request()->routeIs('map.dashboard');
     $sidebarItems = [
+        ['dashboard',           'Pregled',            'squares'],
         ['map.dashboard',       'Mapa',               'map'],
         ['projects.index',      'Projekti',           'folder'],
         ['odfs.index',          'ODF-ovi',            'server'],
-        ['cabinets.index',      'ODO ormarici',       'archive'],
-        ['houses.index',        'Kuce',               'home'],
+        ['cabinets.index',      'ODO ormarići',       'archive'],
+        ['houses.index',        'Kuće',               'home'],
         ['routes.index',        'Trase',              'route'],
         ['branches.index',      'Krakovi',            'branch'],
-        ['reports.index',       'Izvjestaji',         'chart'],
+        ['reports.index',       'Izvještaji',         'chart'],
         ['splitters.index',     'Splitteri',          'split'],
         ['fiber-schema.index',  'Fiber sema',         'chip'],
         ['project-check.index', 'Provjera projekta',  'shield'],
@@ -49,22 +50,28 @@
         'cog'     => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>',
     ];
     $headerNotifications = collect();
-    $unlinkedHouses = \App\Models\House::whereNull('cabinet_id')->count();
-    $unlinkedCabinets = \App\Models\Cabinet::whereNull('odf_id')->count();
-    $incompleteRoutes = \App\Models\NetworkRoute::where('route_type', '!=', 'trench')->where(function ($query) { $query->whereNull('microduct_type')->orWhereNull('fiber_count'); })->count();
-    if ($unlinkedHouses) $headerNotifications->push("$unlinkedHouses kuca nema dodijeljeni ODO.");
-    if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarica nema povezani ODF.");
-    if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehnicke podatke.");
+    $notificationProjectId = request()->integer('project');
+    $scopeNotifications = fn ($query) => $query->when($notificationProjectId > 0, fn ($projectQuery) => $projectQuery->where('project_id', $notificationProjectId));
+    $unlinkedHouses = $scopeNotifications(\App\Models\House::query())->whereNull('cabinet_id')->count();
+    $unlinkedCabinets = $scopeNotifications(\App\Models\Cabinet::query())->whereNull('odf_id')->count();
+    $incompleteRoutes = $scopeNotifications(\App\Models\NetworkRoute::query())->where('route_type', '!=', 'trench')->where(function ($query) { $query->whereNull('microduct_type')->orWhereNull('fiber_count'); })->count();
+    if ($unlinkedHouses) $headerNotifications->push("$unlinkedHouses kuća nema dodijeljeni ODO.");
+    if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarića nema povezani ODF.");
+    if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehničke podatke.");
 @endphp
 <body class="{{ $isDashboard || request()->routeIs('fiber-schema.index') ? 'workspace-page' : 'standard-page' }} h-screen overflow-hidden bg-slate-100 font-sans text-slate-950 antialiased">
 <div class="flex h-screen overflow-hidden">
-    <aside class="hidden w-52 shrink-0 bg-linear-to-b from-[#004f7d] to-[#003558] text-white lg:flex lg:flex-col" style="box-shadow: 4px 0 24px rgba(0,0,0,.18);">
-        <a href="{{ route('dashboard') }}" class="flex h-11 items-center gap-3 border-b border-white/10 px-5 xl:h-12 xl:px-6">
+    <aside class="app-sidebar hidden w-52 shrink-0 bg-linear-to-b from-[#004f7d] to-[#003558] text-white lg:flex lg:flex-col" style="box-shadow: 4px 0 24px rgba(0,0,0,.18);">
+        <a href="{{ route('dashboard') }}" class="app-brand flex h-11 items-center gap-3 border-b border-white/10 px-5 xl:h-12 xl:px-6">
             <span class="grid h-7 w-7 place-items-center rounded-lg text-[10px] font-black" style="background:linear-gradient(135deg,#81C342,#4f8934)">FT</span>
             <span class="text-sm font-bold tracking-wide">FTTH Manager</span>
         </a>
-        <nav class="flex flex-col p-2 text-[12px] flex-1 overflow-y-auto" style="gap:1px">
+        <nav class="app-navigation flex flex-col p-2 text-[12px] flex-1 overflow-y-auto" style="gap:1px">
             @foreach ($sidebarItems as [$route, $label, $iconKey])
+                @if($route === 'dashboard')<span class="nav-section-label">Radni prostor</span>@endif
+                @if($route === 'odfs.index')<span class="nav-section-label">Mrežna evidencija</span>@endif
+                @if($route === 'reports.index')<span class="nav-section-label">Analitika i kontrola</span>@endif
+                @if($route === 'settings.index')<span class="nav-section-label">Sistem</span>@endif
                 <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route) }}">
                     <span class="shrink-0 opacity-70">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                     {{ $label }}
@@ -74,7 +81,7 @@
         @if($isDashboard && isset($odfs, $cabinets, $stats, $routes))
             <div class="mx-4 mb-4 mt-1 rounded-xl border border-white/10 p-3 text-[10px] xl:text-[11px]" style="background:rgba(255,255,255,.06)">
                 <b class="mb-2 block text-blue-200 text-[9.5px] uppercase tracking-widest">Brzi pregled</b>
-                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarici', $cabinets->count()], ['Trase', $routes->count()], ['Ukupna duzina', number_format($stats['routes_m'] / 1000, 2).' km']] as $quick)
+                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarići', $cabinets->count()], ['Trase', $routes->count()], ['Ukupna dužina', number_format($stats['routes_m'] / 1000, 2).' km']] as $quick)
                     <div class="flex justify-between py-1 text-blue-200"><span>{{ $quick[0] }}</span><b class="text-white">{{ $quick[1] }}</b></div>
                 @endforeach
             </div>
@@ -82,7 +89,7 @@
     </aside>
 
     <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header class="relative z-1300 flex h-13 shrink-0 items-center justify-between border-b bg-white px-3 sm:px-5" style="box-shadow:0 1px 0 #e8edf3,0 4px 16px rgba(15,23,42,.06);">
+        <header class="app-topbar relative z-1300 flex h-13 shrink-0 items-center justify-between border-b bg-white px-3 sm:px-5" style="box-shadow:0 1px 0 #e8edf3,0 4px 16px rgba(15,23,42,.06);">
 
             {{-- LEFT: logo + breadcrumb --}}
             <div class="flex min-w-0 items-center gap-3">
@@ -103,7 +110,7 @@
             <div class="flex items-center gap-0.5">
 
                 {{-- Search --}}
-                <button type="button" data-header-action="search" title="Pretraži (Ctrl+K)"
+                <button type="button" data-header-action="search" title="Pretraži (Ctrl+K)" aria-label="Pretraži aplikaciju" aria-haspopup="dialog"
                     class="hidden sm:flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-600">
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
                     <span class="hidden lg:inline">Pretraži</span>
@@ -111,7 +118,7 @@
                 </button>
 
                 {{-- Fullscreen --}}
-                <button type="button" data-header-action="fullscreen" title="Cijeli ekran"
+                <button type="button" data-header-action="fullscreen" title="Cijeli ekran" aria-label="Uključi cijeli ekran"
                     class="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
                     <svg id="icon-fs-enter" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 011.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 011.414-1.414L15 13.586V12a1 1 0 011-1z" clip-rule="evenodd"/></svg>
                     <svg id="icon-fs-exit" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 hidden"><path fill-rule="evenodd" d="M4 10a1 1 0 011-1h3V6a1 1 0 012 0v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H5a1 1 0 01-1-1zm10-6a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0V5a1 1 0 011-1zM4 15a1 1 0 011-1h3v-3a1 1 0 112 0v3h3a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
@@ -120,7 +127,7 @@
                 <div class="mx-1.5 hidden h-5 w-px bg-slate-200 sm:block"></div>
 
                 {{-- Notifications button --}}
-                <button type="button" id="btn-notifications" title="Obavijesti"
+                <button type="button" id="btn-notifications" title="Obavijesti" aria-label="Obavijesti" aria-controls="notification-menu" aria-expanded="false"
                     class="relative flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
                     <span id="notif-badge" class="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500 {{ $headerNotifications->isEmpty() ? 'hidden' : '' }}"></span>
@@ -129,7 +136,7 @@
                 <div class="mx-1.5 h-5 w-px bg-slate-200"></div>
 
                 {{-- Profile button --}}
-                <button type="button" id="btn-profile"
+                <button type="button" id="btn-profile" aria-label="Korisnički meni" aria-controls="profile-menu" aria-expanded="false"
                     class="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-slate-100">
                     <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style="background:linear-gradient(135deg,#308dcc,#004f7d)">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr(auth()->user()->name, 0, 2)) }}</span>
                     <span class="hidden sm:block text-left leading-tight">
@@ -143,8 +150,10 @@
         </header>
         @unless($isDashboard)
             <div class="ftth-page-header">
-                <h1>@yield('title')</h1>
-                <p>@yield('subtitle')</p>
+                <div class="ftth-page-header-inner">
+                    <h1>@yield('title')</h1>
+                    <p>@yield('subtitle')</p>
+                </div>
             </div>
         @endunless
         <div class="app-content {{ $isWide ? 'flex min-h-0 flex-1 flex-col overflow-hidden p-1.5 sm:p-2 xl:p-2.5' : 'flex-1 min-h-0 overflow-hidden flex flex-col w-full px-3 py-2 sm:px-4 sm:py-2' }}">
@@ -170,7 +179,7 @@
         @endforeach
     </nav>
 </aside>
-<div id="global-search" class="fixed inset-0 z-1300 hidden place-items-start bg-slate-950/50 px-4 pt-24 backdrop-blur-sm">
+<div id="global-search" class="fixed inset-0 z-1300 hidden place-items-start bg-slate-950/50 px-4 pt-24 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Pretraga aplikacije">
     <div class="mx-auto w-full max-w-xl rounded-2xl bg-white p-4 shadow-2xl border border-slate-200">
         <div class="flex gap-2">
             <div class="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3">
@@ -202,8 +211,8 @@
 <script>
 const ftthMenuItems = [
     ['Pregled', @json(route('dashboard'))], ['Projekti', @json(route('projects.index'))], ['Mapa', @json(route('map.dashboard'))],
-    ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarici', @json(route('cabinets.index'))], ['Kuce', @json(route('houses.index'))],
-    ['Trase', @json(route('routes.index'))], ['Krakovi', @json(route('branches.index'))], ['Izvjestaji', @json(route('reports.index'))],
+    ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarići', @json(route('cabinets.index'))], ['Kuće', @json(route('houses.index'))],
+    ['Trase', @json(route('routes.index'))], ['Krakovi', @json(route('branches.index'))], ['Izvještaji', @json(route('reports.index'))],
     ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
     ['Postavke', @json(route('settings.index'))],
 ];
@@ -212,7 +221,8 @@ function closeHeaderMenus(except = '') {
         if (id === except) return;
         document.getElementById(id)?.classList.add('hidden');
     });
-    document.querySelector('[data-header-action="notifications"]')?.setAttribute('aria-expanded', 'false');
+    if (except !== 'notification-menu') document.getElementById('btn-notifications')?.setAttribute('aria-expanded', 'false');
+    if (except !== 'profile-menu') document.getElementById('btn-profile')?.setAttribute('aria-expanded', 'false');
 }
 function toggleHeaderMenu(id) {
     const menu = document.getElementById(id);
@@ -220,6 +230,7 @@ function toggleHeaderMenu(id) {
     const opening = menu.classList.contains('hidden');
     closeHeaderMenus(id);
     menu.classList.toggle('hidden', !opening);
+    document.getElementById(id === 'notification-menu' ? 'btn-notifications' : 'btn-profile')?.setAttribute('aria-expanded', String(opening));
 }
 function renderGlobalSearch(value = '') {
     const results = ftthMenuItems.filter(([label]) => label.toLowerCase().includes(value.toLowerCase()));
@@ -241,6 +252,12 @@ document.getElementById('notification-menu')?.addEventListener('click', e => e.s
 document.getElementById('profile-menu')?.addEventListener('click', e => e.stopPropagation());
 document.addEventListener('click', () => closeHeaderMenus());
 document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        closeHeaderMenus();
+        document.getElementById('global-search')?.classList.add('hidden');
+        document.getElementById('global-search')?.classList.remove('grid');
+        toggleMobileSidebar(false);
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         const modal = document.getElementById('global-search');
@@ -280,23 +297,44 @@ document.querySelector('[data-delete-modal-action="confirm"]')?.addEventListener
     form?.submit();
 });
 // Drawer slide-over
+let activeDrawerTrigger = null;
+function closeDrawer(drawer, restoreFocus = true) {
+    if (!drawer) return;
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    if (restoreFocus) activeDrawerTrigger?.focus();
+    activeDrawerTrigger = null;
+}
 document.addEventListener('click', e => {
     const open = e.target.closest('[data-drawer-open]');
-    if (open) { document.getElementById(open.dataset.drawerOpen)?.classList.add('open'); return; }
+    if (open) {
+        const drawer = document.getElementById(open.dataset.drawerOpen);
+        if (!drawer) return;
+        activeDrawerTrigger = open;
+        drawer.classList.add('open');
+        drawer.setAttribute('aria-hidden', 'false');
+        const panel = drawer.querySelector('.app-drawer-panel');
+        panel?.setAttribute('role', 'dialog');
+        panel?.setAttribute('aria-modal', 'true');
+        requestAnimationFrame(() => (drawer.querySelector('input:not([type="hidden"]), select, textarea') || panel)?.focus());
+        return;
+    }
     const close = e.target.closest('[data-drawer-close]');
-    if (close) { document.getElementById(close.dataset.drawerClose)?.classList.remove('open'); return; }
-    if (e.target.closest('.app-drawer-backdrop')) e.target.closest('.app-drawer')?.classList.remove('open');
+    if (close) { closeDrawer(document.getElementById(close.dataset.drawerClose)); return; }
+    if (e.target.closest('.app-drawer-backdrop')) closeDrawer(e.target.closest('.app-drawer'));
 });
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') document.querySelectorAll('.app-drawer.open').forEach(d => d.classList.remove('open'));
+    if (e.key === 'Escape') document.querySelectorAll('.app-drawer.open').forEach(d => closeDrawer(d));
 });
+document.querySelectorAll('.app-drawer').forEach(drawer => drawer.setAttribute('aria-hidden', String(!drawer.classList.contains('open'))));
 const savedFtthSettings = JSON.parse(localStorage.getItem('ftthSettings') || '{}');
 document.documentElement.classList.toggle('compact-tables', Boolean(savedFtthSettings.compactTables));
 document.documentElement.classList.toggle('small-markers', savedFtthSettings.smallMarkers !== false);
 document.documentElement.classList.toggle('hide-header-notifications', savedFtthSettings.notifications === false);
 (function pollNotifications() {
+    const notificationsUrl = @json(route('api.notifications', $notificationProjectId > 0 ? ['project' => $notificationProjectId] : []));
     function refresh() {
-        fetch('/api/notifications').then(r => r.ok ? r.json() : null).then(d => {
+        fetch(notificationsUrl).then(r => r.ok ? r.json() : null).then(d => {
             if (!d) return;
             const badge = document.getElementById('notif-badge');
             const count = document.getElementById('notification-count');

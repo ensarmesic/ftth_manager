@@ -13,6 +13,15 @@ async function readJsonResponse(response, fallbackMessage) {
     }
     return payload;
 }
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#039;',
+        '"': '&quot;',
+    })[character]);
+}
 function cabinetColor(id) { return cabinetPalette[(Math.max(Number(id) || 1, 1) - 1) % cabinetPalette.length]; }
 function cabinetOccupancyColor(c) {
     const pct = (Number(c.used_ports) || 0) / Math.max(Number(c.capacity) || 1, 1);
@@ -65,17 +74,17 @@ function icon(type, text = '', color = null) {
     const style = color ? ` style="background:${color}"` : '';
     if (type === 'cabinet') {
         const match = String(text || '').trim().match(/^FTTH\s+(.+)$/i);
-        const title = match ? 'FTTH' : String(text || '').trim();
-        const code = match ? normalizeFtthDisplayCode(match[1]) : '';
+        const title = escapeHtml(match ? 'FTTH' : String(text || '').trim());
+        const code = escapeHtml(match ? normalizeFtthDisplayCode(match[1]) : '');
         const html = code
             ? `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}>ODO</span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span><span class="ftth-cabinet-code">${code}</span></span></div>`
             : `<div class="ftth-tag ${cls} ftth-cabinet-tag"><span class="ftth-cabinet-symbol"${style}>ODO</span><span class="ftth-cabinet-text"><span class="ftth-cabinet-title">${title}</span></span></div>`;
         return L.divIcon({ className: 'ftth-label', html, iconSize: [2, 2], iconAnchor: [1, 1] });
     }
     if (cls === 'house' || cls === 'suggest') {
-        return L.divIcon({ className: 'ftth-label ftth-house-icon', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
+        return L.divIcon({ className: 'ftth-label ftth-house-icon', html: `<div class="ftth-tag ${cls}"${style}>${escapeHtml(text)}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
     }
-    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${text}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
+    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${escapeHtml(text)}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
 function normalizeFtthDisplayCode(code) {
     const raw = String(code || '').trim();

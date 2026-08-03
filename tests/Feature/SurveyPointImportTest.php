@@ -13,6 +13,8 @@ use App\Services\GeoTransformService;
 use App\Services\SurveyPointImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class SurveyPointImportTest extends TestCase
@@ -39,6 +41,38 @@ class SurveyPointImportTest extends TestCase
             '10  6549724.000  4923558.000  233.900  ODF11  6549724.500  4923558.400  233.900  ODF',
             '12  6549730.000  4923550.000  233.800  Slinga u tacki 5 za ovu kucu',
         ]);
+    }
+
+    public function test_mobile_field_point_stores_gps_metadata_photo_and_private_photo_access(): void
+    {
+        Storage::fake('local');
+        $project = Project::factory()->create();
+        $session = (string) Str::uuid();
+        $photo = UploadedFile::fake()->createWithContent(
+            'rov.png',
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+        );
+
+        $response = $this->postJson(route('projects.field-points.store', $project), [
+            'session_uuid' => $session,
+            'latitude' => 44.4493123,
+            'longitude' => 18.6498456,
+            'accuracy_m' => 2.4,
+            'kind' => 'trench',
+            'code' => 'Rov T-01',
+            'note' => 'Početak planiranog rova uz cestu.',
+            'captured_at' => now()->toISOString(),
+            'photo' => $photo,
+        ])->assertCreated()->assertJsonPath('point.sequence', 1)->assertJsonPath('point.has_photo', true);
+
+        $point = SurveyPoint::findOrFail($response->json('point.id'));
+        $this->assertSame('gps', $point->source);
+        $this->assertSame($session, $point->session_uuid);
+        $this->assertSame('Rov T-01', $point->code);
+        $this->assertEqualsWithDelta(2.4, $point->accuracy_m, 0.01);
+        Storage::disk('local')->assertExists($point->photo_path);
+
+        $this->get(route('projects.field-points.photo', [$project, $point]))->assertOk();
     }
 
     public function test_gk_to_wgs84_transform_round_trips(): void

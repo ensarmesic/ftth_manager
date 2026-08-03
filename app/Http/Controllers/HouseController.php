@@ -7,6 +7,7 @@ use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
 use App\Models\Project;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,27 +49,27 @@ class HouseController extends Controller
         $house = House::create($data);
 
         if ($request->expectsJson()) {
-            return response()->json(['message' => 'Kuca/prikljucak je evidentiran.', 'house' => [
+            return response()->json(['message' => 'Kuća/priključak je evidentiran.', 'house' => [
                 'id' => $house->id, 'name' => $house->label, 'address' => $house->address, 'cabinet_id' => $house->cabinet_id,
                 'cabinet' => $house->cabinet?->name ?? 'Nije povezano', 'status' => $house->status,
                 'lat' => (float) $house->latitude, 'lng' => (float) $house->longitude,
             ]], 201);
         }
 
-        return back()->with('success', 'Kuca/prikljucak je evidentiran.');
+        return back()->with('success', 'Kuća/priključak je evidentiran.');
     }
 
     public function deleteHouse($id)
     {
         House::findOrFail($id)->delete();
         if (request()->expectsJson()) {
-            return response()->json(['message' => 'Kuca je obrisana.']);
+            return response()->json(['message' => 'Kuća je obrisana.']);
         }
 
-        return back()->with('success', 'Kuca je obrisana.');
+        return back()->with('success', 'Kuća je obrisana.');
     }
 
-    public function updateHouse(Request $request, $id): RedirectResponse
+    public function updateHouse(Request $request, $id): RedirectResponse|JsonResponse
     {
         $house = House::findOrFail($id);
         $data = $request->validate([
@@ -84,7 +85,11 @@ class HouseController extends Controller
         $this->ensureCabinetHouseCapacity($data['cabinet_id'] ?? null, $house->id);
         $house->update($data);
 
-        return back()->with('success', 'Kuca je azurirana.');
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Kuća je ažurirana.', 'item' => $house->fresh()]);
+        }
+
+        return back()->with('success', 'Kuća je ažurirana.');
     }
 
     public function updateHousePosition(Request $request, $id)

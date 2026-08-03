@@ -4,7 +4,7 @@
 @section('content')
 
 {{-- KPI STRIP --}}
-<div class="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+<div class="report-kpi-grid mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
     @foreach ([
         ['Projekti',         $totals['projects'],                         '#7c3aed', '#f5f3ff', '<path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>'],
         ['Kuće',             $totals['houses'],                           '#1d4ed8', '#eff6ff', '<path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>'],
@@ -13,13 +13,13 @@
         ['Mikrocijevi',      number_format($totals['duct']).' m',         '#0f766e', '#f0fdfa', '<path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>'],
         ['Optički kabl',     number_format($totals['fiber']).' m',        '#1d4ed8', '#eff6ff', '<path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03z" clip-rule="evenodd"/>'],
     ] as [$label, $value, $accent, $bg, $path])
-    <div class="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style="background:{{ $bg }}">
+    <div class="report-kpi-card flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div class="report-kpi-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style="background:{{ $bg }}">
             <svg viewBox="0 0 20 20" fill="{{ $accent }}" class="h-5 w-5">{!! $path !!}</svg>
         </div>
         <div>
             <div class="text-xs font-medium text-slate-400">{{ $label }}</div>
-            <div class="mt-0.5 text-xl font-bold text-slate-900 leading-none">{{ $value }}</div>
+            <div class="report-kpi-value mt-0.5 text-xl font-bold text-slate-900 leading-none">{{ $value }}</div>
         </div>
     </div>
     @endforeach
@@ -157,8 +157,8 @@
             </div>
         </summary>
         <div class="px-4 pb-4">
-            <div class="overflow-hidden rounded-xl border border-slate-100">
-                <table class="w-full text-xs">
+            <div class="overflow-x-auto rounded-xl border border-slate-100" tabindex="0" aria-label="Tabela trasa; povucite vodoravno za ostale kolone">
+                <table class="w-full min-w-160 text-xs">
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">
                             <th class="px-3 py-2 text-left">Trasa</th>

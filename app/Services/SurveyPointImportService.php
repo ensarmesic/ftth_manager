@@ -1209,8 +1209,9 @@ class SurveyPointImportService
                     ->where('type', $appendixType)->whereNotNull('import_batch')->delete();
             }
 
-            $removed['points'] = SurveyPoint::where('project_id', $project->id)->count();
-            SurveyPoint::where('project_id', $project->id)->delete();
+            $txtPoints = SurveyPoint::where('project_id', $project->id)->where('source', '!=', 'gps');
+            $removed['points'] = (clone $txtPoints)->count();
+            $txtPoints->delete();
         });
 
         return $removed;

@@ -7,7 +7,9 @@
         "dev": "vite",
         "vendor:sync": "node scripts/sync-map-vendor.mjs",
         "check:js": "node scripts/check-js.mjs",
-        "test:e2e": "node e2e/map-smoke.mjs"
+        "test:e2e": "node e2e/map-smoke.mjs",
+        "test:e2e:pages": "node e2e/pages-smoke.mjs",
+        "test:e2e:map-workflow": "node e2e/map-workflow.mjs"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

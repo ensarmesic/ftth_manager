@@ -6,11 +6,11 @@
 @php
     $allChecks = $projects->map(function($project) {
         $checks = collect();
-        if (!$project->odfs_count) $checks->push(['error', 'Nedostaje ODF lokacija za projekat.']);
-        $project->cabinets->whereNull('odf_id')->each(fn ($c) => $checks->push(['warning', "{$c->name} nema povezani ODF."]));
-        $project->cabinets->filter(fn ($c) => $c->houses_count > $c->capacity)->each(fn ($c) => $checks->push(['error', "{$c->name} prelazi kapacitet ({$c->houses_count}/{$c->capacity})."]));
-        $project->houses->whereNull('cabinet_id')->each(fn ($h) => $checks->push(['warning', "{$h->label} nema dodijeljeni ODO ormarić."]));
-        $project->routes->filter(fn ($r) => $r->route_type !== 'trench' && (!$r->microduct_type || !$r->fiber_count))->each(fn ($r) => $checks->push(['warning', "{$r->name} nema kompletne podatke o mikrocijevi ili kablu."]));
+        if (!$project->odfs_count) $checks->push(['error', 'Nedostaje ODF lokacija za projekat.', route('map.dashboard', ['project' => $project->id]), 'Dodaj na mapi']);
+        $project->cabinets->whereNull('odf_id')->each(fn ($c) => $checks->push(['warning', "{$c->name} nema povezani ODF.", route('map.dashboard', ['project' => $project->id, 'focus_type' => 'cabinet', 'focus_id' => $c->id]), 'Prikaži na mapi']));
+        $project->cabinets->filter(fn ($c) => $c->houses_count > $c->capacity)->each(fn ($c) => $checks->push(['error', "{$c->name} prelazi kapacitet ({$c->houses_count}/{$c->capacity}).", route('map.dashboard', ['project' => $project->id, 'focus_type' => 'cabinet', 'focus_id' => $c->id]), 'Prikaži na mapi']));
+        $project->houses->whereNull('cabinet_id')->each(fn ($h) => $checks->push(['warning', "{$h->label} nema dodijeljeni ODO ormarić.", route('map.dashboard', ['project' => $project->id, 'focus_type' => 'house', 'focus_id' => $h->id]), 'Prikaži na mapi']));
+        $project->routes->filter(fn ($r) => $r->route_type !== 'trench' && (!$r->microduct_type || !$r->fiber_count))->each(fn ($r) => $checks->push(['warning', "{$r->name} nema kompletne podatke o mikrocijevi ili kablu.", route('map.dashboard', ['project' => $project->id, 'focus_type' => 'route', 'focus_id' => $r->id]), 'Prikaži na mapi']));
         return ['project' => $project, 'checks' => $checks];
     });
     $totalErrors   = $allChecks->sum(fn($p) => $p['checks']->where(0, 'error')->count());
@@ -75,6 +75,8 @@
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+                    <a href="{{ route('map.dashboard', ['project' => $project->id]) }}" class="check-header-action">Mapa</a>
+                    <a href="{{ route('projects.show', $project) }}" class="check-header-action">Pregled</a>
                     @if($errCnt)
                         <span class="ftth-badge red"><span class="ftth-badge-dot"></span>{{ $errCnt }} {{ $errCnt === 1 ? 'greška' : ($errCnt < 5 ? 'greške' : 'grešaka') }}</span>
                     @endif
@@ -102,10 +104,11 @@
             </div>
 
             <div class="grid gap-2 p-5">
-                @forelse($checks as [$level, $message])
+                @forelse($checks as [$level, $message, $action, $actionLabel])
                     <div class="check-item {{ $level === 'warning' ? 'warn' : $level }}">
                         <div class="check-item-dot"></div>
-                        <span>{{ $message }}</span>
+                        <span class="check-item-message">{{ $message }}</span>
+                        <a class="check-item-action" href="{{ $action }}">{{ $actionLabel }} <b>→</b></a>
                     </div>
                 @empty
                     <div class="check-item ok">

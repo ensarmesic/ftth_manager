@@ -66,7 +66,7 @@ function removeDraftHouse(marker) {
 function registerHouseContext(marker) {
     const openMenu = event => {
         L.DomEvent.stop(event);
-        showCadContext(event.latlng, 'Kuca', [
+        showCadContext(event.latlng, 'Kuća', [
             { label: 'Obrisi', run: () => removeDraftHouse(marker) },
             { label: 'Pomjeri', run: () => marker.dragging?.enable() },
         ]);
@@ -305,7 +305,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
                        font:600 11px/1.3 system-ui,sans-serif;display:grid;gap:3px;"
                 ${disabled ? 'disabled' : ''}>
                 <span style="display:flex;justify-content:space-between;">
-                    <span>${c.name}</span>
+                    <span>${escapeHtml(c.name)}</span>
                     <span style="color:${disabled ? '#6b7280' : '#a78bfa'};font-size:10px;">${free}/${c.capacity} slobodnih</span>
                 </span>
                 <span style="height:3px;border-radius:2px;background:#374151;overflow:hidden;">

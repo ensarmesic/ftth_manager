@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -79,7 +80,7 @@ class OdfController extends Controller
         return back()->with('success', 'ODF lokacija je obrisana.');
     }
 
-    public function updateOdf(Request $request, $id): RedirectResponse
+    public function updateOdf(Request $request, $id): RedirectResponse|JsonResponse
     {
         $odf = Odf::findOrFail($id);
         $odf->update($request->validate([
@@ -93,7 +94,11 @@ class OdfController extends Controller
             'notes' => ['nullable', 'max:2000'],
         ]));
 
-        return back()->with('success', 'ODF lokacija je azurirana.');
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'ODF lokacija je ažurirana.', 'item' => $odf->fresh()]);
+        }
+
+        return back()->with('success', 'ODF lokacija je ažurirana.');
     }
 
     public function updateOdfPosition(Request $request, $id)

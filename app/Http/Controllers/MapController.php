@@ -24,7 +24,10 @@ class MapController extends Controller
 
     public function map(Request $request): View
     {
-        $projectId = (int) $request->input('project');
+        $requestedProjectId = (int) $request->input('project');
+        $projectId = $requestedProjectId > 0 && Project::whereKey($requestedProjectId)->exists()
+            ? $requestedProjectId
+            : 0;
         $scope = $projectId > 0;
 
         $allOdfs = Odf::with('project')
@@ -124,6 +127,8 @@ class MapController extends Controller
                     'parent_cabinet' => $cabinet->parentCabinet?->name,
                     'fed_from' => $cabinet->parentCabinet?->name ?? ($cabinet->odf->name ?? 'Nije povezano'),
                     'address' => $cabinet->address,
+                    'splitter_count' => $cabinet->splitter_count,
+                    'ports_per_splitter' => $cabinet->ports_per_splitter,
                     'capacity' => $cabinet->capacity,
                     'used_ports' => $cabinet->houses_count,
                     'free_ports' => max($cabinet->capacity - $cabinet->houses_count, 0),
@@ -233,12 +238,22 @@ class MapController extends Controller
             'odfs' => ['nullable', 'array'],
             'odfs.*.lat' => $this->latitudeRules(true),
             'odfs.*.lng' => $this->longitudeRules(true),
+            'odfs.*.name' => ['nullable', 'string', 'max:120'],
+            'odfs.*.address' => ['nullable', 'string', 'max:255'],
+            'odfs.*.fiber_capacity' => ['nullable', 'integer', 'min:1', 'max:1152'],
+            'odfs.*.port_count' => ['nullable', 'integer', 'min:1', 'max:1152'],
             'cabinets' => ['nullable', 'array'],
             'cabinets.*.lat' => $this->latitudeRules(true),
             'cabinets.*.lng' => $this->longitudeRules(true),
+            'cabinets.*.name' => ['nullable', 'string', 'max:120'],
+            'cabinets.*.address' => ['nullable', 'string', 'max:255'],
+            'cabinets.*.splitter_count' => ['nullable', 'integer', 'min:1', 'max:3'],
+            'cabinets.*.ports_per_splitter' => ['nullable', 'integer', 'min:1', 'max:4'],
             'houses' => ['nullable', 'array'],
             'houses.*.lat' => $this->latitudeRules(true),
             'houses.*.lng' => $this->longitudeRules(true),
+            'houses.*.label' => ['nullable', 'string', 'max:120'],
+            'houses.*.address' => ['nullable', 'string', 'max:255'],
             'routes' => ['nullable', 'array'],
             'routes.*.route_type' => ['nullable', 'in:trench,backbone,feeder,distribution,drop'],
             'routes.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
@@ -332,7 +347,7 @@ class MapController extends Controller
                     'name' => $this->uniqueProjectName(Cabinet::class, $projectId, $cabinetName),
                     'address' => $cabinet['address'] ?? 'Sa mape',
                     'splitter_count' => $cabinet['splitter_count'] ?? 3,
-                    'ports_per_splitter' => 4,
+                    'ports_per_splitter' => $cabinet['ports_per_splitter'] ?? 4,
                     'latitude' => $cabinet['lat'],
                     'longitude' => $cabinet['lng'],
                 ]);

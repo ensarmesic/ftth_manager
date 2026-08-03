@@ -37,7 +37,7 @@ mapLegend.onAdd = () => {
         <div style="color:${routeColor('drop')}"><span class="cad-line-sample dashed"></span><span>Drop trasa</span></div>
         <div><span class="cad-point-sample" style="background:#0f5fa8"></span><span>ODF</span></div>
         <div><span class="cad-point-sample" style="background:#16a34a"></span><span>FTTH</span></div>
-        <div><span class="cad-point-sample circle" style="background:#16a34a"></span><span>Kuca</span></div>
+        <div><span class="cad-point-sample circle" style="background:#16a34a"></span><span>Kuća</span></div>
         <b style="margin-top:4px">VLAKNA</b>
         <div style="color:#f59e0b"><span class="cad-line-sample"></span><span>≤4F</span></div>
         <div style="color:#16a34a"><span class="cad-line-sample"></span><span>12F</span></div>
@@ -126,7 +126,9 @@ data.odfs.forEach(odf => {
             addDrawPoint(event.latlng);
         }
     });
-    registerSavedContext(marker, `ODF: ${odf.name}`, deleteUrls.odf(odf.id), positionUrls.odf(odf.id));
+    registerSavedContext(marker, `ODF: ${odf.name}`, deleteUrls.odf(odf.id), positionUrls.odf(odf.id), null, [
+        { label: 'Uredi podatke', run: () => selectDraftElement('odf', { ...odf, marker, saved: true }) },
+    ]);
     odfMarkerById[odf.id] = marker;
     trackLayer(marker, 'odf');
     bounds.push([odf.lat, odf.lng]);
@@ -164,6 +166,7 @@ data.cabinets.forEach(c => {
         }
     });
     registerSavedContext(marker, c.name, deleteUrls.cabinet(c.id), positionUrls.cabinet(c.id), null, [
+        { label: 'Uredi podatke', run: () => selectDraftElement('cabinet', { ...c, marker, saved: true }) },
         { label: 'Novi krak odavde', run: () => startBranchFromCabinet(c) },
     ]);
     cabinetMarkerById[c.id] = marker;
@@ -192,7 +195,9 @@ data.houses.forEach(h => {
         }
         if (mode === 'trace') showFiberTrace(h.id);
     });
-    registerSavedContext(marker, h.label, deleteUrls.house(h.id), positionUrls.house(h.id));
+    registerSavedContext(marker, h.label, deleteUrls.house(h.id), positionUrls.house(h.id), null, [
+        { label: 'Uredi podatke', run: () => selectDraftElement('house', { ...h, marker, saved: true }) },
+    ]);
     trackLayer(marker, 'houses');
     houseMarkerByKey[key] = marker;
     houseMarkerById[h.id] = marker;
@@ -349,6 +354,28 @@ document.getElementById('save-draft').addEventListener('click', () => saveDraft(
 document.getElementById('quick-save-draft').addEventListener('click', () => saveDraft().catch(error => {
     document.getElementById('bulk-plan-status').textContent = error.message;
 }));
+const planStatus = document.getElementById('bulk-plan-status');
+const saveIndicator = document.getElementById('map-save-indicator');
+if (planStatus && saveIndicator) {
+    const syncSaveIndicator = () => {
+        const message = planStatus.textContent.trim();
+        const normalized = message.toLowerCase();
+        let state = 'idle';
+        let label = 'Spremno';
+        if (normalized.includes('čuvam') || normalized.includes('cuvam') || normalized.includes('spremna za')) {
+            state = 'saving'; label = 'Čuvanje...';
+        } else if (normalized.includes('sačuvan') || normalized.includes('sacuvan')) {
+            state = 'saved'; label = 'Nacrt sačuvan';
+        } else if (normalized.includes('nije') || normalized.includes('grešk') || normalized.includes('error')) {
+            state = 'error'; label = 'Greška čuvanja';
+        }
+        saveIndicator.dataset.state = state;
+        saveIndicator.querySelector('span').textContent = label;
+        saveIndicator.title = message || label;
+    };
+    new MutationObserver(syncSaveIndicator).observe(planStatus, { childList: true, characterData: true, subtree: true });
+    syncSaveIndicator();
+}
 document.getElementById('save-element-name').addEventListener('click', saveSelectedDraftElementName);
 document.getElementById('close-element-editor').addEventListener('click', closeDraftElementEditor);
 document.getElementById('element-editor-name').addEventListener('keydown', event => {
@@ -357,15 +384,81 @@ document.getElementById('element-editor-name').addEventListener('keydown', event
         saveSelectedDraftElementName();
     }
 });
-document.getElementById('element-editor-name').addEventListener('blur', saveSelectedDraftElementName);
 renderBranchList();
 document.getElementById('route-draw-name').placeholder = `npr. ${nextRouteName(document.getElementById('route-draw-type').value)}`;
+function collectDraftPreflightIssues(payload) {
+    const issues = [];
+    if (!payload.odfs.length && !data.odfs.length && (payload.cabinets.length || payload.routes.length)) {
+        issues.push({ message: 'Nedostaje centralni ODF.', action: 'Dodaj ODF', type: 'mode', mode: 'odf' });
+    }
+    payload.cabinets.forEach((cabinet, index) => {
+        if (cabinet.odf_index === null && cabinet.odf_id === null) {
+            issues.push({ message: `${cabinet.name} nije povezan na ODF.`, action: 'Otvori ormarić', type: 'cabinet', index });
+        }
+    });
+    payload.routes.forEach((route, index) => {
+        if (!Array.isArray(route.path) || route.path.length < 2) {
+            issues.push({ message: `${route.name || `Trasa ${index + 1}`} nema ispravnu geometriju.`, action: 'Prikaži trasu', type: 'route', index });
+        }
+    });
+    const names = new Map();
+    [...payload.odfs.map((item, index) => ({ ...item, type: 'odf', index })), ...payload.cabinets.map((item, index) => ({ ...item, type: 'cabinet', index }))].forEach(item => {
+        const key = (item.name || '').trim().toLowerCase();
+        if (!key) return;
+        if (names.has(key)) issues.push({ message: `Naziv "${item.name}" se ponavlja.`, action: 'Uredi naziv', type: item.type, index: item.index });
+        else names.set(key, item);
+    });
+    return issues;
+}
+function renderDraftPreflight(issues) {
+    preflightIssues = issues;
+    const panel = document.getElementById('preflight-panel');
+    const list = document.getElementById('preflight-list');
+    panel.classList.toggle('hidden', !issues.length);
+    document.getElementById('preflight-count').textContent = `${issues.length} ${issues.length === 1 ? 'problem' : 'problema'}`;
+    list.innerHTML = issues.map((issue, index) => `<button type="button" data-preflight-index="${index}" class="flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-amber-100"><span class="text-[11px] leading-4 text-amber-900">${escapeHtml(issue.message)}</span><b class="shrink-0 text-[10px] text-sky-700">${escapeHtml(issue.action)} →</b></button>`).join('');
+}
+function focusDraftPreflightIssue(issue) {
+    if (issue.type === 'mode') {
+        setMode(issue.mode);
+        document.getElementById('cad-command').textContent = 'PRE-CHECK: postavi ODF na mapu.';
+        return;
+    }
+    if (issue.type === 'cabinet' && draftCabinets[issue.index]) {
+        const item = draftCabinets[issue.index];
+        map.setView(item.marker.getLatLng(), Math.max(map.getZoom(), 20));
+        selectDraftElement('cabinet', item);
+        return;
+    }
+    if (issue.type === 'odf' && draftOdfs[issue.index]) {
+        const item = draftOdfs[issue.index];
+        map.setView(item.marker.getLatLng(), Math.max(map.getZoom(), 20));
+        selectDraftElement('odf', item);
+        return;
+    }
+    if (issue.type === 'route' && branchLines[issue.index]) map.fitBounds(branchLines[issue.index].getBounds(), { padding: [50, 50], maxZoom: 20 });
+}
+document.getElementById('preflight-list').addEventListener('click', event => {
+    const button = event.target.closest('[data-preflight-index]');
+    if (button) focusDraftPreflightIssue(preflightIssues[Number(button.dataset.preflightIndex)]);
+});
 document.getElementById('bulk-plan-form').addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
     const status = document.getElementById('bulk-plan-status');
     if (activeBranch.length > 1) finishBranch();
     refreshPlanSummary();
+    const payload = planPayload();
+    const issues = collectDraftPreflightIssues(payload);
+    renderDraftPreflight(issues);
+    if (issues.length) {
+        status.innerHTML = '<b>Plan nije poslan.</b> Otvori stavke iznad i ispravi označene elemente.';
+        status.classList.add('text-amber-700');
+        document.getElementById('cad-command').textContent = `PRE-CHECK: ${issues[0].message}`;
+        return;
+    }
+    renderDraftPreflight([]);
+    status.classList.remove('text-amber-700');
     try {
         await saveDraft();
         status.textContent = 'Snimam plan...';
@@ -456,6 +549,7 @@ document.getElementById('save-route-edit').addEventListener('click', async () =>
     }
 });
 document.getElementById('close-route-attribute-panel').addEventListener('click', closeRouteAttributePanel);
+document.getElementById('route-attr-type').addEventListener('change', syncRouteAttributeFields);
 document.getElementById('save-route-attributes').addEventListener('click', async () => {
     try {
         await saveRouteAttributes();
@@ -624,7 +718,10 @@ map.on('click', e => {
     if (mode === 'house') {
         housePoints.push(e.latlng);
         const index = housePoints.length - 1;
-        const marker = L.marker(e.latlng, { icon: icon('house'), draggable: true }).bindPopup(`Kuca ${housePoints.length}`).addTo(map);
+        const draftIndex = index - savedHouseCount;
+        const houseMeta = { label: `K-${String(draftIndex + 1).padStart(3, '0')}`, address: '' };
+        draftHouseMeta.push(houseMeta);
+        const marker = L.marker(e.latlng, { icon: icon('house'), draggable: true }).bindPopup(`Kuća ${housePoints.length}`).addTo(map);
         houseMarkerByKey[pointKey(e.latlng.lat, e.latlng.lng)] = marker;
         marker.on('drag', event => {
             const next = event.target.getLatLng();
@@ -633,8 +730,9 @@ map.on('click', e => {
             refreshStats();
         });
         registerHouseContext(marker);
+        marker.on('click', () => selectDraftElement('house', { marker, houseIndex: draftIndex, meta: houseMeta }));
         houseMarkers.push(marker);
-        document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); return;
+        document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); refreshPlanSummary(); selectDraftElement('house', { marker, houseIndex: draftIndex, meta: houseMeta }); return;
     }
     if (mode === 'ruler') { rulerClick(e.latlng); return; }
     if (mode === 'manhole' || mode === 'boring-fi-130') {
@@ -662,7 +760,7 @@ map.on('click', e => {
     }
     if (mode === 'odf') {
         const defaultName = defaultDraftName('odf', draftOdfs.length);
-        const item = { marker: null, name: defaultName, pending: false };
+        const item = { marker: null, name: defaultName, address: '', fiber_capacity: 144, port_count: 48, pending: false };
         const marker = L.marker(e.latlng, { icon: icon('odf','ODF'), draggable: true })
             .addTo(map)
             .bindTooltip(`${defaultName} · 0 FTTH`, { direction: 'top', offset: [0, -10] })
@@ -684,7 +782,7 @@ map.on('click', e => {
     if (mode === 'cabinet') {
         draftCabinetCount++;
         const odf = activeOdfPayload(e.latlng);
-        const item = { marker: null, name: defaultDraftName('cabinet', draftCabinetCount - 1), odf_index: odf.odf_index, odf_id: odf.odf_id };
+        const item = { marker: null, name: defaultDraftName('cabinet', draftCabinetCount - 1), address: '', splitter_count: 3, ports_per_splitter: 4, odf_index: odf.odf_index, odf_id: odf.odf_id };
         const marker = L.marker(e.latlng, { icon: icon('cabinet', item.name), draggable: true })
             .addTo(map)
             .bindTooltip('0/12', { direction: 'top', offset: [0, -10] })
@@ -711,6 +809,7 @@ data.drafts.forEach(draft => {
     draftsByProject[draft.project_id] = draft.payload;
 });
 autosaveReady = true;
+focusRequestedMapElement();
 
 // ── DXF EXPORT ────────────────────────────────────────────────────────────────
 document.getElementById('export-dxf')?.addEventListener('click', async function (e) {
@@ -811,8 +910,41 @@ if (pendingTraceHouseId) {
 refreshTrenchGroupStatus();
 
 // ── PROJECT PICKER MODAL ───────────────────────────────────────────────────────
+document.getElementById('mobile-map-tools-toggle')?.addEventListener('click', event => {
+    const toolbar = document.getElementById('map-cad-toolbar');
+    const opening = !toolbar?.classList.contains('mobile-open');
+    toolbar?.classList.toggle('mobile-open', opening);
+    event.currentTarget.setAttribute('aria-expanded', String(opening));
+    const label = event.currentTarget.querySelector('span:last-child');
+    if (label) label.textContent = opening ? 'Sakrij' : 'Prikaži';
+    setTimeout(() => map.invalidateSize(), 80);
+});
+document.querySelectorAll('#map-workspace > aside > details.sidebar-card').forEach(section => {
+    section.addEventListener('toggle', () => {
+        if (!section.open) return;
+        document.querySelectorAll('#map-workspace > aside > details.sidebar-card[open]').forEach(other => {
+            if (other !== section) other.open = false;
+        });
+        requestAnimationFrame(() => section.scrollIntoView({
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+            block: 'start',
+            inline: 'nearest',
+        }));
+    });
+});
 document.getElementById('pp-new-name')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') ppCreateProject();
+});
+const projectPickerOverlay = document.getElementById('project-picker-overlay');
+const projectPickerSearch = document.getElementById('pp-project-search');
+if (projectPickerOverlay && !projectPickerOverlay.classList.contains('hidden')) {
+    requestAnimationFrame(() => (projectPickerSearch || document.getElementById('pp-new-name'))?.focus());
+}
+projectPickerSearch?.addEventListener('input', () => {
+    const query = projectPickerSearch.value.trim().toLocaleLowerCase('bs');
+    document.querySelectorAll('#project-picker-card .pp-row').forEach(row => {
+        row.hidden = query !== '' && !row.dataset.projectSearch.toLocaleLowerCase('bs').includes(query);
+    });
 });
 
 // ── DXF LAYER INIT ────────────────────────────────────────────────────────────
@@ -851,8 +983,8 @@ document.getElementById('pp-new-name')?.addEventListener('keydown', e => {
                 `<div data-i="${i}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f8fafc;display:flex;align-items:center;gap:8px">
                     <span style="flex-shrink:0;width:34px;text-align:center;padding:2px 0;border-radius:5px;font-size:10px;font-weight:700;color:#fff;background:${h.color}">${h.type}</span>
                     <div style="min-width:0">
-                        <div style="font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.label}</div>
-                        <div style="font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.sub}</div>
+                    <div style="font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(h.label)}</div>
+                    <div style="font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(h.sub)}</div>
                     </div>
                 </div>`
             ).join('');

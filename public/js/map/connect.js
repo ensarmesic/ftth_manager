@@ -417,7 +417,7 @@ function showFiberTrace(houseId) {
     panel?.classList.remove('hidden');
 
     if (!cabinet || !odf) {
-        output.innerHTML = `<div class="rounded-md bg-red-50 p-3 text-red-700">Kuca ${house.label} nema kompletnu vezu do FTTH ormarica i ODF-a.</div>`;
+        output.innerHTML = `<div class="rounded-md bg-red-50 p-3 text-red-700">Kuća ${house.label} nema kompletnu vezu do FTTH ormarića i ODF-a.</div>`;
         return;
     }
 
@@ -465,9 +465,9 @@ function showFiberTrace(houseId) {
 
     const warning = missing.length ? `<div class="rounded-md bg-amber-50 p-2 text-xs font-semibold text-amber-800">Nema nacrtane fizicke trase za ovu vezu. Prikazana je logicka veza koja prati postojecu trasu/rov gdje god je moguce. (${missing.join(', ')})</div>` : '';
     output.innerHTML = `
-        <div class="rounded-md bg-white p-2"><b>${house.label}</b><br>Kuca</div>
+        <div class="rounded-md bg-white p-2"><b>${house.label}</b><br>Kuća</div>
         <div class="text-center font-black text-slate-500">↓</div>
-        ${supplyChain.map(item => `<div class="rounded-md bg-white p-2"><b>${item.name}</b><br>FTTH ormaric</div>`).join('<div class="text-center font-black text-slate-500">↓</div>')}
+        ${supplyChain.map(item => `<div class="rounded-md bg-white p-2"><b>${item.name}</b><br>FTTH ormarić</div>`).join('<div class="text-center font-black text-slate-500">↓</div>')}
         <div class="text-center font-black text-slate-500">↓</div>
         <div class="rounded-md bg-white p-2"><b>${odf.name}</b><br>ODF</div>
         ${warning}

@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CabinetController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GisController;
 use App\Http\Controllers\HouseController;
 use App\Http\Controllers\MapController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\SurveyPointController;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function (): void {
@@ -24,9 +26,9 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::middleware('auth')->group(function (): void {
-    Route::redirect('/', '/mapa')->name('dashboard');
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/mapa', [MapController::class, 'map'])->name('map.dashboard');
-    Route::redirect('/mapa/editor', '/')->name('map.index');
+    Route::redirect('/mapa/editor', '/mapa')->name('map.index');
     Route::post('/mapa/plan', [MapController::class, 'storePlan'])->name('map.plan.store');
     Route::post('/mapa/draft', [MapController::class, 'storeDraft'])->name('map.draft.store');
     Route::get('/mapa/auto-route', [MapController::class, 'autoRoute'])->name('map.auto-route');
@@ -63,6 +65,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/drop-trase/popuni', [ProjectController::class, 'createMissingDropRoutes'])->name('projects.drop-routes.fill');
     Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->name('projects.survey-points.preview');
     Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->name('projects.survey-points.import');
+    Route::post('/projekti/{project}/teren/tacke', [SurveyPointController::class, 'storeFieldPoint'])->name('projects.field-points.store');
+    Route::get('/projekti/{project}/teren/tacke/{point}/fotografija', [SurveyPointController::class, 'fieldPointPhoto'])->name('projects.field-points.photo');
     Route::delete('/projekti/{project}/tacke', [SurveyPointController::class, 'destroy'])->name('projects.survey-points.destroy');
     Route::get('/projekti/{project}/geojson', [ProjectController::class, 'exportGeoJson'])->name('projects.geojson');
     Route::post('/projekti/{project}/dxf', [ProjectController::class, 'exportDxf'])->name('projects.dxf');
@@ -101,10 +105,13 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->name('map.dxf-layer.upload');
 
-    Route::get('/api/notifications', function () {
-        $unlinkedHouses = House::whereNull('cabinet_id')->count();
-        $unlinkedCabinets = Cabinet::whereNull('odf_id')->count();
-        $incompleteRoutes = NetworkRoute::where('route_type', '!=', 'trench')->where(function ($q) {
+    Route::get('/api/notifications', function (Request $request) {
+        $projectId = $request->integer('project');
+        $scopeToProject = fn ($query) => $query->when($projectId > 0, fn ($projectQuery) => $projectQuery->where('project_id', $projectId));
+
+        $unlinkedHouses = $scopeToProject(House::query())->whereNull('cabinet_id')->count();
+        $unlinkedCabinets = $scopeToProject(Cabinet::query())->whereNull('odf_id')->count();
+        $incompleteRoutes = $scopeToProject(NetworkRoute::query())->where('route_type', '!=', 'trench')->where(function ($q) {
             $q->whereNull('microduct_type')->orWhereNull('fiber_count');
         })->count();
         $items = [];

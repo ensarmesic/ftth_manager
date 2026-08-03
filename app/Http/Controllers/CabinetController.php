@@ -9,6 +9,7 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -111,7 +112,7 @@ class CabinetController extends Controller
         return back()->with('success', 'Ormaric je obrisan.');
     }
 
-    public function updateCabinet(Request $request, $id): RedirectResponse
+    public function updateCabinet(Request $request, $id): RedirectResponse|JsonResponse
     {
         $cabinet = Cabinet::findOrFail($id);
         $data = $request->validate([
@@ -142,7 +143,11 @@ class CabinetController extends Controller
         }
         $cabinet->update($data);
 
-        return back()->with('success', 'Ormaric je azuriran.');
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Ormarić je ažuriran.', 'item' => $cabinet->fresh()]);
+        }
+
+        return back()->with('success', 'Ormarić je ažuriran.');
     }
 
     public function updateCabinetPosition(Request $request, $id)

@@ -181,7 +181,7 @@ function xfCreateDraftCopy(entry, points) {
     }
     if (entry.kind === 'house') {
         housePoints.push(points[0]);
-        const marker = L.marker(points[0], { icon: icon('house'), draggable: true }).bindPopup(`Kuca ${housePoints.length}`).addTo(map);
+        const marker = L.marker(points[0], { icon: icon('house'), draggable: true }).bindPopup(`Kuća ${housePoints.length}`).addTo(map);
         houseMarkerByKey[pointKey(points[0].lat, points[0].lng)] = marker;
         marker.on('drag', event => {
             const next = event.target.getLatLng();

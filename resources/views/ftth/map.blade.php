@@ -153,6 +153,286 @@
     .step-violet b { background: #7c3aed; }
     .step-emerald   { background: #ecfdf5; border-color: #a7f3d0; color: #064e3b; }
     .step-emerald b { background: #059669; }
+
+    /* Refined planner: quiet surfaces, one clear primary action */
+    #map-workspace > aside {
+        gap: 10px !important;
+        padding: 1px 2px 10px;
+        grid-auto-rows: max-content;
+        align-content: start;
+        scroll-padding-top: 2px;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 transparent;
+    }
+    #map-workspace > aside > details.sidebar-card > .sidebar-bd,
+    #map-workspace > aside > details.sidebar-card > form > .sidebar-bd {
+        max-height: none;
+        overflow: visible;
+    }
+    #map-workspace > aside > details.sidebar-card {
+        align-self: start;
+        min-height: max-content;
+    }
+    #map-workspace .sidebar-card {
+        border: 1px solid #dce5ee;
+        border-radius: 15px;
+        box-shadow: 0 5px 16px rgba(15,23,42,.055);
+    }
+    #map-workspace .sidebar-hd {
+        min-height: 43px;
+        padding: 11px 14px;
+        background: #fff;
+        border-bottom-color: #e9eff5;
+        font-size: 12px;
+        font-weight: 750;
+        color: #243448;
+    }
+    #map-workspace details:not([open]) > .sidebar-hd {
+        border-bottom: 0;
+    }
+    #map-workspace .sidebar-hd:hover {
+        background: #f8fafc;
+    }
+    #map-workspace .sidebar-hd .sdot {
+        width: 7px;
+        height: 7px;
+        box-shadow: 0 0 0 4px rgba(148,163,184,.10);
+    }
+    #map-workspace .sidebar-hd .chev {
+        width: 13px;
+        height: 13px;
+        color: #94a3b8;
+    }
+    #map-workspace .sidebar-bd {
+        padding: 14px;
+        background: #fff;
+    }
+    #bulk-plan-form .sidebar-bd {
+        gap: 16px !important;
+    }
+    #map-workspace .sb-inp,
+    #map-workspace .sb-sel {
+        min-height: 39px;
+        padding: 8px 11px;
+        border-color: #d5e0ea;
+        border-radius: 10px;
+        background: #fff;
+        font-size: 12.5px;
+    }
+    #map-workspace .sb-inp:hover,
+    #map-workspace .sb-sel:hover { border-color: #adc5d9; }
+    #map-workspace .sb-inp:focus,
+    #map-workspace .sb-sel:focus {
+        border-color: #308dcc;
+        box-shadow: 0 0 0 3px rgba(48,141,204,.12);
+    }
+    #map-workspace .sb-kicker {
+        margin-bottom: 7px;
+        color: #7890a7;
+        font-size: 9px;
+        letter-spacing: .095em;
+    }
+    #bulk-plan-form .sidebar-bd > div:has(.step-btn) > .grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+    }
+    #map-workspace .step-btn {
+        min-height: 56px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 5px;
+        padding: 7px 3px;
+        border-width: 1px;
+        border-radius: 11px;
+        text-align: center;
+        font-size: 10px;
+        background: #f8fafc;
+        border-color: #dfe7ef;
+        color: #405469;
+    }
+    #map-workspace .step-btn b {
+        width: 20px;
+        height: 20px;
+        font-size: 9px;
+    }
+    #map-workspace .step-btn:hover {
+        filter: none;
+        border-color: #a9c5dc;
+        background: #f2f8fc;
+        box-shadow: 0 5px 14px rgba(15,23,42,.07);
+    }
+    #bulk-plan-form .sidebar-bd > .rounded-lg.border-amber-100 {
+        border-color: #e2e8f0 !important;
+        background: #f8fafc !important;
+    }
+    #bulk-plan-form .sidebar-bd > details.border-amber-100 {
+        border-color: #e2e8f0 !important;
+        border-radius: 11px !important;
+    }
+    #bulk-plan-form .sidebar-bd > details.border-amber-100 > summary {
+        background: #f8fafc !important;
+        color: #405469 !important;
+    }
+    #bulk-plan-form label:has(#road-routing-toggle),
+    #bulk-plan-form label:has(#gis-routing-toggle) {
+        border-color: #dce5ee !important;
+        background: #f8fafc !important;
+        color: #334155 !important;
+    }
+    #map-workspace .sb-info {
+        border-radius: 9px;
+        background: #f0f7fa !important;
+        color: #406273 !important;
+    }
+    #map-workspace .sb-btn {
+        min-height: 36px;
+        border-radius: 9px;
+        font-weight: 700;
+    }
+    #map-workspace .sb-btn-primary {
+        background: linear-gradient(135deg,#167db7,#075985);
+        box-shadow: 0 5px 14px rgba(7,89,133,.22);
+    }
+    #map-workspace .sb-btn-emerald {
+        background: linear-gradient(135deg,#15926d,#08745a);
+        box-shadow: 0 5px 14px rgba(8,116,90,.20);
+    }
+    #map-workspace .sb-btn-outline {
+        background: #fff;
+        border-color: #d5e0ea;
+    }
+
+    /* Professional GIS workspace chrome */
+    #map-workspace {
+        gap: 12px !important;
+    }
+    #map-workspace .map-shell {
+        border-color: #cbd9e5 !important;
+        border-radius: 16px !important;
+        box-shadow: 0 18px 46px rgba(15,23,42,.13), 0 2px 8px rgba(15,23,42,.07) !important;
+        background: #fff;
+    }
+    #map-workspace .map-topbar {
+        min-height: 58px;
+        padding: 10px 16px !important;
+        background: linear-gradient(110deg,#fff 0%,#f7fbff 66%,#f5fbf1 100%);
+        border-bottom: 1px solid #dce6ef;
+    }
+    #map-workspace .metric-pill {
+        min-height: 28px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        box-shadow: none;
+    }
+    #map-workspace .map-toolbar {
+        gap: 4px;
+        padding: 7px 9px;
+        background: linear-gradient(180deg,#152438,#0f1c2d);
+        border-bottom: 1px solid #07111e;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+    }
+    #map-workspace .map-toolbar .tc {
+        min-height: 27px;
+        padding: 5px 8px;
+        border: 1px solid #34465b;
+        border-radius: 7px;
+        background: #1c2b3e;
+        color: #d7e3ef;
+        box-shadow: none;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0;
+    }
+    #map-workspace .map-toolbar .tc:hover {
+        background: #26394f;
+        border-color: #526b84;
+        color: #fff;
+        transform: translateY(-1px);
+    }
+    #map-workspace .map-toolbar .tc-cyan { color: #67e8f9; border-color: rgba(34,211,238,.35); }
+    #map-workspace .map-toolbar .tc-emerald,
+    #map-workspace .map-toolbar .tc-confirm,
+    #map-workspace .map-toolbar .tc-save { color: #6ee7b7; border-color: rgba(52,211,153,.35); }
+    #map-workspace .map-toolbar .tc-violet,
+    #map-workspace .map-toolbar .tc-indigo { color: #c4b5fd; border-color: rgba(167,139,250,.34); }
+    #map-workspace .map-toolbar .tc-amber,
+    #map-workspace .map-toolbar .tc-orange { color: #fcd34d; border-color: rgba(251,191,36,.36); }
+    #map-workspace .map-toolbar .tc-blue,
+    #map-workspace .map-toolbar .tc-sky { color: #93c5fd; border-color: rgba(96,165,250,.36); }
+    #map-workspace .map-toolbar .tc-red,
+    #map-workspace .map-toolbar .tc-rose,
+    #map-workspace .map-toolbar .tc-danger { color: #fda4af; border-color: rgba(251,113,133,.34); }
+    #map-workspace .map-toolbar .tc-slate,
+    #map-workspace .map-toolbar .tc-ghost,
+    #map-workspace .map-toolbar .tc-white { color: #cbd5e1; }
+    #map-workspace .map-toolbar .tc:disabled {
+        opacity: .34;
+        background: #142234;
+        border-color: #2b3a4c;
+        transform: none;
+    }
+    #map-workspace .map-toolbar .ring-2 {
+        outline: 2px solid #38bdf8 !important;
+        outline-offset: 1px;
+        background: #263d55 !important;
+        color: #fff !important;
+    }
+    #map-workspace .map-toolbar .tc-sep {
+        width: 1px;
+        height: 22px;
+        margin: 2px 2px;
+        background: #3a4b5e;
+        opacity: .7;
+    }
+    #map-workspace .cad-status {
+        gap: 6px !important;
+        min-height: 54px;
+        padding: 7px 10px !important;
+        background: linear-gradient(180deg,#101a2b,#0b1423);
+        border-top: 1px solid #25364b;
+        color: #b9c7d7;
+    }
+    #map-workspace .cad-status > * {
+        border-color: #314259 !important;
+        border-radius: 8px !important;
+        background: rgba(255,255,255,.025) !important;
+    }
+    #network-map {
+        background: #dce4e9;
+    }
+    #map-search-overlay {
+        border-radius: 10px !important;
+        box-shadow: 0 10px 28px rgba(15,23,42,.16) !important;
+    }
+
+    @media (max-width: 1279px) {
+        #map-workspace .map-shell { min-height: 860px; }
+        #map-workspace > aside { overflow: visible !important; max-height: none !important; }
+    }
+    .mobile-map-tools-toggle { display: none; }
+    @media (max-width: 767px) {
+        #map-workspace .map-topbar { align-items: flex-start; }
+        .mobile-map-tools-toggle {
+            display: flex;
+            min-height: 42px;
+            width: 100%;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 13px;
+            border: 0;
+            border-bottom: 1px solid #25364b;
+            background: linear-gradient(180deg,#17273b,#101d2e);
+            color: #dbe7f2;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .mobile-map-tools-toggle span:last-child { color: #7dd3fc; font-weight: 700; }
+        #map-workspace .map-toolbar { display: none; }
+        #map-workspace .map-toolbar.mobile-open { display: flex; }
+        #map-workspace .map-shell:has(.map-toolbar.mobile-open) { min-height: 1120px; }
+        #map-workspace .cad-status { font-size: 10px; }
+    }
     .layer-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 11px; transition: background .12s; }
     .layer-row:hover { background: #f0f4f8; }
     .layer-row input[type=checkbox] { accent-color: #6366f1; flex-shrink: 0; }
@@ -366,36 +646,46 @@
     /* ── Project picker modal ────────────────────────────────────── */
     #project-picker-overlay {
         position: fixed; inset: 0; z-index: 99999;
-        background: rgba(15,23,42,.72); backdrop-filter: blur(4px);
+        background:
+            radial-gradient(circle at 20% 15%, rgba(14,165,233,.18), transparent 30%),
+            radial-gradient(circle at 80% 80%, rgba(129,195,66,.14), transparent 28%),
+            rgba(3,17,28,.80);
+        backdrop-filter: blur(10px) saturate(120%);
         display: flex; align-items: center; justify-content: center;
         padding: 16px;
     }
     #project-picker-overlay.hidden { display: none; }
     #project-picker-card {
-        background: #fff; border-radius: 14px; width: 100%; max-width: 460px;
-        box-shadow: 0 24px 60px rgba(15,23,42,.35); overflow: hidden;
+        background: rgba(255,255,255,.98); border: 1px solid rgba(255,255,255,.8); border-radius: 20px; width: 100%; max-width: 480px;
+        box-shadow: 0 35px 90px rgba(2,12,22,.48), 0 0 0 1px rgba(125,211,252,.12); overflow: hidden;
+        animation: pp-enter .3s cubic-bezier(.2,.8,.2,1) both;
     }
+    @keyframes pp-enter { from { opacity: 0; transform: translateY(12px) scale(.975); } to { opacity: 1; transform: none; } }
     #project-picker-card .pp-hd {
-        padding: 18px 20px 14px; border-bottom: 1px solid #f1f5f9;
-        background: linear-gradient(135deg,#eef2ff,#f0f9ff);
+        padding: 22px 22px 17px; border-bottom: 1px solid #e8eef5;
+        background: radial-gradient(circle at 88% 0%, rgba(129,195,66,.18), transparent 34%), linear-gradient(135deg,#edf8ff,#f7fbff 58%,#f3faef);
     }
     #project-picker-card .pp-title { font: 700 16px/1.3 ui-sans-serif,system-ui,sans-serif; color: #1e293b; }
     #project-picker-card .pp-sub   { font-size: 12px; color: #64748b; margin-top: 2px; }
+    #project-picker-card .pp-search-wrap { padding: 10px 20px; border-bottom: 1px solid #e8eef5; background: #fff; }
+    #project-picker-card .pp-search { width: 100%; border: 1px solid #d8e3ee; border-radius: 8px; padding: 9px 11px; font-size: 13px; color: #1e293b; outline: none; }
+    #project-picker-card .pp-search:focus { border-color: #308dcc; box-shadow: 0 0 0 3px rgba(48,141,204,.14); }
     #project-picker-card .pp-list  { max-height: 320px; overflow-y: auto; }
     .pp-row {
         display: flex; align-items: center; justify-content: space-between;
         gap: 12px; padding: 11px 20px; border-bottom: 1px solid #f8fafc;
         transition: background .12s;
     }
-    .pp-row:hover { background: #f8fafc; }
+    .pp-row:hover { background: linear-gradient(90deg,#f0f8ff,#f7fcf4); }
     .pp-row-name  { font: 600 13px/1.4 ui-sans-serif,system-ui,sans-serif; color: #1e293b; }
     .pp-row-meta  { font-size: 11px; color: #94a3b8; }
     .pp-btn {
         flex-shrink: 0; padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer;
         font: 600 11px/1 ui-sans-serif,system-ui,sans-serif;
-        background: #0f172a; color: #fff; transition: background .12s;
+        background: linear-gradient(135deg,#167db7,#075985); color: #fff; transition: background .12s, transform .12s, box-shadow .12s;
+        box-shadow: 0 4px 12px rgba(7,89,133,.20);
     }
-    .pp-btn:hover { background: #1e293b; }
+    .pp-btn:hover { background: linear-gradient(135deg,#2097d1,#096c9d); transform: translateY(-1px); box-shadow: 0 7px 16px rgba(7,89,133,.28); }
     #project-picker-card .pp-new {
         padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #fafafa;
     }
@@ -403,8 +693,9 @@
     .pp-new-row { display: flex; gap: 8px; }
     .pp-new-inp { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px 10px; font-size: 13px; color: #1e293b; outline: none; }
     .pp-new-inp:focus { border-color: #6366f1; }
-    .pp-new-submit { padding: 7px 16px; border-radius: 6px; border: none; cursor: pointer; font: 600 12px/1 ui-sans-serif,system-ui,sans-serif; background: #6366f1; color: #fff; }
-    .pp-new-submit:hover { background: #4f46e5; }
+    .pp-new-submit { padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer; font: 700 12px/1 ui-sans-serif,system-ui,sans-serif; background: linear-gradient(135deg,#65a845,#3f7f2c); color: #fff; box-shadow: 0 5px 14px rgba(63,127,44,.22); }
+    .pp-new-submit:hover { background: linear-gradient(135deg,#76bd50,#468c30); }
+    .pp-new-submit:disabled { cursor: wait; opacity: .6; }
     #pp-new-status { font-size: 11px; color: #64748b; margin-top: 6px; }
     .pp-empty { padding: 28px 20px; text-align: center; color: #94a3b8; font-size: 13px; }
     /* ── Custom checkbox ────────────────────────────────────────── */
@@ -426,22 +717,27 @@
 </style>
 
 {{-- Project picker modal --}}
-<div id="project-picker-overlay" @if($activeProjectId) class="hidden" @endif>
-    <div id="project-picker-card">
+<div id="project-picker-overlay" @if($activeProjectId) class="hidden" @endif role="dialog" aria-modal="true" aria-labelledby="project-picker-title" aria-describedby="project-picker-description">
+    <div id="project-picker-card" tabindex="-1">
         <div class="pp-hd">
-            <div class="pp-title">Odaberi projekat</div>
-            <div class="pp-sub">Svaki projekat ima svoju zasebnu mapu i nacrt.</div>
+            <div id="project-picker-title" class="pp-title">Odaberi projekat</div>
+            <div id="project-picker-description" class="pp-sub">Svaki projekat ima svoju zasebnu mapu i nacrt.</div>
         </div>
+        @if($projects->count() > 1)
+            <div class="pp-search-wrap">
+                <input id="pp-project-search" class="pp-search" type="search" placeholder="Pretraži naziv ili lokaciju..." autocomplete="off" aria-label="Pretraži projekte">
+            </div>
+        @endif
         <div class="pp-list">
             @forelse($projects as $project)
-                <div class="pp-row">
+                <div class="pp-row" data-project-search="{{ mb_strtolower($project->name.' '.($project->location ?? '')) }}">
                     <div>
                         <div class="pp-row-name">{{ $project->name }}</div>
                         @if($project->location)
                             <div class="pp-row-meta">{{ $project->location }}</div>
                         @endif
                     </div>
-                    <button class="pp-btn" onclick="pickProject({{ $project->id }})">Odaberi</button>
+                    <button type="button" class="pp-btn" onclick="pickProject({{ $project->id }})" aria-label="Odaberi projekat {{ $project->name }}">Odaberi</button>
                 </div>
             @empty
                 <div class="pp-empty">Nema projekata. Kreiraj prvi projekat ispod.</div>
@@ -451,9 +747,9 @@
             <div class="pp-new-title">Novi projekat</div>
             <div class="pp-new-row">
                 <input id="pp-new-name" class="pp-new-inp" placeholder="Naziv projekta" required>
-                <button class="pp-new-submit" onclick="ppCreateProject()">Kreiraj</button>
+                <button type="button" class="pp-new-submit" onclick="ppCreateProject()">Kreiraj</button>
             </div>
-            <div id="pp-new-status"></div>
+            <div id="pp-new-status" role="status" aria-live="polite"></div>
         </div>
     </div>
 </div>
@@ -482,7 +778,11 @@
         </div>
 
         <!-- CAD Toolbar -->
-        <div class="map-toolbar">
+        <button type="button" id="mobile-map-tools-toggle" class="mobile-map-tools-toggle" aria-controls="map-cad-toolbar" aria-expanded="false">
+            <span>Alati za crtanje i uređivanje</span>
+            <span>Prikaži</span>
+        </button>
+        <div id="map-cad-toolbar" class="map-toolbar">
             <button type="button" id="mode-pan" class="tc tc-white">⊕ Pan</button>
             <button type="button" id="mode-select" class="tc tc-white tool-btn" title="Selektuj i briši više elemenata (drag pravougaonik)">⬚ Selekt</button>
             <div class="tc-sep"></div>
@@ -526,6 +826,7 @@
                 <button type="button" id="cancel-route-edit" class="tc tc-ghost">✕ Otkaži</button>
             </div>
             <button type="button" id="quick-save-draft" class="tc tc-save">💾 Nacrt</button>
+            <span id="map-save-indicator" class="map-save-indicator" data-state="idle"><i></i><span>Spremno</span></span>
             <div class="tc-sep"></div>
             <div class="flex items-center gap-1 ml-auto flex-wrap">
                 <button type="button" id="toggle-color-by-fibers" class="tc tc-ghost" title="Boja trase po broju vlakana">Boja F</button>
@@ -636,7 +937,7 @@
     <aside class="grid min-h-0 content-start gap-2 xl:max-h-full xl:overflow-y-auto xl:pb-2">
 
         <!-- Novi projekat -->
-        <details class="sidebar-card" open>
+        <details class="sidebar-card" @if(!$activeProjectId) open @endif>
             <summary class="sidebar-hd">
                 <span class="sdot sdot-sky"></span>
                 Novi projekat
@@ -660,14 +961,27 @@
                 <button type="button" id="close-element-editor" class="sb-btn sb-btn-outline" style="width:auto;padding:3px 9px;font-size:11px">Zatvori</button>
             </div>
             <div class="sidebar-bd grid gap-2">
-                <input id="element-editor-name" class="sb-inp" placeholder="Naziv elementa">
-                <button type="button" id="save-element-name" class="sb-btn sb-btn-emerald">Sacuvaj naziv</button>
+                <label class="grid gap-1"><span class="sb-kicker">Naziv</span><input id="element-editor-name" class="sb-inp" placeholder="Naziv elementa"></label>
+                <label class="grid gap-1"><span class="sb-kicker">Adresa / napomena</span><input id="element-editor-address" class="sb-inp" placeholder="Lokacija ili kratka napomena"></label>
+                <div id="element-editor-odf-fields" class="hidden grid grid-cols-2 gap-2">
+                    <label class="grid gap-1"><span class="sb-kicker">Vlakana</span><select id="element-editor-fiber-capacity" class="sb-sel"><option>72</option><option selected>144</option><option>288</option><option>576</option></select></label>
+                    <label class="grid gap-1"><span class="sb-kicker">Portova</span><input id="element-editor-port-count" type="number" min="1" max="1152" class="sb-inp" value="48"></label>
+                </div>
+                <div id="element-editor-cabinet-fields" class="hidden grid gap-2">
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="grid gap-1"><span class="sb-kicker">Splittera</span><input id="element-editor-splitter-count" type="number" min="1" max="3" class="sb-inp" value="3"></label>
+                        <label class="grid gap-1"><span class="sb-kicker">Portova / splitter</span><input id="element-editor-ports-per-splitter" type="number" min="1" max="4" class="sb-inp" value="4"></label>
+                    </div>
+                    <label class="grid gap-1"><span class="sb-kicker">Povezani ODF</span><select id="element-editor-odf" class="sb-sel"></select></label>
+                </div>
+                <div id="element-editor-capacity" class="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"></div>
+                <button type="button" id="save-element-name" class="sb-btn sb-btn-emerald">Sačuvaj podatke</button>
                 <div id="element-editor-status" class="text-xs font-semibold text-emerald-700"></div>
             </div>
         </div>
 
         <!-- Plan projekta -->
-        <details class="sidebar-card" open>
+        <details class="sidebar-card" @if($activeProjectId) open @endif>
         <summary class="sidebar-hd">
             <span class="sdot sdot-indigo"></span>
             Plan projekta
@@ -769,7 +1083,14 @@
                 <input id="bulk-plan-json" type="hidden" name="plan">
                 <div class="grid grid-cols-2 gap-2">
                     <button type="button" id="save-draft" class="sb-btn sb-btn-outline">Radna verzija</button>
-                    <button class="sb-btn sb-btn-emerald">Sacuvaj na mapi</button>
+                    <button class="sb-btn sb-btn-emerald">Sačuvaj na mapi</button>
+                </div>
+                <div id="preflight-panel" class="hidden overflow-hidden rounded-lg border border-amber-200 bg-amber-50">
+                    <div class="flex items-center justify-between border-b border-amber-200 px-3 py-2">
+                        <b class="text-xs text-amber-950">Plan treba doradu</b>
+                        <span id="preflight-count" class="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black text-amber-900"></span>
+                    </div>
+                    <div id="preflight-list" class="grid max-h-40 divide-y divide-amber-100 overflow-y-auto"></div>
                 </div>
                 <div id="export-actions" style="display:none" class="grid grid-cols-3 gap-1.5">
                     <a id="export-geojson" href="#" class="sb-btn sb-btn-outline" style="font-size:10px;padding:5px 8px;text-align:center">GeoJSON</a>
@@ -782,7 +1103,7 @@
         </details>
 
         <!-- Provjera projekta -->
-        <details class="sidebar-card" open>
+        <details class="sidebar-card">
             <summary class="sidebar-hd">
                 <span class="sdot sdot-amber"></span>
                 Provjera projekta
@@ -830,9 +1151,16 @@
                         <option value="24">24F</option>
                         <option value="48">48F</option>
                     </select>
-                    <input id="route-attr-note" class="sb-inp" placeholder="Napomena">
+                    <select id="route-attr-installation" class="sb-sel">
+                        <option value="underground">Podzemno</option>
+                        <option value="aerial">Nadzemno</option>
+                    </select>
                 </div>
-                <button type="button" id="save-route-attributes" class="sb-btn sb-btn-blue">Sacuvaj podatke trase</button>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="grid gap-1"><span class="sb-kicker">Broj mikrocijevi</span><input id="route-attr-microduct-count" type="number" min="0" max="48" class="sb-inp" value="1"></label>
+                    <label class="grid gap-1"><span class="sb-kicker">Napomena</span><input id="route-attr-note" class="sb-inp" placeholder="Napomena"></label>
+                </div>
+                <button type="button" id="save-route-attributes" class="sb-btn sb-btn-blue">Sačuvaj podatke trase</button>
             </div>
         </div>
 
@@ -840,7 +1168,7 @@
         <details class="sidebar-card">
             <summary class="sidebar-hd">
                 <span class="sdot sdot-violet"></span>
-                Automatski raspored FTTH
+                Auto raspored FTTH
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-3">
@@ -865,7 +1193,7 @@
         <details class="sidebar-card">
             <summary class="sidebar-hd">
                 <span class="sdot sdot-slate"></span>
-                Layer Manager
+                Slojevi mape
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-0.5 py-2">
@@ -899,13 +1227,13 @@
         <details class="sidebar-card">
             <summary class="sidebar-hd">
                 <span class="sdot sdot-slate"></span>
-                Napredne forme za snimanje
+                Napredno uređivanje
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-3">
                 <form method="POST" action="{{ route('odfs.store') }}" id="odf-form" class="grid gap-2 rounded-lg border border-cyan-100 bg-cyan-50/50 p-3">
                     @csrf
-                    <div class="text-xs font-bold text-cyan-900 mb-1">Sacuvaj ODF</div>
+                    <div class="text-xs font-bold text-cyan-900 mb-1">Sačuvaj ODF</div>
                     <select name="project_id" class="sb-sel" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
                     <input name="name" class="sb-inp" placeholder="Naziv ODF-a" required>
                     <input name="address" class="sb-inp" placeholder="Adresa" required>
@@ -917,11 +1245,11 @@
                         <input id="odf-lat" name="latitude" class="sb-inp" placeholder="Lat" required>
                         <input id="odf-lng" name="longitude" class="sb-inp" placeholder="Lng" required>
                     </div>
-                    <button class="sb-btn sb-btn-cyan">Sacuvaj ODF</button>
+                    <button class="sb-btn sb-btn-cyan">Sačuvaj ODF</button>
                 </form>
                 <form method="POST" action="{{ route('cabinets.store') }}" id="cabinet-form" class="grid gap-2 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
                     @csrf
-                    <div class="text-xs font-bold text-emerald-900 mb-1">Sacuvaj FTTH ormaric</div>
+                    <div class="text-xs font-bold text-emerald-900 mb-1">Sačuvaj FTTH ormarić</div>
                     <select name="project_id" class="sb-sel" required><option value="">Projekat</option>@foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach</select>
                     <select name="odf_id" class="sb-sel"><option value="">Povezani ODF</option>@foreach($odfsForSelect as $odf)<option value="{{ $odf->id }}">{{ $odf->name }} - {{ $odf->project->name }}</option>@endforeach</select>
                     <select name="parent_cabinet_id" class="sb-sel"><option value="">Napaja se iz ODF-a direktno</option>@foreach($cabinetsForSelect as $parentCabinet)<option value="{{ $parentCabinet->id }}">Iz ODO: {{ $parentCabinet->name }} - {{ $parentCabinet->project->name }}</option>@endforeach</select>
@@ -935,7 +1263,7 @@
                         <input id="cabinet-lat" name="latitude" class="sb-inp" placeholder="Lat" required>
                         <input id="cabinet-lng" name="longitude" class="sb-inp" placeholder="Lng" required>
                     </div>
-                    <button class="sb-btn sb-btn-emerald">Sacuvaj FTTH</button>
+                    <button class="sb-btn sb-btn-emerald">Sačuvaj FTTH</button>
                 </form>
                 <form method="POST" action="{{ route('routes.store') }}" id="route-form" class="hidden">
                     @csrf
@@ -1026,12 +1354,13 @@ window.ftthMapConfig = {
 </div>
 
 {{-- Survey points import floating panel --}}
-<div id="survey-panel" style="display:none;position:fixed;top:120px;right:350px;z-index:9999;width:320px;background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);overflow:hidden;font-family:inherit">
+<div id="survey-panel" style="display:none;position:fixed;top:90px;right:350px;z-index:9999;width:360px;max-height:calc(100vh - 110px);background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:12px;box-shadow:0 14px 38px rgba(15,23,42,.2);overflow-y:auto;font-family:inherit">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:linear-gradient(135deg,#ecfdf5,#f0f9ff)">
-        <span style="font-size:13px;font-weight:700;color:#065f46">Geodetske tačke (TXT)</span>
+        <span style="font-size:13px;font-weight:800;color:#065f46">Terenski rad</span>
         <button type="button" onclick="document.getElementById('survey-panel').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;padding:0 2px">&times;</button>
     </div>
     <div style="padding:10px 12px">
+        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Uvoz geodetskog TXT fajla</div>
         <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Format: <code>broj&nbsp;X&nbsp;Y&nbsp;Z&nbsp;opis</code> (Gauss-Krüger). Rovovi se spajaju u linije, ZO/ODF/šahtovi postaju elementi mreže.</p>
         <button id="survey-choose-btn" type="button" style="width:100%;border-radius:7px;background:#059669;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Odaberi TXT fajl</button>
         <input id="survey-file-input" type="file" accept=".txt" style="display:none">
@@ -1039,8 +1368,26 @@ window.ftthMapConfig = {
         <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
         <button id="survey-confirm-btn" type="button" disabled style="width:100%;margin-top:10px;border-radius:7px;background:#2563eb;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;opacity:1">Uvezi u projekat</button>
         <button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fecaca;cursor:pointer;font-family:inherit">Obriši uvezene tačke iz projekta</button>
+        <div style="height:1px;background:#e2e8f0;margin:14px 0"></div>
+        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Nova GPS tačka</div>
+        <button id="field-gps-read" type="button" style="width:100%;border-radius:8px;background:#075985;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer">Očitaj trenutnu GPS lokaciju</button>
+        <div id="field-gps-position" style="display:none;margin-top:7px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:7px;padding:8px;font-size:11px;color:#075985"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
+            <select id="field-point-kind" class="sb-sel"><option value="trench">Rov / trasa</option><option value="cabinet">ODO ormarić</option><option value="odf">ODF</option><option value="manhole">Šaht</option><option value="splice">Spojnica</option><option value="sling">Kuća / priključak</option><option value="loop">Rezerva kabla</option><option value="boring">Bušenje</option><option value="pole">Stub</option><option value="other">Ostalo</option></select>
+            <input id="field-point-code" class="sb-inp" placeholder="Naziv tačke" maxlength="255">
+        </div>
+        <textarea id="field-point-note" class="sb-inp" rows="2" placeholder="Napomena s terena" style="margin-top:7px;resize:vertical"></textarea>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;border:1px dashed #cbd5e1;border-radius:7px;padding:8px;font-size:11px;color:#475569;cursor:pointer"><span>Dodaj fotografiju</span><input id="field-point-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style="max-width:165px;font-size:10px"></label>
+        <button id="field-point-save" type="button" disabled style="width:100%;margin-top:8px;border-radius:8px;background:#0f766e;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer;opacity:.55">Sačuvaj GPS tačku</button>
+        <div id="field-point-status" style="display:none;margin-top:7px;border-radius:7px;padding:8px;font-size:11px;font-weight:650"></div>
     </div>
 </div>
+
+<style>
+@media (max-width: 900px) {
+    #survey-panel { position:fixed !important; inset:58px 8px 10px 8px !important; width:auto !important; max-height:none !important; }
+}
+</style>
 
 <script src="{{ asset('vendor/proj4/proj4.js') }}"></script>
 <script src="{{ asset('js/ftth-dxf-layer.js') }}?v={{ filemtime(public_path('js/ftth-dxf-layer.js')) }}"></script>
