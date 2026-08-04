@@ -1160,7 +1160,10 @@
                     <label class="grid gap-1"><span class="sb-kicker">Broj mikrocijevi</span><input id="route-attr-microduct-count" type="number" min="0" max="48" class="sb-inp" value="1"></label>
                     <label class="grid gap-1"><span class="sb-kicker">Napomena</span><input id="route-attr-note" class="sb-inp" placeholder="Napomena"></label>
                 </div>
-                <button type="button" id="save-route-attributes" class="sb-btn sb-btn-blue">Sačuvaj podatke trase</button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="edit-route-geometry" class="sb-btn sb-btn-outline">Uredi geometriju</button>
+                    <button type="button" id="save-route-attributes" class="sb-btn sb-btn-blue">Sačuvaj podatke trase</button>
+                </div>
             </div>
         </div>
 

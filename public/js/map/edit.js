@@ -19,7 +19,10 @@ function startRouteEdit(route, line) {
     routeEditUndoStack.length = 0;
     routeEditRedoStack.length = 0;
     syncRouteEditUndoButtons();
-    const points = line.getLatLngs().map(point => L.latLng(point.lat, point.lng));
+    // Display lines may be fanned sideways for selection; editing always starts from the
+    // true surveyed/database geometry so a visual lane can never be persisted as a shift.
+    const points = route.path.map(point => L.latLng(point[0], point[1]));
+    line.setLatLngs(points);
     routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [], midpointMarkers: [] };
     line.setStyle({ color: '#2563eb', weight: 4, opacity: 1, dashArray: '2 4' });
     document.getElementById('route-edit-actions').classList.remove('hidden');
@@ -52,6 +55,14 @@ function syncRouteAttributeFields() {
 }
 
 function closeRouteAttributePanel() {
+    routeSelectionMarkers.forEach(marker => map.removeLayer(marker));
+    routeSelectionMarkers = [];
+    if (highlightedPickedRouteId !== null && !routeEdit) {
+        const route = data.routes.find(item => Number(item.id) === Number(highlightedPickedRouteId));
+        const line = routeLayerById[highlightedPickedRouteId];
+        if (route && line) line.setStyle(routeLineStyle(route.type, routeLineColor(route)));
+    }
+    highlightedPickedRouteId = null;
     selectedAttributeRoute = null;
     document.getElementById('route-attribute-panel').classList.add('hidden');
 }
@@ -110,7 +121,7 @@ function refreshRouteLabels(route, oldLayerType = null) {
         map.removeLayer(label);
     });
 
-    if (route.type === 'trench' || !route.path?.length) {
+    if (!shouldShowPersistentRouteLabel(route) || !route.path?.length) {
         routeLabelsById[route.id] = [];
         return;
     }

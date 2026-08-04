@@ -40,11 +40,16 @@ function fiberCountColor(fibers) {
 }
 function routeLabelSpecs(route) {
     const parts = [];
+    const name = String(route.name || '').toLowerCase();
     const f = route.fiber_count || route.fibers;
-    if (f) parts.push(`${f}F`);
+    if (f && !name.includes(`${f}f`)) parts.push(`${f}F`);
     const md = route.microduct_type || route.microduct;
-    if (md) parts.push(md);
+    if (md && !name.includes(String(md).toLowerCase())) parts.push(md);
     return parts.length ? parts.join('·') : null;
+}
+function shouldShowPersistentRouteLabel(route) {
+    if (route.type === 'trench') return false;
+    return !String(route.note || '').toLowerCase().includes('geodetski snimak');
 }
 function clearRuler() {
     [rulerStartMarker, rulerLine, rulerEndMarker, rulerLabelMarker].forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
@@ -394,6 +399,58 @@ function applyRouteLabelLanes(routes) {
         const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
         route._labelLane = seen[key] || 0;
         seen[key] = route._labelLane + 1;
+    });
+}
+
+// Visually fan overlapping saved ducts into parallel lanes. Database geometry remains on
+// the surveyed trench axis; only Leaflet display/hit layers use these offset points.
+const ROUTE_VISUAL_MAX_SPREAD_METERS = 1.2;
+const ROUTE_VISUAL_MAX_GAP_METERS = 0.2;
+function routePathsOverlapForDisplay(first, second) {
+    if (!first.path?.length || !second.path?.length) return false;
+    const a = first.path.length <= second.path.length ? first.path : second.path;
+    const b = first.path.length <= second.path.length ? second.path : first.path;
+    let near = 0;
+    for (const raw of a) {
+        const point = L.latLng(raw[0], raw[1]);
+        let best = Infinity;
+        for (let i = 1; i < b.length; i++) {
+            best = Math.min(best, map.distance(point, projectOnSegment(point, L.latLng(b[i - 1][0], b[i - 1][1]), L.latLng(b[i][0], b[i][1]))));
+        }
+        if (best <= 1.5 && ++near >= 2) return true;
+    }
+    return false;
+}
+function offsetRouteDisplayPoints(points, offsetM) {
+    if (!offsetM || points.length < 2) return points.map(point => L.latLng(point.lat, point.lng));
+    return points.map((point, index) => {
+        const before = points[Math.max(0, index - 1)];
+        const after = points[Math.min(points.length - 1, index + 1)];
+        const east = (after.lng - before.lng) * Math.cos(point.lat * Math.PI / 180);
+        const north = after.lat - before.lat;
+        const length = Math.hypot(east, north) || 1e-12;
+        return metersOffset(point, (-north / length) * offsetM, (east / length) * offsetM);
+    });
+}
+function applyRouteVisualLanes(routes) {
+    const candidates = routes.filter(route => route.type !== 'trench' && route.path?.length > 1);
+    const parent = candidates.map((_, index) => index);
+    const find = index => parent[index] === index ? index : (parent[index] = find(parent[index]));
+    const unite = (a, b) => { const ra = find(a); const rb = find(b); if (ra !== rb) parent[rb] = ra; };
+    for (let i = 0; i < candidates.length; i++) {
+        for (let j = i + 1; j < candidates.length; j++) {
+            if (routePathsOverlapForDisplay(candidates[i], candidates[j])) unite(i, j);
+        }
+    }
+    const groups = {};
+    candidates.forEach((route, index) => (groups[find(index)] ||= []).push(route));
+    Object.values(groups).forEach(group => {
+        group.sort((a, b) => Number(a.id) - Number(b.id));
+        const middle = (group.length - 1) / 2;
+        const gap = group.length > 1
+            ? Math.min(ROUTE_VISUAL_MAX_GAP_METERS, ROUTE_VISUAL_MAX_SPREAD_METERS / (group.length - 1))
+            : 0;
+        group.forEach((route, index) => { route._visualOffsetM = (index - middle) * gap; });
     });
 }
 function refreshAllRouteStyles() {

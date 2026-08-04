@@ -89,17 +89,20 @@
 
     function ductRowHtml(duct) {
         const type = duct.route_type ? ` <span style="color:#94a3b8">(${duct.route_type})</span>` : '';
+        const routing = duct.routing_status === 'unreachable'
+            ? ' <b style="color:#b91c1c">— NEMA PUTA DO ZO</b>'
+            : (duct.routing_status === 'complete' ? ' <span style="color:#047857">✓ do ZO</span>' : '');
         if (duct.match_confidence !== 'ambiguous') {
             const cabinet = duct.matched_cabinet_name ? ` &rarr; ${escapeHtml(duct.matched_cabinet_name)}` : '';
 
-            return `<li>${escapeHtml(duct.label)} / ${duct.length_m} m${type}${cabinet}</li>`;
+            return `<li>${escapeHtml(duct.label)} / ${duct.length_m} m${type}${cabinet}${routing}</li>`;
         }
 
         const options = ['<option value="">(bez ormara)</option>']
             .concat((duct.candidates || []).map(c => `<option value="${c.id}"${c.id === duct.matched_cabinet_id ? ' selected' : ''}>${escapeHtml(c.name)} (${c.distance_m} m)</option>`))
             .join('');
 
-        return `<li>${escapeHtml(duct.label)} / ${duct.length_m} m${type} - nejasan ormar:
+        return `<li>${escapeHtml(duct.label)} / ${duct.length_m} m${type}${routing} - nejasan ormar:
             <select class="survey-duct-override" data-duct-key="${escapeHtml(duct.key)}">${options}</select></li>`;
     }
 
@@ -145,7 +148,7 @@
                 <p style="margin:6px 0 2px"><b>Mikrocijevi (${(data.ducts || []).length})</b>:</p>
                 <ul style="margin:0;padding-left:16px;max-height:140px;overflow-y:auto">${ducts || '<li>nema</li>'}</ul>
                 ${ambiguousNote}
-                <p style="margin:6px 0 0">ZO ormara: <b>${(data.cabinets || []).length}</b> / ODF: <b>${(data.odfs || []).length}</b> / sahtova: <b>${data.manholes}</b></p>
+                <p style="margin:6px 0 0">ZO ormara: <b>${(data.cabinets || []).length}</b> / ODF: <b>${(data.odfs || []).length}</b> / sahtova: <b>${data.manholes}</b> / ŠLINGA: <b>${data.prepared_slings || 0}</b></p>
                 ${unrecognized}${warning}`;
             confirmBtn.disabled = !!data.already_imported;
             setStatus(

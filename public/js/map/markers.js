@@ -62,15 +62,19 @@ function routeLabelPlacement(points, position = .5) {
 // Same physical trench often carries several ducts along (near-)identical geometry —
 // `lane` (see applyRouteStacking's route._stack) pushes each one's label a few metres
 // off the line so overlapping duct labels don't render on top of each other.
-const ROUTE_LABEL_LANE_METERS = 4.5;
+const ROUTE_LABEL_LANE_METERS = 0.2;
 function addRouteLabel(points, name, track = true, specs = null, lane = 0) {
     const labelName = normalizeRouteDisplayName(name);
     const specsText = showCableSpecs && specs ? ` <span style="opacity:.65;font-size:.85em">${specs}</span>` : '';
     const labelHtml = `${labelName}${specsText}`;
     const markers = [];
     const total = distance(points);
-    const positions = total > 500 ? [.2, .5, .8] : (total > 180 ? [.3, .7] : [.5]);
-    const laneOffsetM = (lane || 0) * ROUTE_LABEL_LANE_METERS;
+    const hash = [...String(name || '')].reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 0);
+    const stagger = ((hash % 5) - 2) * .07;
+    const positions = total > 500
+        ? [.2 + stagger / 2, .5 + stagger / 2, .8 + stagger / 2]
+        : (total > 180 ? [.32 + stagger / 2, .68 + stagger / 2] : [.5 + stagger]);
+    const laneOffsetM = Math.max(-0.6, Math.min(0.6, (lane || 0) * ROUTE_LABEL_LANE_METERS));
     positions.forEach(position => {
         const placement = routeLabelPlacement(points, position);
         if (!placement) return;

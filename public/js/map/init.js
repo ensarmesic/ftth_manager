@@ -53,19 +53,21 @@ mapLegend.addTo(map);
 const bounds = [];
 applyRouteStacking(data.routes);
 applyRouteLabelLanes(data.routes);
+applyRouteVisualLanes(data.routes);
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
+    const displayPoints = offsetRouteDisplayPoints(points, route._visualOffsetM || 0);
     const occupancy = route.occupancy || {};
     const baseStyle = routeLineStyle(route.type, routeLineColor(route));
     if (route._stack) baseStyle.weight = routeStackedWeight(route, baseStyle.weight);
-    const line = L.polyline(points, { ...baseStyle, interactive: false })
+    const line = L.polyline(displayPoints, { ...baseStyle, interactive: false })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
-    const hitLine = L.polyline(points, { weight: 14, opacity: 0, interactive: true }).addTo(map);
+    const hitLine = L.polyline(displayPoints, { weight: 10, opacity: 0, interactive: true }).addTo(map);
     if (route.type === 'trench') { line.bringToBack(); hitLine.bringToBack(); }
-    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route), route._labelLane);
+    const labels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(displayPoints, route.name, false, routeLabelSpecs(route), route._labelLane) : [];
     routeLayerById[route.id] = line;
     routeHitLayerById[route.id] = hitLine;
     routeLabelsById[route.id] = labels || [];
@@ -76,8 +78,7 @@ data.routes.forEach(route => {
         if (mode === 'join') selectJoinRoute(route, line);
         else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
         else {
-            openRouteAttributePanel(route);
-            startRouteEdit(route, line);
+            selectRouteFromVisibleStack(event, route);
         }
     }, [], () => deleteRouteWithHistory(route, [hitLine, line, ...labels]));
     points.forEach(p => bounds.push([p.lat, p.lng]));
@@ -537,6 +538,13 @@ document.getElementById('expand-map').addEventListener('click', () => {
 });
 document.getElementById('add-route-vertex').addEventListener('click', () => addRouteEditVertex());
 document.getElementById('cancel-route-edit').addEventListener('click', cancelRouteEdit);
+document.getElementById('edit-route-geometry')?.addEventListener('click', () => {
+    if (!selectedAttributeRoute) return;
+    routeSelectionMarkers.forEach(marker => map.removeLayer(marker));
+    routeSelectionMarkers = [];
+    const line = routeLayerById[selectedAttributeRoute.id];
+    if (line) startRouteEdit(selectedAttributeRoute, line);
+});
 document.getElementById('undo-route-edit')?.addEventListener('click', undoRouteEdit);
 document.getElementById('redo-route-edit')?.addEventListener('click', redoRouteEdit);
 document.getElementById('btn-map-undo')?.addEventListener('click', () => mapHistory.undo());

@@ -9,6 +9,7 @@ use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
 use App\Models\SurveyPoint;
+use App\Services\GeometryService;
 use App\Services\GeoTransformService;
 use App\Services\SurveyPointImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -167,6 +168,61 @@ class SurveyPointImportTest extends TestCase
         $this->assertCount(1, $ducts);
         $this->assertSame('MC 14/10 Zelena', $ducts[0]['label']);
         $this->assertSame(3, count($ducts[0]['path']));
+    }
+
+    public function test_colour_flow_continues_through_point_that_mentions_only_another_duct(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '1  6549699.731  4923604.537  234.0  Rov 14/10 Plava + Zelena',
+            '2  6549703.323  4923595.954  234.0  Rov 14/10 Plava',
+            '3  6549707.842  4923586.519  234.0  Rov 14/10 Plava + Zelena',
+        ]));
+
+        $ducts = collect($service->buildNetwork($points)['ducts']);
+        $green = $ducts->firstWhere('color', 'Zelena');
+        $blue = $ducts->firstWhere('color', 'Plava');
+
+        $this->assertNotNull($green);
+        $this->assertNotNull($blue);
+        $this->assertCount(3, $green['path']);
+        $this->assertCount(3, $blue['path']);
+    }
+
+    public function test_survey_walk_back_to_older_junction_does_not_connect_two_customer_branch_ends(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '59 6536461.736 4918896.400 397.481 Rov 10/8 -ZO 3.2',
+            '60 6536459.154 4918894.534 397.484 Rov 10/8 -ZO 3.2',
+            '61 6536457.566 4918893.815 397.479 Rov 10/8 -ZO 3.2',
+            '62 6536455.908 4918894.701 397.392 Rov 10/8 -ZO 3.2',
+            '63 6536453.999 4918895.134 397.097 Rov 10/8 -ZO 3.2',
+            '64 6536448.207 4918896.834 396.481 Rov 10/8 -ZO 3.2',
+            '65 6536448.182 4918896.805 396.562 Rov 10/8 -ZO 3.2',
+            '66 6536445.659 4918897.535 396.372 Rov 10/8 -ZO 3.2',
+            // Surveyor walks back beside point 61 and starts another branch.
+            '67 6536456.389 4918893.128 397.444 Rov 10/8 -ZO 3.2',
+            '68 6536453.290 4918891.228 397.411 Rov 10/8 -ZO 3.2',
+            '69 6536450.844 4918889.133 397.541 Rov 10/8 -ZO 3.2',
+        ]));
+
+        $ducts = $service->buildNetwork($points)['ducts'];
+        $falseA = [$points[7]['lat'], $points[7]['lng']];
+        $falseB = [$points[8]['lat'], $points[8]['lng']];
+        $hasFalseSegment = collect($ducts)->contains(function (array $duct) use ($falseA, $falseB): bool {
+            for ($i = 1; $i < count($duct['path']); $i++) {
+                $a = $duct['path'][$i - 1];
+                $b = $duct['path'][$i];
+                if (($a === $falseA && $b === $falseB) || ($a === $falseB && $b === $falseA)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+
+        $this->assertFalse($hasFalseSegment, 'walk-back between two branch ends must not become cable');
     }
 
     public function test_multi_digit_x_count_and_last_zo_destination_are_read_from_description(): void
@@ -528,10 +584,198 @@ class SurveyPointImportTest extends TestCase
         // B's path is the FULL run back to the cabinet (through A's tap point), not just
         // the leftover continuation after A — so it must be longer than A's own drop,
         // and neither route should have been merged into the other.
-        $this->assertCount(3, $dropA->path);
-        $this->assertCount(5, $dropB->path);
+        // The final ZO coordinate is now included as well, not merely the nearest rov point.
+        $this->assertCount(4, $dropA->path);
+        $this->assertCount(6, $dropB->path);
         $this->assertGreaterThan($dropA->duct_length_m, $dropB->duct_length_m);
         $this->assertNotSame($dropA->id, $dropB->id);
+    }
+
+    public function test_customer_drop_is_completed_over_unmarked_shared_trench_to_named_cabinet(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '1  6549699.731  4923604.537  234.0  ZO 7',
+            '2  6549703.323  4923595.954  234.0  Rov',
+            '3  6549707.842  4923586.519  234.0  Rov',
+            '4  6549710.913  4923579.800  234.0  Rov',
+            '5  6549713.000  4923576.000  234.0  Kuca H-7 10/8 ZO 7',
+        ]));
+
+        $network = $service->buildNetwork($points);
+        $drop = collect($network['ducts'])->firstWhere('microduct_type', '10/8');
+
+        $this->assertNotNull($drop);
+        $this->assertTrue($drop['routed_via_trench']);
+        $this->assertSame('7', $drop['zo_tag']);
+        $this->assertCount(5, $drop['path']); // house, junction, two shared rov points, ZO
+        $this->assertEqualsWithDelta($points[0]['lat'], end($drop['path'])[0], 0.0000001);
+        $this->assertEqualsWithDelta($points[0]['lng'], end($drop['path'])[1], 0.0000001);
+    }
+
+    public function test_named_slinga_stops_at_prepared_point_but_binds_route_to_future_house(): void
+    {
+        $project = Project::factory()->create();
+        $contents = implode("\n", [
+            '1  6549699.731  4923604.537  234.0  ZO 8',
+            '2  6549703.323  4923595.954  234.0  Rov',
+            '3  6549707.842  4923586.519  234.0  Rov',
+            '4  6549710.913  4923579.800  234.0  Rov',
+            '5  6549713.000  4923576.000  234.0  SLINGA za kucu H-12 10/8 ZO 8',
+        ]);
+
+        $points = app(SurveyPointImportService::class)->parse($contents);
+        $this->assertTrue($points[4]['prepared_sling']);
+        $this->assertSame('H-12', $points[4]['house_ref']);
+
+        app(SurveyPointImportService::class)->confirm($project, $contents, 'slinga.txt');
+        $house = House::where('project_id', $project->id)->where('label', 'H-12')->firstOrFail();
+        $drop = NetworkRoute::where('project_id', $project->id)->where('to_id', $house->id)->firstOrFail();
+
+        $this->assertNull($house->latitude); // stvarna lokacija kuce jos nije snimljena
+        $this->assertSame('drop', $drop->route_type);
+        $this->assertStringContainsString('SLINGA za kucu H-12', $drop->note);
+        $this->assertEqualsWithDelta($points[4]['lat'], $drop->path[0][0], 0.0000001);
+        $this->assertEqualsWithDelta($points[4]['lng'], $drop->path[0][1], 0.0000001);
+    }
+
+    public function test_real_field_notation_recognizes_z_ormar_short_tags_and_unnamed_slinga(): void
+    {
+        $points = app(SurveyPointImportService::class)->parse(implode("\n", [
+            '2675 6550341.460 4923900.886 212.390 Rov+ mc 14/10',
+            '2676 6550339.358 4923897.137 212.502 Rov+ mc 10/8 Slinga',
+            '2704 6550284.829 4923791.218 219.438 Rov+ mc 10/8+ 14/10 Slinga Crvene',
+            '2711 6550189.167 4921055.951 260.567 Z Ormar 1',
+            '2725 6550195.958 4921144.237 257.932 Rov+ mc 10/8 -Z1',
+        ]));
+
+        $this->assertSame('sling', $points[1]['kind']);
+        $this->assertTrue($points[1]['prepared_sling']);
+        $this->assertSame('T2676', $points[1]['house_ref']);
+        $this->assertSame(['10/8', '14/10'], collect($points[2]['duct_identities'])->pluck('type')->sort()->values()->all());
+        $this->assertSame('T2704', $points[2]['house_ref']);
+        $this->assertSame('cabinet', $points[3]['kind']);
+        $this->assertSame('1', $points[4]['zo_tag']);
+    }
+
+    public function test_bare_z_number_is_a_green_cabinet_without_renaming_route_tags(): void
+    {
+        $points = app(SurveyPointImportService::class)->parse(implode("\n", [
+            '1 6539066.246 4926447.735 274.589 Z1',
+            '2 6539076.821 4926512.629 281.341 Z 2',
+            '3 6539077.058 4926512.506 281.153 Rov + mc 10/8 -Z1',
+        ]));
+
+        $this->assertSame('cabinet', $points[0]['kind']);
+        $this->assertSame('Z1', $points[0]['code']);
+        $this->assertSame('1', $points[0]['zo_tag']);
+        $this->assertSame('cabinet', $points[1]['kind']);
+        $this->assertSame('Z 2', $points[1]['code']);
+        $this->assertSame('trench', $points[2]['kind']);
+        $this->assertSame('1', $points[2]['zo_tag']);
+    }
+
+    public function test_field_fi_14_notation_creates_coloured_microducts_with_the_recorded_count(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '1 6539061.263 4926435.457 272.990 Rov + 5x fi 14 2x Zelena, 2x Plava i Zuta',
+            '2 6539060.629 4926434.435 272.843 Rov + 5x fi 14 2x Zelena, 2x Plava i Zuta',
+            '3 6539058.236 4926430.871 272.451 Rov + 3 fi 14 Zelena Plava i Zuta',
+        ]));
+
+        $this->assertSame('14/10', $points[0]['microduct_type']);
+        $this->assertSame(5, $points[0]['microduct_count']);
+        $this->assertSame(3, $points[2]['microduct_count']);
+        $this->assertEqualsCanonicalizing(['Zelena', 'Plava', 'Zuta'], $points[0]['colors']);
+        $this->assertSame(['Zelena' => 2, 'Plava' => 2, 'Zuta' => 1], $points[0]['color_counts']);
+        $this->assertNotEmpty($service->buildNetwork($points)['ducts']);
+    }
+
+    public function test_corrected_real_field_file_builds_cabinets_and_all_three_mc_colours(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(file_get_contents(base_path('docs/uredjen-i-ispravljen-opis.txt')));
+        $network = $service->buildNetwork($points);
+
+        $missingPointNumbers = array_values(array_diff(range(1753, 2113), collect($points)->pluck('point_no')->all()));
+        $this->assertSame([], $missingPointNumbers, 'Parser je preskocio tacke: '.implode(', ', $missingPointNumbers));
+        $this->assertCount(361, $points);
+        $this->assertCount(11, collect($points)->where('kind', 'cabinet'));
+        $this->assertNotEmpty($network['trenches']);
+        $this->assertNotEmpty($network['ducts']);
+        $this->assertEqualsCanonicalizing(
+            ['Plava', 'Zelena', 'Zuta'],
+            collect($network['ducts'])->pluck('color')->filter()->unique()->sort()->values()->all()
+        );
+    }
+
+    public function test_adjusted_four_cabinet_manual_test_file_has_numbered_cabinets_and_tagged_customer_lines(): void
+    {
+        $points = app(SurveyPointImportService::class)->parse(
+            file_get_contents(base_path('docs/test-4-ormara.txt'))
+        );
+
+        $this->assertCount(148, $points);
+        $this->assertSame(
+            ['Z Ormar 1', 'Z Ormar 2', 'Z Ormar 3', 'Z Ormar 4'],
+            collect($points)->where('kind', 'cabinet')->pluck('code')->values()->all()
+        );
+        $customerPoints = collect($points)->filter(fn (array $point) => in_array($point['kind'], ['trench', 'sling'], true)
+            && ($point['microduct_type'] === '10/8' || collect($point['duct_identities'])->contains('type', '10/8')));
+        $this->assertNotEmpty($customerPoints);
+        $this->assertFalse($customerPoints->contains(fn (array $point) => $point['zo_tag'] === null));
+        $this->assertSame(6, collect($points)->where('prepared_sling', true)->count());
+    }
+
+    public function test_generated_complete_four_cabinet_network_has_segmented_working_duct_and_continuous_reserve(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(file_get_contents(base_path('docs/test-4-ormara-kompletna-mreza.txt')));
+        $network = $service->buildNetwork($points);
+        $ducts = collect($network['ducts']);
+
+        $this->assertSame(
+            ['Z Ormar 1', 'Z Ormar 2', 'Z Ormar 3', 'Z Ormar 4'],
+            collect($points)->where('kind', 'cabinet')->pluck('code')->values()->all()
+        );
+        $this->assertSame(3, collect($points)->where('kind', 'splice')->count());
+        $this->assertSame(4, collect($points)->where('prepared_sling', true)->count());
+
+        $working = $ducts->where('microduct_type', '14/10')->where('color', 'Crvena');
+        $this->assertSame(['2', '3', '4'], $working->pluck('zo_tag')->sort()->values()->all());
+        $this->assertCount(1, $ducts->where('microduct_type', '14/10')->where('color', 'Plava'));
+
+        $drops = $ducts->where('microduct_type', '10/8');
+        $this->assertSame(['1', '2', '3', '4'], $drops->pluck('zo_tag')->sort()->values()->all());
+        $this->assertSame(['H-1', 'H-2', 'H-3', 'H-4'], $drops->pluck('house_ref')->sort()->values()->all());
+    }
+
+    public function test_normalized_real_network_has_unique_cabinets_and_destination_aware_implicit_drops(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(file_get_contents(base_path('docs/test-normalizovana-pametna-mreza.txt')));
+
+        $this->assertGreaterThan(350, count($points));
+        $this->assertCount(9, collect($points)->where('kind', 'cabinet'));
+        $slings = collect($points)->where('kind', 'sling');
+        $this->assertGreaterThan(25, $slings->count());
+        $this->assertFalse($slings->contains(fn (array $point) => $point['zo_tag'] === null));
+
+        $network = $service->buildNetwork($points);
+        $drops = collect($network['ducts'])->where('microduct_type', '10/8');
+        $this->assertGreaterThanOrEqual($slings->count(), $drops->count());
+        $this->assertEmpty($slings->pluck('house_ref')->diff($drops->pluck('house_ref')->filter())->values()->all());
+
+        $t309 = $drops->firstWhere('house_ref', 'T309');
+        $this->assertNotNull($t309);
+        $this->assertTrue($t309['routed_via_trench'] ?? false, json_encode($t309));
+        $zo4 = collect($points)->first(fn (array $point) => $point['kind'] === 'cabinet' && $point['code'] === 'Z Ormar 4');
+        $this->assertNotNull($zo4);
+        $this->assertLessThanOrEqual(30.0, min(...array_map(
+            fn (array $endpoint) => app(GeometryService::class)->distanceMeters($zo4['lat'], $zo4['lng'], $endpoint[0], $endpoint[1]),
+            [$t309['path'][0], end($t309['path'])]
+        )), json_encode($t309));
     }
 
     public function test_reserve_loop_gets_its_own_dedicated_microduct_without_becoming_a_house(): void

@@ -1,11 +1,57 @@
 // ── ROUTES (CRUD, JOIN, SPLIT) ────────────────────────────────────────────────
+function routeLayerDistancePx(latlng, line) {
+    const points = line?.getLatLngs?.() || [];
+    let best = Infinity;
+    for (let i = 1; i < points.length; i++) {
+        best = Math.min(best, layerPixelDistance(latlng, projectOnSegment(latlng, points[i - 1], points[i])));
+    }
+    return best;
+}
+
+function selectRouteFromVisibleStack(event, fallbackRoute) {
+    const candidates = data.routes
+        .filter(route => route.path?.length > 1 && routeLayerById[route.id] && routeLayerDistancePx(event.latlng, routeLayerById[route.id]) <= 9)
+        .sort((a, b) => (a._visualOffsetM || 0) - (b._visualOffsetM || 0) || Number(a.id) - Number(b.id));
+    if (!candidates.length) candidates.push(fallbackRoute);
+
+    const signature = candidates.map(route => route.id).join(',');
+    routeStackPick.index = routeStackPick.signature === signature
+        ? (routeStackPick.index + 1) % candidates.length
+        : Math.max(0, candidates.findIndex(route => Number(route.id) === Number(fallbackRoute.id)));
+    routeStackPick.signature = signature;
+    const selected = candidates[routeStackPick.index];
+
+    if (highlightedPickedRouteId !== null && Number(highlightedPickedRouteId) !== Number(selected.id)) {
+        const previous = data.routes.find(route => Number(route.id) === Number(highlightedPickedRouteId));
+        const previousLine = routeLayerById[highlightedPickedRouteId];
+        if (previous && previousLine) previousLine.setStyle(routeLineStyle(previous.type, routeLineColor(previous)));
+    }
+    routeSelectionMarkers.forEach(marker => map.removeLayer(marker));
+    routeSelectionMarkers = [];
+    highlightedPickedRouteId = selected.id;
+    const selectedLine = routeLayerById[selected.id];
+    selectedLine?.setStyle({ color: '#2563eb', weight: 4, opacity: 1, dashArray: '2 4' });
+    selectedLine?.bringToFront();
+    routeSelectionMarkers = (selectedLine?.getLatLngs?.() || []).map(point => L.marker(point, {
+        icon: routeEditVertexIcon(),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 950,
+    }).addTo(map));
+    openRouteAttributePanel(selected);
+
+    document.getElementById('cad-command').textContent = candidates.length > 1
+        ? `ODABRANA ${routeStackPick.index + 1}/${candidates.length}: ${selected.name}. Klikni ponovo za sljedeću preklopljenu liniju.`
+        : `ODABRANA: ${selected.name}`;
+}
+
 function addSavedRouteToMap(route) {
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     const line = L.polyline(points, { ...routeLineStyle(route.type, routeLineColor(route)), interactive: false })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length ?? route.duct_length_m ?? 0} m`)
         .addTo(map);
     const hitLine = L.polyline(points, { weight: 14, opacity: 0, interactive: true }).addTo(map);
-    const labels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route));
+    const labels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(points, route.name, false, routeLabelSpecs(route)) : [];
     data.routes.push(route);
     savedRoutePoints.push(points);
     routeLayerById[route.id] = line;
@@ -17,7 +63,7 @@ function addSavedRouteToMap(route) {
     registerSavedContext([hitLine, line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
         if (mode === 'join') selectJoinRoute(route, line);
         else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
-        else startRouteEdit(route, line);
+        else selectRouteFromVisibleStack(event, route);
     }, [], () => deleteRouteWithHistory(route, [hitLine, line, ...labels]));
 }
 function resetJoinRoutes() {
@@ -156,7 +202,7 @@ async function joinSelectedRoutes() {
             map.removeLayer(label);
             untrackLayer(label);
         });
-        routeLabelsById[first.route.id] = first.route.type === 'trench' ? [] : addRouteLabel(points, first.route.name, false, routeLabelSpecs(first.route), first.route._labelLane);
+        routeLabelsById[first.route.id] = shouldShowPersistentRouteLabel(first.route) ? addRouteLabel(points, first.route.name, false, routeLabelSpecs(first.route), first.route._labelLane) : [];
         routeLabelsById[first.route.id].forEach(label => trackLayer(label, routeLayerType(first.route.type)));
         routeHitLayerById[first.route.id]?.setLatLngs(points);
         const removedLine = routeLayerById[result.deleted_route_id];
@@ -297,7 +343,7 @@ async function patchRouteGeometryOnMap(routeId, points) {
         route.duct_length_m = result.route.length;
         line.setPopupContent(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${result.route.length} m`);
         (routeLabelsById[routeId] || []).forEach(l => { map.removeLayer(l); untrackLayer(l); });
-        const newLabels = route.type === 'trench' ? [] : addRouteLabel(points, route.name, false, routeLabelSpecs(route), route._labelLane);
+        const newLabels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(points, route.name, false, routeLabelSpecs(route), route._labelLane) : [];
         routeLabelsById[routeId] = newLabels || [];
         newLabels?.forEach(l => trackLayer(l, routeLayerType(route.type)));
     }
