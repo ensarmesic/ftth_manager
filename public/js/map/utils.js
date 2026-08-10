@@ -405,9 +405,12 @@ function applyRouteLabelLanes(routes) {
 // Visually fan overlapping saved ducts into parallel lanes. Database geometry remains on
 // the surveyed trench axis; only Leaflet display/hit layers use these offset points.
 const ROUTE_VISUAL_MAX_SPREAD_METERS = 1.2;
-const ROUTE_VISUAL_MAX_GAP_METERS = 0.2;
+const ROUTE_VISUAL_MAX_GAP_METERS = 0.25;
+const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 4;
 function routePathsOverlapForDisplay(first, second) {
     if (!first.path?.length || !second.path?.length) return false;
+    if ((first.microduct_type || null) !== (second.microduct_type || null)) return false;
+    if (first.cabinet_id && second.cabinet_id && Number(first.cabinet_id) !== Number(second.cabinet_id)) return false;
     const a = first.path.length <= second.path.length ? first.path : second.path;
     const b = first.path.length <= second.path.length ? second.path : first.path;
     let near = 0;
@@ -421,19 +424,34 @@ function routePathsOverlapForDisplay(first, second) {
     }
     return false;
 }
+
 function offsetRouteDisplayPoints(points, offsetM) {
     if (!offsetM || points.length < 2) return points.map(point => L.latLng(point.lat, point.lng));
+    const travelled = [0];
+    for (let index = 1; index < points.length; index++) {
+        travelled[index] = travelled[index - 1] + map.distance(points[index - 1], points[index]);
+    }
+    const total = travelled[travelled.length - 1];
     return points.map((point, index) => {
         const before = points[Math.max(0, index - 1)];
         const after = points[Math.min(points.length - 1, index + 1)];
         const east = (after.lng - before.lng) * Math.cos(point.lat * Math.PI / 180);
         const north = after.lat - before.lat;
         const length = Math.hypot(east, north) || 1e-12;
-        return metersOffset(point, (-north / length) * offsetM, (east / length) * offsetM);
+        // House and cabinet coordinates stay exact. Parallel lanes open gradually on the
+        // shared trench and close back into one physical point at the ZO.
+        const taper = Math.min(
+            1,
+            travelled[index] / ROUTE_VISUAL_ENDPOINT_TAPER_METERS,
+            (total - travelled[index]) / ROUTE_VISUAL_ENDPOINT_TAPER_METERS,
+        );
+        const taperedOffset = offsetM * Math.max(0, taper);
+        return metersOffset(point, (-north / length) * taperedOffset, (east / length) * taperedOffset);
     });
 }
 function applyRouteVisualLanes(routes) {
-    const candidates = routes.filter(route => route.type !== 'trench' && route.path?.length > 1);
+    routes.forEach(route => { route._visualOffsetM = 0; });
+    const candidates = routes.filter(route => route.type === 'drop' && route.path?.length > 1);
     const parent = candidates.map((_, index) => index);
     const find = index => parent[index] === index ? index : (parent[index] = find(parent[index]));
     const unite = (a, b) => { const ra = find(a); const rb = find(b); if (ra !== rb) parent[rb] = ra; };
@@ -445,7 +463,11 @@ function applyRouteVisualLanes(routes) {
     const groups = {};
     candidates.forEach((route, index) => (groups[find(index)] ||= []).push(route));
     Object.values(groups).forEach(group => {
-        group.sort((a, b) => Number(a.id) - Number(b.id));
+        group.sort((first, second) => {
+            const a = first.path[0];
+            const b = second.path[0];
+            return a[0] - b[0] || a[1] - b[1] || Number(first.id) - Number(second.id);
+        });
         const middle = (group.length - 1) / 2;
         const gap = group.length > 1
             ? Math.min(ROUTE_VISUAL_MAX_GAP_METERS, ROUTE_VISUAL_MAX_SPREAD_METERS / (group.length - 1))

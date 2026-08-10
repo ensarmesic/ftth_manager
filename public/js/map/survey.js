@@ -7,6 +7,8 @@
     const chooseBtn = document.getElementById('survey-choose-btn');
     const confirmBtn = document.getElementById('survey-confirm-btn');
     const clearBtn = document.getElementById('survey-clear-btn');
+    const importSelect = document.getElementById('survey-import-select');
+    const deleteImportBtn = document.getElementById('survey-delete-import-btn');
     const statusBox = document.getElementById('survey-status');
     const summaryBox = document.getElementById('survey-summary');
     const gpsReadBtn = document.getElementById('field-gps-read');
@@ -38,6 +40,28 @@
         fieldStatus.style.background = isError ? '#fef2f2' : '#ecfdf5';
         fieldStatus.style.color = isError ? '#b91c1c' : '#065f46';
         fieldStatus.style.border = `1px solid ${isError ? '#fecaca' : '#a7f3d0'}`;
+    }
+
+    async function loadImportedFiles() {
+        if (!importSelect || !projectId()) return;
+        importSelect.innerHTML = '<option value="">Učitavam listu...</option>';
+        deleteImportBtn.disabled = true;
+        try {
+            const response = await fetch(`/projekti/${projectId()}/tacke/importi`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.message || 'Lista uvoza nije dostupna.');
+            const imports = payload.imports || [];
+            importSelect.innerHTML = imports.length
+                ? '<option value="">Odaberi TXT fajl...</option>' + imports.map(item =>
+                    `<option value="${escapeHtml(item.batch)}">${escapeHtml(item.filename)} — ${item.points_count} tačaka</option>`
+                ).join('')
+                : '<option value="">Nema uvezenih TXT fajlova</option>';
+        } catch (error) {
+            importSelect.innerHTML = '<option value="">Greška pri učitavanju</option>';
+            setStatus(error.message, true);
+        }
     }
 
     function fieldSessionUuid() {
@@ -184,6 +208,36 @@
         }
     });
 
+    importSelect?.addEventListener('change', () => {
+        deleteImportBtn.disabled = !importSelect.value;
+    });
+
+    deleteImportBtn?.addEventListener('click', async () => {
+        const batch = importSelect.value;
+        if (!batch || !projectId()) return;
+        const filename = importSelect.options[importSelect.selectedIndex]?.textContent || 'odabrani TXT';
+        if (!confirm(`Obrisati samo "${filename}"? Ostali TXT uvozi i ručno nacrtani elementi ostaju.`)) return;
+        deleteImportBtn.disabled = true;
+        setStatus('Brišem samo odabrani TXT uvoz...');
+        try {
+            const response = await fetch(`/projekti/${projectId()}/tacke/importi/${encodeURIComponent(batch)}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.message || 'Brisanje nije uspjelo.');
+            setStatus(`${payload.message} Osvježavam mapu...`);
+            setTimeout(() => window.location.reload(), 900);
+        } catch (error) {
+            deleteImportBtn.disabled = false;
+            setStatus(error.message, true);
+        }
+    });
+
     gpsReadBtn?.addEventListener('click', () => {
         if (!projectId()) return setFieldStatus('Prvo odaberi projekat.', true);
         if (!window.isSecureContext) return setFieldStatus('GPS u browseru zahtijeva HTTPS vezu. Otvori aplikaciju preko sigurnog HTTPS servera.', true);
@@ -261,7 +315,7 @@
             setStatus('Prvo odaberi projekat (filter gore desno).', true);
             return;
         }
-        if (!confirm('Sigurno obrisati sve podatke iz geodetskog uvoza u ovom projektu (rovovi, mikrocijevi, ZO, ODF, kuce, spojnice, rezerve, sahtovi)? Rucno nacrtani elementi ostaju netaknuti.')) {
+        if (!confirm('Sigurno obrisati SVE TXT uvoze u ovom projektu? Za brisanje samo jednog fajla koristi listu iznad. Ručno nacrtani elementi ostaju netaknuti.')) {
             return;
         }
         clearBtn.disabled = true;
@@ -284,4 +338,6 @@
             setStatus(error.message, true);
         }
     });
+
+    loadImportedFiles();
 }());

@@ -1370,7 +1370,14 @@ window.ftthMapConfig = {
         <div id="survey-status" style="display:none;margin-top:8px;border-radius:6px;border:1px solid #bbf7d0;background:#f0fdf4;padding:7px 10px;font-size:11px;font-weight:600;color:#166534"></div>
         <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
         <button id="survey-confirm-btn" type="button" disabled style="width:100%;margin-top:10px;border-radius:7px;background:#2563eb;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;opacity:1">Uvezi u projekat</button>
-        <button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fecaca;cursor:pointer;font-family:inherit">Obriši uvezene tačke iz projekta</button>
+        <div style="margin-top:10px;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
+            <div style="font-size:10px;font-weight:800;color:#475569;margin-bottom:6px">UVEZENI TXT FAJLOVI</div>
+            <select id="survey-import-select" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px;font-size:11px;background:#fff;font-family:inherit">
+                <option value="">Učitavam listu...</option>
+            </select>
+            <button id="survey-delete-import-btn" type="button" disabled style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fca5a5;cursor:pointer;font-family:inherit">Obriši samo odabrani TXT fajl</button>
+        </div>
+        <button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#991b1b;padding:8px;font-size:10px;font-weight:700;border:1px dashed #fecaca;cursor:pointer;font-family:inherit">Obriši SVE TXT uvoze</button>
         <div style="height:1px;background:#e2e8f0;margin:14px 0"></div>
         <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Nova GPS tačka</div>
         <button id="field-gps-read" type="button" style="width:100%;border-radius:8px;background:#075985;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer">Očitaj trenutnu GPS lokaciju</button>

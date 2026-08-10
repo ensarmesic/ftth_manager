@@ -65,6 +65,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/drop-trase/popuni', [ProjectController::class, 'createMissingDropRoutes'])->name('projects.drop-routes.fill');
     Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->name('projects.survey-points.preview');
     Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->name('projects.survey-points.import');
+    Route::get('/projekti/{project}/tacke/importi', [SurveyPointController::class, 'imports'])->name('projects.survey-points.imports');
+    Route::delete('/projekti/{project}/tacke/importi/{batch}', [SurveyPointController::class, 'destroyImport'])->where('batch', '[a-f0-9]{40}')->name('projects.survey-points.imports.destroy');
     Route::post('/projekti/{project}/teren/tacke', [SurveyPointController::class, 'storeFieldPoint'])->name('projects.field-points.store');
     Route::get('/projekti/{project}/teren/tacke/{point}/fotografija', [SurveyPointController::class, 'fieldPointPhoto'])->name('projects.field-points.photo');
     Route::delete('/projekti/{project}/tacke', [SurveyPointController::class, 'destroy'])->name('projects.survey-points.destroy');

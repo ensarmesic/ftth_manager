@@ -74,6 +74,25 @@ class SurveyPointController extends Controller
         ]);
     }
 
+    public function imports(Project $project): JsonResponse
+    {
+        return response()->json(['imports' => $this->importer->importedBatches($project)]);
+    }
+
+    public function destroyImport(Project $project, string $batch): JsonResponse
+    {
+        try {
+            $removed = $this->importer->clearImportedBatch($project, $batch);
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 404);
+        }
+
+        return response()->json([
+            'message' => "Obrisan je samo odabrani TXT uvoz: {$removed['points']} tacaka, {$removed['trenches']} rovova, {$removed['ducts']} mikrocijevi i {$removed['houses']} kuca. Ostali fajlovi nisu dirani.",
+            'removed' => $removed,
+        ]);
+    }
+
     public function storeFieldPoint(Request $request, Project $project): JsonResponse
     {
         $data = $request->validate([
