@@ -716,43 +716,7 @@
     .cb-custom:focus-visible { outline: 2px solid rgba(245,158,11,.5); outline-offset: 2px; }
 </style>
 
-{{-- Project picker modal --}}
-<div id="project-picker-overlay" @if($activeProjectId) class="hidden" @endif role="dialog" aria-modal="true" aria-labelledby="project-picker-title" aria-describedby="project-picker-description">
-    <div id="project-picker-card" tabindex="-1">
-        <div class="pp-hd">
-            <div id="project-picker-title" class="pp-title">Odaberi projekat</div>
-            <div id="project-picker-description" class="pp-sub">Svaki projekat ima svoju zasebnu mapu i nacrt.</div>
-        </div>
-        @if($projects->count() > 1)
-            <div class="pp-search-wrap">
-                <input id="pp-project-search" class="pp-search" type="search" placeholder="Pretraži naziv ili lokaciju..." autocomplete="off" aria-label="Pretraži projekte">
-            </div>
-        @endif
-        <div class="pp-list">
-            @forelse($projects as $project)
-                <div class="pp-row" data-project-search="{{ mb_strtolower($project->name.' '.($project->location ?? '')) }}">
-                    <div>
-                        <div class="pp-row-name">{{ $project->name }}</div>
-                        @if($project->location)
-                            <div class="pp-row-meta">{{ $project->location }}</div>
-                        @endif
-                    </div>
-                    <button type="button" class="pp-btn" onclick="pickProject({{ $project->id }})" aria-label="Odaberi projekat {{ $project->name }}">Odaberi</button>
-                </div>
-            @empty
-                <div class="pp-empty">Nema projekata. Kreiraj prvi projekat ispod.</div>
-            @endforelse
-        </div>
-        <div class="pp-new">
-            <div class="pp-new-title">Novi projekat</div>
-            <div class="pp-new-row">
-                <input id="pp-new-name" class="pp-new-inp" placeholder="Naziv projekta" required>
-                <button type="button" class="pp-new-submit" onclick="ppCreateProject()">Kreiraj</button>
-            </div>
-            <div id="pp-new-status" role="status" aria-live="polite"></div>
-        </div>
-    </div>
-</div>
+@include('ftth.map._project-picker')
 
 <section id="map-workspace" class="grid flex-1 min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_316px]">
 
@@ -832,8 +796,8 @@
                 <button type="button" id="toggle-color-by-fibers" class="tc tc-ghost" title="Boja trase po broju vlakana">Boja F</button>
                 <button type="button" id="toggle-cable-specs" class="tc tc-ghost" title="Specifikacije kabela">Specs</button>
                 <button type="button" id="btn-coord-jump" class="tc tc-ghost" title="Skok na koordinate">Goto</button>
-                <button type="button" id="dxf-layer-btn" onclick="var p=document.getElementById('dxf-layer-panel');p.style.display=p.style.display==='none'?'block':'none';" class="tc tc-indigo" title="Učitaj DXF">DXF</button>
-                <button type="button" id="survey-panel-btn" onclick="var p=document.getElementById('survey-panel');p.style.display=p.style.display==='none'?'block':'none';" class="tc tc-indigo" title="Uvoz geodetskih tačaka (TXT)">Tačke</button>
+                <button type="button" id="dxf-layer-btn" class="tc tc-indigo" title="Učitaj DXF" aria-controls="dxf-layer-panel" aria-expanded="false">DXF</button>
+                <button type="button" id="survey-panel-btn" class="tc tc-indigo" title="Uvoz geodetskih tačaka (TXT)" aria-controls="survey-panel" aria-expanded="false">Tačke</button>
                 <button type="button" id="toggle-map-view" class="tc tc-ghost">GIS</button>
                 <button type="button" id="expand-map" class="tc tc-ghost" title="Proširena mapa">⛶</button>
                 <div class="tc-sep"></div>
@@ -1285,37 +1249,7 @@
 </section>
 
 <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
-<script>
-window.MapEditor = window.MapEditor || {};
-if (window.MapEditor.initialized) {
-    throw new Error('MapEditor already initialized.');
-}
-window.MapEditor.initialized = true;
-window.ftthMapConfig = {
-    mode: 'editor',
-    projectId: null,
-    endpoints: {
-        autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),
-        autoOdoConfirmBaseUrl: @json(url('/projekti/__ID__/odo-plan/confirm')),
-        gisPlanPreviewBaseUrl: @json(url('/projekti/__ID__/gis-plan/preview')),
-        gisPlanConfirmBaseUrl: @json(url('/projekti/__ID__/gis-plan/confirm')),
-        projectValidationBaseUrl: @json(url('/projekti/__ID__/validacija')),
-        projectDropFillBaseUrl: @json(url('/projekti/__ID__/drop-trase/popuni')),
-        projectGeoJsonBaseUrl: @json(url('/projekti/__ID__/geojson')),
-        projectDxfBaseUrl: @json(url('/projekti/__ID__/dxf')),
-        projectPrintBaseUrl: @json(url('/projekti/__ID__/print')),
-        routesBase: "{{ url('/trase') }}",
-        cabinetsBase: "{{ url('/ormarici') }}",
-        odfsBase: "{{ url('/odf') }}",
-        housesBase: "{{ url('/kuce') }}",
-        routesStore: "{{ route('routes.store') }}",
-        mapAutoRoute: "{{ route('map.auto-route') }}",
-        mapDraftStore: "{{ route('map.draft.store') }}",
-        projectsStore: "{{ route('projects.store') }}",
-    },
-    data: @json($mapData),
-};
-</script>
+@include('ftth.map._configuration')
 <script src="{{ asset('js/map/state.js') }}?v={{ filemtime(public_path('js/map/state.js')) }}"></script>
 <script src="{{ asset('js/map/utils.js') }}?v={{ filemtime(public_path('js/map/utils.js')) }}"></script>
 <script src="{{ asset('js/map/layers.js') }}?v={{ filemtime(public_path('js/map/layers.js')) }}"></script>
@@ -1331,97 +1265,11 @@ window.ftthMapConfig = {
 <script src="{{ asset('js/map/toolbar.js') }}?v={{ filemtime(public_path('js/map/toolbar.js')) }}"></script>
 <script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>
 
-{{-- DXF floating panel --}}
-<div id="dxf-layer-panel" style="display:none;position:fixed;top:120px;right:350px;z-index:9999;width:280px;background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:10px;box-shadow:0 10px 32px rgba(15,23,42,.18);overflow:hidden;font-family:inherit">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:linear-gradient(135deg,#eef2ff,#f0f9ff)">
-        <span style="font-size:13px;font-weight:700;color:#3730a3">DXF Layeri</span>
-        <button type="button" onclick="document.getElementById('dxf-layer-panel').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;padding:0 2px">&times;</button>
-    </div>
-    <div id="dxf-dropzone" style="margin:10px;border:2px dashed #a5b4fc;border-radius:8px;background:#eef2ff;padding:14px 10px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s">
-        <svg style="display:block;margin:0 auto 6px;color:#818cf8" width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
-        <p style="font-size:11px;font-weight:700;color:#4338ca;margin:0">Prevuci DXF fajl ovdje</p>
-        <p style="font-size:10px;color:#818cf8;margin:3px 0 0">ili klikni dugme ispod</p>
-    </div>
-    <div id="dxf-error" style="display:none;margin:0 10px 6px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;padding:7px 10px;font-size:11px;font-weight:600;color:#b91c1c"></div>
-    <div id="dxf-layer-list" style="padding:0 4px 4px;max-height:180px;overflow-y:auto">
-        <p style="padding:12px 8px;text-align:center;font-size:10px;color:#94a3b8;margin:0">Nema učitanih layera.</p>
-    </div>
-    <div style="padding:8px 10px;border-top:1px solid #f1f5f9">
-        <button id="dxf-upload-btn" type="button" style="width:100%;border-radius:7px;background:#4f46e5;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit">
-            <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
-            Odaberi DXF fajl
-            <span id="dxf-spinner" style="display:none">⏳</span>
-        </button>
-        <input id="dxf-file-input" type="file" accept=".dxf" style="display:none">
-    </div>
-</div>
-
-{{-- Survey points import floating panel --}}
-<div id="survey-panel" style="display:none;position:fixed;top:90px;right:350px;z-index:9999;width:360px;max-height:calc(100vh - 110px);background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:12px;box-shadow:0 14px 38px rgba(15,23,42,.2);overflow-y:auto;font-family:inherit">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:linear-gradient(135deg,#ecfdf5,#f0f9ff)">
-        <span style="font-size:13px;font-weight:800;color:#065f46">Terenski rad</span>
-        <button type="button" onclick="document.getElementById('survey-panel').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;padding:0 2px">&times;</button>
-    </div>
-    <div style="padding:10px 12px">
-        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Uvoz geodetskog TXT fajla</div>
-        <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Format: <code>broj&nbsp;X&nbsp;Y&nbsp;Z&nbsp;opis</code> (Gauss-Krüger). Rovovi se spajaju u linije, ZO/ODF/šahtovi postaju elementi mreže.</p>
-        <button id="survey-choose-btn" type="button" style="width:100%;border-radius:7px;background:#059669;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Odaberi TXT fajl</button>
-        <input id="survey-file-input" type="file" accept=".txt" style="display:none">
-        <div id="survey-status" style="display:none;margin-top:8px;border-radius:6px;border:1px solid #bbf7d0;background:#f0fdf4;padding:7px 10px;font-size:11px;font-weight:600;color:#166534"></div>
-        <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
-        <button id="survey-confirm-btn" type="button" disabled style="width:100%;margin-top:10px;border-radius:7px;background:#2563eb;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;opacity:1">Uvezi u projekat</button>
-        <div style="margin-top:10px;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
-            <div style="font-size:10px;font-weight:800;color:#475569;margin-bottom:6px">UVEZENI TXT FAJLOVI</div>
-            <select id="survey-import-select" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px;font-size:11px;background:#fff;font-family:inherit">
-                <option value="">Učitavam listu...</option>
-            </select>
-            <button id="survey-delete-import-btn" type="button" disabled style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fca5a5;cursor:pointer;font-family:inherit">Obriši samo odabrani TXT fajl</button>
-        </div>
-        <button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#991b1b;padding:8px;font-size:10px;font-weight:700;border:1px dashed #fecaca;cursor:pointer;font-family:inherit">Obriši SVE TXT uvoze</button>
-        <div style="height:1px;background:#e2e8f0;margin:14px 0"></div>
-        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Nova GPS tačka</div>
-        <button id="field-gps-read" type="button" style="width:100%;border-radius:8px;background:#075985;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer">Očitaj trenutnu GPS lokaciju</button>
-        <div id="field-gps-position" style="display:none;margin-top:7px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:7px;padding:8px;font-size:11px;color:#075985"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
-            <select id="field-point-kind" class="sb-sel"><option value="trench">Rov / trasa</option><option value="cabinet">ODO ormarić</option><option value="odf">ODF</option><option value="manhole">Šaht</option><option value="splice">Spojnica</option><option value="sling">Kuća / priključak</option><option value="loop">Rezerva kabla</option><option value="boring">Bušenje</option><option value="pole">Stub</option><option value="other">Ostalo</option></select>
-            <input id="field-point-code" class="sb-inp" placeholder="Naziv tačke" maxlength="255">
-        </div>
-        <textarea id="field-point-note" class="sb-inp" rows="2" placeholder="Napomena s terena" style="margin-top:7px;resize:vertical"></textarea>
-        <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;border:1px dashed #cbd5e1;border-radius:7px;padding:8px;font-size:11px;color:#475569;cursor:pointer"><span>Dodaj fotografiju</span><input id="field-point-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style="max-width:165px;font-size:10px"></label>
-        <button id="field-point-save" type="button" disabled style="width:100%;margin-top:8px;border-radius:8px;background:#0f766e;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer;opacity:.55">Sačuvaj GPS tačku</button>
-        <div id="field-point-status" style="display:none;margin-top:7px;border-radius:7px;padding:8px;font-size:11px;font-weight:650"></div>
-    </div>
-</div>
-
-<style>
-@media (max-width: 900px) {
-    #survey-panel { position:fixed !important; inset:58px 8px 10px 8px !important; width:auto !important; max-height:none !important; }
-}
-</style>
+@include('ftth.map._dxf-panel')
+@include('ftth.map._survey-panel')
 
 <script src="{{ asset('vendor/proj4/proj4.js') }}"></script>
 <script src="{{ asset('js/ftth-dxf-layer.js') }}?v={{ filemtime(public_path('js/ftth-dxf-layer.js')) }}"></script>
 {{-- survey.js mora doci NAKON #survey-panel HTML-a da bi dugmad postojala pri bindanju --}}
 <script src="{{ asset('js/map/survey.js') }}?v={{ filemtime(public_path('js/map/survey.js')) }}"></script>
-<style>
-#dxf-dropzone.dxf-dragover {
-    background: #e0e7ff !important;
-    border-color: #6366f1 !important;
-}
-</style>
-
-<style>
-@media print {
-    * { visibility: hidden !important; }
-    #map-container, #map-container * { visibility: visible !important; }
-    #map-container {
-        position: fixed !important;
-        inset: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        z-index: 99999 !important;
-    }
-}
-</style>
-
 @endsection

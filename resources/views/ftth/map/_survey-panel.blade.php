@@ -1,0 +1,36 @@
+{{-- Survey points import floating panel --}}
+<div id="survey-panel" style="display:none;position:fixed;top:90px;right:350px;z-index:9999;width:360px;max-height:calc(100vh - 110px);background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:12px;box-shadow:0 14px 38px rgba(15,23,42,.2);overflow-y:auto;font-family:inherit">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:linear-gradient(135deg,#ecfdf5,#f0f9ff)">
+        <span style="font-size:13px;font-weight:800;color:#065f46">Terenski rad</span>
+        <button type="button" id="survey-panel-close" aria-label="Zatvori panel terenskog rada" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;padding:0 2px">&times;</button>
+    </div>
+    <div style="padding:10px 12px">
+        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Uvoz geodetskog TXT fajla</div>
+        <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Format: <code>broj&nbsp;X&nbsp;Y&nbsp;Z&nbsp;opis</code> (Gauss-Krüger). Rovovi se spajaju u linije, ZO/ODF/šahtovi postaju elementi mreže.</p>
+        <button id="survey-choose-btn" type="button" style="width:100%;border-radius:7px;background:#059669;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Odaberi TXT fajl</button>
+        <input id="survey-file-input" type="file" accept=".txt" style="display:none">
+        <div id="survey-status" style="display:none;margin-top:8px;border-radius:6px;border:1px solid #bbf7d0;background:#f0fdf4;padding:7px 10px;font-size:11px;font-weight:600;color:#166534"></div>
+        <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
+        <button id="survey-confirm-btn" type="button" disabled style="width:100%;margin-top:10px;border-radius:7px;background:#2563eb;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;opacity:1">Uvezi u projekat</button>
+        <div style="margin-top:10px;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
+            <div style="font-size:10px;font-weight:800;color:#475569;margin-bottom:6px">UVEZENI TXT FAJLOVI</div>
+            <select id="survey-import-select" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px;font-size:11px;background:#fff;font-family:inherit">
+                <option value="">Učitavam listu...</option>
+            </select>
+            <button id="survey-delete-import-btn" type="button" disabled style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fca5a5;cursor:pointer;font-family:inherit">Obriši samo odabrani TXT fajl</button>
+        </div>
+        <button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#991b1b;padding:8px;font-size:10px;font-weight:700;border:1px dashed #fecaca;cursor:pointer;font-family:inherit">Obriši SVE TXT uvoze</button>
+        <div style="height:1px;background:#e2e8f0;margin:14px 0"></div>
+        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Nova GPS tačka</div>
+        <button id="field-gps-read" type="button" style="width:100%;border-radius:8px;background:#075985;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer">Očitaj trenutnu GPS lokaciju</button>
+        <div id="field-gps-position" style="display:none;margin-top:7px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:7px;padding:8px;font-size:11px;color:#075985"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
+            <select id="field-point-kind" class="sb-sel"><option value="trench">Rov / trasa</option><option value="cabinet">ODO ormarić</option><option value="odf">ODF</option><option value="manhole">Šaht</option><option value="splice">Spojnica</option><option value="sling">Kuća / priključak</option><option value="loop">Rezerva kabla</option><option value="boring">Bušenje</option><option value="pole">Stub</option><option value="other">Ostalo</option></select>
+            <input id="field-point-code" class="sb-inp" placeholder="Naziv tačke" maxlength="255">
+        </div>
+        <textarea id="field-point-note" class="sb-inp" rows="2" placeholder="Napomena s terena" style="margin-top:7px;resize:vertical"></textarea>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;border:1px dashed #cbd5e1;border-radius:7px;padding:8px;font-size:11px;color:#475569;cursor:pointer"><span>Dodaj fotografiju</span><input id="field-point-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style="max-width:165px;font-size:10px"></label>
+        <button id="field-point-save" type="button" disabled style="width:100%;margin-top:8px;border-radius:8px;background:#0f766e;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer;opacity:.55">Sačuvaj GPS tačku</button>
+        <div id="field-point-status" style="display:none;margin-top:7px;border-radius:7px;padding:8px;font-size:11px;font-weight:650"></div>
+    </div>
+</div>

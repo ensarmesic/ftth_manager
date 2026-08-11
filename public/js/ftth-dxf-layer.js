@@ -6,6 +6,16 @@
 (function () {
     'use strict';
 
+    const panel = document.getElementById('dxf-layer-panel');
+    const panelButton = document.getElementById('dxf-layer-btn');
+    const setPanelOpen = open => {
+        if (!panel) return;
+        panel.style.display = open ? 'block' : 'none';
+        panelButton?.setAttribute('aria-expanded', String(open));
+    };
+    panelButton?.addEventListener('click', () => setPanelOpen(panel?.style.display === 'none'));
+    document.getElementById('dxf-layer-close')?.addEventListener('click', () => setPanelOpen(false));
+
     const WGS84  = 'WGS84';
     const MGI_Z6 = '+proj=tmerc +lat_0=0 +lon_0=18 +k=0.9999 +x_0=6500000 +y_0=0 +ellps=bessel +towgs84=682,-203,480,0,0,0,0 +units=m +no_defs';
     const MGI_Z7 = '+proj=tmerc +lat_0=0 +lon_0=21 +k=0.9999 +x_0=7500000 +y_0=0 +ellps=bessel +towgs84=682,-203,480,0,0,0,0 +units=m +no_defs';

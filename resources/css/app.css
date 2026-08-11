@@ -1460,3 +1460,29 @@ main > header .rounded-full {
 [data-notification-badge] {
     animation: pulse-ring 2.2s cubic-bezier(.455,.03,.515,.955) infinite;
 }
+
+@media (max-width: 900px) {
+    #survey-panel {
+        position: fixed !important;
+        inset: 58px 8px 10px !important;
+        width: auto !important;
+        max-height: none !important;
+    }
+}
+
+#dxf-dropzone.dxf-dragover {
+    background: #e0e7ff !important;
+    border-color: #6366f1 !important;
+}
+
+@media print {
+    * { visibility: hidden !important; }
+    #map-container, #map-container * { visibility: visible !important; }
+    #map-container {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 99999 !important;
+    }
+}

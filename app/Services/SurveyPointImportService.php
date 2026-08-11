@@ -52,19 +52,15 @@ class SurveyPointImportService
     /** Maximum surveyed house spur distance to the established main trench corridor. */
     private const CUSTOMER_SPUR_TO_TRENCH_M = 60.0;
 
-    private const COLOR_WORDS = [
-        'zelen' => 'Zelena', 'crven' => 'Crvena', 'plav' => 'Plava', 'zut' => 'Zuta',
-        'bjel' => 'Bjela', 'bijel' => 'Bjela', 'narandz' => 'Narandzasta', 'ljubicast' => 'Ljubicasta', 'siv' => 'Siva',
-    ];
-
-    private const COLOR_ABBREVIATIONS = [
-        'ze' => 'Zelena', 'cr' => 'Crvena', 'pl' => 'Plava', 'zu' => 'Zuta', 'bj' => 'Bjela',
-    ];
-
     public function __construct(
         private readonly GeoTransformService $transform,
         private readonly GeometryService $geometry,
         private readonly BranchSyncService $branchSync,
+        private readonly SurveyPointParser $parser,
+        private readonly SurveyPointClassifier $classifier,
+        private readonly SurveyPointCodeNormalizer $codeNormalizer,
+        private readonly SurveyImportMaintenanceService $maintenance,
+        private readonly SurveyPathGeometryService $pathGeometry,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -77,42 +73,7 @@ class SurveyPointImportService
      */
     public function parse(string $contents): array
     {
-        // Keep records detectable even when a field export glues two points onto one line.
-        $pattern = '/(\d{1,5})\s+([4-7]\d{6}(?:\.\d{1,3})?)\s+([3-5]\d{6}(?:\.\d{1,3})?)\s+(-?\d{1,4}(?:\.\d{1,3})?)[ \t]*/';
-        if (! preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
-            return [];
-        }
-
-        $points = [];
-        foreach ($matches as $index => $match) {
-            $start = $match[0][1] + strlen($match[0][0]);
-            $end = isset($matches[$index + 1]) ? $matches[$index + 1][0][1] : strlen($contents);
-            $code = trim(str_replace(['"', "\r"], '', substr($contents, $start, $end - $start)));
-            $code = trim(preg_replace('/\s+/', ' ', $code) ?? '');
-
-            $x = (float) $match[2][0];
-            $y = (float) $match[3][0];
-            $zone = $this->transform->detectZone($x);
-            [$lat, $lng] = $this->transform->gaussKrugerToWgs84($x, $y, $zone);
-
-            $classification = $this->classify($code);
-            if (($classification['prepared_sling'] ?? false) && blank($classification['house_ref'] ?? null)) {
-                $classification['house_ref'] = 'T'.(int) $match[1][0];
-                $classification['house_ref_generated'] = true;
-            }
-
-            $points[] = [
-                'point_no' => (int) $match[1][0],
-                'x' => $x,
-                'y' => $y,
-                'z' => (float) $match[4][0],
-                'code' => $code,
-                'lat' => $lat,
-                'lng' => $lng,
-            ] + $classification;
-        }
-
-        return $points;
+        return $this->parser->parse($contents, fn (string $code): array => $this->classify($code));
     }
 
     /**
@@ -122,222 +83,22 @@ class SurveyPointImportService
      */
     public function classify(string $code): array
     {
-        $n = mb_strtolower(trim($code));
-        $n = strtr($n, ['š' => 's', 'ž' => 'z', 'č' => 'c', 'ć' => 'c', 'đ' => 'dj']);
-
-        $microductType = null;
-        if (preg_match('/14\s*\/?\s*(10|12)|(?<!\d)14\s*mc|\bfi\s*14\b/', $n)) {
-            $microductType = '14/10';
-        } elseif (preg_match('/10\s*\/\s*[78]|10\/\/8|\dx10|mc\s*10\b|mc\.\s*10/', $n)) {
-            $microductType = '10/8';
-        }
-
-        // "MD" (the shared reserve/casing duct bundled alongside the coloured ones) is its
-        // own physical duct that keeps running after the colours have all split away — it's
-        // tracked the same way a colour is (see below) so it reads as one continuous line
-        // instead of vanishing once the point stops restating a colour. In this file it's
-        // always 14/10 even on later points that no longer spell that out.
-        $hasReserveDuct = (bool) preg_match('/\bmd\b/', $n);
-        if ($microductType === null && $hasReserveDuct) {
-            $microductType = '14/10';
-        }
-
-        $microductCount = 1;
-        if (preg_match('/\b(\d{1,2})\s*x?\s*fi\s*14\b/', $n, $m)) {
-            $microductCount = max(1, (int) $m[1]);
-        } elseif (preg_match('/(?:^|[^\d])x\s*(\d{1,2})(?:\.\d)?\b/', $n, $m)) {
-            $microductCount = max(1, (int) $m[1]);
-        } elseif (preg_match('/(?:^|[^\d])(\d{1,2})\s*x\s*1[04]/', $n, $m)) {
-            $microductCount = max(1, (int) $m[1]);
-        }
-
-        // Duct colours: full words ("Zelena i Plava") and abbreviations ("Ze+Pl+Cr").
-        $colors = [];
-        foreach (self::COLOR_WORDS as $stem => $color) {
-            if (preg_match('/'.$stem.'[a-z]*/', $n)) {
-                $colors[$color] = $color;
-            }
-        }
-        if (preg_match_all('/[+\-]\s*(ze|cr|pl|zu|bj)\b/', $n, $abbr)) {
-            foreach ($abbr[1] as $a) {
-                $color = self::COLOR_ABBREVIATIONS[$a];
-                $colors[$color] = $color;
-            }
-        }
-        if ($hasReserveDuct) {
-            $colors['MD'] = 'MD';
-        }
-        $colors = array_values($colors);
-        $colorCounts = $this->parseColorCounts($n, $colors, $microductCount);
-        if ($microductType === '14/10' && $colorCounts !== []) {
-            $microductCount = max($microductCount, array_sum($colorCounts));
-        }
-
-        // Which cabinet the duct belongs to: "- ZO 3", "_ZO_1.1", "-Z0-02", "Z 7.00"...
-        $zoTag = null;
-        if (preg_match_all('/z(?:\s*[o0](?:rmar)?)?[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/', $n, $m) && count($m[1]) > 0) {
-            $zoTag = $this->normalizeZoTag(end($m[1]));
-        } elseif (preg_match('/zelen[ai]\s+ormar(?:ic[ai])?\s*(?:br\.?\s*)?([0-9]+(?:[.\-][0-9]+)*)/', $n, $m)) {
-            // Common AutoCAD callout: "ZELENA ORMARICA BR. 7". It denotes the
-            // same destination as ZO-7 and must be usable as the end of a tagged
-            // 10/8 customer route reconstructed through the shared trench.
-            $zoTag = $this->normalizeZoTag($m[1]);
-        }
-
-        $isHousePoint = $this->isHousePoint($n);
-        $hasSling = (bool) preg_match('/\bslinga?\b/', $n);
-        $hasCustomerDuct = (bool) preg_match('/10\s*\/\s*[78]|10\/\/8|mc\s*10\b|mc\.\s*10/', $n);
-        $isPreparedSling = $hasSling && ($isHousePoint || $hasCustomerDuct);
-        $houseRef = null;
-        if ($isHousePoint && preg_match('/(?:za|do)\s+kuc[a-z]*\s*[:#-]?\s*([a-z0-9][a-z0-9._\/-]*)/u', $n, $m)) {
-            $houseRef = mb_strtoupper($m[1]);
-        }
-
-        $kind = match (true) {
-            $n === '' => 'other',
-            $isPreparedSling || $isHousePoint => 'sling',
-            (bool) preg_match('/\brov\b|\brob\b|rov\+|^mikrodukt/', $n) => 'trench',
-            (bool) preg_match('/spojnic/', $n) => 'splice',
-            // A bare "sling/slinga/izvod" with no house word is a cable RESERVE loop
-            // (extra coiled length for a future splice), not a customer connection —
-            // 'sling' is reserved for points that actually name a house (see above).
-            $hasSling || (bool) preg_match('/izvod|sluga\b/', $n) => 'loop',
-            (bool) preg_match('/\bsaht\b/', $n) => 'manhole',
-            (bool) preg_match('/busenje/', $n) => 'boring',
-            (bool) preg_match('/\bstub\b/', $n) => 'pole',
-            (bool) preg_match('/odf/', $n) => 'odf',
-            // Field crews also mark green cabinets with a bare code such as Z1 or Z 1.1.
-            // Anchor the short form to the whole description so a route tag such as
-            // "Rov + mc 10/8 -Z1" remains a trench destination, not a cabinet point.
-            (bool) preg_match('/zelen[ai]\s+ormar(?:ic[ai])?|^z\s+ormar|^z\s*[o0](?![a-z])|^z\s*\d+(?:[.\-]\d+)*\s*$/', $n) => 'cabinet',
-            default => 'other',
-        };
-
-        return [
-            'kind' => $kind,
-            'microduct_type' => $microductType,
-            'microduct_count' => $microductCount,
-            'colors' => $colors,
-            'color_counts' => $colorCounts,
-            'zo_tag' => $zoTag,
-            'duct_identities' => $this->parseMultipleDuctIdentities($n),
-            'prepared_sling' => $isPreparedSling,
-            'house_ref' => $houseRef,
-            'transit' => (bool) preg_match('/\btranzit\b/', $n),
-        ];
+        return $this->classifier->classify($code);
     }
 
-    /**
-     * Read per-colour quantities from field notation such as
-     * "5x fi 14 2x Zelena, 2x Plava i Zuta". The total belongs to the bundle;
-     * it must not be copied onto every colour (which would incorrectly create 15 MC).
-     *
-     * @param  array<int,string>  $colors
-     * @return array<string,int>
-     */
-    private function parseColorCounts(string $description, array $colors, int $total): array
+    public function clearImportedData(Project $project): array
     {
-        if ($colors === []) {
-            return [];
-        }
-
-        $counts = [];
-        foreach (self::COLOR_WORDS as $stem => $color) {
-            if (preg_match('/\b(\d{1,2})\s*x\s*'.$stem.'[a-z]*/', $description, $match)
-                || preg_match('/'.$stem.'[a-z]*\s*x\s*(\d{1,2})\b/', $description, $match)) {
-                $counts[$color] = max(1, (int) $match[1]);
-            }
-        }
-
-        $unassigned = array_values(array_diff($colors, array_keys($counts)));
-        $remaining = $total - array_sum($counts);
-        if (count($unassigned) === 1 && $remaining > 0) {
-            $counts[$unassigned[0]] = $remaining;
-        } else {
-            foreach ($unassigned as $color) {
-                $counts[$color] = 1;
-            }
-        }
-
-        return $counts;
+        return $this->maintenance->clearImportedData($project);
     }
 
-    /**
-     * A semicolon or pipe separates physical ducts recorded at the same point:
-     * "Rov; 14/10 Zelena; 14/10 Plava; 10/8 X1 ZO 3".
-     */
-    private function parseMultipleDuctIdentities(string $description): array
+    public function importedBatches(Project $project): array
     {
-        $parts = preg_split('/\s*[;|]\s*/', $description) ?: [];
-        if (count($parts) < 2) {
-            $hasFourteen = (bool) preg_match('/14\s*\/?\s*(10|12)|(?<!\d)14\s*mc|\bfi\s*14\b/', $description);
-            $hasTen = (bool) preg_match('/10\s*\/\s*[78]|10\/\/8|mc\s*10\b|mc\.\s*10/', $description);
-            if ($hasFourteen && $hasTen) {
-                $colors = [];
-                foreach (self::COLOR_WORDS as $stem => $color) {
-                    if (preg_match('/'.$stem.'[a-z]*/', $description)) {
-                        $colors[$color] = $color;
-                    }
-                }
-                $tag = null;
-                if (preg_match_all('/z(?:\s*[o0](?:rmar)?)?[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/', $description, $matches)) {
-                    $tag = $this->normalizeZoTag(end($matches[1]));
-                }
+        return $this->maintenance->importedBatches($project);
+    }
 
-                return [
-                    ['type' => '14/10', 'count' => 1, 'colors' => array_values($colors), 'tag' => null],
-                    ['type' => '10/8', 'count' => 1, 'colors' => [], 'tag' => $tag],
-                ];
-            }
-
-            return [];
-        }
-
-        $identities = [];
-        foreach ($parts as $part) {
-            $type = match (true) {
-                (bool) preg_match('/14\s*\/?\s*(10|12)|(?<!\d)14\s*mc|\bfi\s*14\b/', $part) => '14/10',
-                (bool) preg_match('/10\s*\/\s*[78]|10\/\/8|\dx10|mc\s*10\b|mc\.\s*10/', $part) => '10/8',
-                default => null,
-            };
-            if ($type === null) {
-                continue;
-            }
-
-            $count = 1;
-            if (preg_match('/\b(\d{1,2})\s*x?\s*fi\s*14\b/', $part, $m)
-                || preg_match('/(?:^|[^\d])x\s*(\d{1,2})(?:\.\d)?\b/', $part, $m)
-                || preg_match('/(?:^|[^\d])(\d{1,2})\s*x\s*1[04]/', $part, $m)) {
-                $count = max(1, (int) $m[1]);
-            }
-
-            $colors = [];
-            foreach (self::COLOR_WORDS as $stem => $color) {
-                if (preg_match('/'.$stem.'[a-z]*/', $part)) {
-                    $colors[$color] = $color;
-                }
-            }
-            if (preg_match_all('/[+\-]\s*(ze|cr|pl|zu|bj)\b/', $part, $matches)) {
-                foreach ($matches[1] as $abbreviation) {
-                    $colors[self::COLOR_ABBREVIATIONS[$abbreviation]] = self::COLOR_ABBREVIATIONS[$abbreviation];
-                }
-            }
-
-            $tag = null;
-            if (preg_match_all('/z(?:\s*[o0](?:rmar)?)?[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/', $part, $matches) && count($matches[1]) > 0) {
-                $tag = $this->normalizeZoTag(end($matches[1]));
-            }
-
-            $identities[] = [
-                'type' => $type,
-                'count' => $count,
-                'colors' => array_values($colors),
-                'tag' => $tag,
-                'transit' => (bool) preg_match('/\btranzit\b/', $part),
-            ];
-        }
-
-        return count($identities) > 1 ? $identities : [];
+    public function clearImportedBatch(Project $project, string $batch): array
+    {
+        return $this->maintenance->clearImportedBatch($project, $batch);
     }
 
     // -------------------------------------------------------------------------
@@ -395,7 +156,7 @@ class SurveyPointImportService
                 fn (array $chain) => array_map(fn (int $node) => $trenchNodes[$node], $chain['nodes']),
                 $this->walkChains($trenchEdges, $trenchNodes, null)
             );
-            $trenchPaths = $this->mergeCollinearChains($trenchPaths);
+            $trenchPaths = $this->pathGeometry->mergeCollinearChains($trenchPaths);
 
             foreach ($trenchPaths as $path) {
                 $trenches[] = [
@@ -423,7 +184,7 @@ class SurveyPointImportService
         foreach ($identEdges as $ik => $edgeIndexes) {
             $sub = array_map(fn (int $ei) => $ductEdges[$ei] + ['group' => $ductEdges[$ei]['idents'][$ik]['count']], $edgeIndexes);
             $attrs = $identAttrs[$ik];
-            $componentOf = $this->connectedComponents($sub);
+            $componentOf = $this->pathGeometry->connectedComponents($sub);
 
             $byCount = [];
             // Customer drops are independent end-to-end routes; distribution ducts stay
@@ -461,7 +222,7 @@ class SurveyPointImportService
                 // an earlier junction to record another branch (see weldChainEnds() for why
                 // this is safe against the multi-house case above).
                 if ($attrs['color'] !== null || $attrs['tag'] !== null) {
-                    $paths = $this->weldChainEnds($paths, 10.0);
+                    $paths = $this->pathGeometry->weldChainEnds($paths, 10.0);
                 }
                 foreach ($paths as $entry) {
                     $ducts[] = [
@@ -2033,152 +1794,6 @@ class SurveyPointImportService
         return trim('MC '.$countLabel.$attrs['type'].' '.$suffix);
     }
 
-    private function isHousePoint(string $n): bool
-    {
-        return (bool) preg_match('/\b(?:kuc[aeiou]*|kuci|kucu|kuce|za kuc[aeiou]*|do kuc[aeiou]*|na kuci|kuci)\b/u', $n);
-    }
-
-    /**
-     * Re-join trench chains that meet end-to-end and continue in nearly the
-     * same direction — a backbone crossing a branch tap reads as ONE dig, not
-     * a dozen stubs. Branch chains (sharp angles) stay separate.
-     */
-    private function mergeCollinearChains(array $paths, float $touchM = 1.0, float $minCos = 0.5): array
-    {
-        $merged = true;
-        while ($merged) {
-            $merged = false;
-            $n = count($paths);
-            for ($i = 0; $i < $n && ! $merged; $i++) {
-                for ($j = $i + 1; $j < $n && ! $merged; $j++) {
-                    foreach ([[true, false], [true, true], [false, false], [false, true]] as [$iAtEnd, $jAtEnd]) {
-                        $a = $paths[$i];
-                        $b = $paths[$j];
-                        $pa = $iAtEnd ? end($a) : $a[0];
-                        $pb = $jAtEnd ? end($b) : $b[0];
-                        if ($this->geometry->distanceBetweenPoints($pa, $pb) > $touchM) {
-                            continue;
-                        }
-                        // directions leaving the shared node must be opposite
-                        // (the dig goes straight through the junction)
-                        $da = $this->chainDirection($a, $iAtEnd);
-                        $db = $this->chainDirection($b, $jAtEnd);
-                        $dot = $da[0] * $db[0] + $da[1] * $db[1];
-                        if ($dot > -$minCos) {
-                            continue;
-                        }
-
-                        $first = $iAtEnd ? $a : array_reverse($a);
-                        $second = $jAtEnd ? array_reverse($b) : $b;
-                        array_shift($second); // shared node
-                        $paths[$i] = array_merge($first, $second);
-                        array_splice($paths, $j, 1);
-                        $merged = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        return array_values($paths);
-    }
-
-    /**
-     * Unit direction of the chain at one of its endpoints, pointing AWAY from
-     * the chain (outward), in local metric coordinates.
-     */
-    private function chainDirection(array $path, bool $atEnd): array
-    {
-        $tip = $atEnd ? end($path) : $path[0];
-        $inner = $atEnd ? $path[count($path) - 2] : $path[1];
-        $dx = ($tip[1] - $inner[1]) * cos(deg2rad($tip[0]));
-        $dy = $tip[0] - $inner[0];
-        $len = sqrt($dx * $dx + $dy * $dy) ?: 1e-12;
-
-        return [$dx / $len, $dy / $len];
-    }
-
-    /**
-     * Weld chains of the SAME physical duct whose endpoints nearly touch — covers a survey
-     * walk jumping back near an earlier junction (a few unsurveyed metres, not close enough
-     * to auto-merge as one node) to record another branch, which otherwise reads as a
-     * floating, disconnected fragment instead of part of the same network.
-     *
-     * Only welds chains from DIFFERENT connected components (see connectedComponents()) —
-     * chains from the SAME walk (e.g. several houses sharing a prefix, see
-     * walkHouseDropChains) already share a real, deliberate common point and must never be
-     * spliced into each other.
-     *
-     * @param  array<int, array{path: array, component: int}>  $paths
-     * @return array<int, array{path: array, component: int}>
-     */
-    private function weldChainEnds(array $paths, float $toleranceM): array
-    {
-        $merged = true;
-        while ($merged) {
-            $merged = false;
-            $n = count($paths);
-            for ($i = 0; $i < $n && ! $merged; $i++) {
-                for ($j = $i + 1; $j < $n && ! $merged; $j++) {
-                    foreach ([[true, false], [true, true], [false, false], [false, true]] as [$iAtEnd, $jAtEnd]) {
-                        $a = $paths[$i]['path'];
-                        $b = $paths[$j]['path'];
-                        $pa = $iAtEnd ? end($a) : $a[0];
-                        $pb = $jAtEnd ? end($b) : $b[0];
-                        if ($this->geometry->distanceBetweenPoints($pa, $pb) > $toleranceM) {
-                            continue;
-                        }
-
-                        if ($paths[$i]['component'] === $paths[$j]['component']) {
-                            continue;
-                        }
-
-                        $first = $iAtEnd ? $a : array_reverse($a);
-                        $second = $jAtEnd ? array_reverse($b) : $b;
-                        if ($this->geometry->distanceBetweenPoints(end($first), $second[0]) < 0.5) {
-                            array_shift($second);
-                        }
-                        $paths[$i] = ['path' => array_merge($first, $second), 'component' => $paths[$i]['component']];
-                        array_splice($paths, $j, 1);
-                        $merged = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        return array_values($paths);
-    }
-
-    /**
-     * Union-find over the node ids touched by $edges.
-     *
-     * @param  array  $edges  each ['a' => nodeId, 'b' => nodeId, ...]
-     * @return array<int,int> node id => connected-component root id
-     */
-    private function connectedComponents(array $edges): array
-    {
-        $parent = [];
-        $find = function (int $x) use (&$parent, &$find): int {
-            if (! isset($parent[$x])) {
-                $parent[$x] = $x;
-            }
-
-            return $parent[$x] === $x ? $x : ($parent[$x] = $find($parent[$x]));
-        };
-        foreach ($edges as $edge) {
-            $parent[$find($edge['a'])] = $find($edge['b']);
-        }
-
-        $components = [];
-        foreach ($edges as $edge) {
-            $components[$edge['a']] = $find($edge['a']);
-            $components[$edge['b']] = $find($edge['b']);
-        }
-
-        return $components;
-    }
-
     /**
      * Split an edge set into chains. Chains are cut at junction nodes
      * (degree ≠ 2), and — when $groupOf is given — wherever two adjacent
@@ -2784,126 +2399,6 @@ class SurveyPointImportService
     }
 
     /**
-     * Remove everything a geodetic survey import created in this project — routes,
-     * cabinets, ODFs, houses, appendix items (all tagged with an `import_batch` at
-     * creation time, never on a merge/extend of a pre-existing route — see confirm()),
-     * plus all raw survey_points — so the same TXT file can be re-imported. Elements the
-     * user drew manually are never tagged and are therefore never touched here, even if a
-     * later import extended one of their routes.
-     *
-     * @return array<string,int> counts removed, keyed like confirm()'s $created
-     */
-    public function clearImportedData(Project $project): array
-    {
-        $removed = ['points' => 0, 'trenches' => 0, 'ducts' => 0, 'cabinets' => 0, 'odfs' => 0, 'manholes' => 0, 'borings' => 0, 'splices' => 0, 'loops' => 0, 'houses' => 0];
-
-        DB::transaction(function () use ($project, &$removed): void {
-            $routes = NetworkRoute::where('project_id', $project->id)->whereNotNull('import_batch')->get();
-            foreach ($routes as $route) {
-                $removed[$route->route_type === 'trench' ? 'trenches' : 'ducts']++;
-                $this->branchSync->deleteRouteWithBranch($route);
-            }
-
-            $removed['cabinets'] = Cabinet::where('project_id', $project->id)->whereNotNull('import_batch')->count();
-            Cabinet::where('project_id', $project->id)->whereNotNull('import_batch')->delete();
-
-            $removed['odfs'] = Odf::where('project_id', $project->id)->whereNotNull('import_batch')->count();
-            Odf::where('project_id', $project->id)->whereNotNull('import_batch')->delete();
-
-            $removed['houses'] = House::where('project_id', $project->id)->whereNotNull('import_batch')->count();
-            House::where('project_id', $project->id)->whereNotNull('import_batch')->delete();
-
-            foreach (['manhole', 'boring_fi_130', 'splice', 'loop'] as $appendixType) {
-                $key = match ($appendixType) {
-                    'manhole' => 'manholes',
-                    'boring_fi_130' => 'borings',
-                    'splice' => 'splices',
-                    'loop' => 'loops',
-                };
-                $removed[$key] = ProjectAppendixItem::where('project_id', $project->id)
-                    ->where('type', $appendixType)->whereNotNull('import_batch')->count();
-                ProjectAppendixItem::where('project_id', $project->id)
-                    ->where('type', $appendixType)->whereNotNull('import_batch')->delete();
-            }
-
-            $txtPoints = SurveyPoint::where('project_id', $project->id)->where('source', '!=', 'gps');
-            $removed['points'] = (clone $txtPoints)->count();
-            $txtPoints->delete();
-        });
-
-        return $removed;
-    }
-
-    /** List individual TXT imports available for selective removal. */
-    public function importedBatches(Project $project): array
-    {
-        return SurveyPoint::where('project_id', $project->id)
-            ->whereNotNull('source_file')
-            ->whereNotNull('import_batch')
-            ->selectRaw('import_batch, source_file, COUNT(*) as points_count, MIN(created_at) as imported_at')
-            ->groupBy('import_batch', 'source_file')
-            ->orderByDesc('imported_at')
-            ->get()
-            ->map(fn (SurveyPoint $row) => [
-                'batch' => $row->import_batch,
-                'filename' => $row->source_file ?: 'TXT uvoz',
-                'points_count' => (int) $row->points_count,
-                'imported_at' => $row->imported_at,
-            ])
-            ->values()
-            ->all();
-    }
-
-    /** Remove exactly one TXT import batch; every other import remains untouched. */
-    public function clearImportedBatch(Project $project, string $batch): array
-    {
-        $belongsToProject = SurveyPoint::where('project_id', $project->id)
-            ->where('import_batch', $batch)
-            ->whereNotNull('source_file')
-            ->exists();
-        if (! $belongsToProject) {
-            throw new InvalidArgumentException('Odabrani TXT uvoz ne postoji u ovom projektu.');
-        }
-
-        $removed = ['points' => 0, 'trenches' => 0, 'ducts' => 0, 'cabinets' => 0, 'odfs' => 0, 'manholes' => 0, 'borings' => 0, 'splices' => 0, 'loops' => 0, 'houses' => 0];
-        DB::transaction(function () use ($project, $batch, &$removed): void {
-            $routes = NetworkRoute::where('project_id', $project->id)->where('import_batch', $batch)->get();
-            foreach ($routes as $route) {
-                $removed[$route->route_type === 'trench' ? 'trenches' : 'ducts']++;
-                $this->branchSync->deleteRouteWithBranch($route);
-            }
-
-            foreach ([
-                'cabinets' => Cabinet::class,
-                'odfs' => Odf::class,
-                'houses' => House::class,
-            ] as $key => $model) {
-                $removed[$key] = $model::where('project_id', $project->id)->where('import_batch', $batch)->count();
-                $model::where('project_id', $project->id)->where('import_batch', $batch)->delete();
-            }
-
-            foreach (['manhole', 'boring_fi_130', 'splice', 'loop'] as $appendixType) {
-                $key = match ($appendixType) {
-                    'manhole' => 'manholes',
-                    'boring_fi_130' => 'borings',
-                    'splice' => 'splices',
-                    'loop' => 'loops',
-                };
-                $query = ProjectAppendixItem::where('project_id', $project->id)
-                    ->where('import_batch', $batch)->where('type', $appendixType);
-                $removed[$key] = (clone $query)->count();
-                $query->delete();
-            }
-
-            $points = SurveyPoint::where('project_id', $project->id)->where('import_batch', $batch);
-            $removed['points'] = (clone $points)->count();
-            $points->delete();
-        });
-
-        return $removed;
-    }
-
-    /**
      * @param  int[]  $excludeIds  routes created earlier in THIS SAME confirm() call — never
      *                             a match candidate, see the comment where $freshRouteIds is built
      */
@@ -3179,21 +2674,10 @@ class SurveyPointImportService
     {
         $n = strtr(mb_strtolower($name), ['š' => 's']);
         if (preg_match('/z(?:\s*[o0](?:rmar)?)?[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/', $n, $m)) {
-            return $this->normalizeZoTag($m[1]);
+            return $this->codeNormalizer->cabinetTag($m[1]);
         }
 
         return null;
-    }
-
-    private function normalizeZoTag(string $raw): string
-    {
-        $tag = str_replace('-', '.', trim($raw, '.-_ '));
-        $parts = explode('.', $tag);
-        while (count($parts) > 1 && (int) end($parts) === 0) {
-            array_pop($parts); // "7.00" → "7", "1.0" → "1", "4.1.00" → "4.1"
-        }
-
-        return ltrim(implode('.', $parts), '0') ?: '0';
     }
 
     private function cabinetLabel(string $code): string

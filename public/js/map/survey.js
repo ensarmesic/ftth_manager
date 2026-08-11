@@ -3,6 +3,14 @@
     const panel = document.getElementById('survey-panel');
     if (!panel) return;
 
+    const panelButton = document.getElementById('survey-panel-btn');
+    const setPanelOpen = open => {
+        panel.style.display = open ? 'block' : 'none';
+        panelButton?.setAttribute('aria-expanded', String(open));
+    };
+    panelButton?.addEventListener('click', () => setPanelOpen(panel.style.display === 'none'));
+    document.getElementById('survey-panel-close')?.addEventListener('click', () => setPanelOpen(false));
+
     const fileInput = document.getElementById('survey-file-input');
     const chooseBtn = document.getElementById('survey-choose-btn');
     const confirmBtn = document.getElementById('survey-confirm-btn');

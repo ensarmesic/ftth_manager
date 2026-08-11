@@ -951,6 +951,10 @@ document.querySelectorAll('#map-workspace > aside > details.sidebar-card').forEa
 document.getElementById('pp-new-name')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') ppCreateProject();
 });
+document.getElementById('pp-new-submit')?.addEventListener('click', ppCreateProject);
+document.querySelectorAll('#project-picker-card [data-project-id]').forEach(button => {
+    button.addEventListener('click', () => pickProject(Number(button.dataset.projectId)));
+});
 const projectPickerOverlay = document.getElementById('project-picker-overlay');
 const projectPickerSearch = document.getElementById('pp-project-search');
 if (projectPickerOverlay && !projectPickerOverlay.classList.contains('hidden')) {

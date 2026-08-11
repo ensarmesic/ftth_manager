@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\SurveyPoint;
+use App\Services\SurveyImportMaintenanceService;
 use App\Services\SurveyPointImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,10 @@ use InvalidArgumentException;
 
 class SurveyPointController extends Controller
 {
-    public function __construct(private readonly SurveyPointImportService $importer) {}
+    public function __construct(
+        private readonly SurveyPointImportService $importer,
+        private readonly SurveyImportMaintenanceService $maintenance,
+    ) {}
 
     public function preview(Request $request, Project $project): JsonResponse
     {
@@ -66,7 +70,7 @@ class SurveyPointController extends Controller
 
     public function destroy(Project $project): JsonResponse
     {
-        $removed = $this->importer->clearImportedData($project);
+        $removed = $this->maintenance->clearImportedData($project);
 
         return response()->json([
             'message' => "Obrisano: {$removed['points']} tacaka, {$removed['trenches']} rovova, {$removed['ducts']} mikrocijevi, {$removed['cabinets']} ZO, {$removed['odfs']} ODF, {$removed['houses']} kuca, {$removed['manholes']} sahtova, {$removed['splices']} spojnica, {$removed['borings']} busenja, {$removed['loops']} rezervi. Rucno nacrtani elementi nisu dirani.",
@@ -76,13 +80,13 @@ class SurveyPointController extends Controller
 
     public function imports(Project $project): JsonResponse
     {
-        return response()->json(['imports' => $this->importer->importedBatches($project)]);
+        return response()->json(['imports' => $this->maintenance->importedBatches($project)]);
     }
 
     public function destroyImport(Project $project, string $batch): JsonResponse
     {
         try {
-            $removed = $this->importer->clearImportedBatch($project, $batch);
+            $removed = $this->maintenance->clearImportedBatch($project, $batch);
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 404);
         }
