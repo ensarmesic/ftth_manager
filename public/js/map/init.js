@@ -53,12 +53,13 @@ mapLegend.addTo(map);
 const bounds = [];
 applyRouteStacking(data.routes);
 applyRouteLabelLanes(data.routes);
-applyRouteVisualLanes(data.routes);
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
-    const displayPoints = offsetRouteDisplayPoints(points, route._visualOffsetM || 0);
+    // Draw the exact saved/surveyed geometry. Drop routes carried through a trench
+    // must sit on that trench all the way to the ODO; only their labels are fanned out.
+    const displayPoints = points;
     const occupancy = route.occupancy || {};
     const baseStyle = routeLineStyle(route.type, routeLineColor(route));
     if (route._stack) baseStyle.weight = routeStackedWeight(route, baseStyle.weight);
