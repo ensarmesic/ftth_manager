@@ -98,6 +98,7 @@ class SurveyPointImportService
             $classification = $this->classify($code);
             if (($classification['prepared_sling'] ?? false) && blank($classification['house_ref'] ?? null)) {
                 $classification['house_ref'] = 'T'.(int) $match[1][0];
+                $classification['house_ref_generated'] = true;
             }
 
             $points[] = [
@@ -222,6 +223,7 @@ class SurveyPointImportService
             'duct_identities' => $this->parseMultipleDuctIdentities($n),
             'prepared_sling' => $isPreparedSling,
             'house_ref' => $houseRef,
+            'transit' => (bool) preg_match('/\btranzit\b/', $n),
         ];
     }
 
@@ -331,6 +333,7 @@ class SurveyPointImportService
                 'count' => $count,
                 'colors' => array_values($colors),
                 'tag' => $tag,
+                'transit' => (bool) preg_match('/\btranzit\b/', $part),
             ];
         }
 
@@ -468,6 +471,7 @@ class SurveyPointImportService
                         'microduct_count' => (int) $chainCount,
                         'color' => $attrs['color'],
                         'zo_tag' => $attrs['tag'],
+                        'transit' => (bool) ($attrs['transit'] ?? false),
                         'path' => $entry['path'],
                         'length_m' => $this->geometry->polylineLength($entry['path']),
                     ];
@@ -481,6 +485,7 @@ class SurveyPointImportService
         $ducts = $this->distributeOdfBundleCounts($ducts, $points);
         $ducts = $this->connectColoredCountTransitions($ducts, $points, 10.0);
         $ducts = $this->inferImplicitCabinetTags($ducts);
+        $ducts = $this->routeTaggedColoredDuctsThroughCabinets($ducts, $points);
         $routingTrenches = array_merge(
             array_map(fn (array $trench) => $trench + ['_routing_source' => 'survey'], $trenches),
             array_map(fn (array $path) => ['path' => $path, '_routing_source' => 'existing'], $existingTrenchPaths)
@@ -496,6 +501,62 @@ class SurveyPointImportService
         $ducts = $this->retainTerminalCustomerDrops($ducts, $points);
 
         return ['trenches' => $trenches, 'ducts' => $ducts];
+    }
+
+    /**
+     * A serial coloured distribution duct physically enters every surveyed cabinet and
+     * the following section leaves from that exact same cabinet coordinate. Survey points
+     * normally run along the trench beside the cabinet, so make the short in/out detour
+     * explicit in route geometry. Explicit TRANZIT ducts are intentionally excluded.
+     */
+    private function routeTaggedColoredDuctsThroughCabinets(array $ducts, array $points): array
+    {
+        $cabinets = array_values(array_filter($points, fn (array $point) => $point['kind'] === 'cabinet'));
+        if ($cabinets === []) {
+            return $ducts;
+        }
+
+        foreach ($ducts as $index => $duct) {
+            if (($duct['microduct_type'] ?? null) !== '14/10'
+                || ($duct['color'] ?? null) === null
+                || ($duct['zo_tag'] ?? null) === null
+                || ($duct['transit'] ?? false) === true
+                || count($duct['path'] ?? []) < 2) {
+                continue;
+            }
+
+            foreach ($cabinets as $cabinet) {
+                $coordinate = [round((float) $cabinet['lat'], 7), round((float) $cabinet['lng'], 7)];
+                $path = $ducts[$index]['path'];
+                $lastIndex = count($path) - 1;
+                $startDistance = $this->geometry->distanceBetweenPoints($coordinate, $path[0]);
+                $endDistance = $this->geometry->distanceBetweenPoints($coordinate, $path[$lastIndex]);
+
+                if ($startDistance <= self::EXISTING_ELEMENT_TOLERANCE_M) {
+                    $ducts[$index]['path'][0] = $coordinate;
+
+                    continue;
+                }
+                if ($endDistance <= self::EXISTING_ELEMENT_TOLERANCE_M) {
+                    $ducts[$index]['path'][$lastIndex] = $coordinate;
+
+                    continue;
+                }
+
+                $projection = $this->projectPointToPath($coordinate, $path);
+                if ($projection['distance_m'] > self::DUCT_ENDPOINT_BIND_M) {
+                    continue;
+                }
+
+                $segmentIndex = max(1, min((int) $projection['segment_index'], count($path) - 1));
+                array_splice($ducts[$index]['path'], $segmentIndex, 0, [$coordinate]);
+            }
+
+            $ducts[$index]['path'] = $this->geometry->compactPath($ducts[$index]['path']);
+            $ducts[$index]['length_m'] = $this->geometry->polylineLength($ducts[$index]['path']);
+        }
+
+        return $ducts;
     }
 
     /** Split an xN ODF inventory across N separately surveyed outgoing paths. */
@@ -919,6 +980,7 @@ class SurveyPointImportService
                     'microduct_count' => $chainCount,
                     'color' => $attrs['color'],
                     'zo_tag' => $attrs['tag'],
+                    'transit' => (bool) ($attrs['transit'] ?? false),
                     'path' => $path,
                     'length_m' => $this->geometry->polylineLength($path),
                 ];
@@ -1014,10 +1076,14 @@ class SurveyPointImportService
 
             $ducts[] = [
                 'key' => '10/8|zo:'.$terminal['zo_tag'].'|point:'.$terminal['point_no'],
-                'label' => 'MC 10/8 ZO '.$terminal['zo_tag'].' (T'.$terminal['point_no'].')',
+                'label' => $this->ductLabel([
+                    'type' => '10/8',
+                    'color' => $terminal['colors'][0] ?? null,
+                    'tag' => $terminal['zo_tag'],
+                ], max(1, (int) $terminal['microduct_count'])).' (T'.$terminal['point_no'].')',
                 'microduct_type' => '10/8',
                 'microduct_count' => max(1, (int) $terminal['microduct_count']),
-                'color' => null,
+                'color' => $terminal['colors'][0] ?? null,
                 'zo_tag' => $terminal['zo_tag'],
                 'path' => [[$terminal['lat'], $terminal['lng']], $nearest],
                 'length_m' => $nearestDistance,
@@ -1247,17 +1313,6 @@ class SurveyPointImportService
         $trenchNodes = $nodes;
         $trenchAdjacency = $adjacency;
 
-        $nearestNode = function (array $point) use (&$nodes): array {
-            $best = [null, INF];
-            foreach ($nodes as $key => $candidate) {
-                $distance = $this->geometry->distanceBetweenPoints($point, $candidate);
-                if ($distance < $best[1]) {
-                    $best = [$key, $distance];
-                }
-            }
-
-            return $best;
-        };
         $pathBetweenProjections = static function (array $path, array $start, array $end): array {
             $reverse = $start['segment_index'] > $end['segment_index'];
             $from = $reverse ? $end : $start;
@@ -1300,7 +1355,22 @@ class SurveyPointImportService
                 }
             }
             $terminalCoordinate = [round((float) $terminal['lat'], 7), round((float) $terminal['lng'], 7)];
-            [$joinNode, $joinDistance] = $nearestNode($terminalCoordinate);
+            // A cluster of approximate house endpoints can place another house between
+            // this terminal and the first real trench observation. Start each customer
+            // independently at the nearest NON-terminal trench node; customer points
+            // must never be used as somebody else's shared corridor.
+            $joinNode = null;
+            $joinDistance = INF;
+            foreach ($nodes as $candidateKey => $candidatePoint) {
+                if (isset($terminalGraphNodes[$candidateKey])) {
+                    continue;
+                }
+                $candidateDistance = $this->geometry->distanceBetweenPoints($terminalCoordinate, $candidatePoint);
+                if ($candidateDistance < $joinDistance) {
+                    $joinNode = $candidateKey;
+                    $joinDistance = $candidateDistance;
+                }
+            }
             if ($joinNode === null || $joinDistance > self::DUCT_ENDPOINT_BIND_M) {
                 continue;
             }
@@ -1328,9 +1398,15 @@ class SurveyPointImportService
             }
             // A cabinet can sit beside two disconnected digs. Pick the closest cabinet
             // access point only among nodes actually reachable from this customer branch.
+            // Compare the COMPLETE route cost, not only the node-to-cabinet gap. Choosing
+            // the geometrically closest node alone can send a drop past the cabinet down
+            // a side branch and then back up (a visible U-turn/spike).
             $targetNode = null;
             $targetDistance = INF;
-            foreach (array_keys($distance) as $reachableNode) {
+            $targetScore = INF;
+            $fallbackTargetNode = null;
+            $fallbackTargetDistance = INF;
+            foreach ($distance as $reachableNode => $distanceFromTerminal) {
                 if (isset($terminalGraphNodes[$reachableNode])) {
                     continue;
                 }
@@ -1338,10 +1414,29 @@ class SurveyPointImportService
                     [$cabinet['lat'], $cabinet['lng']],
                     $nodes[$reachableNode]
                 );
-                if ($candidateDistance < $targetDistance) {
+                if ($candidateDistance > self::DUCT_ENDPOINT_BIND_M) {
+                    continue;
+                }
+                if ($candidateDistance < $fallbackTargetDistance) {
+                    $fallbackTargetNode = $reachableNode;
+                    $fallbackTargetDistance = $candidateDistance;
+                }
+                // Only treat a graph node as an alternative cabinet entrance when the
+                // trench is genuinely beside the cabinet. A larger allowance here would
+                // cut diagonally from an earlier point instead of following the survey.
+                if ($candidateDistance > 10.0) {
+                    continue;
+                }
+                $candidateScore = $distanceFromTerminal + $candidateDistance;
+                if ($candidateScore < $targetScore) {
                     $targetNode = $reachableNode;
                     $targetDistance = $candidateDistance;
+                    $targetScore = $candidateScore;
                 }
+            }
+            if ($targetNode === null) {
+                $targetNode = $fallbackTargetNode;
+                $targetDistance = $fallbackTargetDistance;
             }
             if ($targetNode === null || $targetDistance > self::DUCT_ENDPOINT_BIND_M) {
                 // The new spur may touch the middle of a saved main route whose own graph
@@ -1405,6 +1500,47 @@ class SurveyPointImportService
                     $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
                     $duct['cabinet_reached'] = true;
                     $duct['routed_via_trench'] = true;
+                }
+
+                // If this approximate house endpoint belongs to a cluster whose short
+                // surveyed spur is disconnected from the main graph, join the closest
+                // already-proven route for the SAME ZO. The peer route represents the
+                // shared physical trench, not another customer's private shortcut.
+                if (! ($duct['cabinet_reached'] ?? false)) {
+                    $bestPeer = null;
+                    foreach ($ducts as $peer) {
+                        if (! ($peer['cabinet_reached'] ?? false)
+                            || ($peer['microduct_type'] ?? null) !== '10/8'
+                            || ($peer['zo_tag'] ?? null) !== $duct['zo_tag']
+                            || count($peer['path'] ?? []) < 2) {
+                            continue;
+                        }
+                        $projection = $this->projectPointToPath($terminalCoordinate, $peer['path']);
+                        if ($projection['distance_m'] > self::CUSTOMER_SPUR_TO_TRENCH_M
+                            || ($bestPeer !== null && $projection['distance_m'] >= $bestPeer['distance_m'])) {
+                            continue;
+                        }
+                        $bestPeer = $projection + ['path' => $peer['path']];
+                    }
+                    if ($bestPeer !== null) {
+                        $peerPath = $bestPeer['path'];
+                        $projectionPoint = [$bestPeer['lat'], $bestPeer['lng']];
+                        $segmentIndex = max(1, min((int) $bestPeer['segment_index'], count($peerPath) - 1));
+                        $cabinetCoordinate = [(float) $cabinet['lat'], (float) $cabinet['lng']];
+                        $cabinetAtStart = $this->geometry->distanceBetweenPoints($peerPath[0], $cabinetCoordinate)
+                            <= $this->geometry->distanceBetweenPoints(end($peerPath), $cabinetCoordinate);
+                        $sharedPath = $cabinetAtStart
+                            ? array_merge([$projectionPoint], array_reverse(array_slice($peerPath, 0, $segmentIndex)))
+                            : array_merge([$projectionPoint], array_slice($peerPath, $segmentIndex));
+                        $fullPath = array_merge([$terminalCoordinate], $sharedPath);
+                        if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetCoordinate) > 0.5) {
+                            $fullPath[] = $cabinetCoordinate;
+                        }
+                        $duct['path'] = $this->geometry->compactPath($fullPath);
+                        $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
+                        $duct['cabinet_reached'] = true;
+                        $duct['routed_via_trench'] = true;
+                    }
                 }
 
                 continue;
@@ -1742,13 +1878,16 @@ class SurveyPointImportService
             $hasSameTaggedCustomerDuct = collect($shared)->contains(
                 fn (array $identity) => $identity['type'] === '10/8' && $identity['tag'] !== null
             );
+            $hasTransitDuct = collect($shared)->contains(
+                fn (array $identity) => (bool) ($identity['transit'] ?? false)
+            );
             $touchesCustomerTerminal = in_array($points[$fromPointIndex]['kind'], ['sling', 'loop'], true)
                 || in_array($points[$i]['kind'], ['sling', 'loop'], true);
             $allowedGap = $isPreferredTerminalEdge
                 ? self::CUSTOMER_SPUR_TO_TRENCH_M
                 : (($followsTerminal && $returnNode !== null)
                     ? self::CUSTOMER_SPUR_TO_TRENCH_M
-                    : ($hasSameTaggedCustomerDuct && ! $touchesCustomerTerminal
+                    : (($hasSameTaggedCustomerDuct || $hasTransitDuct) && ! $touchesCustomerTerminal
                     ? self::TAGGED_DUCT_GAP_M
                     : self::TRENCH_GAP_M));
             if ($gap > $allowedGap) {
@@ -1797,6 +1936,7 @@ class SurveyPointImportService
                             'type' => $identity['type'],
                             'color' => $color,
                             'tag' => $identity['tag'],
+                            'transit' => (bool) ($identity['transit'] ?? false),
                         ];
                     }
 
@@ -1810,6 +1950,7 @@ class SurveyPointImportService
                     'type' => $identity['type'],
                     'color' => null,
                     'tag' => $tag,
+                    'transit' => (bool) ($identity['transit'] ?? false),
                 ];
             }
 
@@ -1830,6 +1971,7 @@ class SurveyPointImportService
                     'type' => '14/10',
                     'color' => $color,
                     'tag' => $point['zo_tag'],
+                    'transit' => (bool) ($point['transit'] ?? false),
                 ];
             }
         } else {
@@ -1839,6 +1981,7 @@ class SurveyPointImportService
                 'count' => $point['microduct_count'],
                 'type' => $point['microduct_type'],
                 'color' => $point['colors'][0] ?? null,
+                'transit' => (bool) ($point['transit'] ?? false),
                 'tag' => $tag,
             ];
         }
@@ -1849,7 +1992,7 @@ class SurveyPointImportService
     private function inferImplicitCabinetTags(array $ducts): array
     {
         foreach ($ducts as $index => $duct) {
-            if ($duct['zo_tag'] !== null || count($duct['path']) < 2) {
+            if ($duct['zo_tag'] !== null || ($duct['transit'] ?? false) === true || count($duct['path']) < 2) {
                 continue;
             }
 
@@ -2301,7 +2444,7 @@ class SurveyPointImportService
                     'matched_cabinet_name' => $binding['cabinet']?->name,
                     'match_confidence' => $binding['match_confidence'],
                     'candidates' => $binding['candidates'],
-                    'routing_status' => ($duct['prepared_sling'] ?? false)
+                    'routing_status' => (($duct['prepared_sling'] ?? false) || isset($duct['_terminal_point']))
                         ? ($cabinetReached ? 'complete' : 'unreachable')
                         : 'not_applicable',
                 ];
@@ -2356,7 +2499,17 @@ class SurveyPointImportService
 
             // 1. Cabinets and ODFs first, so ducts can bind to them.
             foreach (collect($points)->where('kind', 'cabinet') as $point) {
-                if ($this->existsNearby(Cabinet::class, $project->id, $point['lat'], $point['lng'])) {
+                $nearbyCabinet = $this->nearestWithin(
+                    Cabinet::where('project_id', $project->id)->whereNotNull('latitude')->get(),
+                    [$point['lat'], $point['lng']],
+                    self::EXISTING_ELEMENT_TOLERANCE_M
+                );
+                if ($nearbyCabinet !== null) {
+                    // A previously drafted cabinet may still have a generated name such
+                    // as "FTTH 1055". The surveyed TXT code is authoritative for this
+                    // physical cabinet and must be what the map displays.
+                    $nearbyCabinet->update(['name' => $this->cabinetLabel($point['code'])]);
+
                     continue;
                 }
                 Cabinet::create([
@@ -2397,7 +2550,9 @@ class SurveyPointImportService
             //    no house named) does NOT create a house — it's just a coiled cable reserve.
             $slingPoints = collect($points)->where('kind', 'sling');
             foreach ($slingPoints as $point) {
-                if (($point['prepared_sling'] ?? false) && filled($point['house_ref'] ?? null)) {
+                if (($point['prepared_sling'] ?? false)
+                    && filled($point['house_ref'] ?? null)
+                    && ! ($point['house_ref_generated'] ?? false)) {
                     $reference = (string) $point['house_ref'];
                     $exists = House::where('project_id', $project->id)
                         ->where(fn ($query) => $query->where('label', $reference)->orWhere('address', 'like', '%'.$reference.'%'))
@@ -2422,7 +2577,10 @@ class SurveyPointImportService
                 }
                 House::create([
                     'project_id' => $project->id,
-                    'label' => $this->uniqueHouseLabel($project->id, 'Kuca t'.$point['point_no']),
+                    'label' => $this->uniqueHouseLabel(
+                        $project->id,
+                        (($point['prepared_sling'] ?? false) ? 'Slinga t' : 'Kuca t').$point['point_no']
+                    ),
                     'address' => $point['code'] ?: 'Geodetski snimak',
                     'status' => 'planned',
                     'latitude' => $point['lat'],
@@ -2450,6 +2608,7 @@ class SurveyPointImportService
             // because they happen to touch at a shared point. It only exists to continue a
             // route from an EARLIER, separate import, so freshly-created ids are excluded.
             $freshRouteIds = [];
+            $freshDropHouseIds = [];
 
             // 3. Physical trenches.
             foreach ($network['trenches'] as $index => $chain) {
@@ -2493,7 +2652,13 @@ class SurveyPointImportService
                 $house = $binding['house'];
                 $routeType = $binding['route_type'];
 
-                if (($duct['prepared_sling'] ?? false) && $duct['zo_tag'] !== null) {
+                // Several approximate terminal readings can resolve to the same physical
+                // house. They describe one customer connection, not parallel 10/8 drops.
+                if ($routeType === 'drop' && $house !== null && isset($freshDropHouseIds[$house->id])) {
+                    continue;
+                }
+
+                if ((($duct['prepared_sling'] ?? false) || isset($duct['_terminal_point'])) && $duct['zo_tag'] !== null) {
                     $cabinetReached = (bool) ($duct['cabinet_reached'] ?? false)
                         || ($cabinet !== null && min(...array_map(
                             fn (array $endpoint) => $this->geometry->distanceMeters(
@@ -2516,6 +2681,9 @@ class SurveyPointImportService
                         'microduct_count' => max((int) $existing->microduct_count, (int) $duct['microduct_count']),
                         'note' => $this->appendImportNote($existing->note, $this->ductImportNote($duct)),
                     ]);
+                    if ($routeType === 'drop' && $house !== null) {
+                        $freshDropHouseIds[$house->id] = true;
+                    }
 
                     continue;
                 }
@@ -2549,6 +2717,9 @@ class SurveyPointImportService
                     'import_batch' => $batch,
                 ]);
                 $freshRouteIds[] = $route->id;
+                if ($routeType === 'drop' && $house !== null) {
+                    $freshDropHouseIds[$house->id] = true;
+                }
                 $this->branchSync->createBranchForRoute($route);
                 $created['ducts']++;
             }
@@ -2896,7 +3067,10 @@ class SurveyPointImportService
         $matchConfidence = 'none';
         $candidates = [];
 
-        if (isset($cabinetOverrides[$duct['key']])) {
+        if (($duct['transit'] ?? false) === true) {
+            // A field description explicitly marked as TRANZIT passes cabinets without
+            // terminating in any of them. It must remain intentionally unassigned.
+        } elseif (isset($cabinetOverrides[$duct['key']])) {
             $cabinet = $cabinets->firstWhere('id', (int) $cabinetOverrides[$duct['key']]);
             $matchConfidence = $cabinet ? 'manual' : 'none';
         } elseif ($duct['zo_tag'] !== null) {
@@ -2907,7 +3081,7 @@ class SurveyPointImportService
             $matchConfidence = $cabinet ? 'exact' : 'none';
         }
 
-        if ($cabinet === null) {
+        if ($cabinet === null && ($duct['transit'] ?? false) !== true) {
             $start = $duct['path'][0];
             $end = end($duct['path']);
             $nearby = $cabinets
@@ -3026,7 +3200,7 @@ class SurveyPointImportService
     {
         $n = trim(preg_replace('/\s+/', ' ', $code) ?? '');
         if (preg_match('/(?:zeleni\s*ormar|z\s*(?:[o0]\s*)?ormar|z\s*[o0])[\s\-_.]*([\d.]+)?/iu', strtr(mb_strtolower($n), ['š' => 's']), $m)) {
-            return 'ZO'.(isset($m[1]) && $m[1] !== '' ? ' '.rtrim($m[1], '.') : '');
+            return 'ZO'.(isset($m[1]) && $m[1] !== '' ? '-'.rtrim($m[1], '.') : '');
         }
 
         return $n !== '' ? $n : 'ZO';

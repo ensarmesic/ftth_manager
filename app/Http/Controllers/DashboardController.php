@@ -7,6 +7,8 @@ use App\Models\House;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -62,5 +64,34 @@ class DashboardController extends Controller
             'projectCards' => $projectCards,
             'attentionProjects' => $projectCards->where('issues', '>', 0)->sortByDesc('issues')->take(5),
         ]);
+    }
+
+    public function notifications(Request $request): JsonResponse
+    {
+        $projectId = $request->integer('project');
+        $scopeToProject = fn ($query) => $query->when(
+            $projectId > 0,
+            fn ($projectQuery) => $projectQuery->where('project_id', $projectId)
+        );
+
+        $unlinkedHouses = $scopeToProject(House::query())->whereNull('cabinet_id')->count();
+        $unlinkedCabinets = $scopeToProject(Cabinet::query())->whereNull('odf_id')->count();
+        $incompleteRoutes = $scopeToProject(NetworkRoute::query())
+            ->where('route_type', '!=', 'trench')
+            ->where(fn ($query) => $query->whereNull('microduct_type')->orWhereNull('fiber_count'))
+            ->count();
+
+        $items = [];
+        if ($unlinkedHouses) {
+            $items[] = "$unlinkedHouses kuca nema dodijeljeni ODO.";
+        }
+        if ($unlinkedCabinets) {
+            $items[] = "$unlinkedCabinets ODO ormarica nema povezani ODF.";
+        }
+        if ($incompleteRoutes) {
+            $items[] = "$incompleteRoutes trasa nema kompletne tehnicke podatke.";
+        }
+
+        return response()->json(['count' => count($items), 'items' => $items]);
     }
 }

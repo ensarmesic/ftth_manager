@@ -1,0 +1,334 @@
+FTTH - DETALJNO UPUTSTVO ZA GEODETSKI TXT
+==========================================
+
+Ovo je standard za sva naredna snimanja i TXT uvoze u FTTH aplikaciju.
+
+
+1. OSNOVNI FORMAT SVAKOG REDA
+-----------------------------
+
+Svaka snimljena tacka mora biti u posebnom redu:
+
+BROJ X Y Z OPIS
+
+Primjer:
+
+125 6539571.139 4926643.158 279.980 Kuca 10/8 Crvena x1 -ZO-3
+
+Znacenje polja:
+
+- BROJ = jedinstveni redni broj geodetske tacke;
+- X = Gauss-Kruger koordinata istoka;
+- Y = Gauss-Kruger koordinata sjevera;
+- Z = nadmorska visina;
+- OPIS = vrsta objekta i cijevi prema pravilima ispod.
+
+Obavezno:
+
+- koristiti tacku kao decimalni separator;
+- ne koristiti zarez za decimale;
+- ne stavljati navodnike oko opisa;
+- ne koristiti uglaste zagrade u stvarnom fajlu;
+- svaki BROJ mora biti jedinstven;
+- jedna fizicka tacka ide u jedan red;
+- redove poredati redoslijedom kojim je trasa snimana;
+- razmak susjednih tacaka iste trase treba biti najvise oko 20 m;
+- veliki skok do drugog kraka koristiti tek nakon zavrsne tacke prethodnog kraka.
+
+
+2. ODF I ZELENI ORMARI
+----------------------
+
+ODF:
+
+100 6539000.000 4926000.000 250.000 ODF
+
+Zeleni ormar:
+
+150 6539100.000 4926100.000 255.000 ZO-1
+250 6539200.000 4926200.000 260.000 ZO-2
+
+Pravila:
+
+- uvijek pisati ZO-[BROJ], npr. ZO-1, ZO-2, ZO-7;
+- isti broj koristiti na svim cijevima koje pripadaju tom ormaru;
+- tacka ZO mora biti snimljena na stvarnoj koordinati ormara;
+- cijev koja zavrsava u ZO mora doci do te iste koordinate;
+- poslije ZO nova dionica pocinje iz koordinate tog ZO.
+
+
+3. GLAVNI ROV I MIKROCIJEVI 14/10
+---------------------------------
+
+Ako kroz rov prolazi vise cijevi, svaki red mora navesti stvarno stanje u rovu.
+
+Primjer sa tri cijevi:
+
+10 6539000.000 4926000.000 250.000 Rov + 3x fi 14 Zelena, Plava, Zuta
+11 6539005.000 4926005.000 250.200 Rov + 3x fi 14 Zelena, Plava, Zuta
+
+Ako postoje dvije cijevi iste boje:
+
+12 6539010.000 4926010.000 250.400 Rov + 5x fi 14 2x Zelena, 2x Plava, Zuta
+
+Dozvoljeni standardni nazivi boja:
+
+Zelena, Plava, Crvena, Zuta, Bijela, Narandzasta, Ljubicasta, Siva, MD
+
+Broj ispred "x fi 14" mora uvijek odgovarati ukupnom broju navedenih cijevi.
+
+
+4. ZELENA I PLAVA 14/10 U NASOJ MREZI
+-------------------------------------
+
+Zelena je tranzitna cijev. Prolazi od pocetka do kraja bez prekida i ne
+zavrsava u zelenim ormarima:
+
+20 6539000.000 4926000.000 250.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-1
+
+Plava je serijska cijev:
+
+- prva dionica ide do ZO-1;
+- zavrsava tacno na koordinati ZO-1;
+- sljedeca dionica ponovo pocinje iz ZO-1 i ide do ZO-2;
+- zatim ZO-2 do ZO-3 i tako redom.
+
+Primjer:
+
+20 6539000.000 4926000.000 250.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-1
+21 6539010.000 4926010.000 251.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-1
+22 6539020.000 4926020.000 252.000 ZO-1
+23 6539020.000 4926020.000 252.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-2
+24 6539030.000 4926030.000 253.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-2
+25 6539040.000 4926040.000 254.000 ZO-2
+
+Kod prelaska kroz ZO:
+
+- ZO red i pocetak nove Plave dionice smiju imati isti X/Y;
+- Zelena ostaje jedna ista tranzitna cijev;
+- Plava poslije ormara dobija oznaku narednog ZO.
+
+
+5. ODVAJANJE CIJEVI IZ GLAVNOG ROVA
+-----------------------------------
+
+Kada se cijev odvoji, od sljedece tacke mora se smanjiti broj cijevi i ukloniti
+boja koja se odvojila.
+
+Primjer:
+
+30 6539000.000 4926000.000 250.000 Rov + 5x fi 14 2x Zelena, 2x Plava, Zuta
+31 6539010.000 4926010.000 251.000 Rov + 5x fi 14 2x Zelena, 2x Plava, Zuta
+32 6539020.000 4926020.000 252.000 ZO-1
+33 6539030.000 4926030.000 253.000 Rov + 4x fi 14 2x Zelena, 2x Plava
+34 6539040.000 4926040.000 254.000 ZO-2
+35 6539050.000 4926050.000 255.000 Rov + 3x fi 14 2x Zelena, Plava
+36 6539060.000 4926060.000 256.000 ZO-3
+37 6539070.000 4926070.000 257.000 Rov + 2x fi 14 2x Zelena
+38 6539080.000 4926080.000 258.000 ZO-4
+39 6539090.000 4926090.000 259.000 Rov + 1x fi 14 Zelena
+
+Ne upisivati veci broj cijevi nakon sto se jedna vec odvojila.
+
+
+6. KORISNICKI ROV I CRVENA MIKROCIJEV 10/8
+------------------------------------------
+
+Sve korisnicke mikrocijevi su crvene 10/8.
+
+Jedna crvena cijev u rovu:
+
+100 6539500.000 4926500.000 270.000 Rov + mc 10/8 Crvena x1 -ZO-3
+
+Tri crvene cijevi koje dijele isti rov do odvajanja:
+
+101 6539505.000 4926505.000 270.200 Rov + mc 10/8 Crvena x3 -ZO-3
+
+Kada se jedna odvoji, broj se smanjuje:
+
+102 6539510.000 4926510.000 270.400 Rov + mc 10/8 Crvena x2 -ZO-3
+103 6539515.000 4926515.000 270.600 Rov + mc 10/8 Crvena x1 -ZO-3
+
+Svaka 10/8 tacka mora imati odrediste -ZO-[BROJ].
+
+
+7. STVARNA KUCA - MARKER K
+--------------------------
+
+Ako je koordinata stvarna lokacija kuce, koristiti:
+
+120 6539571.139 4926643.158 279.980 Kuca 10/8 Crvena x1 -ZO-3
+
+Rezultat:
+
+- aplikacija pravi marker K na toj X/Y koordinati;
+- pravi jednu crvenu 10/8 rutu;
+- ruta ide do zajednickog rova;
+- zatim prati postojeci rov do navedenog ZO;
+- ne pravi se dupla ruta za isto fizicko mjesto.
+
+Ne pisati "Slinga" ako je snimljena stvarna kuca.
+
+
+8. STVARNA SLINGA - MARKER Š
+----------------------------
+
+U aplikaciji se prikazuje slovo Š, iako se u TXT-u radi jednostavnosti pise
+rijec "Slinga" bez posebnog slova.
+
+Ako je na terenu snimljena stvarna slinga 10/8, koristiti:
+
+130 6539580.000 4926650.000 280.000 Slinga 10/8 Crvena x1 -ZO-3
+
+Ako su tri slinge na istoj tacki:
+
+131 6539585.000 4926655.000 280.200 Slinga 10/8 Crvena x3 -ZO-3
+
+Rezultat:
+
+- aplikacija pravi marker Š;
+- popup se zove Slinga t[BROJ TACKE];
+- crvena 10/8 ide prema navedenom ZO;
+- vrlo bliska ponovljena mjerenja iste fizicke slinge ne crtaju duple krugove.
+
+Ne mijenjati Slinga u Kuca. Kuca i Slinga su razlicite vrste zavrsne tacke.
+
+
+9. SLINGA ZA IMENOVANU BUDUCU KUCU
+----------------------------------
+
+Ako slinga pripada unaprijed poznatoj oznaci kuce:
+
+140 6539590.000 4926660.000 281.000 SLINGA za kucu H-12 10/8 Crvena x1 -ZO-3
+
+Ovo je rezervisan prikljucak za imenovanu buducu kucu H-12. Ne koristiti ovu
+formu za obicnu terensku slingu bez oznake kuce.
+
+
+10. REZERVA CIJEVI KOJA NIJE KORISNICKI PRIKLJUCAK
+--------------------------------------------------
+
+Rezerva 14/10 kabla ili cijevi nije kuca i nije korisnicka slinga 10/8:
+
+150 6539600.000 4926670.000 282.000 Slinga 14/10 Plava
+
+Takav zapis predstavlja rezervu/namotaj, a ne marker kuce K.
+
+
+11. SPOJNICA, SAHT, BUSENJE I STUB
+---------------------------------
+
+Spojnica 10/8:
+
+160 6539610.000 4926680.000 283.000 Spojnica 10/8 Crvena -ZO-3
+
+Spojnica 14/10:
+
+161 6539620.000 4926690.000 284.000 Spojnica 14/10 Plava
+
+Ostali objekti:
+
+162 6539630.000 4926700.000 285.000 Saht
+163 6539640.000 4926710.000 286.000 Busenje
+164 6539650.000 4926720.000 287.000 Stub
+
+
+12. GRANANJE I ZAJEDNICKI ROV
+-----------------------------
+
+Program spaja trase preko jednakih ili veoma bliskih X/Y koordinata. Ipak,
+ne treba umjetno praviti povratne setnje samo radi grananja.
+
+Pravila:
+
+- snimiti stvarni zajednicki rov redom;
+- na mjestu odvajanja snimiti stvarnu zajednicku tacku;
+- zavrsiti jedan krak njegovom Kuca ili Slinga tackom;
+- novi krak poceti sa njegove stvarne tacke odvajanja;
+- u svakom kraku navesti stvarni broj crvenih 10/8 cijevi;
+- poslije odvajanja smanjiti broj cijevi;
+- ne voditi redoslijed tacka dole, pa nazad gore prema istom ZO;
+- ne koristiti drugu privatnu kucnu granu kao precicu.
+
+Primjer zajednickog dijela sa dvije cijevi koje se razdvajaju:
+
+200 6539700.000 4926800.000 290.000 Rov + mc 10/8 Crvena x2 -ZO-3
+201 6539710.000 4926810.000 290.200 Rov + mc 10/8 Crvena x2 -ZO-3
+202 6539720.000 4926820.000 290.400 Rov + mc 10/8 Crvena x1 -ZO-3
+203 6539730.000 4926830.000 290.600 Kuca 10/8 Crvena x1 -ZO-3
+
+Drugi krak mora poceti na stvarnoj tacki odvajanja i nastaviti svojim
+koordinatama. Ako geodetski uredjaj zahtijeva novi broj, koristiti novi BROJ,
+ali X/Y tacke odvajanja mora ostati isti.
+
+
+13. POMJERANJE I DODAVANJE KUCA/SLINGI
+--------------------------------------
+
+Ako se postojeca Kuca ili Slinga pomjeri:
+
+- pronaci njen originalni BROJ tacke;
+- promijeniti samo X i Y na novu tacnu poziciju;
+- Z zadrzati ako nova visina nije izmjerena;
+- zadrzati vrstu Kuca ili Slinga;
+- zadrzati pripadajuci -ZO-[BROJ], osim ako je projektant odredi drugacije.
+
+Ako se dodaje nova tacka:
+
+- koristiti sljedeci slobodan BROJ;
+- upisati tacan X/Y;
+- koristiti Z izmjeren na terenu ili visinu najblize geodetske tacke;
+- obavezno napisati Kuca ili Slinga;
+- obavezno napisati 10/8 Crvena x1 i -ZO-[BROJ].
+
+
+14. KAKO PROGRAM BIRA PUT DO ORMARA
+-----------------------------------
+
+Za svaku Kuca ili Slinga tacku program:
+
+1. uzima njenu tacnu X/Y koordinatu;
+2. nalazi najblizi stvarni zajednicki rov;
+3. prati mrezu rova prema oznacenom ZO;
+4. bira najkraci valjan put;
+5. ne ide niz slijepi krak pa nazad;
+6. ne koristi drugu kucnu granu kao precicu;
+7. zavrsava tacno na koordinati ZO.
+
+Zato su tacne tacke rova, odvajanja i ZO vaznije od vizuelno pribliznog crteza.
+
+
+15. KONTROLNA LISTA PRIJE UVOZA
+-------------------------------
+
+[ ] Fajl ima nastavak .txt.
+[ ] Svaki red je u formatu BROJ X Y Z OPIS.
+[ ] Svi brojevi tacaka su jedinstveni.
+[ ] Decimalni separator je tacka.
+[ ] Nema navodnika oko opisa.
+[ ] Svaki rov pocinje rijecju Rov.
+[ ] Svaki zeleni ormar je ZO-[BROJ].
+[ ] Svaka korisnicka 10/8 tacka ima Crvena i -ZO-[BROJ].
+[ ] Stvarne kuce su opisane kao Kuca, ne Slinga.
+[ ] Stvarne slinge su opisane kao Slinga, ne Kuca.
+[ ] Broj x1/x2/x3 odgovara stvarnom broju cijevi u rovu.
+[ ] Poslije odvajanja broj cijevi se smanjuje.
+[ ] Zelena 14/10 ima oznaku Tranzit.
+[ ] Plava 14/10 zavrsava u ZO i ponovo pocinje iz njega.
+[ ] Nema slucajnih velikih skokova unutar iste trase.
+[ ] Nema redoslijeda koji ide pored ZO, zatim dole, pa se vraca gore.
+[ ] Kuca i Slinga imaju tacnu koordinatu fizickog objekta.
+
+
+16. MINIMALNI TEMPLATE ZA NOVI KORISNICKI FAJL
+----------------------------------------------
+
+1 6539000.000 4926000.000 250.000 Rov + mc 10/8 Crvena x2 -ZO-1
+2 6539005.000 4926005.000 250.200 Rov + mc 10/8 Crvena x2 -ZO-1
+3 6539010.000 4926010.000 250.400 Rov + mc 10/8 Crvena x1 -ZO-1
+4 6539015.000 4926015.000 250.600 Kuca 10/8 Crvena x1 -ZO-1
+5 6539010.000 4926010.000 250.400 Rov + mc 10/8 Crvena x1 -ZO-1
+6 6539020.000 4926020.000 250.800 Slinga 10/8 Crvena x1 -ZO-1
+
+Ovaj primjer je samo obrazac. Zamijeniti BROJ, X, Y, Z i ZO stvarnim podacima.
+Ne uvoziti objasnjenja iz ovog dokumenta; uvoziti samo redove sa koordinatama.

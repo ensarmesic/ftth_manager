@@ -481,10 +481,10 @@
     .ftth-tag.cabinet { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 2px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.cabinet.ftth-cabinet-tag { width: auto; height: auto; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none; display: flex; align-items: center; gap: 4px; transform: translate(-8px, -50%); }
     .ftth-cabinet-symbol { display: flex; align-items: center; justify-content: center; width: 22px; height: 14px; flex: 0 0 auto; border: 2px solid #fff; border-radius: 2px; box-shadow: 0 0 0 1px #0f172a; font: 900 6.5px/1 system-ui, sans-serif; color: #fff; letter-spacing: .3px; }
-    .ftth-cabinet-text { display: grid; gap: 1px; padding: 1px 3px; background: rgba(255,255,255,.86); color: #0f172a; text-shadow: 0 1px 0 #fff; border: 1px solid rgba(15,23,42,.28); }
+    .ftth-cabinet-text { display: inline-flex; align-items: center; gap: 2px; padding: 1px 3px; background: rgba(255,255,255,.86); color: #0f172a; text-shadow: 0 1px 0 #fff; border: 1px solid rgba(15,23,42,.28); white-space: nowrap; }
     .ftth-cabinet-title { display: block; font-size: 7px; font-weight: 900; line-height: 1; letter-spacing: 0; opacity: .75; }
     .ftth-cabinet-code { display: block; font-size: 9px; font-weight: 900; line-height: 1.05; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .ftth-tag.house { width: 10px; height: 10px; border: 2px solid #fff; border-radius: 999px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
+    .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; font-weight: 900; }
     .ftth-house-icon .ftth-tag { left: 50%; top: 50%; }
     .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }

@@ -145,6 +145,9 @@ class MapController extends Controller
                     'cabinet_id' => $house->cabinet_id,
                     'address' => $house->address,
                     'status' => $house->status,
+                    // TXT origin alone does not make a point a sling: ordinary "Kuca"
+                    // readings stay K. Only an explicit Sling/Slinga description is Š.
+                    'is_sling' => (bool) preg_match('/\b[sš]linga?\b/iu', (string) $house->address),
                     'lat' => (float) $house->latitude,
                     'lng' => (float) $house->longitude,
                 ]),

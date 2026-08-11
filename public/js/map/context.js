@@ -354,7 +354,8 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
             const color = cabinetColor(cabinetId);
             houseIds.forEach(hid => {
                 const marker = houseMarkerById[hid];
-                if (marker) marker.setIcon(icon('house', '', color));
+                const house = (data.houses || []).find(item => Number(item.id) === Number(hid));
+                if (marker) marker.setIcon(icon('house', houseIconText(house), color));
             });
 
             // Ažuriraj slobodne portove u data.cabinets za ovaj session
@@ -414,6 +415,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
         hideActionsPanel();
         countEl.textContent = '0 selektovano';
     }
+    window.clearBulkMapSelection = clearSelection;
 
     function doBoxSelect(a, b) {
         const p1 = map.containerPointToLatLng(L.point(a.x, a.y));

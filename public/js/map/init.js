@@ -138,7 +138,7 @@ data.cabinets.forEach(c => {
     const p = L.latLng(c.lat, c.lng);
     const color = cabinetColor(c.id);
     const pct = Math.round((Number(c.used_ports) || 0) / Math.max(Number(c.capacity) || 1, 1) * 100);
-    const marker = L.marker(p, { icon: icon('cabinet', c.name?.startsWith('FTTH') ? c.name : `FTTH ${c.id}`, color), draggable: false })
+    const marker = L.marker(p, { icon: icon('cabinet', c.name || `FTTH ${c.id}`, color), draggable: false })
         .bindTooltip(`${c.used_ports}/${c.capacity} (${pct}%)`, { direction: 'top', offset: [0, -10] })
         .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova (${pct}%)<br>ODF: ${c.odf}`)
         .addTo(map);
@@ -181,7 +181,7 @@ data.houses.forEach(h => {
     savedHouseKeys.add(key);
     savedHouseColorByKey[key] = color;
     houseDataByKey[key] = h;
-    const marker = L.marker(p, { icon: icon('house', '', color), draggable: false }).bindPopup(`<b>${h.label}</b><br>ODO: ${h.cabinet}`).addTo(map);
+    const marker = L.marker(p, { icon: icon('house', houseIconText(h), color), draggable: false }).bindPopup(`<b>${h.label}</b><br>ODO: ${h.cabinet}`).addTo(map);
     marker.on('click', event => {
         if (layerLocked('houses')) return document.getElementById('cad-command').textContent = 'Layer kuće je zaključan.';
         if (mode === 'connect-houses') {
@@ -633,13 +633,19 @@ map.on('dblclick', e => {
 document.addEventListener('keydown', event => {
     const target = event.target;
     const tag = target?.tagName?.toLowerCase();
-    if (['input', 'select', 'textarea'].includes(tag) || target?.isContentEditable) return;
 
     if (event.key === 'Escape') {
+        event.preventDefault();
         if (routeEdit) {
             cancelRouteEdit();
-            return;
         }
+        if (selectedAttributeRoute || highlightedPickedRouteId !== null) closeRouteAttributePanel();
+        if (selectedDraftElement) closeDraftElementEditor();
+        if (joinRoutes.length) resetJoinRoutes();
+        window.clearBulkMapSelection?.();
+        map.closePopup();
+        routeStackPick.signature = '';
+        routeStackPick.index = 0;
         if (mode === 'draw') {
             cancelActiveDrawing();
         }
@@ -654,6 +660,8 @@ document.addEventListener('keydown', event => {
         setMode('pan');
         return;
     }
+
+    if (['input', 'select', 'textarea'].includes(tag) || target?.isContentEditable) return;
 
     if (event.key === 'Enter' && mode === 'draw') {
         event.preventDefault();
@@ -729,7 +737,7 @@ map.on('click', e => {
         const draftIndex = index - savedHouseCount;
         const houseMeta = { label: `K-${String(draftIndex + 1).padStart(3, '0')}`, address: '' };
         draftHouseMeta.push(houseMeta);
-        const marker = L.marker(e.latlng, { icon: icon('house'), draggable: true }).bindPopup(`Kuća ${housePoints.length}`).addTo(map);
+        const marker = L.marker(e.latlng, { icon: icon('house', 'K'), draggable: true }).bindPopup(`Kuća ${housePoints.length}`).addTo(map);
         houseMarkerByKey[pointKey(e.latlng.lat, e.latlng.lng)] = marker;
         marker.on('drag', event => {
             const next = event.target.getLatLng();

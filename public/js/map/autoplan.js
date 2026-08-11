@@ -100,7 +100,7 @@ function clearSuggestions() {
         untrackLayer(l, 'preview');
         untrackLayer(l, 'drop');
     });
-    Object.entries(houseMarkerByKey).forEach(([key, marker]) => marker.setIcon(icon('house', '', savedHouseColorByKey[key] || null)));
+    Object.entries(houseMarkerByKey).forEach(([key, marker]) => marker.setIcon(icon('house', houseIconTextByKey(key), savedHouseColorByKey[key] || null)));
     suggestionLayers=[];
     suggestedCabinets=[];
     currentAutoPlan = null;
@@ -164,7 +164,7 @@ function renderAutoOdoPlan(plan) {
         });
         (cabinet.houses || []).forEach(house => {
             const houseMarker = houseMarkerByKey[pointKey(house.latitude, house.longitude)];
-            if (houseMarker) houseMarker.setIcon(icon('house', '', color));
+            if (houseMarker) houseMarker.setIcon(icon('house', houseIconTextByKey(pointKey(house.latitude, house.longitude)), color));
         });
         suggestedCabinets.push({
             name: cabinet.confirmed_name || cabinet.name,
@@ -183,7 +183,7 @@ function renderAutoOdoPlan(plan) {
 
     (plan.unassigned_houses || []).forEach(house => {
         const marker = houseMarkerByKey[pointKey(house.latitude, house.longitude)];
-        if (marker) marker.setIcon(icon('house', '', '#ef4444'));
+        if (marker) marker.setIcon(icon('house', houseIconTextByKey(pointKey(house.latitude, house.longitude)), '#ef4444'));
     });
 
     const branchHtml = (plan.branches || []).map(branch =>

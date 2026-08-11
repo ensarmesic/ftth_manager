@@ -358,7 +358,7 @@ class SurveyPointImportTest extends TestCase
 
         $trench = NetworkRoute::where('project_id', $project->id)->where('route_type', 'trench')->first();
         $this->assertStringContainsString('Geodetski snimak', $trench->note);
-        $this->assertSame('ZO 3', Cabinet::where('project_id', $project->id)->value('name'));
+        $this->assertSame('ZO-3', Cabinet::where('project_id', $project->id)->value('name'));
 
         // The ZO 3 duct is bound to the ZO 3 cabinet created in the same import, and ends
         // at the house tapped by the "Slinga" point.
@@ -498,8 +498,8 @@ class SurveyPointImportTest extends TestCase
             '1  6549699.731  4923604.537  234.0  ZO 1',
             '2  6549703.323  4923595.954  234.0  ZO 2',
         ]), 'cabinets.txt');
-        $zo1 = Cabinet::where('project_id', $project->id)->where('name', 'ZO 1')->firstOrFail();
-        $zo2 = Cabinet::where('project_id', $project->id)->where('name', 'ZO 2')->firstOrFail();
+        $zo1 = Cabinet::where('project_id', $project->id)->where('name', 'ZO-1')->firstOrFail();
+        $zo2 = Cabinet::where('project_id', $project->id)->where('name', 'ZO-2')->firstOrFail();
 
         // An untagged duct now surveyed near both — no explicit ZO tag to disambiguate.
         $ductContents = implode("\n", [
@@ -617,7 +617,7 @@ class SurveyPointImportTest extends TestCase
     public function test_every_customer_route_runs_from_its_house_to_its_cabinet_not_to_another_house(): void
     {
         $service = app(SurveyPointImportService::class);
-        $points = $service->parse(file_get_contents(base_path('docs/demo-feature-koordinate.txt')));
+        $points = $service->parse(file_get_contents(base_path('tests/Fixtures/survey/demo-feature-koordinate.txt')));
         $drops = collect($service->buildNetwork($points)['ducts'])
             ->where('microduct_type', '10/8')
             ->filter(fn (array $duct) => isset($duct['_terminal_point']))
@@ -944,7 +944,7 @@ class SurveyPointImportTest extends TestCase
     public function test_corrected_real_field_file_builds_cabinets_and_all_three_mc_colours(): void
     {
         $service = app(SurveyPointImportService::class);
-        $points = $service->parse(file_get_contents(base_path('docs/uredjen-i-ispravljen-opis.txt')));
+        $points = $service->parse(file_get_contents(base_path('tests/Fixtures/survey/uredjen-i-ispravljen-opis.txt')));
         $network = $service->buildNetwork($points);
 
         $missingPointNumbers = array_values(array_diff(range(1753, 2113), collect($points)->pluck('point_no')->all()));
@@ -1022,7 +1022,7 @@ class SurveyPointImportTest extends TestCase
     public function test_clean_gps_example_uses_only_supplied_points_and_builds_the_expected_network(): void
     {
         $service = app(SurveyPointImportService::class);
-        $points = $service->parse(file_get_contents(base_path('docs/test-gps-odf-1753-2113.txt')));
+        $points = $service->parse(file_get_contents(base_path('tests/Fixtures/survey/test-gps-odf-1753-2113.txt')));
         $network = $service->buildNetwork($points);
 
         $this->assertCount(359, $points);
@@ -1043,7 +1043,7 @@ class SurveyPointImportTest extends TestCase
     public function test_adjusted_four_cabinet_manual_test_file_has_numbered_cabinets_and_tagged_customer_lines(): void
     {
         $points = app(SurveyPointImportService::class)->parse(
-            file_get_contents(base_path('docs/test-4-ormara.txt'))
+            file_get_contents(base_path('tests/Fixtures/survey/test-4-ormara.txt'))
         );
 
         $this->assertCount(148, $points);
@@ -1061,7 +1061,7 @@ class SurveyPointImportTest extends TestCase
     public function test_generated_complete_four_cabinet_network_has_segmented_working_duct_and_continuous_reserve(): void
     {
         $service = app(SurveyPointImportService::class);
-        $points = $service->parse(file_get_contents(base_path('docs/test-4-ormara-kompletna-mreza.txt')));
+        $points = $service->parse(file_get_contents(base_path('tests/Fixtures/survey/test-4-ormara-kompletna-mreza.txt')));
         $network = $service->buildNetwork($points);
         $ducts = collect($network['ducts']);
 
@@ -1084,7 +1084,7 @@ class SurveyPointImportTest extends TestCase
     public function test_normalized_real_network_has_unique_cabinets_and_destination_aware_implicit_drops(): void
     {
         $service = app(SurveyPointImportService::class);
-        $points = $service->parse(file_get_contents(base_path('docs/test-normalizovana-pametna-mreza.txt')));
+        $points = $service->parse(file_get_contents(base_path('tests/Fixtures/survey/test-normalizovana-pametna-mreza.txt')));
 
         $this->assertGreaterThan(350, count($points));
         $this->assertCount(9, collect($points)->where('kind', 'cabinet'));
@@ -1339,5 +1339,57 @@ class SurveyPointImportTest extends TestCase
         // must stay exactly as recorded — unaffected by the MD welding.
         $zelena = collect($service->buildNetwork($points)['ducts'])->firstWhere('label', 'MC 14/10 Zelena');
         $this->assertCount(2, $zelena['path']);
+    }
+
+    public function test_transit_colour_stays_unassigned_while_serial_colour_is_split_by_zo_tags(): void
+    {
+        $project = Project::factory()->create();
+        $service = app(SurveyPointImportService::class);
+        $contents = implode("\n", [
+            '1 6539000.000 4926000.000 250.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-1',
+            '2 6539005.000 4926000.000 250.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-1',
+            '3 6539005.500 4926000.500 250.000 ZO-1',
+            '4 6539010.000 4926000.000 250.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-2',
+            '5 6539015.000 4926000.000 250.000 Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-2',
+            '6 6539015.500 4926000.500 250.000 ZO-2',
+        ]);
+
+        $preview = $service->preview($project, $contents, 'serijska-plava.txt');
+        $green = collect($preview['ducts'])->firstWhere('color', 'Zelena');
+        $blueTags = collect($preview['ducts'])->where('color', 'Plava')->pluck('zo_tag')->sort()->values()->all();
+
+        $this->assertNotNull($green);
+        $this->assertNull($green['matched_cabinet_id']);
+        $this->assertSame('none', $green['match_confidence']);
+        $this->assertSame(['1', '2'], $blueTags);
+        $this->assertNotContains('ambiguous', collect($preview['ducts'])->pluck('match_confidence')->all());
+
+        $points = $service->parse($contents);
+        $network = $service->buildNetwork($points);
+        $zo1 = collect($points)->firstWhere('code', 'ZO-1');
+        $zo1Coordinate = [round((float) $zo1['lat'], 7), round((float) $zo1['lng'], 7)];
+        $blueThroughZo1 = collect($network['ducts'])
+            ->where('color', 'Plava')
+            ->filter(fn (array $duct) => in_array($zo1Coordinate, $duct['path'], true));
+
+        $this->assertCount(2, $blueThroughZo1, 'Plava prema ZO-1 mora uci u ormar, a naredna Plava krenuti iz njega.');
+        $greenPath = collect($network['ducts'])->firstWhere('color', 'Zelena')['path'];
+        $this->assertNotContains($zo1Coordinate, $greenPath, 'Tranzitna Zelena ne smije skretati u ormar.');
+    }
+
+    public function test_approximate_terminal_readings_for_one_house_create_only_one_drop_route(): void
+    {
+        $project = Project::factory()->create();
+        $contents = implode("\n", [
+            '1 6549699.731 4923604.537 234.000 ZO-1',
+            '2 6549700.500 4923604.537 234.000 Rov + mc 10/8 Crvena x1 -ZO-1',
+            '3 6549704.000 4923604.537 234.000 Kuca 10/8 Crvena x1 -ZO-1',
+            '4 6549705.800 4923604.537 234.000 Kuca 10/8 Crvena x1 -ZO-1',
+        ]);
+
+        app(SurveyPointImportService::class)->confirm($project, $contents, 'dupli-zavrsetak.txt');
+
+        $this->assertSame(1, House::where('project_id', $project->id)->count());
+        $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'drop')->count());
     }
 }

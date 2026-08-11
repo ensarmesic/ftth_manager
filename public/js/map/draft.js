@@ -226,7 +226,7 @@ function restoreDraft(payload) {
         const houseIndex = restoredHouseIndex++;
         housePoints.push(latLng);
         draftHouseMeta.push({ label: item.name, address: item.address });
-        const marker = L.marker(latLng, { icon: icon('house'), draggable: true }).bindPopup(`Kuća ${houseIndex + 1}`).addTo(map);
+        const marker = L.marker(latLng, { icon: icon('house', 'K'), draggable: true }).bindPopup(`Kuća ${houseIndex + 1}`).addTo(map);
         houseMarkerByKey[pointKey(latLng.lat, latLng.lng)] = marker;
         marker.on('drag', event => {
             const next = event.target.getLatLng();

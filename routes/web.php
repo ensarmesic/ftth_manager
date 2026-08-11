@@ -14,10 +14,6 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RouteController;
 use App\Http\Controllers\SurveyPointController;
-use App\Models\Cabinet;
-use App\Models\House;
-use App\Models\NetworkRoute;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function (): void {
@@ -107,28 +103,7 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->name('map.dxf-layer.upload');
 
-    Route::get('/api/notifications', function (Request $request) {
-        $projectId = $request->integer('project');
-        $scopeToProject = fn ($query) => $query->when($projectId > 0, fn ($projectQuery) => $projectQuery->where('project_id', $projectId));
-
-        $unlinkedHouses = $scopeToProject(House::query())->whereNull('cabinet_id')->count();
-        $unlinkedCabinets = $scopeToProject(Cabinet::query())->whereNull('odf_id')->count();
-        $incompleteRoutes = $scopeToProject(NetworkRoute::query())->where('route_type', '!=', 'trench')->where(function ($q) {
-            $q->whereNull('microduct_type')->orWhereNull('fiber_count');
-        })->count();
-        $items = [];
-        if ($unlinkedHouses) {
-            $items[] = "$unlinkedHouses kuca nema dodijeljeni ODO.";
-        }
-        if ($unlinkedCabinets) {
-            $items[] = "$unlinkedCabinets ODO ormarica nema povezani ODF.";
-        }
-        if ($incompleteRoutes) {
-            $items[] = "$incompleteRoutes trasa nema kompletne tehnicke podatke.";
-        }
-
-        return response()->json(['count' => count($items), 'items' => $items]);
-    })->name('api.notifications');
+    Route::get('/api/notifications', [DashboardController::class, 'notifications'])->name('api.notifications');
     Route::post('/odjava', [LoginController::class, 'destroy'])->name('logout');
     Route::put('/postavke/lozinka', [PasswordController::class, 'update'])->name('password.update');
 });

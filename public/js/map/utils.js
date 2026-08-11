@@ -91,6 +91,12 @@ function icon(type, text = '', color = null) {
     }
     return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${escapeHtml(text)}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
+function houseIconText(house) {
+    return house?.is_sling ? 'Š' : 'K';
+}
+function houseIconTextByKey(key) {
+    return houseIconText(houseDataByKey?.[key] || null);
+}
 function normalizeFtthDisplayCode(code) {
     const raw = String(code || '').trim();
     const chunks = raw.split('-').filter(Boolean);

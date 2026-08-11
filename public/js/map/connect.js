@@ -19,17 +19,17 @@ function toggleHouseConnect(house) {
     const marker = houseMarkerByKey[pointKey(house.lat, house.lng)];
     if (connectHouseIds.has(house.id)) {
         connectHouseIds.delete(house.id);
-        marker?.setIcon(icon('house', '', savedHouseColorByKey[pointKey(house.lat, house.lng)] || null));
+        marker?.setIcon(icon('house', houseIconText(house), savedHouseColorByKey[pointKey(house.lat, house.lng)] || null));
     } else {
         connectHouseIds.add(house.id);
-        marker?.setIcon(icon('house', '', '#a855f7'));
+        marker?.setIcon(icon('house', houseIconText(house), '#a855f7'));
     }
     document.getElementById('cad-command').textContent = `CONNECT HOUSES: ${connectCabinet.name} | odabrano ${connectHouseIds.size}/${available}`;
 }
 function resetHouseConnect() {
     connectHouseIds.forEach(id => {
         const house = data.houses.find(item => Number(item.id) === Number(id));
-        if (house) houseMarkerByKey[pointKey(house.lat, house.lng)]?.setIcon(icon('house', '', savedHouseColorByKey[pointKey(house.lat, house.lng)] || null));
+        if (house) houseMarkerByKey[pointKey(house.lat, house.lng)]?.setIcon(icon('house', houseIconText(house), savedHouseColorByKey[pointKey(house.lat, house.lng)] || null));
     });
     connectCabinet = null;
     connectHouseIds = new Set();
@@ -125,7 +125,7 @@ function clearFiberTrace() {
     layerRegistry.trace = [];
     activeTraceHouseId = null;
     document.getElementById('map-trace-panel')?.classList.add('hidden');
-    Object.entries(houseMarkerByKey).forEach(([key, marker]) => marker.setIcon(icon('house', '', savedHouseColorByKey[key] || null)));
+    Object.entries(houseMarkerByKey).forEach(([key, marker]) => marker.setIcon(icon('house', houseIconTextByKey(key), savedHouseColorByKey[key] || null)));
 }
 function traceRouteFor(type, house, cabinet, odf) {
     if (type === 'drop') {
@@ -425,7 +425,7 @@ function showFiberTrace(houseId) {
     const cabinetPoint = L.latLng(cabinet.lat, cabinet.lng);
     const odfPoint = L.latLng(odf.lat, odf.lng);
     const houseMarker = houseMarkerByKey[pointKey(house.lat, house.lng)];
-    houseMarker?.setIcon(icon('house', '', '#f59e0b'));
+    houseMarker?.setIcon(icon('house', houseIconText(house), '#f59e0b'));
     addTraceMarker(housePoint, house.label, 'house');
     addTraceMarker(odfPoint, odf.name, 'odf');
 
