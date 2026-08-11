@@ -3,8 +3,38 @@
 @section('subtitle', 'Operativni pregled FTTH infrastrukture i projektnih rizika.')
 @section('content')
 
-<section class="ops-toolbar">
-    <div class="ops-toolbar-copy"><span class="ops-live"><i></i> Sistem aktivan</span><p>Posljednje stanje · {{ now()->format('d.m.Y. H:i') }}</p></div>
+<section class="ops-toolbar ops-hero">
+    <div class="ops-hero-copy">
+        <span class="ops-live"><i></i> FTTH projektni prostor</span>
+        <h2>Od prve tačke do kompletne <em>optičke mreže.</em></h2>
+        <p>Projektujte trase, rasporedite ODF i ODO elemente i pripremite tehničku dokumentaciju na jednom mjestu.</p>
+        <div class="ops-hero-capabilities" aria-label="Mogućnosti aplikacije">
+            <span><i></i> GIS projektovanje</span>
+            <span><i></i> Automatsko rutiranje</span>
+            <span><i></i> Tehnička dokumentacija</span>
+        </div>
+        <small>Podaci osvježeni {{ now()->format('d.m.Y. \u H:i') }}</small>
+    </div>
+    <div class="ops-hero-visual" aria-hidden="true">
+        <svg viewBox="0 0 470 190" role="img">
+            <defs>
+                <linearGradient id="fiberLine" x1="0" x2="1"><stop stop-color="#16b8e7"/><stop offset="1" stop-color="#20b77a"/></linearGradient>
+                <filter id="fiberGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <path class="fiber-route route-a" d="M50 92 C115 92 112 42 190 42 S274 70 330 70 L417 35"/>
+            <path class="fiber-route route-b" d="M50 92 C118 92 130 139 205 139 L300 139 L417 105"/>
+            <path class="fiber-route route-c" d="M190 42 C230 42 247 98 300 98 L417 157"/>
+            <g class="fiber-node node-odf" transform="translate(50 92)"><circle r="20"/><circle r="5"/><text y="35">ODF</text></g>
+            <g class="fiber-node node-odo" transform="translate(190 42)"><circle r="15"/><circle r="4"/><text y="29">ODO 01</text></g>
+            <g class="fiber-node node-odo" transform="translate(205 139)"><circle r="15"/><circle r="4"/><text y="29">ODO 02</text></g>
+            <g class="fiber-home" transform="translate(417 35)"><path d="M-12 1 0-10 12 1v13H3V6h-6v8h-9z"/><text y="29">HP</text></g>
+            <g class="fiber-home" transform="translate(417 105)"><path d="M-12 1 0-10 12 1v13H3V6h-6v8h-9z"/><text y="29">HP</text></g>
+            <g class="fiber-home" transform="translate(417 157)"><path d="M-12 1 0-10 12 1v13H3V6h-6v8h-9z"/><text y="29">HP</text></g>
+            <circle class="fiber-pulse p1" r="4"><animateMotion dur="4s" repeatCount="indefinite" path="M50 92 C115 92 112 42 190 42 S274 70 330 70 L417 35"/></circle>
+            <circle class="fiber-pulse p2" r="4"><animateMotion dur="5s" repeatCount="indefinite" path="M50 92 C118 92 130 139 205 139 L300 139 L417 105"/></circle>
+        </svg>
+        <span class="ops-hero-visual-label">INTELIGENTNO FTTH PROJEKTOVANJE</span>
+    </div>
     <div class="ops-toolbar-actions">
         <a href="{{ route('project-check.index') }}" class="ops-button secondary">Provjera projekta</a>
         <a href="{{ route('projects.index') }}" class="ops-button primary">Novi projekat <span>+</span></a>

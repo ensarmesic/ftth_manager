@@ -644,6 +644,13 @@ class MediaskyWorkflowTest extends TestCase
             ->assertSee('F 4')
             ->assertSee('F 5-6')
             ->assertSee('Magistralna optika / raspored iz 144')
+            ->assertSee('Color Code')
+            ->assertSee('data-color-code="true"', false)
+            ->assertSee('6 tuba × 24 niti')
+            ->assertSee('ODF portovi')
+            ->assertSee('Splice plan')
+            ->assertSee('Automatska kontrola fiber plana')
+            ->assertSee('Nema dvostruko dodijeljenih vlakana')
             ->assertSee('data-fiber-range="1-3"', false)
             ->assertSee('data-fiber-range="4"', false)
             ->assertSee('Fiber tracing');

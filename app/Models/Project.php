@@ -10,7 +10,7 @@ class Project extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'start_date', 'deadline', 'description'];
+    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'start_date', 'deadline', 'description', 'fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube'];
 
     public function odfs(): HasMany
     {

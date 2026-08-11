@@ -7,6 +7,7 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use App\Support\FiberColorCode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -589,23 +590,39 @@ class ProjectExportController extends Controller
             'odfs',
             'branches' => fn ($q) => $q->with([
                 'route',
-                'cabinets' => fn ($q2) => $q2->orderBy('branch_order')->orderBy('name'),
+                'cabinets' => fn ($q2) => $q2->withCount('houses')->orderBy('branch_order')->orderBy('name'),
             ])->orderBy('sort_order'),
         ]);
 
         // ── Dodjela vlakana ───────────────────────────────────────────────────
         $fiberAlloc = [];
         $nextF = 1;
+        $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
+        $dxfColorByName = ['Blue' => 5, 'Orange' => 30, 'Green' => 3, 'Brown' => 32, 'Slate' => 8, 'White' => 7, 'Red' => 1, 'Black' => 250, 'Yellow' => 2, 'Violet' => 6, 'Rose' => 210, 'Aqua' => 4];
+        $fiberDxfColors = collect(FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia'))->map(fn (array $color) => $dxfColorByName[$color['english']])->values()->all();
+        $reservePerTube = min((int) ($project->fiber_reserve_per_tube ?? 0), $fibersPerTube - 1);
+        $allocateFibers = function (int $count) use (&$nextF, $fibersPerTube, $reservePerTube): array {
+            $position = (($nextF - 1) % $fibersPerTube) + 1;
+            $usable = $fibersPerTube - $reservePerTube;
+            if ($position > $usable || $position + $count - 1 > $usable) {
+                $nextF += $fibersPerTube - $position + 1;
+            }
+            $allocation = ['from' => $nextF, 'to' => $nextF + $count - 1];
+            $nextF += $count;
+
+            return $allocation;
+        };
         $project->branches
             ->where('type', 'secondary')
             ->sortBy(fn ($b) => sprintf('%06d|%s', (int) ($b->sort_order ?? 0), (string) $b->name))
-            ->each(function ($branch) use (&$fiberAlloc, &$nextF) {
+            ->each(function ($branch) use (&$fiberAlloc, &$nextF, $allocateFibers) {
                 $branch->cabinets
                     ->sortBy(fn ($c) => sprintf('%06d|%s', (int) ($c->branch_order ?? 0), (string) $c->name))
-                    ->each(function ($cabinet) use (&$fiberAlloc, &$nextF) {
-                        $n = max(1, (int) ($cabinet->splitter_count ?? 1));
-                        $fiberAlloc[$cabinet->id] = ['from' => $nextF, 'to' => $nextF + $n - 1];
-                        $nextF += $n;
+                    ->each(function ($cabinet) use (&$fiberAlloc, &$nextF, $allocateFibers) {
+                        $n = (int) ceil(((int) ($cabinet->houses_count ?? 0)) / max(1, (int) $cabinet->ports_per_splitter));
+                        if ($n > 0) {
+                            $fiberAlloc[$cabinet->id] = $allocateFibers($n);
+                        }
                     });
             });
 
@@ -635,13 +652,14 @@ class ProjectExportController extends Controller
             '0', 'TABLE', '2', 'LTYPE', '70', '1',
             '0', 'LTYPE', '2', 'CONTINUOUS', '70', '64', '3', '', '72', '65', '73', '0', '40', '0.0',
             '0', 'ENDTAB',
-            '0', 'TABLE', '2', 'LAYER', '70', '6',
+            '0', 'TABLE', '2', 'LAYER', '70', '7',
             '0', 'LAYER', '2', '0', '70', '64', '62', '7', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_ODF', '70', '64', '62', '5', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_PRIMARY', '70', '64', '62', '5', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_SECONDARY', '70', '64', '62', '6', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_CABINETS', '70', '64', '62', '7', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_LABELS', '70', '64', '62', '1', '6', 'CONTINUOUS',
+            '0', 'LAYER', '2', 'FTTH_FIBER_COLORS', '70', '64', '62', '7', '6', 'CONTINUOUS',
             '0', 'ENDTAB',
             '0', 'TABLE', '2', 'STYLE', '70', '1',
             '0', 'STYLE', '2', 'FTTH', '70', '0', '40', '0.0', '41', '0.8', '50', '0.0', '71', '0', '42', '3.0',
@@ -734,7 +752,7 @@ class ProjectExportController extends Controller
                 array_push($L, ...$this->dxfLine($portX, $bY, $edgeX, $bY, 'FTTH_SECONDARY', 6));
 
                 $this->schemaLabel($L, $branch, $edgeX, $bY, $side);
-                $this->schemaCabinets($L, $branch->cabinets, $portX, $edgeX, $bY, $side, $FCD, $CG, $CW, $CH, $FP, $fiberAlloc, $cabPos, $phaseOneMinY);
+                $this->schemaCabinets($L, $branch->cabinets, $portX, $edgeX, $bY, $side, $FCD, $CG, $CW, $CH, $FP, $fiberAlloc, $cabPos, $phaseOneMinY, $fibersPerTube, $fiberDxfColors);
             }
 
             // ── FAZA 2: Dijete-grane u zasebnoj zoni ispod svih Faze 1 grana ──
@@ -770,7 +788,7 @@ class ProjectExportController extends Controller
                 $this->schemaLabel($L, $branch, $edgeX, $bY, $side);
 
                 $dummyMin = PHP_FLOAT_MAX;
-                $this->schemaCabinets($L, $branch->cabinets, $srcX, $edgeX, $bY, $side, $FCD_CAB, $CG, $CW, $CH, $FP, $fiberAlloc, $cabPos, $dummyMin);
+                $this->schemaCabinets($L, $branch->cabinets, $srcX, $edgeX, $bY, $side, $FCD_CAB, $CG, $CW, $CH, $FP, $fiberAlloc, $cabPos, $dummyMin, $fibersPerTube, $fiberDxfColors);
             }
         }
 
@@ -814,7 +832,7 @@ class ProjectExportController extends Controller
         array &$L, Collection $cabinets, float $portX, float $edgeX,
         float $bY, int $side, float $fcd, float $cg,
         float $cw, float $ch, float $fp,
-        array $fiberAlloc, array &$cabPos, float &$minBoxBot
+        array $fiberAlloc, array &$cabPos, float &$minBoxBot, int $fibersPerTube = 24, array $fiberDxfColors = []
     ): void {
         $cabs = $cabinets
             ->sortBy(fn ($c) => sprintf('%06d|%s', (int) ($c->branch_order ?? 0), (string) $c->name))
@@ -842,6 +860,16 @@ class ProjectExportController extends Controller
             array_push($L, ...$this->dxfCircle($x, $tapY, 0.55, 'FTTH_SECONDARY', 6));
 
             $fa = $fiberAlloc[$cabinet->id] ?? null;
+            if ($fa) {
+                $fiberDxfColors = $fiberDxfColors ?: [5, 30, 3, 32, 8, 7, 1, 250, 2, 6, 210, 4];
+                $fiberCount = $fa['to'] - $fa['from'] + 1;
+                foreach (range($fa['from'], $fa['to']) as $fiberIndex => $fiberNumber) {
+                    $position = (($fiberNumber - 1) % $fibersPerTube) + 1;
+                    $offset = ($fiberIndex - ($fiberCount - 1) / 2) * 0.24;
+                    $dxfColor = $fiberDxfColors[($position - 1) % 12];
+                    array_push($L, ...$this->dxfLine($edgeX, $tapY + $offset, $x, $tapY + $offset, 'FTTH_FIBER_COLORS', $dxfColor));
+                }
+            }
             $fl = $fa
                 ? ($fa['from'] === $fa['to'] ? (string) $fa['from'] : $fa['from'].'-'.$fa['to'])
                 : '?';

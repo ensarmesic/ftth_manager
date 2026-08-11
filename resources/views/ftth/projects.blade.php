@@ -90,6 +90,17 @@
                                         <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rok<input type="date" name="deadline" value="{{ $project->deadline }}" class="ftth-input font-normal normal-case tracking-normal"></label>
                                     </div>
                                     <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Opis<textarea name="description" rows="2" class="ftth-input font-normal normal-case tracking-normal">{{ $project->description }}</textarea></label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Fiber kabl
+                                            <select name="fiber_layout" class="ftth-input text-[13px] font-normal normal-case tracking-normal">
+                                                @foreach(['6x24'=>'144F · 6×24','12x12'=>'144F · 12×12','4x24'=>'96F · 4×24','2x24'=>'48F · 2×24'] as $value=>$label)<option value="{{ $value }}" @selected(($project->fiber_layout ?? '6x24') === $value)>{{ $label }}</option>@endforeach
+                                            </select>
+                                        </label>
+                                        <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Color standard
+                                            <select name="fiber_color_standard" class="ftth-input text-[13px] font-normal normal-case tracking-normal"><option value="telcordia" @selected(($project->fiber_color_standard ?? 'telcordia')==='telcordia')>TIA‑598 / Telcordia</option><option value="din_vde" @selected($project->fiber_color_standard==='din_vde')>DIN/VDE profil</option></select>
+                                        </label>
+                                    </div>
+                                    <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rezerva po tubi<input type="number" min="0" max="12" name="fiber_reserve_per_tube" value="{{ $project->fiber_reserve_per_tube ?? 0 }}" class="ftth-input font-normal normal-case tracking-normal"></label>
                                     <button class="btn-save mt-1">Sačuvaj izmjene</button>
                                 </form>
                             </details>

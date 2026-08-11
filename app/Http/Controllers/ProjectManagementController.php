@@ -97,6 +97,9 @@ class ProjectManagementController extends Controller
             'start_date' => ['nullable', 'date'],
             'deadline' => ['nullable', 'date'],
             'description' => ['nullable', 'max:2000'],
+            'fiber_layout' => ['nullable', 'in:6x24,12x12,4x24,2x24'],
+            'fiber_color_standard' => ['nullable', 'in:telcordia,din_vde'],
+            'fiber_reserve_per_tube' => ['nullable', 'integer', 'min:0', 'max:12'],
         ];
     }
 }

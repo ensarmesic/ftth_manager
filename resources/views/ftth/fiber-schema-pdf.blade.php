@@ -35,6 +35,9 @@
     .port-free { background: #fafafa; color: #9aa6b2; border-left: 3px solid #d1dce6; font-style: italic; }
     .port-num { color: #888; font-size: 6.5pt; font-weight: 700; margin-right: 2px; }
     .fiber-tag { display: inline-block; background: #f3e8ff; border: 1px solid #d8b4fe; border-radius: 3px; color: #6d28d9; font-size: 6.5pt; font-weight: 900; padding: 0 4px; margin-left: 4px; }
+    .color-legend { margin: -4px 14px 10px; border: 1px solid #dbe5ef; border-radius: 5px; padding: 5px 7px; }
+    .color-item { display: inline-block; margin-right: 7px; font-size: 6pt; color: #475569; }
+    .color-dot { display: inline-block; width: 8px; height: 8px; margin-right: 2px; border: 1px solid #64748b; border-radius: 50%; vertical-align: middle; }
     .child-cabinet-block { margin-left: 18px; margin-top: 6px; border: 1.5px dashed #2f8f5b; border-radius: 6px; }
     .child-cabinet-block .cabinet-header { background: #f0fff7; border-radius: 4px 4px 0 0; }
     .child-label { font-size: 7pt; color: #2f8f5b; font-weight: 900; background: #e6fff2; border: 1px solid #a5d6bb; border-radius: 3px; padding: 0 4px; margin-right: 4px; }
@@ -73,6 +76,16 @@
             <span class="chip">Rezerva: F{{ $reserveFrom }}–{{ $reserveTo }} ({{ $reserveTo - $reserveFrom + 1 }} niti)</span>
         @endif
     </div>
+</div>
+<div class="color-legend">
+    @php
+        $pdfFibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
+        $pdfTubeCount = (int) str($project->fiber_layout ?? '6x24')->before('x')->value();
+    @endphp
+    <b style="font-size:6.5pt">COLOR CODE {{ $pdfTubeCount * $pdfFibersPerTube }}F · {{ $pdfTubeCount }} × {{ $pdfFibersPerTube }} · {{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE' : 'TIA-598/Telcordia' }}:</b>
+    @foreach(\App\Support\FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia') as $position => $color)
+        <span class="color-item"><i class="color-dot" style="background:{{ $color['hex'] }}"></i>{{ $position }} {{ $color['name'] }}</span>
+    @endforeach
 </div>
 
 @forelse($project->odfs as $odf)

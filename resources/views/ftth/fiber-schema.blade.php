@@ -128,6 +128,45 @@
     .cad-fiber-stage { position: absolute; inset: 0; transform-origin: 0 0; }
     .cad-fiber-stage svg { overflow: visible; }
     .cad-fiber-help { position: absolute; left: .7rem; bottom: .7rem; z-index: 3; border: 1px solid #e2e8f0; border-radius: .35rem; background: rgb(255 255 255 / .92); padding: .34rem .5rem; color: #64748b; font-size: .62rem; font-weight: 800; box-shadow: 0 2px 8px rgb(15 23 42 / .08); }
+    .fiber-color-board { margin: .65rem; overflow: hidden; border: 1px solid #cbd5e1; border-radius: .75rem; background: #f8fafc; }
+    .fiber-color-hero { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem; color: #fff; background: radial-gradient(circle at 85% 20%, rgb(34 211 238 / .28), transparent 30%), linear-gradient(125deg, #07152d, #123c67); }
+    .fiber-color-hero h3 { font-size: 1rem; font-weight: 950; letter-spacing: -.015em; }
+    .fiber-color-hero p { max-width: 52rem; margin-top: .25rem; color: #bfdbfe; font-size: .72rem; }
+    .fiber-standard-badge { flex: 0 0 auto; border: 1px solid rgb(125 211 252 / .5); border-radius: 999px; background: rgb(14 165 233 / .16); padding: .3rem .65rem; color: #e0f2fe; font-size: .66rem; font-weight: 900; }
+    .fiber-color-legend { display: grid; grid-template-columns: repeat(12, minmax(68px, 1fr)); gap: .4rem; padding: .8rem; overflow-x: auto; background: #fff; border-bottom: 1px solid #e2e8f0; }
+    .fiber-legend-item { min-width: 68px; text-align: center; }
+    .fiber-legend-swatch { display: grid; place-items: center; height: 2rem; border: 2px solid; border-radius: .45rem; font-size: .7rem; font-weight: 950; }
+    .fiber-legend-item small { display: block; margin-top: .2rem; color: #64748b; font-size: .58rem; font-weight: 800; }
+    .fiber-allocation-list { display: grid; gap: 1rem; padding: 1rem; background: linear-gradient(#e8eef6 1px, transparent 1px), linear-gradient(90deg, #e8eef6 1px, transparent 1px), #f8fafc; background-size: 24px 24px; }
+    .fiber-schematic { position: relative; display: grid; grid-template-columns: 124px minmax(260px, 1fr) 150px; align-items: center; min-height: 132px; border: 1px solid #d4e1ee; border-radius: .75rem; background: rgb(255 255 255 / .94); padding: 1rem; box-shadow: 0 7px 20px rgb(15 23 42 / .06); }
+    .fiber-node { position: relative; z-index: 2; display: grid; place-items: center; min-height: 82px; border: 2px solid; border-radius: .55rem; padding: .55rem; text-align: center; box-shadow: 0 4px 10px rgb(15 23 42 / .1); }
+    .fiber-node.odf { border-color: #0284c7; background: linear-gradient(145deg, #e0f2fe, #fff); color: #075985; }
+    .fiber-node.odo { border-color: #16a34a; background: linear-gradient(145deg, #dcfce7, #fff); color: #166534; }
+    .fiber-node-icon { display: grid; place-items: center; width: 2rem; height: 2rem; margin-bottom: .25rem; border-radius: .4rem; background: currentColor; color: #fff; font-size: .58rem; font-weight: 950; }
+    .fiber-node b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: #0f172a; font-size: .7rem; white-space: nowrap; }
+    .fiber-node small { margin-top: .12rem; font-size: .55rem; font-weight: 800; opacity: .72; }
+    .fiber-cable-run { position: relative; z-index: 1; min-width: 0; padding: .2rem 1rem; }
+    .fiber-cable-run::before { content: ''; position: absolute; z-index: -2; left: -2px; right: -2px; top: 50%; height: 16px; transform: translateY(-50%); border: 2px solid #334155; border-radius: 999px; background: #0f172a; box-shadow: 0 0 0 4px #e2e8f0; }
+    .fiber-cable-run::after { content: ''; position: absolute; right: -8px; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 12px solid #334155; }
+    .fiber-cable-label { position: absolute; left: 50%; top: -1.05rem; transform: translateX(-50%); border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; padding: .15rem .55rem; color: #475569; font-size: .57rem; font-weight: 900; white-space: nowrap; }
+    .fiber-chip-list { display: flex; position: relative; justify-content: center; flex-wrap: wrap; gap: .35rem; }
+    .fiber-code-chip { display: grid; position: relative; z-index: 2; width: 54px; overflow: hidden; border: 2px solid #fff; border-radius: .45rem; background: #fff; box-shadow: 0 2px 8px rgb(15 23 42 / .28); text-align: center; }
+    .fiber-tube-mark { display: block; padding: .12rem; border-bottom: 1px solid rgb(15 23 42 / .12); font-size: .5rem; font-weight: 950; }
+    .fiber-core-mark { display: block; padding: .25rem .12rem; font-size: .61rem; font-weight: 950; line-height: 1.1; }
+    .fiber-core-mark small { display: block; margin-top: .1rem; font-size: .45rem; }
+    .fiber-color-empty { border: 1px dashed #cbd5e1; border-radius: .55rem; padding: 1rem; color: #64748b; text-align: center; font-size: .72rem; font-weight: 800; }
+    .fiber-color-note { padding: 0 .8rem .8rem; color: #64748b; font-size: .62rem; }
+    .fiber-tool-panel { margin: .65rem; max-height: 72vh; overflow: auto; border: 1px solid #dbe5ef; border-radius: .7rem; background: #f8fafc; padding: .8rem; }
+    .fiber-tool-title { margin-bottom: .65rem; color: #0f172a; font-size: .85rem; font-weight: 950; }
+    .fiber-plan-grid { display: grid; gap: .55rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .fiber-plan-card { border: 1px solid #dbe5ef; border-radius: .55rem; background: #fff; padding: .65rem; box-shadow: 0 2px 7px rgb(15 23 42 / .04); }
+    .fiber-plan-card header { display:flex; justify-content:space-between; gap:.5rem; margin-bottom:.45rem; font-size:.7rem; font-weight:900; }
+    .fiber-plan-line { display:grid; grid-template-columns:45px 52px 1fr; gap:.35rem; align-items:center; border-top:1px solid #eef2f7; padding:.3rem 0; font-size:.62rem; }
+    .fiber-dot { display:inline-block; width:.72rem; height:.72rem; margin-right:.25rem; border:1px solid rgb(15 23 42 / .25); border-radius:999px; vertical-align:middle; }
+    .fiber-check { display:flex; gap:.55rem; align-items:flex-start; border:1px solid; border-radius:.55rem; background:#fff; padding:.65rem; font-size:.7rem; font-weight:750; }
+    .fiber-check.ok { border-color:#86efac;color:#166534 }.fiber-check.warn { border-color:#fcd34d;color:#92400e }.fiber-check.error { border-color:#fca5a5;color:#991b1b }
+    .cad-color-legend { position:absolute; right:.7rem; top:.7rem; z-index:3; display:flex; flex-wrap:wrap; max-width:390px; gap:.22rem; border:1px solid #cbd5e1; border-radius:.4rem; background:rgb(255 255 255 / .95); padding:.35rem; box-shadow:0 2px 8px rgb(15 23 42 / .1); }
+    .cad-color-legend span { display:flex; align-items:center; gap:.2rem; font-size:.5rem; font-weight:850; color:#334155 }
     @media (max-width: 920px) {
         .schema-row, .board-labels { grid-template-columns: 1fr; }
         .fiber-bus, .cabinet-node::before { display: none; }
@@ -139,6 +178,14 @@
         .schema-board, .schema-shell, .schema-head { padding: .5rem; }
         .splitter-line { grid-template-columns: 1fr 1fr; }
         .splitter-label { grid-column: 1 / -1; text-align: left; }
+        .fiber-color-hero { display: grid; grid-template-columns: 1fr; }
+        .fiber-schematic { grid-template-columns: 82px minmax(150px, 1fr) 92px; padding: .65rem; }
+        .fiber-node { min-height: 70px; padding: .3rem; }
+        .fiber-node-icon { width: 1.6rem; height: 1.6rem; }
+        .fiber-node small { display: none; }
+        .fiber-cable-run { padding-inline: .45rem; }
+        .fiber-cable-label { top: -1.2rem; }
+        .fiber-standard-badge { width: fit-content; }
     }
     .fiber-warning-band { margin-bottom: .55rem; display: grid; gap: .28rem; }
     .fiber-warning-item { display: flex; align-items: flex-start; gap: .4rem; border: 1px solid #fca5a5; border-radius: .4rem; background: #fff1f1; padding: .38rem .6rem; color: #991b1b; font-size: .69rem; font-weight: 800; }
@@ -153,6 +200,40 @@
     .fpf-btn { border: 1.5px solid #dbe7f3; border-radius: .45rem; background: #fff; padding: .38rem .8rem; color: #475569; font-size: .76rem; font-weight: 800; cursor: pointer; transition: background .12s, border-color .12s, color .12s; white-space: nowrap; }
     .fpf-btn:hover { border-color: #93c5fd; background: #f0f7ff; color: #1d4ed8; }
     .fpf-btn.active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; box-shadow: inset 0 -2px 0 #2563eb; }
+    /* Compact engineering workspace */
+    .fiber-project-filter { position: sticky; top: 0; z-index: 8; align-items: center; margin: -.25rem -.15rem .45rem; padding: .4rem .25rem; background: rgb(241 245 249 / .94); backdrop-filter: blur(8px); }
+    .fpf-btn { padding: .3rem .65rem; border-radius: 999px; font-size: .68rem; }
+    .schema-project { border-radius: .65rem; box-shadow: 0 8px 24px rgb(15 23 42 / .055); }
+    .schema-head { min-height: 48px; padding: .48rem .65rem; background: linear-gradient(90deg,#f8fbff,#fff); }
+    .schema-head h2 { font-size: .88rem; }
+    .schema-stats { align-items: center; gap: .25rem; }
+    .schema-chip { padding: .14rem .42rem; font-size: .62rem; }
+    .schema-stats a { padding: .16rem .48rem !important; font-size: .63rem !important; }
+    .schema-view-tabs { position: relative; gap: .2rem; overflow-x: auto; flex-wrap: nowrap; padding: .42rem .55rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc; scrollbar-width: thin; }
+    .schema-view-tab { flex: 0 0 auto; border-color: transparent; border-radius: .4rem; background: transparent; padding: .34rem .58rem; box-shadow: none; font-size: .64rem; }
+    .schema-view-tab:hover { border-color: #dbeafe; }
+    .schema-view-tab.active { border-color: #bfdbfe; background: #fff; box-shadow: 0 1px 4px rgb(15 23 42 / .08), inset 0 -2px 0 #2563eb; }
+    .cad-fiber-shell { margin: .5rem; height: min(72vh, 720px); min-height: 460px; border-radius: .55rem; }
+    .cad-fiber-controls { gap: .2rem; left: .5rem; top: .5rem; }
+    .cad-fiber-controls button { min-width: 1.8rem; padding: .27rem .45rem; font-size: .61rem; }
+    .cad-fiber-help { left: .5rem; bottom: .5rem; max-width: calc(100% - 1rem); padding: .25rem .42rem; font-size: .55rem; }
+    .cad-color-legend { right: .5rem; top: .5rem; max-width: 350px; padding: .28rem; gap: .16rem .3rem; }
+    .cad-color-legend .fiber-dot { width: .55rem; height: .55rem; }
+    .fiber-tool-panel { margin: .5rem; max-height: 70vh; padding: .6rem; border-radius: .55rem; }
+    .fiber-tool-title { display:flex; align-items:center; min-height: 30px; margin: -.6rem -.6rem .55rem; padding: .45rem .65rem; border-bottom:1px solid #e2e8f0; background:#fff; font-size:.75rem; }
+    .fiber-plan-grid { gap: .4rem; grid-template-columns: repeat(auto-fill,minmax(235px,1fr)); }
+    .fiber-plan-card { padding: .5rem; border-radius: .45rem; }
+    .fiber-plan-card header { margin-bottom: .3rem; font-size: .65rem; }
+    .fiber-plan-line { grid-template-columns: 39px 48px 1fr; padding: .24rem 0; font-size: .57rem; }
+    .fiber-check { padding: .5rem .6rem; border-radius: .45rem; font-size: .64rem; }
+    @media (max-width: 760px) {
+        .schema-head { align-items:flex-start; }
+        .schema-stats { width:100%; }
+        .cad-fiber-shell { min-height:400px; height:65vh; margin:.35rem; }
+        .cad-color-legend { top:auto; right:.4rem; bottom:2.15rem; max-width:calc(100% - .8rem); }
+        .cad-color-legend span { font-size:.46rem; }
+        .fiber-tool-panel { margin:.35rem; }
+    }
 </style>
 
 <div class="fiber-project-filter" id="fiber-project-filter">
@@ -176,39 +257,43 @@
         };
         $fiberAllocations = [];
         $nextFiber = 1;
+        $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
+        $tubeCount = (int) str($project->fiber_layout ?? '6x24')->before('x')->value();
+        $configuredFiberCapacity = $tubeCount * $fibersPerTube;
+        $reservePerTube = min((int) ($project->fiber_reserve_per_tube ?? 0), $fibersPerTube - 1);
+        $allocateFibers = function (int $count) use (&$nextFiber, $fibersPerTube, $reservePerTube): array {
+            $position = (($nextFiber - 1) % $fibersPerTube) + 1;
+            $usable = $fibersPerTube - $reservePerTube;
+            if ($position > $usable || $position + $count - 1 > $usable) {
+                $nextFiber += $fibersPerTube - $position + 1;
+            }
+            $allocation = ['from' => $nextFiber, 'to' => $nextFiber + $count - 1, 'count' => $count];
+            $nextFiber += $count;
+            return $allocation;
+        };
         $project->odfs
             ->sortBy(fn ($odf) => (string) $odf->name)
-            ->each(function ($odf) use ($project, &$fiberAllocations, &$nextFiber, $neededSplitters) {
+            ->each(function ($odf) use ($project, &$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
             $project->branches
                 ->where('type', 'secondary')
                 ->where('odf_id', $odf->id)
                 ->sortBy(fn ($branch) => sprintf('%06d|%s', (int) ($branch->sort_order ?? 0), (string) $branch->name))
-                ->each(function ($branch) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                ->each(function ($branch) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
                     $branch->cabinets
                         ->sortBy(fn ($cabinet) => sprintf('%06d|%s', (int) ($cabinet->branch_order ?? 0), (string) $cabinet->name))
-                        ->each(function ($cabinet) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                        ->each(function ($cabinet) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
                             $fiberCount = $neededSplitters($cabinet);
                             if ($fiberCount > 0) {
-                                $fiberAllocations[$cabinet->id] = [
-                                    'from' => $nextFiber,
-                                    'to' => $nextFiber + $fiberCount - 1,
-                                    'count' => $fiberCount,
-                                ];
-                                $nextFiber += $fiberCount;
+                                $fiberAllocations[$cabinet->id] = $allocateFibers($fiberCount);
                             }
 
                         $cabinet->childCabinets
                             ->whereNull('branch_id')
                             ->sortBy(fn ($child) => sprintf('%06d|%s', (int) ($child->branch_order ?? 0), (string) $child->name))
-                            ->each(function ($child) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                            ->each(function ($child) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
                                 $childFiberCount = $neededSplitters($child);
                                 if ($childFiberCount > 0) {
-                                    $fiberAllocations[$child->id] = [
-                                        'from' => $nextFiber,
-                                        'to' => $nextFiber + $childFiberCount - 1,
-                                        'count' => $childFiberCount,
-                                    ];
-                                    $nextFiber += $childFiberCount;
+                                    $fiberAllocations[$child->id] = $allocateFibers($childFiberCount);
                                 }
                             });
                         });
@@ -254,9 +339,13 @@
         </div>
 
         <div class="schema-view-tabs">
-            <button type="button" class="schema-view-tab active" data-schema-view="cad-fiber">CAD Fiber View</button>
-            <button type="button" class="schema-view-tab" data-schema-view="topology">Topology View</button>
-            <button type="button" class="schema-view-tab" data-schema-view="rack">Fiber Rack View</button>
+            <button type="button" class="schema-view-tab active" data-schema-view="cad-fiber">⌁ CAD šema</button>
+            <button type="button" class="schema-view-tab" data-schema-view="color-code">● Color Code</button>
+            <button type="button" class="schema-view-tab" data-schema-view="topology">◇ Topologija</button>
+            <button type="button" class="schema-view-tab" data-schema-view="rack">▤ Rack</button>
+            <button type="button" class="schema-view-tab" data-schema-view="port-plan">P# ODF portovi</button>
+            <button type="button" class="schema-view-tab" data-schema-view="splice-plan">⋈ Splice plan</button>
+            <button type="button" class="schema-view-tab" data-schema-view="fiber-check">✓ Kontrola</button>
         </div>
         @php
             $topologyGraph = [
@@ -279,6 +368,11 @@
                 'reserve_from' => $reserveFrom,
                 'reserve_to' => $reserveTo,
                 'odf_capacity' => $odfCapacity,
+                'fibers_per_tube' => $fibersPerTube,
+                'fiber_layout' => $project->fiber_layout ?? '6x24',
+                'color_standard' => $project->fiber_color_standard ?? 'telcordia',
+                'reserve_per_tube' => $reservePerTube,
+                'fiber_palette' => array_values(\App\Support\FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia')),
             ];
         @endphp
         <div data-schema-panel="cad-fiber">
@@ -288,6 +382,61 @@
                 <div class="cad-fiber-help">Magistralna optika / raspored iz 144 / ODF u centru / krakovi lijevo-desno</div>
             </div>
         </div>
+        <div class="hidden" data-schema-panel="color-code">
+            <div class="cad-fiber-shell" data-cad-fiber='@json($topologyGraph)' data-color-code="true">
+                <div class="cad-fiber-controls"><button data-cad-action="zoom-in">+</button><button data-cad-action="zoom-out">&minus;</button><button data-cad-action="fit">Fit</button></div>
+                <div class="cad-fiber-stage"></div>
+                <div class="cad-color-legend">
+                    @foreach(\App\Support\FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia') as $position => $color)
+                        <span><i class="fiber-dot" style="background:{{ $color['hex'] }}"></i>{{ $position }} {{ $color['name'] }}</span>
+                    @endforeach
+                </div>
+                <div class="cad-fiber-help">COLOR CODE {{ $configuredFiberCapacity }}F · {{ $tubeCount }} tuba × {{ $fibersPerTube }} niti · {{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE profil' : 'TIA‑598 / Telcordia' }}</div>
+            </div>
+        </div>
+        <div class="hidden" data-schema-panel="port-plan"><section class="fiber-tool-panel">
+            <h3 class="fiber-tool-title">ODF port plan · planirana terminacija</h3>
+            <div class="fiber-plan-grid">
+                @foreach($project->odfs as $odf)
+                    <article class="fiber-plan-card"><header><span>{{ $odf->name }}</span><span>{{ $odf->port_count }} portova</span></header>
+                    @forelse($allCabinets->filter(fn($cabinet) => $cabinet->odf_id === $odf->id && isset($fiberAllocations[$cabinet->id])) as $cabinet)
+                        @foreach(range($fiberAllocations[$cabinet->id]['from'], $fiberAllocations[$cabinet->id]['to']) as $fiberNumber)
+                            @php $fc = \App\Support\FiberColorCode::describe($fiberNumber, $fibersPerTube, $project->fiber_color_standard ?? 'telcordia'); @endphp
+                            <div class="fiber-plan-line" data-odf-port="{{ $fiberNumber }}"><b>P{{ $fiberNumber }}</b><span><i class="fiber-dot" style="background:{{ $fc['fiber']['hex'] }}"></i>F{{ $fiberNumber }}</span><span>T{{ $fc['tube_number'] }}/V{{ $fc['position'] }} → {{ $cabinet->name }}</span></div>
+                        @endforeach
+                    @empty <div class="text-xs text-slate-500">Nema planiranih terminacija.</div> @endforelse
+                    </article>
+                @endforeach
+            </div>
+        </section></div>
+        <div class="hidden" data-schema-panel="splice-plan"><section class="fiber-tool-panel">
+            <h3 class="fiber-tool-title">Splice plan · planirana varenja</h3>
+            <div class="fiber-plan-grid">
+                @forelse($allCabinets->filter(fn($cabinet) => isset($fiberAllocations[$cabinet->id])) as $cabinet)
+                    @php $fa = $fiberAllocations[$cabinet->id]; @endphp
+                    <article class="fiber-plan-card"><header><span>{{ $cabinet->name }}</span><span>{{ $fa['count'] }} varenja</span></header>
+                        @foreach(range($fa['from'], $fa['to']) as $fiberNumber)
+                            @php $fc = \App\Support\FiberColorCode::describe($fiberNumber, $fibersPerTube, $project->fiber_color_standard ?? 'telcordia'); @endphp
+                            <div class="fiber-plan-line"><b>F{{ $fiberNumber }}</b><span><i class="fiber-dot" style="background:{{ $fc['fiber']['hex'] }}"></i>V{{ $fc['position'] }}</span><span>T{{ $fc['tube_number'] }} → splitter {{ $loop->iteration }} IN</span></div>
+                        @endforeach
+                    </article>
+                @empty <div class="fiber-check warn">Nema vlakana za splice plan.</div> @endforelse
+            </div>
+        </section></div>
+        <div class="hidden" data-schema-panel="fiber-check"><section class="fiber-tool-panel">
+            <h3 class="fiber-tool-title">Automatska kontrola fiber plana</h3>
+            <div class="grid gap-2">
+                <div class="fiber-check {{ $usedFiberTo <= $odfCapacity ? 'ok' : 'error' }}"><b>{{ $usedFiberTo <= $odfCapacity ? '✓' : '!' }}</b><span>Kapacitet: plan koristi {{ $usedFiberTo }} od {{ $odfCapacity }} vlakana.</span></div>
+                <div class="fiber-check {{ $unassignedCabs->isEmpty() ? 'ok' : 'warn' }}"><b>{{ $unassignedCabs->isEmpty() ? '✓' : '!' }}</b><span>{{ $unassignedCabs->isEmpty() ? 'Svi ODO ormarići imaju planiranu fiber dodjelu.' : $unassignedCabs->count().' ODO ormarića nema fiber dodjelu: '.$unassignedCabs->pluck('name')->implode(', ') }}</span></div>
+                @php
+                    $claimedFibers = collect($fiberAllocations)->flatMap(fn($range) => range($range['from'], $range['to']));
+                    $duplicateFibers = $claimedFibers->duplicates()->unique()->values();
+                @endphp
+                <div class="fiber-check {{ $duplicateFibers->isEmpty() ? 'ok' : 'error' }}"><b>{{ $duplicateFibers->isEmpty() ? '✓' : '!' }}</b><span>{{ $duplicateFibers->isEmpty() ? 'Nema dvostruko dodijeljenih vlakana.' : 'Konflikt na vlaknima: F'.$duplicateFibers->implode(', F') }}</span></div>
+                <div class="fiber-check {{ $configuredFiberCapacity === $odfCapacity ? 'ok' : 'warn' }}"><b>{{ $configuredFiberCapacity === $odfCapacity ? '✓' : '!' }}</b><span>Model kabla: {{ $configuredFiberCapacity }}F, {{ $tubeCount }} tuba × {{ $fibersPerTube }} niti. ODF je evidentiran kao {{ $odfCapacity }}F. Sljedeća planirana rezerva: F{{ $reserveFrom }}–F{{ $reserveTo }}.</span></div>
+                <div class="fiber-check warn"><b>i</b><span>Profil boja: {{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE profil' : 'TIA‑598 / Telcordia' }}. Za izvedbeni plan evidentirati proizvođača i tačnu oznaku kabla iz datasheeta.</span></div>
+            </div>
+        </section></div>
         <div class="hidden" data-schema-panel="topology">
             <div class="topology-graph-shell" data-topology-graph='@json($topologyGraph)'>
                 <div class="topology-controls"><button data-topology-action="zoom-in">+</button><button data-topology-action="zoom-out">&minus;</button><button data-topology-action="fit">Fit</button><button data-topology-action="collapse">Sazmi</button></div>
@@ -342,7 +491,7 @@
                             $unassignedOdfCabs = $odf->cabinets->filter(fn($c) => is_null($c->branch_id))
                                 ->sortBy(fn($c) => (string)$c->name);
                         @endphp
-                        @if($rackHasCabinets || $unassignedOdfCabs->isNotEmpty())
+                        @if(($rackHasCabinets ?? false) || ($unassignedOdfCabs ?? collect())->isNotEmpty())
                             @foreach($rackBranches as $rackBranch)
                                 @php
                                     $rackBranchCabs = $rackBranch->cabinets
@@ -561,10 +710,13 @@ document.querySelectorAll('.schema-project').forEach(project => {
 function cadFiberRenderer(shell) {
     const data=JSON.parse(shell.dataset.cadFiber || '{"odfs":[],"cabinets":[],"branches":[]}');
     const stage=shell.querySelector('.cad-fiber-stage');
+    const colorMode=shell.dataset.colorCode==='true';
     let scale=1, panX=0, panY=0, dragging=false, start=null;
     const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
     const odfX=2800, odfY=620, odfGap=1150, odfW=280, odfH=360, cabinetW=58, cabinetH=96, cabinetGap=220, childBranchGap=70, branchGap=230, fiberPitch=8;
     const odfPalette=['#1d4ed8','#047857','#b45309','#7c3aed','#be123c','#0f766e'];
+    const fiberPalette=(data.fiber_palette||[]).map(color=>color.hex);
+    if(!fiberPalette.length) fiberPalette.push('#2563eb','#f97316','#16a34a','#92400e','#64748b','#f8fafc','#dc2626','#111827','#facc15','#7c3aed','#ec4899','#22d3ee');
     const odfColor=index=>odfPalette[index%odfPalette.length];
     const fitText=(value,max=18)=>String(value??'').length>max ? `${String(value).slice(0,max-3)}...` : String(value??'');
     function branchCabinets(branch) {
@@ -579,6 +731,17 @@ function cadFiberRenderer(shell) {
         const from=Number(cabinet.fiber_from)||0, to=Number(cabinet.fiber_to)||from;
         if(!from) return '?';
         return from===to ? `${from}` : `${from}-${to}`;
+    }
+    function coloredFiberLines(cabinet,x1,y1,x2) {
+        if(!colorMode || !Number(cabinet.fiber_from)) return '';
+        const from=Number(cabinet.fiber_from), to=Number(cabinet.fiber_to)||from;
+        const count=Math.max(1,to-from+1), spacing=5;
+        return Array.from({length:count},(_,index)=>{
+            const number=from+index, perTube=Number(data.fibers_per_tube)||24, position=((number-1)%perTube)+1, color=fiberPalette[(position-1)%12];
+            const offset=(index-(count-1)/2)*spacing;
+            const dash=position>12 ? ' stroke-dasharray="8 3"' : '';
+            return `<line x1="${x1}" y1="${y1+offset}" x2="${x2}" y2="${y1+offset}" stroke="${color}" stroke-width="3.2" stroke-linecap="round"${dash}/>`;
+        }).join('');
     }
     function branchFiberRange(cabinets) {
         const ranges=cabinets.filter(c=>Number(c.fiber_from)).map(c=>[Number(c.fiber_from),Number(c.fiber_to)||Number(c.fiber_from)]);
@@ -674,7 +837,7 @@ function cadFiberRenderer(shell) {
             const boxY=tapY+34, titleY=boxY+cabinetH+28, metaY=titleY+16;
             positions[`cab-${cabinet.id}`]={x,y:tapY, boxY, bottomY:metaY+18};
             branchBottomY=Math.max(branchBottomY, metaY+18);
-            parts.push(`<line x1="${odfEdge}" y1="${tapY}" x2="${x}" y2="${tapY}" stroke="${color}" stroke-width="2" opacity=".65"/>`);
+            parts.push(`<line x1="${odfEdge}" y1="${tapY}" x2="${x}" y2="${tapY}" stroke="${colorMode?'#cbd5e1':color}" stroke-width="${colorMode?8:2}" opacity="${colorMode?'.8':'.65'}"/>${coloredFiberLines(cabinet,odfEdge,tapY,x)}`);
             parts.push(`<circle cx="${x}" cy="${tapY}" r="5.5" fill="${color}"/><circle cx="${x}" cy="${tapY}" r="2.5" fill="#fff"/><text x="${x-side*14}" y="${tapY-9}" text-anchor="${side>0?'end':'start'}" class="cad-port">${fiberRangeText(cabinet)}</text>`);
             parts.push(`<rect x="${x-cabinetW/2}" y="${boxY}" width="${cabinetW}" height="${cabinetH}" rx="7" fill="#fff" stroke="${color}" stroke-width="2" filter="url(#sh)"/><rect x="${x-cabinetW/2}" y="${boxY}" width="${cabinetW}" height="22" rx="7" fill="${color}" opacity=".85"/><rect x="${x-cabinetW/2}" y="${boxY+15}" width="${cabinetW}" height="7" fill="${color}" opacity=".85"/><line x1="${x}" y1="${tapY}" x2="${x}" y2="${boxY}" stroke="${color}" stroke-width="2.5"/><rect x="${x-72}" y="${titleY-14}" width="144" height="36" rx="5" fill="#f8faff" stroke="#e2e8f0" stroke-width="1"/><text x="${x}" y="${titleY+2}" text-anchor="middle" class="cad-title">${esc(fitText(cabinetDisplayName(cabinet),18))}</text><text x="${x}" y="${metaY+2}" text-anchor="middle" class="cad-meta">${cabinetFiberLabel(cabinet)} / ${cabinet.used}/${cabinet.capacity}</text>`);
         });

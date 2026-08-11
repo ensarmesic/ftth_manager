@@ -199,27 +199,38 @@ class ReportController extends Controller
 
         $fiberAllocations = [];
         $nextFiber = 1;
-        $project->odfs->sortBy(fn ($odf) => (string) $odf->name)->each(function ($odf) use ($project, &$fiberAllocations, &$nextFiber, $neededSplitters) {
+        $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
+        $reservePerTube = min((int) ($project->fiber_reserve_per_tube ?? 0), $fibersPerTube - 1);
+        $allocateFibers = function (int $count) use (&$nextFiber, $fibersPerTube, $reservePerTube): array {
+            $position = (($nextFiber - 1) % $fibersPerTube) + 1;
+            $usable = $fibersPerTube - $reservePerTube;
+            if ($position > $usable || $position + $count - 1 > $usable) {
+                $nextFiber += $fibersPerTube - $position + 1;
+            }
+            $allocation = ['from' => $nextFiber, 'to' => $nextFiber + $count - 1, 'count' => $count];
+            $nextFiber += $count;
+
+            return $allocation;
+        };
+        $project->odfs->sortBy(fn ($odf) => (string) $odf->name)->each(function ($odf) use ($project, &$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
             $project->branches
                 ->where('type', 'secondary')
                 ->where('odf_id', $odf->id)
                 ->sortBy(fn ($branch) => sprintf('%06d|%s', (int) ($branch->sort_order ?? 0), (string) $branch->name))
-                ->each(function ($branch) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                ->each(function ($branch) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
                     $branch->cabinets
                         ->sortBy(fn ($cabinet) => sprintf('%06d|%s', (int) ($cabinet->branch_order ?? 0), (string) $cabinet->name))
-                        ->each(function ($cabinet) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                        ->each(function ($cabinet) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
                             $fiberCount = $neededSplitters($cabinet);
                             if ($fiberCount > 0) {
-                                $fiberAllocations[$cabinet->id] = ['from' => $nextFiber, 'to' => $nextFiber + $fiberCount - 1, 'count' => $fiberCount];
-                                $nextFiber += $fiberCount;
+                                $fiberAllocations[$cabinet->id] = $allocateFibers($fiberCount);
                             }
                             $cabinet->childCabinets->whereNull('branch_id')
                                 ->sortBy(fn ($child) => sprintf('%06d|%s', (int) ($child->branch_order ?? 0), (string) $child->name))
-                                ->each(function ($child) use (&$fiberAllocations, &$nextFiber, $neededSplitters) {
+                                ->each(function ($child) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
                                     $childFiberCount = $neededSplitters($child);
                                     if ($childFiberCount > 0) {
-                                        $fiberAllocations[$child->id] = ['from' => $nextFiber, 'to' => $nextFiber + $childFiberCount - 1, 'count' => $childFiberCount];
-                                        $nextFiber += $childFiberCount;
+                                        $fiberAllocations[$child->id] = $allocateFibers($childFiberCount);
                                     }
                                 });
                         });
