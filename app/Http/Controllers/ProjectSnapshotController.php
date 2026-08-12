@@ -11,7 +11,17 @@ class ProjectSnapshotController extends Controller
 {
     public function index(Project $project)
     {
-        return response()->json(['snapshots' => ProjectSnapshot::query()->where('project_id', $project->id)->latest()->limit(10)->get(['id', 'label', 'created_at'])]);
+        $versions = ProjectSnapshot::query()->where('project_id', $project->id)->latest()->limit(10)->get()
+            ->map(fn (ProjectSnapshot $snapshot) => [
+                'id' => $snapshot->id,
+                'label' => $snapshot->label,
+                'source' => $snapshot->source(),
+                'content_summary' => $snapshot->contentSummary(),
+                'item_count' => array_sum($snapshot->contentSummary()),
+                'created_at' => $snapshot->created_at,
+            ]);
+
+        return response()->json(['snapshots' => $versions, 'versions' => $versions]);
     }
 
     public function store(Request $request, Project $project, ProjectSnapshotService $service)

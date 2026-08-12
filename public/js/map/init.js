@@ -517,32 +517,7 @@ document.getElementById('toggle-cable-specs').addEventListener('click', () => {
     refreshAllRouteLabels();
     document.getElementById('cad-command').textContent = showCableSpecs ? 'SPECS: prikaz vlakana i mikrocijevi na trasama uključen.' : 'SPECS: isključen.';
 });
-document.getElementById('project-snapshot-btn').addEventListener('click', () => {
-    manageProjectSnapshots().catch(error => { document.getElementById('cad-command').textContent = `BACKUP: ${error.message}`; });
-});
-document.getElementById('snapshot-close').addEventListener('click', () => document.getElementById('snapshot-overlay').classList.add('hidden'));
-document.getElementById('snapshot-overlay').addEventListener('click', event => {
-    if (event.target.id === 'snapshot-overlay') event.currentTarget.classList.add('hidden');
-});
-document.getElementById('snapshot-create').addEventListener('click', async () => {
-    const projectId = document.getElementById('active-project-id').value;
-    const baseUrl = appConfig.projectSnapshotsBaseUrl.replace('__ID__', projectId);
-    const label = document.getElementById('snapshot-label').value.trim() || 'Ručna sigurnosna kopija';
-    const response = await fetch(baseUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ label }) });
-    await readJsonResponse(response, 'Sigurnosna kopija nije sačuvana.');
-    await manageProjectSnapshots();
-});
-document.getElementById('snapshot-list').addEventListener('click', async event => {
-    const button = event.target.closest('.snapshot-restore');
-    const label = button?.closest('.snapshot-row')?.querySelector('strong')?.textContent || 'odabranu kopiju';
-    if (!button || !confirm(`Vratiti projekat na "${label}"? Trenutno stanje bit će zamijenjeno.`)) return;
-    const projectId = document.getElementById('active-project-id').value;
-    const baseUrl = appConfig.projectSnapshotsBaseUrl.replace('__ID__', projectId);
-    const response = await fetch(`${baseUrl}/${button.dataset.snapshotId}/vrati`, { method: 'POST', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
-    const result = await readJsonResponse(response, 'Projekat nije vraćen.');
-    document.getElementById('cad-command').textContent = `${result.message} Osvježavam mapu...`;
-    setTimeout(() => window.location.reload(), 700);
-});
+initProjectVersionHistory();
 function updateParallelRouteButton() {
     const btn = document.getElementById('toggle-parallel-routes');
     btn.setAttribute('aria-pressed', String(parallelRouteDisplay));

@@ -280,6 +280,21 @@ class MediaskyWorkflowTest extends TestCase
             ->assertJsonPath('routes.0.house.label', 'K-001');
     }
 
+    public function test_gis_plan_reports_missing_odf_without_writing_anything(): void
+    {
+        $project = Project::create(['name' => 'Bez ODF', 'code' => 'NO-ODF', 'location' => 'Test', 'status' => 'planning']);
+        House::create(['project_id' => $project->id, 'label' => 'K-001', 'address' => 'Kuca', 'status' => 'planned', 'latitude' => 44.4503, 'longitude' => 18.6508]);
+
+        $this->getJson(route('projects.gis-plan.preview', $project))
+            ->assertOk()
+            ->assertJsonPath('summary.status', 'missing_odf')
+            ->assertJsonCount(0, 'routes');
+        $this->postJson(route('projects.gis-plan.confirm', $project))->assertStatus(422);
+
+        $this->assertSame(0, NetworkRoute::where('project_id', $project->id)->count());
+        $this->assertSame(0, Cabinet::where('project_id', $project->id)->count());
+    }
+
     public function test_gis_plan_confirm_creates_unique_network_routes(): void
     {
         $project = Project::create(['name' => 'GIS confirm', 'code' => 'GIS-CONFIRM', 'location' => 'Test', 'status' => 'planning']);

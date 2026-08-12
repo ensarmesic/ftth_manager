@@ -12,4 +12,14 @@ class ProjectSnapshot extends Model
     {
         return ['payload' => 'array'];
     }
+
+    public function contentSummary(): array
+    {
+        return collect($this->payload ?? [])->map(fn ($rows) => count($rows))->filter()->all();
+    }
+
+    public function source(): string
+    {
+        return str_starts_with($this->label, 'Automatski:') ? 'automatic' : 'manual';
+    }
 }

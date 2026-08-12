@@ -58,4 +58,19 @@ class ProjectSnapshotTest extends TestCase
         $this->assertSame('Arhiva', $payload['snapshot']['label']);
         $this->assertCount(1, $payload['data']['houses']);
     }
+
+    public function test_version_history_lists_source_and_content_summary(): void
+    {
+        $project = Project::factory()->create();
+        House::factory()->count(2)->create(['project_id' => $project->id]);
+
+        $this->postJson(route('projects.snapshots.store', $project), ['label' => 'Ručna kontrolna tačka'])->assertCreated();
+
+        $this->getJson(route('projects.snapshots.index', $project))
+            ->assertOk()
+            ->assertJsonPath('versions.0.label', 'Ručna kontrolna tačka')
+            ->assertJsonPath('versions.0.source', 'manual')
+            ->assertJsonPath('versions.0.content_summary.houses', 2)
+            ->assertJsonPath('versions.0.item_count', 2);
+    }
 }
