@@ -1,4 +1,62 @@
 // ── DRAFT / PLAN PERSISTENCE ──────────────────────────────────────────────────
+function collectDraftPreflightIssues(payload) {
+    const issues = [];
+    if (!payload.odfs.length && !data.odfs.length && (payload.cabinets.length || payload.routes.length)) {
+        issues.push({ message: 'Nedostaje centralni ODF.', action: 'Dodaj ODF', type: 'mode', mode: 'odf' });
+    }
+    payload.cabinets.forEach((cabinet, index) => {
+        if (cabinet.odf_index === null && cabinet.odf_id === null) issues.push({ message: `${cabinet.name} nije povezan na ODF.`, action: 'Otvori ormarić', type: 'cabinet', index });
+    });
+    payload.routes.forEach((route, index) => {
+        if (!Array.isArray(route.path) || route.path.length < 2) issues.push({ message: `${route.name || `Trasa ${index + 1}`} nema ispravnu geometriju.`, action: 'Prikaži trasu', type: 'route', index });
+    });
+    const names = new Map();
+    [...payload.odfs.map((item, index) => ({ ...item, type: 'odf', index })), ...payload.cabinets.map((item, index) => ({ ...item, type: 'cabinet', index }))].forEach(item => {
+        const key = (item.name || '').trim().toLowerCase();
+        if (!key) return;
+        if (names.has(key)) issues.push({ message: `Naziv "${item.name}" se ponavlja.`, action: 'Uredi naziv', type: item.type, index: item.index });
+        else names.set(key, item);
+    });
+    return issues;
+}
+
+function renderDraftPreflight(issues) {
+    preflightIssues = issues;
+    const panel = document.getElementById('preflight-panel');
+    const list = document.getElementById('preflight-list');
+    panel.classList.toggle('hidden', !issues.length);
+    document.getElementById('preflight-count').textContent = `${issues.length} ${issues.length === 1 ? 'problem' : 'problema'}`;
+    list.innerHTML = issues.map((issue, index) => `<button type="button" data-preflight-index="${index}" class="flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-amber-100"><span class="text-[11px] leading-4 text-amber-900">${escapeHtml(issue.message)}</span><b class="shrink-0 text-[10px] text-sky-700">${escapeHtml(issue.action)} →</b></button>`).join('');
+}
+
+function focusDraftPreflightIssue(issue) {
+    if (issue.type === 'mode') {
+        setMode(issue.mode);
+        document.getElementById('cad-command').textContent = 'PRE-CHECK: postavi ODF na mapu.';
+        return;
+    }
+    if (issue.type === 'cabinet' && draftCabinets[issue.index]) {
+        const item = draftCabinets[issue.index];
+        map.setView(item.marker.getLatLng(), Math.max(map.getZoom(), 20));
+        selectDraftElement('cabinet', item);
+        return;
+    }
+    if (issue.type === 'odf' && draftOdfs[issue.index]) {
+        const item = draftOdfs[issue.index];
+        map.setView(item.marker.getLatLng(), Math.max(map.getZoom(), 20));
+        selectDraftElement('odf', item);
+        return;
+    }
+    if (issue.type === 'route' && branchLines[issue.index]) map.fitBounds(branchLines[issue.index].getBounds(), { padding: [50, 50], maxZoom: 20 });
+}
+
+function initDraftPreflight() {
+    document.getElementById('preflight-list').addEventListener('click', event => {
+        const button = event.target.closest('[data-preflight-index]');
+        if (button) focusDraftPreflightIssue(preflightIssues[Number(button.dataset.preflightIndex)]);
+    });
+}
+
 function planPayload() {
     const odfs = draftOdfs.map((item, index) => {
         const p = item.marker.getLatLng();
