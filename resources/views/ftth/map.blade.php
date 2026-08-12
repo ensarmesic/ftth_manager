@@ -796,6 +796,7 @@
                 <button type="button" id="toggle-color-by-fibers" class="tc tc-ghost" title="Boja trase po broju vlakana">Boja F</button>
                 <button type="button" id="toggle-parallel-routes" class="tc tc-ghost" title="Uključi ili isključi paralelni prikaz mikrocijevi" aria-pressed="true">Paralelno</button>
                 <button type="button" id="toggle-cable-specs" class="tc tc-ghost" title="Specifikacije kabela">Specs</button>
+                <button type="button" id="project-snapshot-btn" class="tc tc-ghost" title="Sačuvaj ili vrati sigurnosnu kopiju projekta">Backup</button>
                 <button type="button" id="btn-coord-jump" class="tc tc-ghost" title="Skok na koordinate">Goto</button>
                 <button type="button" id="dxf-layer-btn" class="tc tc-indigo" title="Učitaj DXF" aria-controls="dxf-layer-panel" aria-expanded="false">DXF</button>
                 <button type="button" id="survey-panel-btn" class="tc tc-indigo" title="Uvoz geodetskih tačaka (TXT)" aria-controls="survey-panel" aria-expanded="false">Tačke</button>

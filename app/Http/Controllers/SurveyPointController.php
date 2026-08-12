@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\SurveyPoint;
+use App\Services\ProjectSnapshotService;
 use App\Services\SurveyImportMaintenanceService;
 use App\Services\SurveyPointImportService;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,7 @@ class SurveyPointController extends Controller
     public function __construct(
         private readonly SurveyPointImportService $importer,
         private readonly SurveyImportMaintenanceService $maintenance,
+        private readonly ProjectSnapshotService $snapshots,
     ) {}
 
     public function preview(Request $request, Project $project): JsonResponse
@@ -52,6 +54,7 @@ class SurveyPointController extends Controller
         }
 
         try {
+            $this->snapshots->create($project, 'Automatski: prije TXT uvoza '.$data['points_file']->getClientOriginalName());
             $created = $this->importer->confirm(
                 $project,
                 $data['points_file']->get(),
@@ -70,6 +73,7 @@ class SurveyPointController extends Controller
 
     public function destroy(Project $project): JsonResponse
     {
+        $this->snapshots->create($project, 'Automatski: prije brisanja svih TXT uvoza');
         $removed = $this->maintenance->clearImportedData($project);
 
         return response()->json([
@@ -86,6 +90,7 @@ class SurveyPointController extends Controller
     public function destroyImport(Project $project, string $batch): JsonResponse
     {
         try {
+            $this->snapshots->create($project, 'Automatski: prije brisanja TXT uvoza');
             $removed = $this->maintenance->clearImportedBatch($project, $batch);
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 404);

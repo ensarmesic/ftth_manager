@@ -19,6 +19,7 @@ use App\Http\Controllers\ProjectMaterialController;
 use App\Http\Controllers\ProjectPlanningController;
 use App\Http\Controllers\ProjectPrintController;
 use App\Http\Controllers\ProjectSettingsController;
+use App\Http\Controllers\ProjectSnapshotController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RouteController;
 use App\Http\Controllers\SurveyPointController;
@@ -65,6 +66,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/gis-plan/confirm', [ProjectPlanningController::class, 'confirmGis'])->name('projects.gis-plan.confirm');
     Route::post('/projekti/{project}/odo-plan/confirm', [ProjectPlanningController::class, 'confirmOdo'])->name('projects.odo-plan.confirm');
     Route::get('/projekti/{project}/validacija', [ProjectPlanningController::class, 'validateProject'])->name('projects.validation');
+    Route::get('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'index'])->name('projects.snapshots.index');
+    Route::post('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'store'])->name('projects.snapshots.store');
+    Route::post('/projekti/{project}/snapshoti/{snapshot}/vrati', [ProjectSnapshotController::class, 'restore'])->name('projects.snapshots.restore');
     Route::post('/projekti/{project}/materijali/izracunaj', ProjectMaterialController::class)->name('materials.calculate');
     Route::post('/projekti/{project}/drop-trase/popuni', MissingDropRouteController::class)->name('projects.drop-routes.fill');
     Route::get('/projekti/{project}/drop-trase/audit', [DropRouteMaintenanceController::class, 'audit'])->name('projects.drop-routes.audit');

@@ -30,6 +30,38 @@ function applyMapZoomClass() {
     if (zoom >= 20) workspace.classList.add('z' + Math.min(Math.round(zoom), 22));
 }
 
+async function manageProjectSnapshots() {
+    const projectId = document.getElementById('active-project-id').value;
+    if (!projectId) return void (document.getElementById('cad-command').textContent = 'BACKUP: prvo odaberi projekat.');
+    const baseUrl = appConfig.projectSnapshotsBaseUrl.replace('__ID__', projectId);
+    const response = await fetch(baseUrl, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+    const payload = await readJsonResponse(response, 'Sigurnosne kopije nisu dostupne.');
+    const snapshots = payload.snapshots || [];
+    const list = snapshots.map((snapshot, index) => `${index + 1}. ${snapshot.label} (${new Date(snapshot.created_at).toLocaleString('bs-BA')})`).join('\n');
+    const choice = prompt(`BACKUP PROJEKTA\n\n0 = napravi novu kopiju\n${list || 'Još nema kopija.'}\n\nUnesi broj:`);
+    if (choice === null) return;
+    if (choice.trim() === '0') {
+        const label = prompt('Naziv sigurnosne kopije:', 'Ručna sigurnosna kopija') || 'Ručna sigurnosna kopija';
+        const created = await fetch(baseUrl, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ label }),
+        });
+        const result = await readJsonResponse(created, 'Sigurnosna kopija nije sačuvana.');
+        document.getElementById('cad-command').textContent = `BACKUP: ${result.message}`;
+        return;
+    }
+    const selected = snapshots[Number(choice) - 1];
+    if (!selected || !confirm(`Vratiti projekat na "${selected.label}"? Trenutno stanje bit će zamijenjeno.`)) return;
+    const restored = await fetch(`${baseUrl}/${selected.id}/vrati`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const result = await readJsonResponse(restored, 'Projekat nije vraćen.');
+    document.getElementById('cad-command').textContent = `${result.message} Osvježavam mapu...`;
+    setTimeout(() => window.location.reload(), 700);
+}
+
 async function runProjectCheck() {
     const projectId = document.getElementById('active-project-id').value;
     const panel = document.getElementById('project-check-panel');

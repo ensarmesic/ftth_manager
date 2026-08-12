@@ -61,4 +61,9 @@ class Project extends Model
     {
         return $this->hasMany(SurveyPoint::class);
     }
+
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(ProjectSnapshot::class);
+    }
 }

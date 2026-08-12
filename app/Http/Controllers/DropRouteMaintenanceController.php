@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\NetworkRoute;
 use App\Models\Project;
 use App\Services\GeometryService;
+use App\Services\ProjectSnapshotService;
 use App\Services\RouteGraphService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -31,9 +32,12 @@ class DropRouteMaintenanceController extends Controller
         ]);
     }
 
-    public function repair(Project $project, RouteGraphService $graph, GeometryService $geometry): JsonResponse
+    public function repair(Project $project, RouteGraphService $graph, GeometryService $geometry, ProjectSnapshotService $snapshots): JsonResponse
     {
         $items = $this->candidates($project, $graph, $geometry);
+        if ($items->where('needs_repair', true)->whereNotNull('suggested_path')->isNotEmpty()) {
+            $snapshots->create($project, 'Automatski: prije popravke drop-trasa');
+        }
         $updated = DB::transaction(function () use ($items, $geometry): int {
             $count = 0;
             foreach ($items as $item) {

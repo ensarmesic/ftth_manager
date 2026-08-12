@@ -517,6 +517,9 @@ document.getElementById('toggle-cable-specs').addEventListener('click', () => {
     refreshAllRouteLabels();
     document.getElementById('cad-command').textContent = showCableSpecs ? 'SPECS: prikaz vlakana i mikrocijevi na trasama uključen.' : 'SPECS: isključen.';
 });
+document.getElementById('project-snapshot-btn').addEventListener('click', () => {
+    manageProjectSnapshots().catch(error => { document.getElementById('cad-command').textContent = `BACKUP: ${error.message}`; });
+});
 function updateParallelRouteButton() {
     const btn = document.getElementById('toggle-parallel-routes');
     btn.setAttribute('aria-pressed', String(parallelRouteDisplay));
