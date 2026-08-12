@@ -23,7 +23,17 @@ class ProjectSettingsController extends Controller
 
     public function settings(): View
     {
-        return view('ftth.settings', ['activityLogs' => ActivityLog::with('user')->latest()->limit(50)->get()]);
+        $databasePath = config('database.connections.sqlite.database');
+
+        return view('ftth.settings', [
+            'activityLogs' => ActivityLog::with('user')->latest()->limit(50)->get(),
+            'projects' => Project::query()->orderBy('name')->get(['id', 'name']),
+            'databaseInfo' => [
+                'exists' => is_string($databasePath) && is_file($databasePath),
+                'size' => is_string($databasePath) && is_file($databasePath) ? filesize($databasePath) : null,
+                'modifiedAt' => is_string($databasePath) && is_file($databasePath) ? filemtime($databasePath) : null,
+            ],
+        ]);
     }
 
     public function backup()
