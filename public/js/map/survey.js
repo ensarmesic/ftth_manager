@@ -294,10 +294,15 @@
         }
     });
 
-    gpsReadBtn?.addEventListener('click', () => {
+    gpsReadBtn?.addEventListener('click', async () => {
         if (!projectId()) return setFieldStatus('Prvo odaberi projekat.', true);
         if (!window.isSecureContext) return setFieldStatus('GPS u browseru zahtijeva HTTPS vezu. Otvori aplikaciju preko sigurnog HTTPS servera.', true);
         if (!navigator.geolocation) return setFieldStatus('Ovaj uređaj ne podržava GPS lokaciju.', true);
+        if (navigator.permissions?.query) {
+            const permission = await navigator.permissions.query({ name: 'geolocation' }).catch(() => null);
+            if (permission?.state === 'denied') return setFieldStatus('Pristup lokaciji je blokiran. U postavkama browsera za ovu stranicu uključi Lokaciju, zatim pokušaj ponovo.', true);
+        }
+        if (document.visibilityState !== 'visible') return setFieldStatus('Vrati aplikaciju u prvi plan prije GPS očitanja.', true);
         gpsReadBtn.disabled = true;
         gpsReadBtn.textContent = 'Čekam preciznu GPS lokaciju…';
         navigator.geolocation.getCurrentPosition(position => {
@@ -319,13 +324,20 @@
         }, error => {
             gpsReadBtn.disabled = false;
             gpsReadBtn.textContent = 'Očitaj trenutnu GPS lokaciju';
-            setFieldStatus(error.code === 1 ? 'Dozvoli pristup lokaciji u postavkama browsera.' : 'GPS lokacija trenutno nije dostupna.', true);
-        }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+            const messages = {
+                1: 'Pristup lokaciji nije dozvoljen. Uključi Lokaciju za ovu stranicu u postavkama browsera.',
+                2: 'GPS signal nije dostupan. Izađi na otvorenije mjesto i provjeri da je lokacija uključena na telefonu.',
+                3: 'GPS očitanje je isteklo nakon 30 sekundi. Pokušaj ponovo na otvorenom prostoru.',
+            };
+            setFieldStatus(messages[error.code] || 'GPS lokacija trenutno nije dostupna.', true);
+        }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
     });
 
     fieldSaveBtn?.addEventListener('click', async () => {
         if (!fieldPosition || !projectId()) return;
         if (!fieldCode.value.trim()) return setFieldStatus('Upiši naziv ili opis tačke.', true);
+        if (fieldPosition.accuracy > 30 && !confirm(`GPS preciznost je samo ±${fieldPosition.accuracy.toFixed(1)} m. Ipak sačuvati ovu tačku?`)) return;
+        if (fieldPhoto.files?.[0]?.size > 10 * 1024 * 1024) return setFieldStatus('Fotografija je veća od 10 MB. Smanji fotografiju prije slanja.', true);
         const body = new FormData();
         body.append('session_uuid', fieldSessionUuid());
         body.append('latitude', fieldPosition.latitude);
