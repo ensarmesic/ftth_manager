@@ -204,6 +204,22 @@
             </div>
         </article>
     </div>
+
+    <article class="page-form lg:col-span-2">
+        <div class="page-form-header"><div class="page-form-icon">↺</div><div><h2>Audit promjena</h2><p class="text-xs text-slate-400">Posljednjih 50 uspješnih izmjena u aplikaciji.</p></div></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="px-4 py-3">Vrijeme</th><th class="px-4 py-3">Korisnik</th><th class="px-4 py-3">Akcija</th><th class="px-4 py-3">Ruta</th><th class="px-4 py-3">Status</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                    @forelse($activityLogs as $log)
+                        <tr><td class="px-4 py-3 text-slate-500">{{ $log->created_at->format('d.m.Y H:i:s') }}</td><td class="px-4 py-3 font-semibold text-slate-700">{{ $log->user?->name ?? 'Sistem' }}</td><td class="px-4 py-3"><span class="rounded bg-slate-100 px-2 py-1 font-bold">{{ $log->method }}</span></td><td class="px-4 py-3 text-slate-600">{{ $log->route_name ?? $log->path }}</td><td class="px-4 py-3 text-emerald-700">{{ $log->status_code }}</td></tr>
+                    @empty
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Još nema zabilježenih promjena.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </article>
 </section>
 
 @push('scripts')

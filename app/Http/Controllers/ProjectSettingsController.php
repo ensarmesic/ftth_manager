@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Project;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -22,7 +23,7 @@ class ProjectSettingsController extends Controller
 
     public function settings(): View
     {
-        return view('ftth.settings');
+        return view('ftth.settings', ['activityLogs' => ActivityLog::with('user')->latest()->limit(50)->get()]);
     }
 
     public function backup()
