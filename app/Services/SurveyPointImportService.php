@@ -2083,6 +2083,7 @@ class SurveyPointImportService
                 'length_m' => $chain['length_m'],
                 'microduct_type' => null,
                 'microduct_count' => 0,
+                'path' => $chain['path'],
             ])->values()->all(),
             'trench_total_m' => array_sum(array_column($network['trenches'], 'length_m')),
             'ducts' => collect($network['ducts'])->map(function (array $duct) use ($cabinets, $odfs, $houseCandidates) {
@@ -2110,6 +2111,7 @@ class SurveyPointImportService
                     'routing_status' => (($duct['prepared_sling'] ?? false) || isset($duct['_terminal_point']))
                         ? ($cabinetReached ? 'complete' : 'unreachable')
                         : 'not_applicable',
+                    'path' => $duct['path'],
                 ];
             })->values()->all(),
             'cabinets' => collect($points)->where('kind', 'cabinet')->map(fn ($p) => ['code' => $p['code'], 'lat' => $p['lat'], 'lng' => $p['lng']])->values()->all(),
@@ -2125,6 +2127,13 @@ class SurveyPointImportService
                 'unreachable_drop_routes' => $unreachableDucts->count(),
                 'duplicate_point_numbers' => $duplicatePointNumbers->all(),
                 'customer_points_without_cabinet' => $customerPointsWithoutCabinet->all(),
+                'issue_points' => collect($points)->filter(fn (array $point) => $point['kind'] === 'other'
+                    || $duplicatePointNumbers->contains($point['point_no'])
+                    || $customerPointsWithoutCabinet->contains($point['point_no'])
+                )->map(fn (array $point) => [
+                    'point_no' => $point['point_no'], 'code' => $point['code'],
+                    'lat' => $point['lat'], 'lng' => $point['lng'],
+                ])->values()->all(),
             ],
             'bounds' => [
                 'lat' => [collect($points)->min('lat'), collect($points)->max('lat')],

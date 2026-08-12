@@ -9,7 +9,7 @@
         panelButton?.setAttribute('aria-expanded', String(open));
     };
     panelButton?.addEventListener('click', () => setPanelOpen(panel.style.display === 'none'));
-    document.getElementById('survey-panel-close')?.addEventListener('click', () => setPanelOpen(false));
+    document.getElementById('survey-panel-close')?.addEventListener('click', () => { setPanelOpen(false); clearMapPreview(); });
 
     const fileInput = document.getElementById('survey-file-input');
     const chooseBtn = document.getElementById('survey-choose-btn');
@@ -29,6 +29,27 @@
     const fieldStatus = document.getElementById('field-point-status');
     let selectedFile = null;
     let fieldPosition = null;
+    let previewLayers = [];
+
+    function clearMapPreview() {
+        previewLayers.forEach(layer => { untrackLayer(layer, 'preview'); if (map.hasLayer(layer)) map.removeLayer(layer); });
+        previewLayers = [];
+    }
+
+    function drawMapPreview(data) {
+        clearMapPreview();
+        const add = layer => { previewLayers.push(layer); trackLayer(layer, 'preview'); return layer.addTo(map); };
+        (data.trench_runs || []).forEach(run => {
+            if (run.path?.length > 1) add(L.polyline(run.path, { color: '#0f172a', weight: 4, opacity: .65, dashArray: '8 7', interactive: false }));
+        });
+        (data.ducts || []).forEach(duct => {
+            if (!duct.path?.length || duct.path.length < 2) return;
+            const error = duct.routing_status === 'unreachable';
+            add(L.polyline(duct.path, { color: error ? '#dc2626' : (duct.route_type === 'drop' ? '#16a34a' : '#2563eb'), weight: error ? 4 : 2.5, opacity: .9, dashArray: error ? '3 5' : null, interactive: false }));
+        });
+        (data.quality?.issue_points || []).forEach(point => add(L.circleMarker([point.lat, point.lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip(`Tačka ${point.point_no}: ${escapeHtml(point.code)}`)));
+        if (previewLayers.length && data.bounds?.lat && data.bounds?.lng) map.fitBounds([[data.bounds.lat[0], data.bounds.lng[0]], [data.bounds.lat[1], data.bounds.lng[1]]], { padding: [35, 35], maxZoom: 20 });
+    }
 
     function projectId() {
         return document.getElementById('active-project-id')?.value || '';
@@ -161,6 +182,7 @@
         try {
             const data = await requestJson(`/projekti/${projectId()}/tacke/preview`, file);
             selectedFile = file;
+            drawMapPreview(data);
             const kinds = Object.entries(data.by_kind || {})
                 .map(([kind, count]) => `${count} ${kindLabel(kind)}`)
                 .join(' / ');
@@ -213,6 +235,7 @@
                 data.already_imported || data.quality?.status === 'blocked',
             );
         } catch (error) {
+            clearMapPreview();
             setStatus(error.message, true);
         }
     }
