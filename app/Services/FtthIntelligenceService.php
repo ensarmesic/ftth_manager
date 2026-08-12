@@ -363,10 +363,47 @@ class FtthIntelligenceService
                 $items[] = $this->validationItem('warning', "{$route->name} nema geometriju.", 'route', $route->id, 'Uredi geometriju trase na mapi.');
             } elseif (count($route->path) < 2) {
                 $items[] = $this->validationItem('error', "{$route->name} ima manje od dvije tacke.", 'route', $route->id, 'Dodaj najmanje dvije tacke trase.');
+            } else {
+                $path = array_values($route->path);
+                $actualLength = $this->geometry->polylineLength($path);
+                $lengthTolerance = max(5, $actualLength * 0.05);
+                if (abs((float) $route->duct_length_m - $actualLength) > $lengthTolerance) {
+                    $items[] = $this->validationItem('warning', "{$route->name}: spremljena dužina ne odgovara geometriji ({$route->duct_length_m} m / {$actualLength} m).", 'route', $route->id, 'Ponovo sačuvaj geometriju trase da se dužina preračuna.');
+                }
+
+                for ($index = 1; $index < count($path); $index++) {
+                    if ($this->geometry->distanceBetweenPoints($path[$index - 1], $path[$index]) < 0.02) {
+                        $items[] = $this->validationItem('warning', "{$route->name} ima uzastopne duple tačke.", 'route', $route->id, 'Očisti duple tačke geometrije.');
+
+                        break;
+                    }
+                }
+
+                if ($route->route_type === 'drop') {
+                    $house = $route->to_type === 'house' ? $project->houses->firstWhere('id', $route->to_id) : null;
+                    $cabinet = $route->cabinet_id ? $project->cabinets->firstWhere('id', $route->cabinet_id) : null;
+                    $endpoints = [$path[0], $path[count($path) - 1]];
+                    if ($house && $house->latitude !== null && $house->longitude !== null && ! $this->endpointTouches($endpoints, (float) $house->latitude, (float) $house->longitude)) {
+                        $items[] = $this->validationItem('error', "{$route->name} ne završava na povezanoj kući {$house->label}.", 'route', $route->id, 'Ponovo rutiraj drop od tačne koordinate kuće.');
+                    }
+                    if ($cabinet && $cabinet->latitude !== null && $cabinet->longitude !== null && ! $this->endpointTouches($endpoints, (float) $cabinet->latitude, (float) $cabinet->longitude)) {
+                        $items[] = $this->validationItem('error', "{$route->name} ne završava na dodijeljenom ODO {$cabinet->name}.", 'route', $route->id, 'Ponovo rutiraj drop do tačne koordinate ODO-a.');
+                    }
+                }
             }
         }
 
         return $items ?: [$this->validationItem('ok', 'Projekat nema otvorenih FTTH upozorenja.', 'project', $project->id, 'Nastavi sa projektovanjem.')];
+    }
+
+    private function endpointTouches(array $endpoints, float $lat, float $lng, float $toleranceMeters = 1.5): bool
+    {
+        return collect($endpoints)->contains(fn (array $point) => $this->geometry->distanceMeters(
+            (float) $point[0],
+            (float) $point[1],
+            $lat,
+            $lng,
+        ) <= $toleranceMeters);
     }
 
     public function materialSummary(Project $project, int $reservePercent = 10): array

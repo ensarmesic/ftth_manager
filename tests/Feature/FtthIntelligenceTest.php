@@ -151,6 +151,34 @@ class FtthIntelligenceTest extends TestCase
         $this->assertStringContainsString('nema kabal', $messages);
     }
 
+    public function test_project_validation_finds_invalid_drop_endpoints_duplicate_points_and_length(): void
+    {
+        $project = Project::create(['name' => 'Geometrija', 'code' => 'GEO', 'location' => 'Test', 'status' => 'planning']);
+        $cabinet = Cabinet::create([
+            'project_id' => $project->id, 'name' => 'ODO-1', 'address' => 'Test',
+            'splitter_count' => 1, 'ports_per_splitter' => 4, 'latitude' => 44.4500, 'longitude' => 18.6500,
+        ]);
+        $house = House::create([
+            'project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'K-1',
+            'latitude' => 44.4510, 'longitude' => 18.6510, 'status' => 'planned',
+        ]);
+        NetworkRoute::create([
+            'project_id' => $project->id, 'cabinet_id' => $cabinet->id,
+            'to_type' => 'house', 'to_id' => $house->id, 'name' => 'Drop pogrešan',
+            'route_type' => 'drop', 'installation_type' => 'underground', 'duct_length_m' => 5,
+            'fiber_length_m' => 5, 'fiber_count' => 4, 'microduct_count' => 1,
+            'microduct_type' => '10/8', 'status' => 'planned',
+            'path' => [[44.4520, 18.6520], [44.4520, 18.6520], [44.4530, 18.6530]],
+        ]);
+
+        $messages = collect($this->getJson(route('projects.validation', $project))->assertOk()->json('items'))->pluck('message')->join("\n");
+
+        $this->assertStringContainsString('spremljena dužina ne odgovara geometriji', $messages);
+        $this->assertStringContainsString('uzastopne duple tačke', $messages);
+        $this->assertStringContainsString('ne završava na povezanoj kući', $messages);
+        $this->assertStringContainsString('ne završava na dodijeljenom ODO', $messages);
+    }
+
     public function test_material_summary_groups_lengths_by_microduct_and_fiber_type(): void
     {
         $project = Project::create(['name' => 'Materijali', 'code' => 'MAT', 'location' => 'Test', 'status' => 'planning']);
