@@ -1414,8 +1414,19 @@ class SurveyPointImportService
             return $parent[$i] === $i ? $i : ($parent[$i] = $find($parent[$i]));
         };
 
+        $spatialBuckets = [];
+        $latCell = 0.00003;
+        $lngCell = 0.00005;
         for ($i = 0; $i < $count; $i++) {
-            for ($j = $i + 1; $j < $count; $j++) {
+            $latBucket = (int) floor($points[$i]['lat'] / $latCell);
+            $lngBucket = (int) floor($points[$i]['lng'] / $lngCell);
+            $nearbyIndexes = [];
+            for ($latOffset = -1; $latOffset <= 1; $latOffset++) {
+                for ($lngOffset = -1; $lngOffset <= 1; $lngOffset++) {
+                    $nearbyIndexes = array_merge($nearbyIndexes, $spatialBuckets[($latBucket + $latOffset).'|'.($lngBucket + $lngOffset)] ?? []);
+                }
+            }
+            foreach ($nearbyIndexes as $j) {
                 $iIsTerminal = in_array($points[$i]['kind'], ['sling', 'loop'], true);
                 $jIsTerminal = in_array($points[$j]['kind'], ['sling', 'loop'], true);
                 // A house one metre from the roadside trench is still a leaf, not the
@@ -1440,6 +1451,7 @@ class SurveyPointImportService
                     $parent[$find($j)] = $find($i);
                 }
             }
+            $spatialBuckets[$latBucket.'|'.$lngBucket][] = $i;
         }
 
         $nodeOf = [];
@@ -1561,6 +1573,14 @@ class SurveyPointImportService
             }
         };
 
+        $returnBuckets = [];
+        $returnLatCell = 10 / 111320;
+        $returnLngCell = 10 / (111320 * cos(deg2rad($points[0]['lat'])));
+        foreach ($points as $pointIndex => $point) {
+            $key = ((int) floor($point['lat'] / $returnLatCell)).'|'.((int) floor($point['lng'] / $returnLngCell));
+            $returnBuckets[$key][] = $pointIndex;
+        }
+
         for ($i = 1; $i < $count; $i++) {
             $a = $nodeOf[$i - 1];
             $b = $nodeOf[$i];
@@ -1585,7 +1605,19 @@ class SurveyPointImportService
             $toIdents = $this->pointDuctIdentities($points[$i]);
             $followsTerminal = in_array($points[$i - 1]['kind'], ['sling', 'loop'], true);
             $returnSearchRadius = $followsTerminal ? self::CUSTOMER_SPUR_TO_TRENCH_M : 10.0;
-            for ($j = 0; $j < $i - 1; $j++) {
+            $returnLatBucket = (int) floor($points[$i]['lat'] / $returnLatCell);
+            $returnLngBucket = (int) floor($points[$i]['lng'] / $returnLngCell);
+            $returnCellRadius = (int) ceil($returnSearchRadius / 10);
+            $returnCandidates = [];
+            for ($latOffset = -$returnCellRadius; $latOffset <= $returnCellRadius; $latOffset++) {
+                for ($lngOffset = -$returnCellRadius; $lngOffset <= $returnCellRadius; $lngOffset++) {
+                    $returnCandidates = array_merge($returnCandidates, $returnBuckets[($returnLatBucket + $latOffset).'|'.($returnLngBucket + $lngOffset)] ?? []);
+                }
+            }
+            foreach ($returnCandidates as $j) {
+                if ($j >= $i - 1) {
+                    continue;
+                }
                 if (in_array($points[$j]['kind'], ['sling', 'loop'], true)) {
                     continue;
                 }

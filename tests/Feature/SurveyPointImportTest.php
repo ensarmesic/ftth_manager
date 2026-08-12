@@ -1431,4 +1431,29 @@ class SurveyPointImportTest extends TestCase
         $this->assertSame([1], $quality['duplicate_point_numbers']);
         $this->assertSame([1, 2], $quality['customer_points_without_cabinet']);
     }
+
+    public function test_large_survey_files_parse_and_build_without_data_loss(): void
+    {
+        $service = app(SurveyPointImportService::class);
+
+        foreach ([1500 => 4.0, 10000 => 12.0] as $pointCount => $maxSeconds) {
+            $lines = [];
+            for ($index = 1; $index <= $pointCount; $index++) {
+                $x = number_format(6549000 + ($index * 2.0), 3, '.', '');
+                $y = number_format(4923000 + sin($index / 35) * 4, 3, '.', '');
+                $lines[] = "{$index} {$x} {$y} 230.000 Rov";
+            }
+
+            $startedAt = microtime(true);
+            $points = $service->parse(implode("\n", $lines));
+            $network = $service->buildNetwork($points);
+            $elapsed = microtime(true) - $startedAt;
+
+            $this->assertCount($pointCount, $points);
+            $this->assertSame($pointCount, collect($points)->pluck('point_no')->unique()->count());
+            $this->assertCount(1, $network['trenches']);
+            $this->assertCount($pointCount, $network['trenches'][0]['path']);
+            $this->assertLessThan($maxSeconds, $elapsed, "Obrada {$pointCount} tačaka trajala je {$elapsed} s.");
+        }
+    }
 }
