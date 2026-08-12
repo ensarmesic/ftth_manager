@@ -410,6 +410,7 @@
         scrollbar-color: #cbd5e1 transparent;
     }
     #dxf-layer-panel { width: min(320px, calc(100vw - 28px)) !important; }
+    .floating-tool-panel{display:none;position:fixed;top:90px;right:350px;z-index:9999;max-height:calc(100vh - 110px);overflow-y:auto;border:1px solid rgba(15,23,42,.15);border-radius:14px;background:#fff;box-shadow:0 16px 42px rgba(15,23,42,.2);font-family:inherit}.floating-tool-panel-wide{width:430px}.floating-tool-panel-compact{top:120px;width:320px;overflow:hidden}.floating-tool-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #e8eef5;font-size:13px;font-weight:800}.floating-tool-header-green{background:linear-gradient(135deg,#ecfdf5,#f0f9ff);color:#065f46}.floating-tool-header-indigo{background:linear-gradient(135deg,#eef2ff,#f0f9ff);color:#3730a3}.floating-tool-close{border:0;background:transparent;color:#94a3b8;padding:0 2px;font-size:20px;line-height:1;cursor:pointer}.floating-tool-close:hover{color:#334155}
 
     @media (max-width: 1279px) {
         #map-workspace .map-shell { min-height: 860px; }

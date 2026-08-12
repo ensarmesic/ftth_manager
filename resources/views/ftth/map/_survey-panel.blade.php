@@ -1,8 +1,8 @@
 {{-- Survey points import floating panel --}}
-<div id="survey-panel" style="display:none;position:fixed;top:90px;right:350px;z-index:9999;width:360px;max-height:calc(100vh - 110px);background:#fff;border:1px solid rgba(15,23,42,.15);border-radius:12px;box-shadow:0 14px 38px rgba(15,23,42,.2);overflow-y:auto;font-family:inherit">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:linear-gradient(135deg,#ecfdf5,#f0f9ff)">
-        <span style="font-size:13px;font-weight:800;color:#065f46">Terenski rad</span>
-        <button type="button" id="survey-panel-close" aria-label="Zatvori panel terenskog rada" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#94a3b8;padding:0 2px">&times;</button>
+<div id="survey-panel" class="floating-tool-panel floating-tool-panel-wide">
+    <div class="floating-tool-header floating-tool-header-green">
+        <span>Terenski rad</span>
+        <button type="button" id="survey-panel-close" class="floating-tool-close" aria-label="Zatvori panel terenskog rada">&times;</button>
     </div>
     <div style="padding:10px 12px">
         <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Uvoz geodetskog TXT fajla</div>
