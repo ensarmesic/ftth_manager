@@ -377,10 +377,10 @@ class SurveyPointImportTest extends TestCase
         // The green 14/10 duct exists and carries its colour in the name.
         $this->assertNotNull(NetworkRoute::where('project_id', $project->id)->where('name', 'MC 14/10 Zelena')->first());
 
-        // The slinga produced an unassigned house (no branch/cabinet assignment of its own —
-        // the drop route above is what connects it to the network).
+        // The proven drop topology is also persisted on the house so validators, reports
+        // and capacity calculations agree with the route drawn to ZO-3.
         $this->assertNotNull($house);
-        $this->assertNull($house->cabinet_id);
+        $this->assertSame($cabinet->id, $house->fresh()->cabinet_id);
 
         // Re-importing the same file is refused.
         $again = UploadedFile::fake()->createWithContent('snimak.txt', $this->sampleContents());

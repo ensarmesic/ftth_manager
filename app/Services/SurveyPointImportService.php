@@ -2225,8 +2225,9 @@ class SurveyPointImportService
             $allOdfs = Odf::where('project_id', $project->id)->whereNotNull('latitude')->get();
 
             // 2. Slings (points that explicitly name a house) mark a prepared house
-            //    connection — create unassigned houses BEFORE ducts, so a duct ending at
-            //    one can be bound and typed as a 'drop'. A bare reserve loop ('loop' kind,
+            //    connection — create houses BEFORE ducts, so a duct ending at one can be
+            //    bound and typed as a 'drop'. Its ODO is assigned after topology resolves.
+            //    A bare reserve loop ('loop' kind,
             //    no house named) does NOT create a house — it's just a coiled cable reserve.
             $slingPoints = collect($points)->where('kind', 'sling');
             foreach ($slingPoints as $point) {
@@ -2362,6 +2363,7 @@ class SurveyPointImportService
                         'note' => $this->appendImportNote($existing->note, $this->ductImportNote($duct)),
                     ]);
                     if ($routeType === 'drop' && $house !== null) {
+                        $this->assignDropCabinetToHouse($house, $cabinet);
                         $freshDropHouseIds[$house->id] = true;
                     }
 
@@ -2398,6 +2400,7 @@ class SurveyPointImportService
                 ]);
                 $freshRouteIds[] = $route->id;
                 if ($routeType === 'drop' && $house !== null) {
+                    $this->assignDropCabinetToHouse($house, $cabinet);
                     $freshDropHouseIds[$house->id] = true;
                 }
                 $this->branchSync->createBranchForRoute($route);
@@ -2412,6 +2415,18 @@ class SurveyPointImportService
         });
 
         return $created;
+    }
+
+    /** Keep the house's direct assignment consistent with its proven drop topology. */
+    private function assignDropCabinetToHouse(House $house, ?Cabinet $cabinet): void
+    {
+        if ($cabinet === null || (int) $house->project_id !== (int) $cabinet->project_id) {
+            return;
+        }
+
+        if ((int) $house->cabinet_id !== (int) $cabinet->id) {
+            $house->update(['cabinet_id' => $cabinet->id]);
+        }
     }
 
     /**
