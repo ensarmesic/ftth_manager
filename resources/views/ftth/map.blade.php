@@ -824,6 +824,11 @@
         color: #5f7792 !important;
     }
     #map-workspace #network-map { background: #071323; }
+    #network-map .leaflet-interactive:focus,
+    #network-map .leaflet-marker-icon:focus,
+    #network-map .leaflet-marker-shadow:focus {
+        outline: none;
+    }
     .map-vertical-tools {
         position: absolute;
         top: 82px;

@@ -84,6 +84,38 @@ class GeometryService
     }
 
     /**
+     * Project a [lat, lng] point onto the nearest segment of a plain path array.
+     *
+     * @return array{lat:float,lng:float,distance_m:float,segment_index:int}
+     */
+    public function projectPointToPath(array $point, array $path): array
+    {
+        $best = ['lat' => $point[0], 'lng' => $point[1], 'distance_m' => INF, 'segment_index' => 0];
+        for ($i = 1; $i < count($path); $i++) {
+            $a = $this->toCartesian((float) $path[$i - 1][0], (float) $path[$i - 1][1], (float) $point[0], (float) $point[1]);
+            $b = $this->toCartesian((float) $path[$i][0], (float) $path[$i][1], (float) $point[0], (float) $point[1]);
+            $dx = $b['x'] - $a['x'];
+            $dy = $b['y'] - $a['y'];
+            $lengthSquared = max(0.000001, $dx ** 2 + $dy ** 2);
+            $t = max(0, min(1, (-$a['x'] * $dx - $a['y'] * $dy) / $lengthSquared));
+            $x = $a['x'] + $dx * $t;
+            $y = $a['y'] + $dy * $t;
+            $distance = sqrt($x ** 2 + $y ** 2);
+            if ($distance >= $best['distance_m']) {
+                continue;
+            }
+            $best = [
+                'lat' => round((float) $point[0] + $y / 111320, 7),
+                'lng' => round((float) $point[1] + $x / (111320 * cos(deg2rad((float) $point[0]))), 7),
+                'distance_m' => $distance,
+                'segment_index' => $i,
+            ];
+        }
+
+        return $best;
+    }
+
+    /**
      * Project a point onto a NetworkRoute geometry.
      * Returns [lat, lng, distance_m, chainage_m, segment_index].
      */

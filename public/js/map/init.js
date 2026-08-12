@@ -3,7 +3,7 @@
 // Tile layers (state.js declared them as let)
 imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxNativeZoom: 18,
-    maxZoom: 22,
+    maxZoom: 24,
     attribution: 'Tiles &copy; Esri'
 }).addTo(map);
 
