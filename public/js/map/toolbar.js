@@ -43,7 +43,7 @@ async function manageProjectSnapshots() {
     const response = await fetch(baseUrl, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
     const payload = await readJsonResponse(response, 'Sigurnosne kopije nisu dostupne.');
     const snapshots = payload.snapshots || [];
-    list.innerHTML = snapshots.length ? snapshots.map(snapshot => `<div class="snapshot-row"><div><strong>${escapeHtml(snapshot.label)}</strong><small>${new Date(snapshot.created_at).toLocaleString('bs-BA')}</small></div><button type="button" class="snapshot-restore" data-snapshot-id="${snapshot.id}">Vrati</button></div>`).join('') : '<div class="snapshot-empty">Još nema sigurnosnih kopija.</div>';
+    list.innerHTML = snapshots.length ? snapshots.map(snapshot => `<div class="snapshot-row"><div><strong>${escapeHtml(snapshot.label)}</strong><small>${new Date(snapshot.created_at).toLocaleString('bs-BA')}</small></div><div class="snapshot-actions"><a class="snapshot-download" href="${baseUrl}/${snapshot.id}/download">Preuzmi JSON</a><button type="button" class="snapshot-restore" data-snapshot-id="${snapshot.id}">Vrati</button></div></div>`).join('') : '<div class="snapshot-empty">Još nema sigurnosnih kopija.</div>';
 }
 
 async function runProjectCheck() {

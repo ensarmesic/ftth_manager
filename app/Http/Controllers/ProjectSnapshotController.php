@@ -28,4 +28,19 @@ class ProjectSnapshotController extends Controller
 
         return response()->json(['message' => 'Projekat je vraćen na odabranu sigurnosnu kopiju.']);
     }
+
+    public function download(Project $project, ProjectSnapshot $snapshot)
+    {
+        abort_unless($snapshot->project_id === $project->id, 404);
+        $filename = str($project->code ?: $project->name)->slug().'-backup-'.$snapshot->created_at->format('Ymd-His').'.json';
+        $contents = json_encode([
+            'format' => 'ftth-manager-project-snapshot', 'version' => 1,
+            'exported_at' => now()->toIso8601String(),
+            'project' => $project->only(['id', 'name', 'code', 'location', 'status']),
+            'snapshot' => ['id' => $snapshot->id, 'label' => $snapshot->label, 'created_at' => $snapshot->created_at->toIso8601String()],
+            'data' => $snapshot->payload,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return response($contents, 200, ['Content-Type' => 'application/json; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="'.$filename.'"']);
+    }
 }

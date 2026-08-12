@@ -69,6 +69,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'index'])->name('projects.snapshots.index');
     Route::post('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'store'])->name('projects.snapshots.store');
     Route::post('/projekti/{project}/snapshoti/{snapshot}/vrati', [ProjectSnapshotController::class, 'restore'])->name('projects.snapshots.restore');
+    Route::get('/projekti/{project}/snapshoti/{snapshot}/download', [ProjectSnapshotController::class, 'download'])->name('projects.snapshots.download');
     Route::post('/projekti/{project}/materijali/izracunaj', ProjectMaterialController::class)->name('materials.calculate');
     Route::post('/projekti/{project}/drop-trase/popuni', MissingDropRouteController::class)->name('projects.drop-routes.fill');
     Route::get('/projekti/{project}/drop-trase/audit', [DropRouteMaintenanceController::class, 'audit'])->name('projects.drop-routes.audit');

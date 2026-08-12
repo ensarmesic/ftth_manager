@@ -41,4 +41,21 @@ class ProjectSnapshotTest extends TestCase
 
         $this->postJson(route('projects.snapshots.restore', [$second, $snapshotId]))->assertNotFound();
     }
+
+    public function test_project_snapshot_can_be_downloaded_as_versioned_json(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $project = Project::factory()->create(['code' => 'JSON-TEST']);
+        House::factory()->create(['project_id' => $project->id]);
+        $snapshotId = $this->postJson(route('projects.snapshots.store', $project), ['label' => 'Arhiva'])->assertCreated()->json('snapshot.id');
+
+        $response = $this->get(route('projects.snapshots.download', [$project, $snapshotId]))->assertOk();
+
+        $this->assertStringContainsString('attachment;', $response->headers->get('Content-Disposition'));
+        $payload = json_decode($response->getContent(), true);
+        $this->assertSame('ftth-manager-project-snapshot', $payload['format']);
+        $this->assertSame(1, $payload['version']);
+        $this->assertSame('Arhiva', $payload['snapshot']['label']);
+        $this->assertCount(1, $payload['data']['houses']);
+    }
 }
