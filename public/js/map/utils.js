@@ -447,6 +447,29 @@ function pointTouchesRouteForDisplay(rawPoint, route, tolerance = ROUTE_VISUAL_S
     return false;
 }
 
+function routeDisplayBounds(route) {
+    if (route._visualBounds) return route._visualBounds;
+    const latitudes = route.path.map(point => Number(point[0]));
+    const longitudes = route.path.map(point => Number(point[1]));
+    route._visualBounds = {
+        minLat: Math.min(...latitudes), maxLat: Math.max(...latitudes),
+        minLng: Math.min(...longitudes), maxLng: Math.max(...longitudes),
+    };
+    return route._visualBounds;
+}
+
+function routeDisplayBoundsOverlap(first, second, toleranceMeters = 1.5) {
+    const a = routeDisplayBounds(first);
+    const b = routeDisplayBounds(second);
+    const latitude = (a.minLat + a.maxLat + b.minLat + b.maxLat) / 4;
+    const latPadding = toleranceMeters / 111320;
+    const lngPadding = toleranceMeters / (111320 * Math.max(0.1, Math.cos(latitude * Math.PI / 180)));
+    return a.minLat - latPadding <= b.maxLat
+        && a.maxLat + latPadding >= b.minLat
+        && a.minLng - lngPadding <= b.maxLng
+        && a.maxLng + lngPadding >= b.minLng;
+}
+
 function offsetRouteDisplayPoints(points, offsetM, sharedMask = null) {
     if (!offsetM || points.length < 2) return points.map(point => L.latLng(point.lat, point.lng));
     const travelled = [0];
@@ -491,6 +514,7 @@ function applyRouteVisualLanes(routes) {
         route._visualMaxLane = 0;
         route._visualOffsetM = 0;
         route._visualSharedMask = null;
+        route._visualBounds = null;
     });
     const candidates = routes.filter(route => route.type !== 'trench' && route.path?.length > 1);
     const routesByPoint = new Map();
@@ -504,6 +528,7 @@ function applyRouteVisualLanes(routes) {
             Number(other.id) !== Number(route.id)
             && (route.type !== 'drop' || other.type !== 'drop')
             && (!route.cabinet_id || !other.cabinet_id || Number(route.cabinet_id) === Number(other.cabinet_id))
+            && routeDisplayBoundsOverlap(route, other, ROUTE_VISUAL_SHARED_TOLERANCE_METERS)
         );
         route._visualSharedMask = route.path.map(point => {
             const key = `${Number(point[0]).toFixed(6)},${Number(point[1]).toFixed(6)}`;
@@ -523,6 +548,7 @@ function applyRouteVisualLanes(routes) {
     const unite = (a, b) => { const ra = find(a); const rb = find(b); if (ra !== rb) parent[rb] = ra; };
     for (let i = 0; i < candidates.length; i++) {
         for (let j = i + 1; j < candidates.length; j++) {
+            if (!routeDisplayBoundsOverlap(candidates[i], candidates[j])) continue;
             if (routePathsOverlapForDisplay(candidates[i], candidates[j])) unite(i, j);
         }
     }
