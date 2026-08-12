@@ -349,9 +349,10 @@ class SurveyPointImportTest extends TestCase
         $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'trench')->count());
         // The ZO 3 duct's walk (within TRENCH_GAP_M) continues straight through to the
         // "Slinga" point, so it ends AT that house and is a drop; the green 14/10 duct
-        // doesn't reach a house or ODF, so it stays a plain distribution run.
+        // reaches the ODF at its opposite endpoint, so it is a feeder regardless of
+        // the direction in which the surveyor walked the line.
         $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'drop')->count());
-        $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'distribution')->count());
+        $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'feeder')->count());
         $this->assertSame(1, Cabinet::where('project_id', $project->id)->count());
         $this->assertSame(1, Odf::where('project_id', $project->id)->count());
         $this->assertSame(1, ProjectAppendixItem::where('project_id', $project->id)->where('type', 'manhole')->count());
@@ -486,6 +487,32 @@ class SurveyPointImportTest extends TestCase
         $this->assertNotNull($route);
         $this->assertSame('odf', $route->from_type);
         $this->assertSame($odf->id, $route->from_id);
+    }
+
+    public function test_later_file_reuses_named_odf_and_links_cabinet_through_route(): void
+    {
+        $project = Project::factory()->create();
+        $service = app(SurveyPointImportService::class);
+
+        $service->confirm($project, '1  6549699.731  4923604.537  234.0  ODF1', 'odf.txt');
+        $odf = Odf::where('project_id', $project->id)->firstOrFail();
+        $this->assertSame('ODF-1', $odf->name);
+
+        $service->confirm($project, implode("\n", [
+            '10  6549699.731  4923604.537  234.0  ODF1',
+            '11  6549703.323  4923595.954  234.0  Rov 14/10 Plava ZO1',
+            '12  6549707.842  4923586.519  234.0  Rov 14/10 Plava ZO1',
+            '13  6549710.913  4923579.800  234.0  ZO1',
+        ]), 'nastavak.txt');
+
+        $this->assertSame(1, Odf::where('project_id', $project->id)->count());
+        $cabinet = Cabinet::where('project_id', $project->id)->firstOrFail();
+        $this->assertSame($odf->id, $cabinet->fresh()->odf_id);
+        $this->assertDatabaseHas('routes', [
+            'project_id' => $project->id,
+            'odf_id' => $odf->id,
+            'cabinet_id' => $cabinet->id,
+        ]);
     }
 
     public function test_preview_flags_ambiguous_cabinet_match_and_import_applies_manual_override(): void

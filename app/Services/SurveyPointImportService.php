@@ -2207,12 +2207,16 @@ class SurveyPointImportService
             $allCabinets = Cabinet::where('project_id', $project->id)->whereNotNull('latitude')->get();
 
             foreach ($this->mergeOdfPoints($points) as $odfPoint) {
-                if ($this->existsNearby(Odf::class, $project->id, $odfPoint['lat'], $odfPoint['lng'])) {
+                $odfName = $this->odfLabel($odfPoint['code']);
+                $namedOdf = $odfName !== 'ODF'
+                    ? Odf::where('project_id', $project->id)->get()->first(fn (Odf $odf) => $this->odfLabel($odf->name) === $odfName)
+                    : null;
+                if ($namedOdf !== null || $this->existsNearby(Odf::class, $project->id, $odfPoint['lat'], $odfPoint['lng'])) {
                     continue;
                 }
                 Odf::create([
                     'project_id' => $project->id,
-                    'name' => $this->uniqueName(Odf::class, $project->id, 'ODF'),
+                    'name' => $this->uniqueName(Odf::class, $project->id, $odfName),
                     'address' => 'Geodetski snimak',
                     'fiber_capacity' => 144,
                     'port_count' => 48,
@@ -2333,6 +2337,8 @@ class SurveyPointImportService
                 $house = $binding['house'];
                 $routeType = $binding['route_type'];
 
+                $this->assignCabinetToOdf($cabinet, $odf);
+
                 // Several approximate terminal readings can resolve to the same physical
                 // house. They describe one customer connection, not parallel 10/8 drops.
                 if ($routeType === 'drop' && $house !== null && isset($freshDropHouseIds[$house->id])) {
@@ -2427,6 +2433,18 @@ class SurveyPointImportService
         if ((int) $house->cabinet_id !== (int) $cabinet->id) {
             $house->update(['cabinet_id' => $cabinet->id]);
         }
+    }
+
+    /** A surveyed route touching both nodes proves the upstream ODF for an unlinked ODO. */
+    private function assignCabinetToOdf(?Cabinet $cabinet, ?Odf $odf): void
+    {
+        if ($cabinet === null || $odf === null
+            || (int) $cabinet->project_id !== (int) $odf->project_id
+            || $cabinet->odf_id !== null) {
+            return;
+        }
+
+        $cabinet->update(['odf_id' => $odf->id]);
     }
 
     /**
@@ -2636,7 +2654,8 @@ class SurveyPointImportService
             $house ??= $this->nearestWithin($locatedHouses, end($duct['path']), self::EXISTING_ELEMENT_TOLERANCE_M)
                 ?? $this->nearestWithin($locatedHouses, $duct['path'][0], self::EXISTING_ELEMENT_TOLERANCE_M);
         }
-        $odf = $this->nearestWithin($odfs, $duct['path'][0], self::DUCT_ENDPOINT_BIND_M);
+        $odf = $this->nearestWithin($odfs, $duct['path'][0], self::DUCT_ENDPOINT_BIND_M)
+            ?? $this->nearestWithin($odfs, end($duct['path']), self::DUCT_ENDPOINT_BIND_M);
 
         $cabinet = null;
         $matchConfidence = 'none';
@@ -2783,6 +2802,16 @@ class SurveyPointImportService
         }
 
         return $merged;
+    }
+
+    private function odfLabel(?string $code): string
+    {
+        $normalized = mb_strtoupper(trim((string) $code));
+        if (preg_match('/\bODF[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/u', $normalized, $match)) {
+            return 'ODF-'.str_replace('.', '-', $match[1]);
+        }
+
+        return 'ODF';
     }
 
     private function existsNearby(string $model, int $projectId, float $lat, float $lng): bool
