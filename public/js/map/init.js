@@ -363,36 +363,7 @@ initDraftPersistenceControls();
 // ── TOOLBAR EVENT LISTENERS ────────────────────────────────────────────────────
 initMapViewToolbar();
 initProjectVersionHistory();
-document.getElementById('add-route-vertex').addEventListener('click', () => addRouteEditVertex());
-document.getElementById('cancel-route-edit').addEventListener('click', cancelRouteEdit);
-document.getElementById('edit-route-geometry')?.addEventListener('click', () => {
-    if (!selectedAttributeRoute) return;
-    routeSelectionMarkers.forEach(marker => map.removeLayer(marker));
-    routeSelectionMarkers = [];
-    const line = routeLayerById[selectedAttributeRoute.id];
-    if (line) startRouteEdit(selectedAttributeRoute, line);
-});
-document.getElementById('undo-route-edit')?.addEventListener('click', undoRouteEdit);
-document.getElementById('redo-route-edit')?.addEventListener('click', redoRouteEdit);
-document.getElementById('btn-map-undo')?.addEventListener('click', () => mapHistory.undo());
-document.getElementById('btn-map-redo')?.addEventListener('click', () => mapHistory.redo());
-document.getElementById('save-route-edit').addEventListener('click', async () => {
-    try {
-        await saveRouteEdit();
-    } catch (error) {
-        document.getElementById('cad-command').textContent = error.message;
-    }
-});
-document.getElementById('close-route-attribute-panel').addEventListener('click', closeRouteAttributePanel);
-document.getElementById('route-attr-type').addEventListener('change', syncRouteAttributeFields);
-document.getElementById('save-route-attributes').addEventListener('click', async () => {
-    try {
-        await saveRouteAttributes();
-    } catch (error) {
-        document.getElementById('route-attribute-status').textContent = error.message;
-        document.getElementById('cad-command').textContent = error.message;
-    }
-});
+initRouteEditingControls();
 document.getElementById('finish-house-connect').addEventListener('click', async () => {
     try { await finishHouseConnect(); } catch (error) { document.getElementById('cad-command').textContent = error.message; }
 });
