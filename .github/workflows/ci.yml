@@ -24,7 +24,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - run: npm ci
+      - name: Install Node dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
       - run: vendor/bin/pint --test
       - run: npm run check:js
       - run: npm run build
@@ -52,7 +53,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - run: npm ci
+      - name: Install Node dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - name: Prepare application
         run: |
