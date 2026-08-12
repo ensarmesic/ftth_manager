@@ -515,6 +515,21 @@ class SurveyPointImportTest extends TestCase
         ]);
     }
 
+    public function test_arbitrary_odf_name_is_reused_across_import_format_variations(): void
+    {
+        $project = Project::factory()->create();
+        $service = app(SurveyPointImportService::class);
+
+        $service->confirm($project, '1  6549699.731  4923604.537  234.0  ODF Rainci Gornji', 'prvi.txt');
+        $odf = Odf::where('project_id', $project->id)->firstOrFail();
+        $this->assertSame('ODF RAINCI GORNJI', $odf->name);
+
+        $service->confirm($project, '2  6549699.900  4923604.700  234.0  odf_rainci-gornji', 'drugi.txt');
+
+        $this->assertSame(1, Odf::where('project_id', $project->id)->count());
+        $this->assertSame($odf->id, Odf::where('project_id', $project->id)->firstOrFail()->id);
+    }
+
     public function test_preview_flags_ambiguous_cabinet_match_and_import_applies_manual_override(): void
     {
         $project = Project::factory()->create();

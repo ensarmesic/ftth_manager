@@ -2209,7 +2209,7 @@ class SurveyPointImportService
             foreach ($this->mergeOdfPoints($points) as $odfPoint) {
                 $odfName = $this->odfLabel($odfPoint['code']);
                 $namedOdf = $odfName !== 'ODF'
-                    ? Odf::where('project_id', $project->id)->get()->first(fn (Odf $odf) => $this->odfLabel($odf->name) === $odfName)
+                    ? Odf::where('project_id', $project->id)->get()->first(fn (Odf $odf) => $this->odfIdentity($odf->name) === $this->odfIdentity($odfName))
                     : null;
                 if ($namedOdf !== null || $this->existsNearby(Odf::class, $project->id, $odfPoint['lat'], $odfPoint['lng'])) {
                     continue;
@@ -2807,11 +2807,25 @@ class SurveyPointImportService
     private function odfLabel(?string $code): string
     {
         $normalized = mb_strtoupper(trim((string) $code));
-        if (preg_match('/\bODF[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/u', $normalized, $match)) {
-            return 'ODF-'.str_replace('.', '-', $match[1]);
+        if (! preg_match('/ODF[\s\-_.]*(.*)$/u', $normalized, $match)) {
+            return 'ODF';
         }
 
-        return 'ODF';
+        $suffix = trim((string) preg_replace('/[_\s]+/u', ' ', $match[1]));
+        if ($suffix === '') {
+            return 'ODF';
+        }
+
+        if (preg_match('/^[0-9]+(?:[.\-][0-9]+)*$/', $suffix)) {
+            return 'ODF-'.str_replace('.', '-', $suffix);
+        }
+
+        return 'ODF '.$suffix;
+    }
+
+    private function odfIdentity(?string $name): string
+    {
+        return mb_strtolower((string) preg_replace('/[^\pL\pN]+/u', '', $this->odfLabel($name)));
     }
 
     private function existsNearby(string $model, int $projectId, float $lat, float $lng): bool
