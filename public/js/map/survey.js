@@ -138,6 +138,16 @@
             <select class="survey-duct-override" data-duct-key="${escapeHtml(duct.key)}">${options}</select></li>`;
     }
 
+    function previewStat(label, value, tone = 'slate') {
+        const colors = {
+            slate: ['#f8fafc', '#475569'], blue: ['#eff6ff', '#1d4ed8'],
+            emerald: ['#ecfdf5', '#047857'], violet: ['#f5f3ff', '#6d28d9'],
+            amber: ['#fffbeb', '#b45309'], red: ['#fef2f2', '#b91c1c'],
+        };
+        const [background, color] = colors[tone] || colors.slate;
+        return `<div style="border:1px solid ${color}22;border-radius:7px;background:${background};padding:7px 8px"><b style="display:block;font-size:15px;color:${color}">${value}</b><span style="font-size:9px;font-weight:800;text-transform:uppercase;color:${color}">${label}</span></div>`;
+    }
+
     async function previewFile(file) {
         if (!projectId()) {
             setStatus('Prvo odaberi projekat (filter gore desno).', true);
@@ -161,6 +171,9 @@
                 return `<li>${run.points} tac. / ${run.length_m} m ${duct} <span style="color:#94a3b8">${escapeHtml(run.code)}</span></li>`;
             }).join('');
             const ducts = (data.ducts || []).map(ductRowHtml).join('');
+            const mainDucts = (data.ducts || []).filter(duct => duct.route_type !== 'drop').length;
+            const dropDucts = (data.ducts || []).filter(duct => duct.route_type === 'drop').length;
+            const houseAndSlingCount = `${Number(data.by_kind?.sling || 0)} / ${Number(data.prepared_slings || 0)}`;
             const ambiguousCount = (data.ducts || []).filter(d => d.match_confidence === 'ambiguous').length;
             const unrecognized = (data.unrecognized_codes || []).length
                 ? `<p style="margin:6px 0 0;color:#b45309"><b>Neprepoznato:</b> ${data.unrecognized_codes.slice(0, 6).map(escapeHtml).join(' | ')}</p>`
@@ -179,6 +192,14 @@
             summaryBox.innerHTML = `
                 <p style="margin:0"><b>${escapeHtml(data.filename)}</b> - ${data.total_points} tacaka</p>
                 <p style="margin:4px 0 0">${kinds}</p>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:8px 0">
+                    ${previewStat('Rovovi', (data.trench_runs || []).length, 'slate')}
+                    ${previewStat('Glavne MC', mainDucts, 'blue')}
+                    ${previewStat('Drop trase', dropDucts, dropDucts ? 'emerald' : 'slate')}
+                    ${previewStat('Kuće / šlinge', houseAndSlingCount, 'violet')}
+                    ${previewStat('ZO ormari', (data.cabinets || []).length, 'amber')}
+                    ${previewStat('Greške', qualityErrors.length, qualityErrors.length ? 'red' : 'emerald')}
+                </div>
                 <p style="margin:6px 0 2px"><b>Rovovi (${(data.trench_runs || []).length})</b> - ukupno ${data.trench_total_m} m:</p>
                 <ul style="margin:0;padding-left:16px;max-height:120px;overflow-y:auto">${runs || '<li>nema</li>'}</ul>
                 <p style="margin:6px 0 2px"><b>Mikrocijevi (${(data.ducts || []).length})</b>:</p>
