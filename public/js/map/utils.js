@@ -410,12 +410,11 @@ function applyRouteLabelLanes(routes) {
 
 // Visually fan overlapping saved ducts into parallel lanes. Database geometry remains on
 // the surveyed trench axis; only Leaflet display/hit layers use these offset points.
-const ROUTE_VISUAL_MAX_SPREAD_METERS = 1.2;
-const ROUTE_VISUAL_MAX_GAP_METERS = 0.25;
-const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 4;
+const ROUTE_VISUAL_MAX_SPREAD_METERS = 1.6;
+const ROUTE_VISUAL_MAX_GAP_METERS = 0.18;
+const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 0.75;
 function routePathsOverlapForDisplay(first, second) {
     if (!first.path?.length || !second.path?.length) return false;
-    if ((first.microduct_type || null) !== (second.microduct_type || null)) return false;
     if (first.cabinet_id && second.cabinet_id && Number(first.cabinet_id) !== Number(second.cabinet_id)) return false;
     const a = first.path.length <= second.path.length ? first.path : second.path;
     const b = first.path.length <= second.path.length ? second.path : first.path;
@@ -457,7 +456,7 @@ function offsetRouteDisplayPoints(points, offsetM) {
 }
 function applyRouteVisualLanes(routes) {
     routes.forEach(route => { route._visualOffsetM = 0; });
-    const candidates = routes.filter(route => route.type === 'drop' && route.path?.length > 1);
+    const candidates = routes.filter(route => route.type !== 'trench' && route.path?.length > 1);
     const parent = candidates.map((_, index) => index);
     const find = index => parent[index] === index ? index : (parent[index] = find(parent[index]));
     const unite = (a, b) => { const ra = find(a); const rb = find(b); if (ra !== rb) parent[rb] = ra; };
@@ -474,11 +473,15 @@ function applyRouteVisualLanes(routes) {
             const b = second.path[0];
             return a[0] - b[0] || a[1] - b[1] || Number(first.id) - Number(second.id);
         });
-        const middle = (group.length - 1) / 2;
         const gap = group.length > 1
-            ? Math.min(ROUTE_VISUAL_MAX_GAP_METERS, ROUTE_VISUAL_MAX_SPREAD_METERS / (group.length - 1))
+            ? Math.min(ROUTE_VISUAL_MAX_GAP_METERS, ROUTE_VISUAL_MAX_SPREAD_METERS / Math.ceil((group.length - 1) / 2))
             : 0;
-        group.forEach((route, index) => { route._visualOffsetM = (index - middle) * gap; });
+        // Keep the first/complete route exactly on the surveyed trench axis. Place the
+        // remaining routes alternately left and right, one narrow lane at a time.
+        group.forEach((route, index) => {
+            if (index === 0) route._visualOffsetM = 0;
+            else route._visualOffsetM = Math.ceil(index / 2) * gap * (index % 2 ? 1 : -1);
+        });
     });
 }
 function refreshAllRouteStyles() {

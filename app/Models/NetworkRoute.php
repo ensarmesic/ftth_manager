@@ -47,6 +47,11 @@ class NetworkRoute extends Model
         return $this->belongsTo(Cabinet::class);
     }
 
+    public function house(): BelongsTo
+    {
+        return $this->belongsTo(House::class, 'to_id');
+    }
+
     public function fromCabinet(): BelongsTo
     {
         return $this->belongsTo(Cabinet::class, 'from_id');

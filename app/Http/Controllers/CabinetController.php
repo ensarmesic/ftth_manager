@@ -23,15 +23,24 @@ class CabinetController extends Controller
 
     public function cabinets(): View
     {
-        $cabinetStats = Cabinet::withCount('houses')->get()->reduce(function (array $stats, Cabinet $cabinet): array {
-            $stats['capacity'] += $cabinet->capacity;
-            $stats['used_ports'] += $cabinet->houses_count;
-            if ($cabinet->houses_count >= $cabinet->capacity) {
-                $stats['full']++;
-            }
+        $cabinetUsage = Cabinet::query()
+            ->leftJoin('houses', 'houses.cabinet_id', '=', 'cabinets.id')
+            ->groupBy('cabinets.id', 'cabinets.splitter_count', 'cabinets.ports_per_splitter')
+            ->selectRaw('cabinets.splitter_count * cabinets.ports_per_splitter AS capacity')
+            ->selectRaw('COUNT(houses.id) AS used_ports');
 
-            return $stats;
-        }, ['total' => Cabinet::count(), 'capacity' => 0, 'used_ports' => 0, 'full' => 0]);
+        $stats = DB::query()->fromSub($cabinetUsage, 'cabinet_usage')
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw('COALESCE(SUM(capacity), 0) AS capacity')
+            ->selectRaw('COALESCE(SUM(used_ports), 0) AS used_ports')
+            ->selectRaw('COALESCE(SUM(CASE WHEN used_ports >= capacity THEN 1 ELSE 0 END), 0) AS full')
+            ->first();
+        $cabinetStats = [
+            'total' => (int) $stats->total,
+            'capacity' => (int) $stats->capacity,
+            'used_ports' => (int) $stats->used_ports,
+            'full' => (int) $stats->full,
+        ];
 
         return view('ftth.cabinets', [
             'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses'])->latest()->paginate(12),

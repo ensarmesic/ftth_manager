@@ -1392,4 +1392,43 @@ class SurveyPointImportTest extends TestCase
         $this->assertSame(1, House::where('project_id', $project->id)->count());
         $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'drop')->count());
     }
+
+    public function test_rainci_gornji_osm_fixture_is_complete_and_routable(): void
+    {
+        $project = Project::factory()->create();
+        $contents = file_get_contents(base_path('docs/test-rainci-gornji-osm.txt'));
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse($contents);
+        $preview = $service->preview($project, $contents, 'test-rainci-gornji-osm.txt');
+
+        $this->assertCount(1500, $points);
+        $this->assertCount(1500, collect($points)->pluck('point_no')->unique());
+        $this->assertSame(1, collect($points)->where('kind', 'odf')->count());
+        $this->assertSame(10, collect($points)->where('kind', 'cabinet')->count());
+        $this->assertSame(30, collect($points)->where('kind', 'sling')->count());
+        $this->assertSame(1500, $preview['total_points']);
+        $this->assertSame('ready', $preview['quality']['status']);
+        $this->assertSame(30, $preview['quality']['complete_drop_routes']);
+        $this->assertSame(0, $preview['quality']['unreachable_drop_routes']);
+        $dropDucts = collect($preview['ducts'])->where('route_type', 'drop')->values();
+        $this->assertCount(30, $dropDucts);
+        $this->assertSame([], $dropDucts->where('routing_status', '!=', 'complete')->values()->all());
+        $this->assertSame([], $dropDucts->filter(fn (array $duct) => ! in_array((int) $duct['zo_tag'], range(1, 10), true))->values()->all());
+    }
+
+    public function test_preview_blocks_duplicate_numbers_and_customer_duct_without_zo(): void
+    {
+        $project = Project::factory()->create();
+        $contents = implode("\n", [
+            '1 6549699.731 4923604.537 234.000 ZO-1',
+            '1 6549700.500 4923604.537 234.000 Rov + mc 10/8 Crvena x1',
+            '2 6549704.000 4923604.537 234.000 Kuca 10/8 Crvena x1',
+        ]);
+
+        $quality = app(SurveyPointImportService::class)->preview($project, $contents, 'neispravan.txt')['quality'];
+
+        $this->assertSame('blocked', $quality['status']);
+        $this->assertSame([1], $quality['duplicate_point_numbers']);
+        $this->assertSame([1, 2], $quality['customer_points_without_cabinet']);
+    }
 }

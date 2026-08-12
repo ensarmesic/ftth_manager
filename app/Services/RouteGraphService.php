@@ -11,17 +11,20 @@ class RouteGraphService
 {
     public function __construct(private readonly GeometryService $geometry) {}
 
-    public function shortestPath(int $projectId, array $from, array $to): ?array
+    public function shortestPath(int $projectId, array $from, array $to, bool $preferSurveyedRoutes = false): ?array
     {
-        $segments = GisSegment::query()
-            ->where('project_id', $projectId)
-            ->where('is_allowed', true)
-            ->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])
-            ->get()
-            ->filter(fn (GisSegment $segment) => count($segment->path ?? []) > 1)
-            ->values();
+        $segments = collect();
+        $source = $preferSurveyedRoutes ? 'routes' : 'gis';
 
-        $source = 'gis';
+        if (! $preferSurveyedRoutes) {
+            $segments = GisSegment::query()
+                ->where('project_id', $projectId)
+                ->where('is_allowed', true)
+                ->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])
+                ->get()
+                ->filter(fn (GisSegment $segment) => count($segment->path ?? []) > 1)
+                ->values();
+        }
 
         if ($segments->isEmpty()) {
             $segments = NetworkRoute::query()
@@ -156,14 +159,21 @@ class RouteGraphService
             return null;
         }
 
+        $original = [(float) $point[0], (float) $point[1]];
         $projected = [(float) $nearest['lat'], (float) $nearest['lng']];
-        $graph['nodes'][$key] = $projected;
+        $projectionKey = $key.'__projection';
+        $graph['nodes'][$key] = $original;
+        $graph['nodes'][$projectionKey] = $projected;
+
+        $spurWeight = $this->geometry->distanceBetweenPoints($original, $projected);
+        $graph['edges'][$key][$projectionKey] = $spurWeight;
+        $graph['edges'][$projectionKey][$key] = $spurWeight;
 
         foreach ([$a, $b] as $endpoint) {
             $endpointKey = $this->nodeKey($endpoint);
             $weight = $this->geometry->distanceBetweenPoints($projected, $endpoint);
-            $graph['edges'][$key][$endpointKey] = $weight;
-            $graph['edges'][$endpointKey][$key] = $weight;
+            $graph['edges'][$projectionKey][$endpointKey] = $weight;
+            $graph['edges'][$endpointKey][$projectionKey] = $weight;
         }
 
         return $key;

@@ -233,6 +233,9 @@ class MediaskyWorkflowTest extends TestCase
             'route_type' => 'drop',
             'note' => 'Automatski rutirano kroz GIS graf.',
         ]);
+        $path = NetworkRoute::where('project_id', $project->id)->where('route_type', 'drop')->firstOrFail()->path;
+        $this->assertEquals([44.4493, 18.6498], $path[0]);
+        $this->assertEquals([44.4503, 18.6508], end($path));
     }
 
     public function test_gis_plan_preview_routes_houses_from_odf(): void
@@ -1053,6 +1056,36 @@ class MediaskyWorkflowTest extends TestCase
         $drop = NetworkRoute::where('route_type', 'drop')->firstOrFail();
         $this->assertSame($house->id, $drop->to_id);
         $this->assertGreaterThanOrEqual(3, count($drop->path));
+    }
+
+    public function test_existing_drop_route_can_be_audited_and_repaired_through_physical_trench(): void
+    {
+        $project = Project::create(['name' => 'Drop repair', 'code' => 'REPAIR', 'location' => 'Test', 'status' => 'planning']);
+        $cabinet = Cabinet::create(['project_id' => $project->id, 'name' => 'ZO-1', 'address' => 'Cesta', 'splitter_count' => 3, 'ports_per_splitter' => 4, 'latitude' => 44.4500, 'longitude' => 18.6500]);
+        $house = House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'K-001', 'latitude' => 44.4510, 'longitude' => 18.6520, 'status' => 'planned']);
+        NetworkRoute::create(['project_id' => $project->id, 'name' => 'Fizički rov', 'route_type' => 'trench', 'installation_type' => 'underground', 'duct_length_m' => 300, 'fiber_length_m' => 0, 'fiber_count' => null, 'microduct_count' => 0, 'microduct_type' => null, 'status' => 'planned', 'path' => [[44.4500, 18.6500], [44.4500, 18.6520], [44.4510, 18.6520]]]);
+        $drop = NetworkRoute::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'from_type' => 'cabinet', 'from_id' => $cabinet->id, 'to_type' => 'house', 'to_id' => $house->id, 'name' => 'Direktni drop', 'route_type' => 'drop', 'installation_type' => 'underground', 'duct_length_m' => 200, 'fiber_length_m' => 200, 'fiber_count' => 4, 'microduct_count' => 1, 'microduct_type' => '10/8', 'status' => 'planned', 'path' => [[44.4510, 18.6520], [44.4500, 18.6500]]]);
+
+        $this->getJson(route('projects.drop-routes.audit', $project))
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('repairable', 1)
+            ->assertJsonPath('aligned', 0);
+
+        $this->postJson(route('projects.drop-routes.repair', $project))
+            ->assertOk()
+            ->assertJsonPath('updated', 1)
+            ->assertJsonPath('unreachable', 0);
+
+        $path = $drop->fresh()->path;
+        $this->assertEquals([44.451, 18.652], $path[0]);
+        $this->assertContains([44.45, 18.652], $path);
+        $this->assertEquals([44.45, 18.65], end($path));
+
+        $this->getJson(route('projects.drop-routes.audit', $project))
+            ->assertOk()
+            ->assertJsonPath('repairable', 0)
+            ->assertJsonPath('aligned', 1);
     }
 
     public function test_two_routes_with_near_endpoints_can_be_joined(): void

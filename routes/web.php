@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DropRouteMaintenanceController;
 use App\Http\Controllers\GisController;
 use App\Http\Controllers\HouseController;
 use App\Http\Controllers\MapController;
@@ -66,6 +67,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projekti/{project}/validacija', [ProjectPlanningController::class, 'validateProject'])->name('projects.validation');
     Route::post('/projekti/{project}/materijali/izracunaj', ProjectMaterialController::class)->name('materials.calculate');
     Route::post('/projekti/{project}/drop-trase/popuni', MissingDropRouteController::class)->name('projects.drop-routes.fill');
+    Route::get('/projekti/{project}/drop-trase/audit', [DropRouteMaintenanceController::class, 'audit'])->name('projects.drop-routes.audit');
+    Route::post('/projekti/{project}/drop-trase/popravi', [DropRouteMaintenanceController::class, 'repair'])->name('projects.drop-routes.repair');
     Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->name('projects.survey-points.preview');
     Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->name('projects.survey-points.import');
     Route::get('/projekti/{project}/tacke/importi', [SurveyPointController::class, 'imports'])->name('projects.survey-points.imports');

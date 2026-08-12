@@ -1078,6 +1078,7 @@
                     <button type="button" id="run-project-check" class="sb-btn sb-btn-outline">Provjeri</button>
                     <button type="button" id="fill-missing-drops" class="sb-btn sb-btn-amber-outline">Popuni dropove</button>
                 </div>
+                <button type="button" id="repair-drop-routes" class="sb-btn sb-btn-outline">Audit i popravi drop trase</button>
                 <div id="project-check-summary" class="text-xs text-slate-500">Odaberi projekat i pokreni provjeru.</div>
                 <div id="project-check-panel" class="grid max-h-60 gap-1 overflow-y-auto text-xs"></div>
             </div>

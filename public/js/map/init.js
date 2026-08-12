@@ -53,35 +53,42 @@ mapLegend.addTo(map);
 const bounds = [];
 applyRouteStacking(data.routes);
 applyRouteLabelLanes(data.routes);
+applyRouteVisualLanes(data.routes);
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
-    // Draw the exact saved/surveyed geometry. Drop routes carried through a trench
-    // must sit on that trench all the way to the ODO; only their labels are fanned out.
-    const displayPoints = points;
+    // Keep exact surveyed geometry for calculations/editing, while overlapping drops
+    // receive a very small parallel display lane inside the trench corridor.
+    const displayPoints = route.type !== 'trench'
+        ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0)
+        : points;
     const occupancy = route.occupancy || {};
     const baseStyle = routeLineStyle(route.type, routeLineColor(route));
     if (route._stack) baseStyle.weight = routeStackedWeight(route, baseStyle.weight);
     const line = L.polyline(displayPoints, { ...baseStyle, interactive: false })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
-    const hitLine = L.polyline(displayPoints, { weight: 10, opacity: 0, interactive: true }).addTo(map);
-    if (route.type === 'trench') { line.bringToBack(); hitLine.bringToBack(); }
+    const hitLine = L.polyline(points, { weight: 10, opacity: 0, interactive: true }).addTo(map);
+    if (route.type === 'trench') {
+        line.bringToBack();
+        hitLine.bringToBack();
+    }
     const labels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(displayPoints, route.name, false, routeLabelSpecs(route), route._labelLane) : [];
     routeLayerById[route.id] = line;
     routeHitLayerById[route.id] = hitLine;
     routeLabelsById[route.id] = labels || [];
+    const renderedRouteLayers = [hitLine, line, ...labels];
     trackLayer(line, routeLayerType(route.type));
     trackLayer(hitLine, routeLayerType(route.type));
     labels?.forEach(label => trackLayer(label, routeLayerType(route.type)));
-    registerSavedContext([hitLine, line, ...labels], route.name, deleteUrls.route(route.id), null, event => {
+    registerSavedContext(renderedRouteLayers, route.name, deleteUrls.route(route.id), null, event => {
         if (mode === 'join') selectJoinRoute(route, line);
         else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
         else {
             selectRouteFromVisibleStack(event, route);
         }
-    }, [], () => deleteRouteWithHistory(route, [hitLine, line, ...labels]));
+    }, [], () => deleteRouteWithHistory(route, renderedRouteLayers));
     points.forEach(p => bounds.push([p.lat, p.lng]));
 });
 (data.gis_segments || []).forEach(segment => {
@@ -586,6 +593,13 @@ document.getElementById('run-project-check').addEventListener('click', async () 
 document.getElementById('fill-missing-drops').addEventListener('click', async () => {
     try {
         await fillMissingDropRoutes();
+    } catch (error) {
+        document.getElementById('project-check-summary').textContent = error.message;
+    }
+});
+document.getElementById('repair-drop-routes').addEventListener('click', async () => {
+    try {
+        await auditAndRepairDropRoutes();
     } catch (error) {
         document.getElementById('project-check-summary').textContent = error.message;
     }

@@ -2023,6 +2023,22 @@ class SurveyPointImportService
                     ->map(fn ($p) => (object) ['id' => null, 'latitude' => $p['lat'], 'longitude' => $p['lng']])
             );
 
+        $duplicatePointNumbers = collect($points)->countBy('point_no')->filter(fn (int $count) => $count > 1)->keys()->values();
+        $unrecognizedCodes = collect($points)->where('kind', 'other')->pluck('code')->filter()->unique()->values();
+        $customerPointsWithoutCabinet = collect($points)->filter(fn (array $point) => ($point['microduct_type'] ?? null) === '10/8'
+            && in_array($point['kind'], ['trench', 'sling'], true)
+            && blank($point['zo_tag'] ?? null)
+        )->pluck('point_no')->values();
+        $terminalDucts = collect($network['ducts'])->filter(fn (array $duct) => ($duct['prepared_sling'] ?? false) || isset($duct['_terminal_point'])
+        );
+        $unreachableDucts = $terminalDucts->reject(fn (array $duct) => (bool) ($duct['cabinet_reached'] ?? false));
+        $qualityErrors = collect()
+            ->when($duplicatePointNumbers->isNotEmpty(), fn (Collection $errors) => $errors->push('Dupli brojevi tačaka: '.$duplicatePointNumbers->take(12)->join(', ').'.'))
+            ->when($unrecognizedCodes->isNotEmpty(), fn (Collection $errors) => $errors->push($unrecognizedCodes->count().' opisa nije prepoznato.'))
+            ->when($customerPointsWithoutCabinet->isNotEmpty(), fn (Collection $errors) => $errors->push($customerPointsWithoutCabinet->count().' korisničkih 10/8 tačaka nema -ZO oznaku.'))
+            ->when($unreachableDucts->isNotEmpty(), fn (Collection $errors) => $errors->push($unreachableDucts->count().' korisničkih linija nema dokazanu putanju kroz rov do ODO-a.'))
+            ->values();
+
         return [
             'batch' => $batch,
             'filename' => $filename,
@@ -2069,7 +2085,15 @@ class SurveyPointImportService
             'manholes' => collect($points)->where('kind', 'manhole')->count(),
             'houses' => collect($points)->where('kind', 'sling')->count(),
             'prepared_slings' => collect($points)->where('kind', 'sling')->where('prepared_sling', true)->count(),
-            'unrecognized_codes' => collect($points)->where('kind', 'other')->pluck('code')->filter()->unique()->values()->all(),
+            'unrecognized_codes' => $unrecognizedCodes->all(),
+            'quality' => [
+                'status' => $qualityErrors->isEmpty() ? 'ready' : 'blocked',
+                'errors' => $qualityErrors->all(),
+                'complete_drop_routes' => $terminalDucts->count() - $unreachableDucts->count(),
+                'unreachable_drop_routes' => $unreachableDucts->count(),
+                'duplicate_point_numbers' => $duplicatePointNumbers->all(),
+                'customer_points_without_cabinet' => $customerPointsWithoutCabinet->all(),
+            ],
             'bounds' => [
                 'lat' => [collect($points)->min('lat'), collect($points)->max('lat')],
                 'lng' => [collect($points)->min('lng'), collect($points)->max('lng')],

@@ -1,0 +1,41 @@
+FTTH TXT - PREPORUCENI OPISI (kompatibilni sa postojecim fajlovima)
+=================================================================
+
+Svaki red: BROJ X Y Z OPIS
+
+OBJEKTI
+ODF
+ZO-1
+Saht
+Busenje
+Stub
+
+GLAVNI ROV I 14/10
+Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-1
+Rov; 14/10 Zelena Tranzit; 14/10 Plava ZO-2
+Spojnica 14/10 Plava
+Slinga 14/10 Zelena
+
+KORISNICKA LINIJA 10/8
+Rov + mc 10/8 Crvena x1 -ZO-1
+Rov + mc 10/8 Crvena x3 -ZO-1
+Spojnica 10/8 Crvena -ZO-1
+Kuca K-001 10/8 Crvena x1 -ZO-1
+Slinga 10/8 Crvena x1 -ZO-1
+SLINGA za kucu K-002 10/8 Crvena x1 -ZO-1
+
+OBAVEZNA TOPOLOSKA PRAVILA
+1. Svaki broj tacke mora biti jedinstven.
+2. Svaka korisnicka 10/8 tacka mora imati odrediste -ZO-N.
+3. ZO-N mora postojati kao zasebna tacka u istom ili ranijem uvozu.
+4. Korisnicki krak pocinje na koordinati ZO-a ili na tacki postojeceg rova.
+5. Kada se krak odvaja, ponovi zajednicku koordinatu kao prvu tacku novog kraka.
+6. Susjedne tacke rova trebaju biti udaljene najvise 20 m; za oznacenu 10/8 najvise 30 m.
+7. Kuca/Slinga je zadnja tacka korisnicke linije. Poslije nje ne nastavljati isti krak.
+8. Ne crtati dijagonalni spoj do ODO-a. Snimiti tacke rova sve do njegove stvarne lokacije.
+9. Ne koristiti tudju korisnicku 10/8 liniju kao zajednicki rov.
+10. Za prelaz ispod ceste evidentirati Busenje na stvarnoj lokaciji.
+
+KONTROLA PRI UVOZU
+Aplikacija blokira potvrdu kada pronadje duple brojeve, nepoznat opis,
+10/8 bez -ZO oznake ili korisnicku liniju bez dokazanog puta kroz rov do ODO-a.

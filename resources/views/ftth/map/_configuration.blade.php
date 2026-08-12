@@ -14,6 +14,8 @@ window.ftthMapConfig = {
         gisPlanConfirmBaseUrl: @json(url('/projekti/__ID__/gis-plan/confirm')),
         projectValidationBaseUrl: @json(url('/projekti/__ID__/validacija')),
         projectDropFillBaseUrl: @json(url('/projekti/__ID__/drop-trase/popuni')),
+        projectDropAuditBaseUrl: @json(url('/projekti/__ID__/drop-trase/audit')),
+        projectDropRepairBaseUrl: @json(url('/projekti/__ID__/drop-trase/popravi')),
         projectGeoJsonBaseUrl: @json(url('/projekti/__ID__/geojson')),
         projectDxfBaseUrl: @json(url('/projekti/__ID__/dxf')),
         projectPrintBaseUrl: @json(url('/projekti/__ID__/print')),

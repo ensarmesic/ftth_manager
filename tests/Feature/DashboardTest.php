@@ -60,4 +60,34 @@ class DashboardTest extends TestCase
             ->get(route('map.index'))
             ->assertRedirect(route('map.dashboard'));
     }
+
+    public function test_cabinet_page_calculates_capacity_and_usage_statistics(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create();
+        $fullCabinet = Cabinet::factory()->create([
+            'project_id' => $project->id,
+            'splitter_count' => 1,
+            'ports_per_splitter' => 2,
+        ]);
+        Cabinet::factory()->create([
+            'project_id' => $project->id,
+            'splitter_count' => 2,
+            'ports_per_splitter' => 4,
+        ]);
+        House::factory()->count(2)->create([
+            'project_id' => $project->id,
+            'cabinet_id' => $fullCabinet->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('cabinets.index'))
+            ->assertOk()
+            ->assertViewHas('cabinetStats', [
+                'total' => 2,
+                'capacity' => 10,
+                'used_ports' => 2,
+                'full' => 1,
+            ]);
+    }
 }

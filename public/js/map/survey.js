@@ -171,6 +171,10 @@
             const ambiguousNote = ambiguousCount
                 ? `<p style="margin:4px 0 0;color:#b45309">${ambiguousCount} mikrocijevi ima nejasnu pripadnost ormaru - provjeri odabir ispod prije potvrde.</p>`
                 : '';
+            const qualityErrors = data.quality?.errors || [];
+            const qualityPanel = data.quality
+                ? `<div style="margin:8px 0;padding:9px;border:1px solid ${qualityErrors.length ? '#fecaca' : '#a7f3d0'};border-radius:7px;background:${qualityErrors.length ? '#fef2f2' : '#ecfdf5'};color:${qualityErrors.length ? '#991b1b' : '#065f46'}"><b>${qualityErrors.length ? 'UVOZ BLOKIRAN' : 'KONTROLA PROŠLA'}</b><br>${qualityErrors.length ? qualityErrors.map(escapeHtml).join('<br>') : `${data.quality.complete_drop_routes} korisničkih ruta ima dokazanu vezu kroz rov do ODO-a.`}</div>`
+                : '';
 
             summaryBox.innerHTML = `
                 <p style="margin:0"><b>${escapeHtml(data.filename)}</b> - ${data.total_points} tacaka</p>
@@ -181,11 +185,11 @@
                 <ul style="margin:0;padding-left:16px;max-height:140px;overflow-y:auto">${ducts || '<li>nema</li>'}</ul>
                 ${ambiguousNote}
                 <p style="margin:6px 0 0">ZO ormara: <b>${(data.cabinets || []).length}</b> / ODF: <b>${(data.odfs || []).length}</b> / sahtova: <b>${data.manholes}</b> / ŠLINGA: <b>${data.prepared_slings || 0}</b></p>
-                ${unrecognized}${warning}`;
-            confirmBtn.disabled = !!data.already_imported;
+                ${qualityPanel}${unrecognized}${warning}`;
+            confirmBtn.disabled = !!data.already_imported || data.quality?.status === 'blocked';
             setStatus(
-                data.already_imported ? 'Fajl je vec uvezen - uvoz blokiran.' : 'Pregled spreman. Klikni "Uvezi u projekat" za potvrdu.',
-                data.already_imported,
+                data.already_imported ? 'Fajl je vec uvezen - uvoz blokiran.' : data.quality?.status === 'blocked' ? 'Ispravi označene probleme u TXT fajlu prije uvoza.' : 'Pregled spreman. Klikni "Uvezi u projekat" za potvrdu.',
+                data.already_imported || data.quality?.status === 'blocked',
             );
         } catch (error) {
             setStatus(error.message, true);

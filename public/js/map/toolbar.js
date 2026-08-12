@@ -88,6 +88,46 @@ async function fillMissingDropRoutes() {
     await runProjectCheck();
 }
 
+async function auditAndRepairDropRoutes() {
+    const projectId = document.getElementById('active-project-id').value;
+    const summary = document.getElementById('project-check-summary');
+    if (!projectId) {
+        summary.textContent = 'Prvo odaberi projekat.';
+        return;
+    }
+
+    summary.textContent = 'Provjeravam da li drop trase prate fizički rov...';
+    const auditResponse = await fetch(appConfig.projectDropAuditBaseUrl.replace('__ID__', projectId), {
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const audit = await readJsonResponse(auditResponse, 'Audit drop-trasa nije uspio.');
+    if (!audit.total) {
+        summary.textContent = 'Nema spremljenih drop-trasa za provjeru.';
+        return;
+    }
+    if (!audit.repairable) {
+        summary.textContent = `${audit.unreachable} drop-trasa nema povezani fizički koridor. Dopuni rov prije popravke.`;
+        return;
+    }
+    if (!window.confirm(`Pronađeno je ${audit.repairable} drop-trasa koje se mogu ponovo provući kroz fizički rov. Nastaviti?`)) {
+        summary.textContent = 'Popravka nije pokrenuta.';
+        return;
+    }
+
+    summary.textContent = 'Ponovo rutiram drop trase kroz fizički rov...';
+    const response = await fetch(appConfig.projectDropRepairBaseUrl.replace('__ID__', projectId), {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+    const result = await readJsonResponse(response, 'Popravka drop-trasa nije uspjela.');
+    summary.textContent = `${result.message}${result.unreachable ? ` ${result.unreachable} nije moguće popraviti bez dodatnog rova.` : ''} Osvježavam mapu...`;
+    setTimeout(() => window.location.reload(), 900);
+}
+
 function projectCheckItemHtml(item, index) {
     const color = item.level === 'error'
         ? 'border-red-300 bg-red-50 text-red-900'

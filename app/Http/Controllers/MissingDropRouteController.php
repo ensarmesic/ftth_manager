@@ -15,14 +15,16 @@ class MissingDropRouteController extends Controller
 
     public function __invoke(Project $project, RouteGraphService $graph)
     {
-        $existingHouseIds = array_flip(NetworkRoute::where('project_id', $project->id)
-            ->where('route_type', 'drop')
-            ->where('to_type', 'house')
-            ->pluck('to_id')->map(fn ($id) => (int) $id)->all());
-
         $houses = $project->houses()->with('cabinet')
             ->whereNotNull('cabinet_id')->whereNotNull('latitude')->whereNotNull('longitude')
-            ->get()->reject(fn (House $house) => isset($existingHouseIds[$house->id]));
+            ->whereNotExists(fn ($query) => $query
+                ->selectRaw('1')
+                ->from('routes')
+                ->whereColumn('routes.to_id', 'houses.id')
+                ->where('routes.project_id', $project->id)
+                ->where('routes.route_type', 'drop')
+                ->where('routes.to_type', 'house'))
+            ->get();
 
         $routes = DB::transaction(fn () => $houses->map(function (House $house) use ($project, $graph) {
             $cabinet = $house->cabinet;
