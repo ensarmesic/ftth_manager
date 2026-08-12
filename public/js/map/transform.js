@@ -202,14 +202,15 @@ function xfCreateDraftCopy(entry, points) {
 function xfCopySelection(dLat, dLng, label = 'Kopiraj') {
     const targets = xfSelectionTargets();
     if (!targets.length) return;
-    const undoFns = targets.map(entry => {
-        const points = xfCurrentPoints(entry).map(p => translateLatLng(p, dLat, dLng));
-        return xfCreateDraftCopy(entry, points);
-    });
+    const copies = targets.map(entry => ({
+        entry,
+        points: xfCurrentPoints(entry).map(p => translateLatLng(p, dLat, dLng)),
+    }));
+    let undoFns = copies.map(copy => xfCreateDraftCopy(copy.entry, copy.points));
     mapHistory.push({
         label,
         undo: () => undoFns.forEach(fn => fn()),
-        redo: () => document.getElementById('cad-command').textContent = `${label}: redo nije podržan za kopije, ponovi akciju rucno.`,
+        redo: () => { undoFns = copies.map(copy => xfCreateDraftCopy(copy.entry, copy.points)); },
     });
     document.getElementById('cad-command').textContent = `${label}: napravljeno ${targets.length} kopija (draft, potvrdi kroz Plan).`;
 }
@@ -232,8 +233,13 @@ document.getElementById('xf-mirror-btn')?.addEventListener('click', () => {
         const keepOriginal = document.getElementById('xf-keep-original').checked;
         const targets = xfSelectionTargets();
         if (keepOriginal) {
-            const undoFns = targets.map(entry => xfCreateDraftCopy(entry, xfCurrentPoints(entry).map(p => mirrorLatLng(a, b, p))));
-            mapHistory.push({ label: 'Zrcali (kopija)', undo: () => undoFns.forEach(fn => fn()), redo: () => {} });
+            const copies = targets.map(entry => ({ entry, points: xfCurrentPoints(entry).map(p => mirrorLatLng(a, b, p)) }));
+            let undoFns = copies.map(copy => xfCreateDraftCopy(copy.entry, copy.points));
+            mapHistory.push({
+                label: 'Zrcali (kopija)',
+                undo: () => undoFns.forEach(fn => fn()),
+                redo: () => { undoFns = copies.map(copy => xfCreateDraftCopy(copy.entry, copy.points)); },
+            });
             document.getElementById('cad-command').textContent = `Zrcali: napravljeno ${targets.length} kopija (draft).`;
         } else {
             xfTransformSelection('Zrcali', p => mirrorLatLng(a, b, p));
