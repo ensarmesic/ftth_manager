@@ -65,6 +65,24 @@ try {
     await page.waitForSelector('#network-map.leaflet-container', { timeout: 15000 });
     await page.waitForFunction((id) => document.querySelector('#active-project-id')?.value === String(id), projectId);
 
+    await page.click('#project-snapshot-btn');
+    await page.waitForSelector('#snapshot-overlay:not(.hidden)');
+    await page.fill('#snapshot-label', 'E2E početna kopija');
+    await page.click('#snapshot-create');
+    await page.waitForFunction(() => [...document.querySelectorAll('.snapshot-row strong')].some(node => node.textContent.includes('E2E početna kopija')));
+    const downloadHref = await page.getAttribute('.snapshot-download', 'href');
+    if (!downloadHref) throw new Error('Backup modal nije prikazao JSON download link.');
+    const downloadResponse = await page.request.get(new URL(downloadHref, baseUrl).toString());
+    if (!downloadResponse.ok()) throw new Error(`JSON backup vraća HTTP ${downloadResponse.status()}.`);
+    const backupPayload = await downloadResponse.json();
+    if (backupPayload.format !== 'ftth-manager-project-snapshot' || backupPayload.version !== 1) throw new Error('JSON backup nema očekivani format/verziju.');
+    await page.click('#snapshot-close');
+
+    await page.click('#survey-panel-btn');
+    await page.waitForSelector('#survey-panel', { state: 'visible' });
+    if (!(await page.isEnabled('#survey-choose-btn'))) throw new Error('TXT panel nije spreman za izbor fajla.');
+    await page.click('#survey-panel-close');
+
     await page.evaluate(() => renderDraftPreflight(collectDraftPreflightIssues({
         odfs: [],
         cabinets: [{ name: 'FTTH TEST', odf_index: null, odf_id: null }],
