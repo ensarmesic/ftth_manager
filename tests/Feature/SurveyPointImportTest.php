@@ -1438,7 +1438,7 @@ class SurveyPointImportTest extends TestCase
     public function test_rainci_gornji_osm_fixture_is_complete_and_routable(): void
     {
         $project = Project::factory()->create();
-        $contents = file_get_contents(base_path('docs/test-rainci-gornji-osm.txt'));
+        $contents = file_get_contents(base_path('tests/Fixtures/survey/test-rainci-gornji-osm.txt'));
         $service = app(SurveyPointImportService::class);
         $points = $service->parse($contents);
         $preview = $service->preview($project, $contents, 'test-rainci-gornji-osm.txt');

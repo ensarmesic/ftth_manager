@@ -39,9 +39,13 @@ Obavezno:
 2. ODF I ZELENI ORMARI
 ----------------------
 
-ODF:
+ODF moze imati proizvoljan stabilan naziv:
 
-100 6539000.000 4926000.000 250.000 ODF
+100 6539000.000 4926000.000 250.000 ODF Rainci Gornji
+
+Isti naziv koristiti u kasnijim fajlovima. Razlike u velikim/malim slovima,
+razmacima, crtama i underscore znakovima se tolerisu, npr. "ODF Rainci Gornji"
+i "odf_rainci-gornji" predstavljaju isti ODF unutar istog projekta.
 
 Zeleni ormar:
 
@@ -55,6 +59,17 @@ Pravila:
 - tacka ZO mora biti snimljena na stvarnoj koordinati ormara;
 - cijev koja zavrsava u ZO mora doci do te iste koordinate;
 - poslije ZO nova dionica pocinje iz koordinate tog ZO.
+
+Uvoz iz vise fajlova:
+
+- sve dijelove iste mreze uvoziti u isti projekat;
+- ranije uvezeni rovovi, ODF i ZO ostaju dostupni narednim uvozima;
+- u novom fajlu ponoviti koordinatnu tacku i isti naziv ODF-a ili ZO oznaku na
+  mjestu fizickog nastavka;
+- program ne pravi novi ODF ako u projektu vec postoji isti imenovani ODF;
+- trasa moze biti snimljena prema ODF-u ili od ODF-a; smjer hodanja nije bitan;
+- kada trasa dokaze vezu ODF-ODO, program automatski povezuje taj ZO s ODF-om;
+- postojeca drugacija rucno postavljena ODF veza se ne prepisuje automatski.
 
 
 3. GLAVNI ROV I MIKROCIJEVI 14/10
@@ -76,6 +91,10 @@ Dozvoljeni standardni nazivi boja:
 Zelena, Plava, Crvena, Zuta, Bijela, Narandzasta, Ljubicasta, Siva, MD
 
 Broj ispred "x fi 14" mora uvijek odgovarati ukupnom broju navedenih cijevi.
+
+Opticki kabl i broj vlakana nisu obavezni u geodetskom TXT-u. Prazna mikrocijev
+je potpuno ispravno stanje; kabl, broj vlakana i njegova duzina evidentiraju se
+naknadno tek kada kabl stvarno bude uvucen.
 
 
 4. ZELENA I PLAVA 14/10 U NASOJ MREZI
@@ -308,6 +327,7 @@ Zato su tacne tacke rova, odvajanja i ZO vaznije od vizuelno pribliznog crteza.
 [ ] Nema navodnika oko opisa.
 [ ] Svaki rov pocinje rijecju Rov.
 [ ] Svaki zeleni ormar je ZO-[BROJ].
+[ ] Imenovani ODF koristi potpuno isti naziv kao u ranijim dijelovima projekta.
 [ ] Svaka korisnicka 10/8 tacka ima Crvena i -ZO-[BROJ].
 [ ] Stvarne kuce su opisane kao Kuca, ne Slinga.
 [ ] Stvarne slinge su opisane kao Slinga, ne Kuca.
