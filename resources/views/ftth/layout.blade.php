@@ -62,9 +62,8 @@
 <body class="{{ $isDashboard || request()->routeIs('fiber-schema.index') ? 'workspace-page' : 'standard-page' }} h-screen overflow-hidden bg-slate-100 font-sans text-slate-950 antialiased">
 <div class="flex h-screen overflow-hidden">
     <aside class="app-sidebar hidden w-52 shrink-0 bg-linear-to-b from-[#004f7d] to-[#003558] text-white lg:flex lg:flex-col" style="box-shadow: 4px 0 24px rgba(0,0,0,.18);">
-        <a href="{{ route('dashboard') }}" class="app-brand flex h-11 items-center gap-3 border-b border-white/10 px-5 xl:h-12 xl:px-6">
-            <span class="grid h-7 w-7 place-items-center rounded-lg text-[10px] font-black" style="background:linear-gradient(135deg,#81C342,#4f8934)">FT</span>
-            <span class="text-sm font-bold tracking-wide">FTTH Manager</span>
+        <a href="{{ route('dashboard') }}" class="app-brand flex h-11 items-center border-b border-white/10 px-5 xl:h-12 xl:px-6" aria-label="FTTH Manager — početna">
+            <img src="{{ asset('images/logo.png') }}" alt="Media Sky Telekomunikacije" class="app-brand-logo h-auto w-full max-w-40 object-contain object-left">
         </a>
         <nav class="app-navigation flex flex-col p-2 text-[12px] flex-1 overflow-y-auto" style="gap:1px">
             @foreach ($sidebarItems as [$route, $label, $iconKey])
@@ -96,9 +95,8 @@
                 <button type="button" data-header-action="mobile-menu" class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Meni">
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
                 </button>
-                <a href="{{ route('dashboard') }}" class="flex shrink-0 items-center gap-2">
-                    <span class="grid h-7 w-7 place-items-center rounded-lg text-[10px] font-black text-white" style="background:linear-gradient(135deg,#308dcc,#004f7d)">FT</span>
-                    <span class="hidden text-sm font-bold text-slate-900 lg:block">FTTH Manager</span>
+                <a href="{{ route('dashboard') }}" class="flex shrink-0 items-center" aria-label="FTTH Manager — početna">
+                    <img src="{{ asset('images/logo.png') }}" alt="Media Sky Telekomunikacije" class="h-auto w-24 object-contain sm:w-28">
                 </a>
                 <div class="hidden min-w-0 items-center gap-2 sm:flex">
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0 text-slate-300"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>

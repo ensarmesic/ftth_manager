@@ -102,8 +102,7 @@ body > div.flex.h-screen > main > header {
 @media (min-width: 1800px) {
   body>div.flex.h-screen>.app-sidebar { width:252px!important; }
   .app-brand { min-height:66px!important; padding-inline:22px!important; }
-  .app-brand span:first-child { width:38px!important; height:38px!important; }
-  .app-brand span:last-child { font-size:15px; }
+  .app-brand-logo { max-width:176px!important; }
   .app-navigation { padding:15px 13px!important; font-size:13px!important; }
   body>div.flex.h-screen>.app-sidebar nav a { min-height:42px; padding-inline:13px!important; }
   .nav-section-label { margin:15px 11px 5px; font-size:9px; }

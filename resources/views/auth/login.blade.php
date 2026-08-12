@@ -11,7 +11,9 @@
     <main class="grid min-h-screen place-items-center px-4 py-10">
         <section class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
             <div class="bg-linear-to-br from-[#00659e] to-[#003558] px-8 py-7 text-white">
-                <div class="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-white/15 text-sm font-black">FT</div>
+                <div class="mb-5 inline-flex rounded-xl bg-white/95 px-4 py-3 shadow-sm">
+                    <img src="{{ asset('images/logo.png') }}" alt="Media Sky Telekomunikacije" class="h-auto w-52 object-contain">
+                </div>
                 <h1 class="text-2xl font-bold">FTTH Manager</h1>
                 <p class="mt-1 text-sm text-blue-100">Prijavi se za pristup projektima i mrežnim podacima.</p>
             </div>
