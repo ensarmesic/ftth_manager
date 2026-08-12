@@ -734,6 +734,300 @@
     .cb-custom:focus-visible { outline: 2px solid rgba(245,158,11,.5); outline-offset: 2px; }
     .snapshot-overlay{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,17,28,.78);backdrop-filter:blur(9px)}.snapshot-overlay.hidden{display:none}.snapshot-card{width:100%;max-width:620px;overflow:hidden;border:1px solid rgba(255,255,255,.8);border-radius:18px;background:#fff;box-shadow:0 32px 90px rgba(2,12,22,.46);animation:pp-enter .22s ease-out}.snapshot-card>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 22px 16px;border-bottom:1px solid #e5edf5;background:linear-gradient(135deg,#edf8ff,#f5fbf1)}.snapshot-card h2{margin:0;color:#172033;font-size:16px}.snapshot-card header p{margin:3px 0 0;color:#64748b;font-size:11px}.snapshot-card header button{border:0;background:transparent;color:#94a3b8;font-size:24px;cursor:pointer}.snapshot-create{display:flex;gap:8px;padding:14px 20px;border-bottom:1px solid #edf2f7}.snapshot-create input{min-width:0;flex:1;border:1px solid #cbd5e1;border-radius:8px;padding:9px 11px;font-size:12px}.snapshot-create button,.snapshot-restore{border:0;border-radius:7px;background:#075985;color:#fff;padding:8px 13px;font-size:11px;font-weight:800;cursor:pointer}.snapshot-list{max-height:390px;overflow:auto}.snapshot-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 20px;border-bottom:1px solid #f1f5f9}.snapshot-row strong{display:block;color:#1e293b;font-size:12px}.snapshot-row small{color:#94a3b8;font-size:10px}.snapshot-restore{background:#fff;color:#b45309;border:1px solid #fbbf24}.snapshot-empty{padding:34px;text-align:center;color:#94a3b8;font-size:12px}#snapshot-status{display:none;margin:10px 20px 0;border-radius:7px;padding:8px 10px;font-size:11px;font-weight:700}
     .snapshot-actions{display:flex;align-items:center;gap:6px}.snapshot-download{border:1px solid #bae6fd;border-radius:7px;background:#f0f9ff;color:#0369a1;padding:8px 10px;font-size:10px;font-weight:800;text-decoration:none}
+
+    /* Dark GIS workspace skin. Structure, ids and event hooks intentionally stay unchanged. */
+    :root {
+        --map-night: #061426;
+        --map-night-2: #091a30;
+        --map-panel: #0b1c32;
+        --map-line: rgba(115, 154, 197, .20);
+        --map-muted: #8297af;
+        --map-text: #dbeafe;
+        --map-blue: #1688df;
+    }
+    #map-workspace {
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid rgba(49, 91, 139, .22);
+        border-radius: 12px;
+        background: linear-gradient(145deg, #071528, #040d1a 72%);
+        box-shadow: 0 18px 50px rgba(2, 8, 23, .28);
+    }
+    #map-workspace .map-shell {
+        border-color: var(--map-line) !important;
+        border-radius: 9px !important;
+        background: var(--map-night) !important;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, .30) !important;
+    }
+    #map-workspace .map-topbar {
+        min-height: 48px;
+        padding: 7px 12px !important;
+        border-color: var(--map-line);
+        background: linear-gradient(180deg, #0c2039, #08182b);
+    }
+    #map-workspace .map-topbar .text-slate-900 { color: #f1f5f9 !important; }
+    #map-workspace .map-topbar .text-slate-500 { color: var(--map-muted) !important; }
+    #map-workspace .metric-pill {
+        padding: 5px 10px;
+        border-color: rgba(117, 153, 195, .22);
+        background: rgba(5, 15, 29, .58);
+        box-shadow: inset 0 1px rgba(255,255,255,.035);
+    }
+    #map-workspace .metric-pill.amber { color: #fbbf24; }
+    #map-workspace .metric-pill.violet { color: #c084fc; }
+    #map-workspace .metric-pill.emerald { color: #4ade80; }
+    #map-workspace .map-toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: #294a6c transparent;
+        gap: 5px;
+        padding: 7px 8px;
+        border-color: var(--map-line);
+        background: #061326;
+        box-shadow: inset 0 -1px rgba(255,255,255,.025);
+    }
+    #map-workspace .map-toolbar .tc {
+        flex-shrink: 0;
+        height: 29px;
+        padding: 0 10px;
+        border-radius: 6px;
+        border-color: rgba(107, 143, 184, .20);
+        background: #0a1a2e;
+        box-shadow: inset 0 1px rgba(255,255,255,.025);
+    }
+    #map-workspace .map-toolbar .tc:hover {
+        border-color: rgba(72, 157, 230, .55);
+        background: #102946;
+        transform: translateY(-1px);
+    }
+    #map-workspace .map-toolbar .tc-white,
+    #map-workspace .map-toolbar .tc-save,
+    #map-workspace .map-toolbar .tc-confirm {
+        color: #fff;
+        border-color: #147ed0;
+        background: linear-gradient(180deg, #188ee3, #0869b4);
+    }
+    #map-workspace .map-toolbar .tc-sep { background: rgba(115,154,197,.2); }
+    #map-workspace .map-toolbar .map-save-indicator,
+    #map-workspace .map-toolbar select { flex-shrink: 0; }
+    #map-workspace .map-toolbar select {
+        height: 29px !important;
+        border-color: var(--map-line) !important;
+        background: #091a2f !important;
+        color: #dbeafe !important;
+    }
+    #map-workspace .map-toolbar + p {
+        border-color: var(--map-line) !important;
+        background: #071326 !important;
+        color: #5f7792 !important;
+    }
+    #map-workspace #network-map { background: #071323; }
+    .map-vertical-tools {
+        position: absolute;
+        top: 82px;
+        left: 10px;
+        z-index: 1501;
+        display: grid;
+        width: 34px;
+        padding: 4px;
+        gap: 2px;
+        border: 1px solid rgba(91, 137, 187, .34);
+        border-radius: 8px;
+        background: rgba(5, 18, 34, .96);
+        box-shadow: 0 8px 24px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.04);
+        backdrop-filter: blur(8px);
+    }
+    .map-vertical-tools button {
+        display: grid;
+        width: 26px;
+        height: 29px;
+        place-items: center;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        background: transparent;
+        color: #b9cbe0;
+        cursor: pointer;
+        transition: color .12s, background .12s, border-color .12s;
+    }
+    .map-vertical-tools button:hover {
+        border-color: rgba(64, 148, 220, .42);
+        background: #102b49;
+        color: #fff;
+    }
+    .map-vertical-tools button.is-active {
+        border-color: #178bdd;
+        background: linear-gradient(180deg, #168de2, #0868b3);
+        color: #fff;
+        box-shadow: 0 3px 10px rgba(14,126,207,.35);
+    }
+    .map-vertical-tools button[data-map-delete] { color: #fb7185; }
+    .map-vertical-tools button[data-map-delete]:hover { border-color: rgba(244,63,94,.42); background: rgba(159,18,57,.28); }
+    .map-vertical-tools svg { width: 14px; height: 14px; }
+    #map-workspace #map-search-input {
+        border-color: rgba(112, 151, 194, .30) !important;
+        background: rgba(6, 19, 37, .94) !important;
+        color: #e2e8f0 !important;
+        box-shadow: 0 7px 20px rgba(0,0,0,.28) !important;
+    }
+    #map-workspace #map-search-overlay {
+        left: 58px !important;
+    }
+    #map-workspace #map-search-input::placeholder { color: #8396aa; }
+    #map-workspace .cad-status {
+        border-top: 1px solid var(--map-line);
+        background: #061326;
+        color: #8096ae;
+    }
+    #map-workspace .cad-chip {
+        border: 1px solid rgba(112,151,194,.14);
+        background: rgba(12, 31, 53, .72);
+        color: #7890a9;
+    }
+    #map-workspace > aside {
+        gap: 6px !important;
+        padding: 0 0 4px !important;
+        scrollbar-color: #274565 transparent;
+    }
+    #map-workspace .sidebar-card,
+    #map-workspace .ctx-panel {
+        border-color: var(--map-line) !important;
+        border-radius: 8px !important;
+        background: var(--map-panel) !important;
+        box-shadow: 0 5px 18px rgba(0,0,0,.22) !important;
+    }
+    #map-workspace .sidebar-hd,
+    #map-workspace .ctx-panel-hd {
+        min-height: 40px;
+        padding: 9px 11px;
+        border-color: var(--map-line);
+        background: linear-gradient(180deg, #0d213b, #0a1a2f) !important;
+        color: #dce9f8 !important;
+    }
+    #map-workspace .sidebar-hd:hover { background: #102945 !important; }
+    #map-workspace .sidebar-bd {
+        padding: 11px;
+        background: #08182b !important;
+        color: #a9bdd3;
+    }
+    #map-workspace .sb-kicker { color: #7890aa; }
+    #map-workspace .sb-inp,
+    #map-workspace .sb-sel {
+        min-height: 35px;
+        border-color: rgba(111,149,191,.22);
+        background: #0c2037;
+        color: #dce8f5;
+    }
+    #map-workspace .sb-inp::placeholder { color: #60758d; }
+    #map-workspace .sb-inp:focus,
+    #map-workspace .sb-sel:focus {
+        border-color: #258bd5;
+        background: #102842;
+        box-shadow: 0 0 0 3px rgba(37,139,213,.14);
+    }
+    #map-workspace .sb-btn-outline { border-color: var(--map-line); background: #0d2138; color: #b8c9db; }
+    #map-workspace .sb-btn-primary { background: linear-gradient(180deg, #178bdf, #076bb7); }
+    #map-workspace .step-btn {
+        border-color: rgba(111,149,191,.20);
+        background: #0d2138;
+        color: #a9bfd6;
+    }
+    #map-workspace .step-btn:hover { border-color: #238bd8; background: #112b48; }
+    #map-workspace .text-slate-900,
+    #map-workspace .text-slate-800,
+    #map-workspace .text-slate-700 { color: #dce8f5 !important; }
+    #map-workspace .text-slate-600,
+    #map-workspace .text-slate-500,
+    #map-workspace .text-slate-400 { color: #8398af !important; }
+    @media (min-width: 1280px) {
+        #map-workspace { grid-template-columns: minmax(0, 1fr) clamp(350px, 18vw, 420px); }
+    }
+
+    /* Comfortable sizing on large and ultra-wide planning screens. */
+    @media (min-width: 1440px) {
+        #map-workspace { gap: 8px; padding: 8px; }
+        #map-workspace .map-topbar {
+            min-height: 58px;
+            padding: 9px 14px !important;
+        }
+        #map-workspace .map-topbar .text-sm { font-size: 15px !important; }
+        #map-workspace .map-topbar .text-xs { font-size: 11px !important; }
+        #map-workspace .metric-pill { min-height: 30px; padding: 6px 12px; font-size: 11px; }
+        #map-workspace .metric-pill b { font-size: 15px; }
+        #map-workspace .map-toolbar {
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 6px;
+            min-height: 48px;
+            padding: 7px 10px;
+        }
+        #map-workspace .map-toolbar .tc {
+            height: 34px;
+            padding: 0 12px;
+            border-radius: 7px;
+            font-size: 11.5px;
+            letter-spacing: .01em;
+        }
+        #map-workspace .map-toolbar .tc-sep { height: 25px; margin: 0 2px; }
+        #map-workspace .map-toolbar select {
+            height: 34px !important;
+            max-width: 185px !important;
+            padding: 0 9px !important;
+            font-size: 11.5px !important;
+        }
+        #map-workspace .map-toolbar > .ml-auto {
+            flex: 0 0 auto;
+            flex-wrap: nowrap;
+            justify-content: flex-end;
+            margin-left: auto !important;
+            padding-top: 0;
+            border-top: 0;
+        }
+        #map-workspace .map-toolbar + p {
+            min-height: 23px;
+            padding: 5px 12px !important;
+            font-size: 10px !important;
+            line-height: 1.35;
+        }
+        .map-vertical-tools {
+            top: 86px;
+            left: 14px;
+            width: 46px;
+            padding: 5px;
+            gap: 4px;
+            border-radius: 10px;
+        }
+        .map-vertical-tools button {
+            width: 34px;
+            height: 36px;
+            border-radius: 7px;
+        }
+        .map-vertical-tools svg { width: 17px; height: 17px; }
+        #map-workspace #map-search-overlay { top: 14px !important; left: 64px !important; width: 290px !important; }
+        #map-workspace #map-search-input { min-height: 38px; padding-left: 32px !important; font-size: 12.5px !important; }
+        #map-workspace .sidebar-hd {
+            min-height: 46px;
+            padding: 11px 14px;
+            font-size: 12.5px;
+        }
+        #map-workspace .sidebar-bd { padding: 14px; }
+        #map-workspace .sb-inp,
+        #map-workspace .sb-sel { min-height: 40px; font-size: 12.5px; }
+        #map-workspace .sb-btn { min-height: 38px; font-size: 12px; }
+        #map-workspace .step-btn { min-height: 62px; font-size: 10.5px; }
+        #map-workspace .cad-status { min-height: 34px; padding: 6px 10px; font-size: 10.5px; }
+    }
+
+    @media (min-width: 2200px) {
+        #map-workspace { grid-template-columns: minmax(0, 1fr) 430px; }
+        #map-workspace .map-toolbar { padding-block: 9px; }
+        #map-workspace .map-toolbar .tc { height: 38px; padding-inline: 14px; font-size: 12px; }
+        #map-workspace .map-toolbar select { height: 38px !important; font-size: 12px !important; }
+        .map-vertical-tools { width: 52px; }
+        .map-vertical-tools button { width: 40px; height: 41px; }
+        .map-vertical-tools svg { width: 19px; height: 19px; }
+    }
 </style>
 
 @include('ftth.map._project-picker')
@@ -840,6 +1134,29 @@
 
         <div id="map-container" class="min-h-0 flex-1 w-full relative">
             <div id="network-map" class="w-full h-full"></div>
+            <nav class="map-vertical-tools" aria-label="Brzi alati mape">
+                <button type="button" data-map-tool="select" title="Selektuj elemente" aria-label="Selektuj elemente">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 2.7v13.8c0 .7.84 1.04 1.33.55l3.1-3.1 2.15 3.55a1 1 0 001.72-1.03l-2.14-3.57h4.38c.7 0 1.05-.85.55-1.34L5.34 2.16A.78.78 0 004 2.7z"/></svg>
+                </button>
+                <button type="button" data-map-tool="draw" title="Crtaj trasu" aria-label="Crtaj trasu">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="4" cy="15" r="1.5" fill="currentColor"/><circle cx="15.5" cy="4.5" r="1.5" fill="currentColor"/><path d="M5.2 13.8L14.3 5.7"/></svg>
+                </button>
+                <button type="button" data-map-tool="house" title="Dodaj kuću / priključak" aria-label="Dodaj kuću">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 18s5-5.2 5-10A5 5 0 105 8c0 4.8 5 10 5 10z"/><circle cx="10" cy="8" r="1.7"/></svg>
+                </button>
+                <button type="button" data-map-tool="cabinet" title="Dodaj FTTH / ODO ormarić" aria-label="Dodaj FTTH ormarić">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="12" height="12" rx="1"/><path d="M7 7h6v6H7z"/></svg>
+                </button>
+                <button type="button" data-map-tool="odf" title="Dodaj ODF" aria-label="Dodaj ODF">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="6"/><circle cx="10" cy="10" r="2"/></svg>
+                </button>
+                <button type="button" data-map-tool="manhole" title="Dodaj šaht" aria-label="Dodaj šaht">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 4h10M10 4v12M6.5 16h7"/></svg>
+                </button>
+                <button type="button" data-map-delete title="Obriši selektovane elemente" aria-label="Obriši selektovane elemente">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h12M8 3h4l1 3H7l1-3zM6 6l1 11h6l1-11M9 9v5M11 9v5"/></svg>
+                </button>
+            </nav>
             <div id="select-rubber-band" style="display:none;position:absolute;border:2px solid #3b82f6;background:rgba(59,130,246,0.08);pointer-events:none;z-index:2000;box-sizing:border-box;"></div>
             <div id="cabinet-assign-panel" style="display:none;position:absolute;bottom:54px;left:50%;transform:translateX(-50%);z-index:2002;background:#1e293b;border:1px solid #7c3aed;border-radius:10px;padding:10px 12px;min-width:260px;max-width:340px;box-shadow:0 8px 28px rgba(0,0,0,.4);">
                 <div style="font:700 11px/1 system-ui,sans-serif;color:#ddd6fe;margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">Dodijeli ODO</div>
@@ -1288,6 +1605,29 @@
 <script src="{{ asset('js/map/draft.js') }}?v={{ filemtime(public_path('js/map/draft.js')) }}"></script>
 <script src="{{ asset('js/map/toolbar.js') }}?v={{ filemtime(public_path('js/map/toolbar.js')) }}"></script>
 <script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>
+<script>
+    (() => {
+        const dock = document.querySelector('.map-vertical-tools');
+        if (!dock) return;
+        const sync = () => dock.querySelectorAll('[data-map-tool]').forEach(button => {
+            button.classList.toggle('is-active', document.getElementById(`mode-${button.dataset.mapTool}`)?.classList.contains('ring-2'));
+        });
+        dock.addEventListener('click', event => {
+            const button = event.target.closest('button');
+            if (!button) return;
+            if (button.hasAttribute('data-map-delete')) {
+                const deleteButton = document.getElementById('select-delete-btn');
+                const selectionVisible = document.getElementById('select-actions')?.style.display !== 'none';
+                (selectionVisible ? deleteButton : document.getElementById('mode-select'))?.click();
+            } else {
+                document.getElementById(`mode-${button.dataset.mapTool}`)?.click();
+            }
+            requestAnimationFrame(sync);
+        });
+        new MutationObserver(sync).observe(document.getElementById('map-cad-toolbar'), { attributes: true, subtree: true, attributeFilter: ['class'] });
+        sync();
+    })();
+</script>
 
 @include('ftth.map._dxf-panel')
 @include('ftth.map._survey-panel')

@@ -13,7 +13,7 @@ function setMode(next) {
         traceBranchStartSnap = null;
         if (traceBranchPreviewLine) { map.removeLayer(traceBranchPreviewLine); traceBranchPreviewLine = null; }
     }
-    document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-zinc-900'));
+    document.querySelectorAll('[id^="mode-"]').forEach(btn => btn.classList.remove('ring-2', 'ring-zinc-900'));
     const button = document.getElementById(`mode-${next}`);
     if (button) button.classList.add('ring-2', 'ring-zinc-900');
     const labels = {
