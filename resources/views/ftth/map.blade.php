@@ -1609,6 +1609,8 @@
 <script src="{{ asset('js/map/autoplan.js') }}?v={{ filemtime(public_path('js/map/autoplan.js')) }}"></script>
 <script src="{{ asset('js/map/draft.js') }}?v={{ filemtime(public_path('js/map/draft.js')) }}"></script>
 <script src="{{ asset('js/map/toolbar.js') }}?v={{ filemtime(public_path('js/map/toolbar.js')) }}"></script>
+<script src="{{ asset('js/map/interactions.js') }}?v={{ filemtime(public_path('js/map/interactions.js')) }}"></script>
+<script src="{{ asset('js/map/exports.js') }}?v={{ filemtime(public_path('js/map/exports.js')) }}"></script>
 <script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>
 <script>
     (() => {

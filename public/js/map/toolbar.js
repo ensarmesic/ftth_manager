@@ -161,6 +161,13 @@ function initProjectVersionHistory() {
     });
 }
 
+function initProjectCheckControls() {
+    const showError = error => { document.getElementById('project-check-summary').textContent = error.message; };
+    document.getElementById('run-project-check').addEventListener('click', () => runProjectCheck().catch(showError));
+    document.getElementById('fill-missing-drops').addEventListener('click', () => fillMissingDropRoutes().catch(showError));
+    document.getElementById('repair-drop-routes').addEventListener('click', () => auditAndRepairDropRoutes().catch(showError));
+}
+
 async function runProjectCheck() {
     const projectId = document.getElementById('active-project-id').value;
     const panel = document.getElementById('project-check-panel');

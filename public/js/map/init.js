@@ -364,36 +364,10 @@ initDraftPersistenceControls();
 initMapViewToolbar();
 initProjectVersionHistory();
 initRouteEditingControls();
-document.getElementById('finish-house-connect').addEventListener('click', async () => {
-    try { await finishHouseConnect(); } catch (error) { document.getElementById('cad-command').textContent = error.message; }
-});
-document.getElementById('cancel-house-connect').addEventListener('click', () => {
-    resetHouseConnect();
-    document.getElementById('cad-command').textContent = 'CONNECT HOUSES: povezivanje otkazano.';
-});
+initHouseConnectionControls();
 
 // ── PROJECT CHECK ──────────────────────────────────────────────────────────────
-document.getElementById('run-project-check').addEventListener('click', async () => {
-    try {
-        await runProjectCheck();
-    } catch (error) {
-        document.getElementById('project-check-summary').textContent = error.message;
-    }
-});
-document.getElementById('fill-missing-drops').addEventListener('click', async () => {
-    try {
-        await fillMissingDropRoutes();
-    } catch (error) {
-        document.getElementById('project-check-summary').textContent = error.message;
-    }
-});
-document.getElementById('repair-drop-routes').addEventListener('click', async () => {
-    try {
-        await auditAndRepairDropRoutes();
-    } catch (error) {
-        document.getElementById('project-check-summary').textContent = error.message;
-    }
-});
+initProjectCheckControls();
 
 // ── MAP EVENT HANDLERS ─────────────────────────────────────────────────────────
 map.on('mousemove', e => {
@@ -435,94 +409,7 @@ map.on('dblclick', e => {
     finishBranch();
 });
 
-document.addEventListener('keydown', event => {
-    const target = event.target;
-    const tag = target?.tagName?.toLowerCase();
-
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        if (routeEdit) {
-            cancelRouteEdit();
-        }
-        if (selectedAttributeRoute || highlightedPickedRouteId !== null) closeRouteAttributePanel();
-        if (selectedDraftElement) closeDraftElementEditor();
-        if (joinRoutes.length) resetJoinRoutes();
-        window.clearBulkMapSelection?.();
-        map.closePopup();
-        routeStackPick.signature = '';
-        routeStackPick.index = 0;
-        if (mode === 'draw') {
-            cancelActiveDrawing();
-        }
-        if (mode === 'ruler') {
-            clearRuler();
-        }
-        if (mode === 'trace-branch') {
-            traceBranchStart = null;
-            traceBranchStartSnap = null;
-            if (traceBranchPreviewLine) { map.removeLayer(traceBranchPreviewLine); traceBranchPreviewLine = null; }
-        }
-        setMode('pan');
-        return;
-    }
-
-    if (['input', 'select', 'textarea'].includes(tag) || target?.isContentEditable) return;
-
-    if (event.key === 'Enter' && mode === 'draw') {
-        event.preventDefault();
-        finishBranch();
-        return;
-    }
-    if (event.key === 'Enter' && mode === 'join') {
-        event.preventDefault();
-        joinSelectedRoutes();
-        return;
-    }
-
-    if (event.key === 'Backspace' && mode === 'draw') {
-        event.preventDefault();
-        undoDraw();
-        return;
-    }
-
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        if (routeEdit) undoRouteEdit();
-        else if (mode === 'draw' && undoStack.length > 0) undoLast();
-        else mapHistory.undo();
-        return;
-    }
-
-    if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'))) {
-        event.preventDefault();
-        if (routeEdit) redoRouteEdit();
-        else if (mode === 'draw' && redoStack.length > 0) redoLast();
-        else mapHistory.redo();
-        return;
-    }
-
-    if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'o') {
-        event.preventDefault();
-        orthoEnabled = !orthoEnabled;
-        updateCommandBar();
-    }
-
-    if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'r') {
-        event.preventDefault();
-        osmRoutingEnabled = !osmRoutingEnabled;
-        const cb = document.getElementById('osm-routing-toggle');
-        if (cb) cb.checked = osmRoutingEnabled;
-        updateCommandBar();
-    }
-
-    if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'g') {
-        event.preventDefault();
-        gisRoutingEnabled = !gisRoutingEnabled;
-        const cb = document.getElementById('gis-routing-toggle');
-        if (cb) cb.checked = gisRoutingEnabled;
-        updateCommandBar();
-    }
-});
+initMapKeyboardInteractions();
 
 map.on('click', e => {
     const lat = e.latlng.lat.toFixed(7), lng = e.latlng.lng.toFixed(7);
@@ -633,62 +520,7 @@ autosaveReady = true;
 focusRequestedMapElement();
 
 // ── DXF EXPORT ────────────────────────────────────────────────────────────────
-document.getElementById('export-dxf')?.addEventListener('click', async function (e) {
-    const dxfUrl = this.getAttribute('data-dxf-url');
-    if (!dxfUrl) return;
-    e.preventDefault();
-
-    const orig = this.textContent;
-    this.textContent = 'Pripremam…';
-    this.style.pointerEvents = 'none';
-
-    try {
-        const bgLayers = window.ftthDxfLayer
-            ? await window.ftthDxfLayer.getLayersForExport()
-            : [];
-
-        const cmd = document.getElementById('cad-command');
-        if (cmd && bgLayers.length > 0) {
-            cmd.textContent = `Export: ${bgLayers.length} DXF podlog(a) uključeno...`;
-        }
-
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-        const res  = await fetch(dxfUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrf,
-                'Accept': 'application/octet-stream,application/dxf,*/*',
-            },
-            body: JSON.stringify({ background_layers: bgLayers }),
-        });
-
-        if (!res.ok) {
-            let msg = 'HTTP ' + res.status;
-            try {
-                const errJson = await res.json();
-                if (errJson.error) msg = errJson.error;
-            } catch {}
-            throw new Error(msg);
-        }
-
-        const blob = await res.blob();
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        const cd   = res.headers.get('Content-Disposition') ?? '';
-        a.download = cd.match(/filename[^;=\n]*=["']?([^"'\n]+)/i)?.[1] ?? 'export.dxf';
-        a.href = url;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    } catch (err) {
-        alert('Greška pri DXF exportu: ' + err.message);
-    } finally {
-        this.textContent = orig;
-        this.style.pointerEvents = '';
-    }
-});
+initDxfExport();
 
 document.getElementById('active-project-id').addEventListener('change', (e) => {
     const projectId = e.target.value;

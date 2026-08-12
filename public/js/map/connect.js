@@ -405,6 +405,20 @@ function shortestTracePath(fromPoint, toPoint, fromHint = null, toHint = null) {
     }
     return keys.map(key => graph.nodes[key] || L.latLng(...key.split(',').map(Number)));
 }
+function initHouseConnectionControls() {
+    document.getElementById('finish-house-connect').addEventListener('click', async () => {
+        try {
+            await finishHouseConnect();
+        } catch (error) {
+            document.getElementById('cad-command').textContent = error.message;
+        }
+    });
+    document.getElementById('cancel-house-connect').addEventListener('click', () => {
+        resetHouseConnect();
+        document.getElementById('cad-command').textContent = 'CONNECT HOUSES: povezivanje otkazano.';
+    });
+}
+
 function showFiberTrace(houseId) {
     clearFiberTrace();
     const house = data.houses.find(item => Number(item.id) === Number(houseId));
