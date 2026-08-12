@@ -404,6 +404,12 @@
         border-radius: 10px !important;
         box-shadow: 0 10px 28px rgba(15,23,42,.16) !important;
     }
+    #survey-panel {
+        width: min(430px, calc(100vw - 28px)) !important;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 transparent;
+    }
+    #dxf-layer-panel { width: min(320px, calc(100vw - 28px)) !important; }
 
     @media (max-width: 1279px) {
         #map-workspace .map-shell { min-height: 860px; }
@@ -429,9 +435,20 @@
         }
         .mobile-map-tools-toggle span:last-child { color: #7dd3fc; font-weight: 700; }
         #map-workspace .map-toolbar { display: none; }
-        #map-workspace .map-toolbar.mobile-open { display: flex; }
+        #map-workspace .map-toolbar.mobile-open { display: flex; max-height: 52vh; overflow-y: auto; align-content: flex-start; }
+        #map-workspace .map-toolbar.mobile-open .tc { min-height: 34px; padding: 7px 10px; font-size: 11px; }
+        #map-workspace .map-toolbar.mobile-open .tc-sep { display: none; }
         #map-workspace .map-shell:has(.map-toolbar.mobile-open) { min-height: 1120px; }
         #map-workspace .cad-status { font-size: 10px; }
+        #survey-panel,
+        #dxf-layer-panel {
+            top: 64px !important;
+            right: 10px !important;
+            left: 10px !important;
+            width: auto !important;
+            max-height: calc(100dvh - 78px) !important;
+            border-radius: 14px !important;
+        }
     }
     .layer-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 11px; transition: background .12s; }
     .layer-row:hover { background: #f0f4f8; }
