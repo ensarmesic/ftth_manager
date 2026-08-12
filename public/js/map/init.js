@@ -361,82 +361,8 @@ document.getElementById('quick-project-form').addEventListener('submit', async e
 initDraftPersistenceControls();
 
 // ── TOOLBAR EVENT LISTENERS ────────────────────────────────────────────────────
-document.getElementById('toggle-map-view').addEventListener('click', () => {
-    const cycle = { cad: 'gis', gis: 'dark', dark: 'cad' };
-    mapViewMode = cycle[mapViewMode] || 'gis';
-    applyMapViewMode();
-    document.getElementById('cad-command').textContent = `VIEW: ${mapViewMode.toUpperCase()} prikaz aktivan.`;
-});
-document.getElementById('toggle-color-by-fibers').addEventListener('click', () => {
-    colorByFibers = !colorByFibers;
-    const btn = document.getElementById('toggle-color-by-fibers');
-    btn.classList.toggle('bg-amber-100', colorByFibers);
-    btn.classList.toggle('border-amber-400', colorByFibers);
-    btn.classList.toggle('text-amber-900', colorByFibers);
-    refreshAllRouteStyles();
-    document.getElementById('cad-command').textContent = colorByFibers
-        ? 'BOJA F: trase obojene po broju vlakana (4F=žuta, 12F=zelena, 24F=plava, 48F=narandžasta, 96F+=crvena).'
-        : 'BOJA F: isključeno, boja po tipu/grani.';
-});
-document.getElementById('toggle-cable-specs').addEventListener('click', () => {
-    showCableSpecs = !showCableSpecs;
-    const btn = document.getElementById('toggle-cable-specs');
-    btn.classList.toggle('bg-sky-100', showCableSpecs);
-    btn.classList.toggle('border-sky-400', showCableSpecs);
-    btn.classList.toggle('text-sky-900', showCableSpecs);
-    refreshAllRouteLabels();
-    document.getElementById('cad-command').textContent = showCableSpecs ? 'SPECS: prikaz vlakana i mikrocijevi na trasama uključen.' : 'SPECS: isključen.';
-});
+initMapViewToolbar();
 initProjectVersionHistory();
-function updateParallelRouteButton() {
-    const btn = document.getElementById('toggle-parallel-routes');
-    btn.setAttribute('aria-pressed', String(parallelRouteDisplay));
-    btn.classList.toggle('bg-emerald-100', parallelRouteDisplay);
-    btn.classList.toggle('border-emerald-400', parallelRouteDisplay);
-    btn.classList.toggle('text-emerald-900', parallelRouteDisplay);
-    btn.textContent = parallelRouteDisplay ? 'Paralelno ✓' : 'Paralelno';
-}
-document.getElementById('toggle-parallel-routes').addEventListener('click', () => {
-    parallelRouteDisplay = !parallelRouteDisplay;
-    localStorage.setItem('ftth.parallelRouteDisplay', parallelRouteDisplay ? 'on' : 'off');
-    refreshRouteVisualGeometry();
-    updateParallelRouteButton();
-    document.getElementById('cad-command').textContent = parallelRouteDisplay
-        ? 'PARALELNO: mikrocijevi su razdvojene u rovu.'
-        : 'PARALELNO: isključeno, prikazana je tačna zajednička osa.';
-});
-document.getElementById('btn-coord-jump').addEventListener('click', () => {
-    const raw = prompt('Unesi koordinate (lat, lng):');
-    if (!raw) return;
-    const parts = raw.split(/[\s,;]+/).map(Number).filter(v => !isNaN(v));
-    if (parts.length < 2) { document.getElementById('cad-command').textContent = 'GOTO: neispravan format. Primjer: 44.449, 18.650'; return; }
-    map.setView([parts[0], parts[1]], Math.max(map.getZoom(), 18));
-    document.getElementById('cad-command').textContent = `GOTO: LAT ${parts[0].toFixed(5)}, LNG ${parts[1].toFixed(5)}`;
-});
-applyMapViewMode();
-applyMapZoomClass();
-updateParallelRouteButton();
-map.on('zoomend', () => {
-    applyMapZoomClass();
-    refreshRouteVisualGeometry();
-});
-document.getElementById('expand-map').addEventListener('click', () => {
-    expandedMap = !expandedMap;
-    const workspace = document.getElementById('map-workspace');
-    const sidebar = workspace.querySelector('aside');
-    const btn = document.getElementById('expand-map');
-    if (expandedMap) {
-        workspace.className = 'grid flex-1 gap-2';
-        sidebar.classList.add('hidden');
-        btn.textContent = 'Prikazi panele';
-    } else {
-        workspace.className = 'grid flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_330px]';
-        sidebar.classList.remove('hidden');
-        btn.textContent = 'Velika mapa';
-    }
-    applyMapViewMode();
-    setTimeout(() => map.invalidateSize(), 100);
-});
 document.getElementById('add-route-vertex').addEventListener('click', () => addRouteEditVertex());
 document.getElementById('cancel-route-edit').addEventListener('click', cancelRouteEdit);
 document.getElementById('edit-route-geometry')?.addEventListener('click', () => {
