@@ -147,8 +147,8 @@ class FtthIntelligenceTest extends TestCase
 
         $this->assertStringContainsString('nema povezan ODO', $messages);
         $this->assertStringContainsString('nema povezan ODF', $messages);
-        $this->assertStringContainsString('nema mikrocijev', $messages);
-        $this->assertStringContainsString('nema kabal', $messages);
+        $this->assertStringContainsString('nema kompletne podatke o mikrocijevi', $messages);
+        $this->assertStringNotContainsString('nema kabal', $messages);
     }
 
     public function test_project_validation_finds_invalid_drop_endpoints_duplicate_points_and_length(): void

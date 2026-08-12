@@ -335,11 +335,11 @@ class FtthIntelligenceService
 
                 continue;
             }
-            if (! $route->fiber_count) {
-                $items[] = $this->validationItem('warning', "{$route->name} nema kabal.", 'route', $route->id, 'Unesi broj niti kabla.');
+            if (! $route->hasCompleteMicroductData()) {
+                $items[] = $this->validationItem('warning', "{$route->name} nema kompletne podatke o mikrocijevi.", 'route', $route->id, 'Unesi tip, broj i dužinu mikrocijevi.');
             }
-            if (! $route->microduct_type) {
-                $items[] = $this->validationItem('warning', "{$route->name} nema mikrocijev.", 'route', $route->id, 'Unesi profil mikrocijevi.');
+            if ($route->hasIncompleteCableData()) {
+                $items[] = $this->validationItem('warning', "{$route->name} ima broj vlakana, ali nema dužinu kabla.", 'route', $route->id, 'Unesi dužinu kabla ili ukloni broj vlakana.');
             }
             if (! $route->installation_type) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema tip polaganja.", 'route', $route->id, 'Odaberi podzemno ili zračno polaganje.');
@@ -422,7 +422,7 @@ class FtthIntelligenceService
             'fiber_12_m' => $cableRoutes->where('fiber_count', 12)->sum('fiber_length_m'),
             'fiber_24_m' => $cableRoutes->where('fiber_count', 24)->sum('fiber_length_m'),
             'fiber_48_m' => $cableRoutes->where('fiber_count', 48)->sum('fiber_length_m'),
-            'unclassified_routes' => $cableRoutes->filter(fn (NetworkRoute $route) => ! $route->microduct_type || ! $route->fiber_count)->count(),
+            'unclassified_routes' => $cableRoutes->filter(fn (NetworkRoute $route) => ! $route->hasCompleteMicroductData() || $route->hasIncompleteCableData())->count(),
         ];
         $summary['estimated_value'] = (float) $project->materials()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?: 0.0;
         $summary['reserve_percent'] = $reservePercent;

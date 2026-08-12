@@ -54,7 +54,7 @@
     $scopeNotifications = fn ($query) => $query->when($notificationProjectId > 0, fn ($projectQuery) => $projectQuery->where('project_id', $notificationProjectId));
     $unlinkedHouses = $scopeNotifications(\App\Models\House::query())->whereNull('cabinet_id')->count();
     $unlinkedCabinets = $scopeNotifications(\App\Models\Cabinet::query())->whereNull('odf_id')->count();
-    $incompleteRoutes = $scopeNotifications(\App\Models\NetworkRoute::query())->where('route_type', '!=', 'trench')->where(function ($query) { $query->whereNull('microduct_type')->orWhereNull('fiber_count'); })->count();
+    $incompleteRoutes = $scopeNotifications(\App\Models\NetworkRoute::query())->where('route_type', '!=', 'trench')->where(function ($query) { $query->whereNull('microduct_type')->orWhere('microduct_type', '')->orWhere('microduct_count', '<=', 0)->orWhere('duct_length_m', '<=', 0)->orWhere(function ($cableQuery) { $cableQuery->where('fiber_count', '>', 0)->where('fiber_length_m', '<=', 0); }); })->count();
     if ($unlinkedHouses) $headerNotifications->push("$unlinkedHouses kuća nema dodijeljeni ODO.");
     if ($unlinkedCabinets) $headerNotifications->push("$unlinkedCabinets ODO ormarića nema povezani ODF.");
     if ($incompleteRoutes) $headerNotifications->push("$incompleteRoutes trasa nema kompletne tehničke podatke.");

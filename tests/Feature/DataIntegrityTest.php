@@ -117,4 +117,24 @@ class DataIntegrityTest extends TestCase
         ]))->assertStatus(422)
             ->assertJsonFragment(['message' => 'Nema dovoljno postojece trase/GIS grafa za automatsku rutu.']);
     }
+
+    public function test_microduct_without_installed_fiber_is_technically_complete(): void
+    {
+        $route = new NetworkRoute([
+            'microduct_type' => '14/10',
+            'microduct_count' => 1,
+            'duct_length_m' => 125,
+            'fiber_count' => 0,
+            'fiber_length_m' => 0,
+        ]);
+
+        $this->assertTrue($route->hasCompleteMicroductData());
+        $this->assertFalse($route->hasIncompleteCableData());
+
+        $route->fiber_count = 12;
+        $this->assertTrue($route->hasIncompleteCableData());
+
+        $route->fiber_length_m = 130;
+        $this->assertFalse($route->hasIncompleteCableData());
+    }
 }

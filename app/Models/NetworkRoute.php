@@ -23,6 +23,18 @@ class NetworkRoute extends Model
         return (int) $this->duct_length_m;
     }
 
+    public function hasCompleteMicroductData(): bool
+    {
+        return filled($this->microduct_type)
+            && (int) $this->microduct_count > 0
+            && (float) $this->duct_length_m > 0;
+    }
+
+    public function hasIncompleteCableData(): bool
+    {
+        return (int) $this->fiber_count > 0 && (float) $this->fiber_length_m <= 0;
+    }
+
     protected function casts(): array
     {
         return [
