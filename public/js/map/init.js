@@ -61,7 +61,7 @@ data.routes.forEach(route => {
     // Keep exact surveyed geometry for calculations/editing, while overlapping drops
     // receive a very small parallel display lane inside the trench corridor.
     const displayPoints = route.type !== 'trench'
-        ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0)
+        ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0, route._visualSharedMask)
         : points;
     const occupancy = route.occupancy || {};
     const baseStyle = routeLineStyle(route.type, routeLineColor(route));
@@ -69,7 +69,8 @@ data.routes.forEach(route => {
     const line = L.polyline(displayPoints, { ...baseStyle, interactive: false })
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.duct_length_m} m<br>Fiber: ${occupancy.fiber_capacity ?? route.fibers ?? 0}F<br>Zauzeto: ${occupancy.used_fibers ?? '-'}<br>Slobodno: ${occupancy.free_fibers ?? '-'}<br>Iskorištenost: ${occupancy.utilization_percent ?? '-'}%`)
         .addTo(map);
-    const hitLine = L.polyline(points, { weight: 10, opacity: 0, interactive: true }).addTo(map);
+    const hitLine = L.polyline(displayPoints, { weight: 10, opacity: 0, interactive: true }).addTo(map);
+    bindRouteHover(route, line, hitLine);
     if (route.type === 'trench') {
         line.bringToBack();
         hitLine.bringToBack();
@@ -516,6 +517,23 @@ document.getElementById('toggle-cable-specs').addEventListener('click', () => {
     refreshAllRouteLabels();
     document.getElementById('cad-command').textContent = showCableSpecs ? 'SPECS: prikaz vlakana i mikrocijevi na trasama uključen.' : 'SPECS: isključen.';
 });
+function updateParallelRouteButton() {
+    const btn = document.getElementById('toggle-parallel-routes');
+    btn.setAttribute('aria-pressed', String(parallelRouteDisplay));
+    btn.classList.toggle('bg-emerald-100', parallelRouteDisplay);
+    btn.classList.toggle('border-emerald-400', parallelRouteDisplay);
+    btn.classList.toggle('text-emerald-900', parallelRouteDisplay);
+    btn.textContent = parallelRouteDisplay ? 'Paralelno ✓' : 'Paralelno';
+}
+document.getElementById('toggle-parallel-routes').addEventListener('click', () => {
+    parallelRouteDisplay = !parallelRouteDisplay;
+    localStorage.setItem('ftth.parallelRouteDisplay', parallelRouteDisplay ? 'on' : 'off');
+    refreshRouteVisualGeometry();
+    updateParallelRouteButton();
+    document.getElementById('cad-command').textContent = parallelRouteDisplay
+        ? 'PARALELNO: mikrocijevi su razdvojene u rovu.'
+        : 'PARALELNO: isključeno, prikazana je tačna zajednička osa.';
+});
 document.getElementById('btn-coord-jump').addEventListener('click', () => {
     const raw = prompt('Unesi koordinate (lat, lng):');
     if (!raw) return;
@@ -526,7 +544,11 @@ document.getElementById('btn-coord-jump').addEventListener('click', () => {
 });
 applyMapViewMode();
 applyMapZoomClass();
-map.on('zoomend', applyMapZoomClass);
+updateParallelRouteButton();
+map.on('zoomend', () => {
+    applyMapZoomClass();
+    refreshRouteVisualGeometry();
+});
 document.getElementById('expand-map').addEventListener('click', () => {
     expandedMap = !expandedMap;
     const workspace = document.getElementById('map-workspace');

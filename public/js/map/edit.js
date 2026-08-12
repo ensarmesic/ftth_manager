@@ -325,6 +325,7 @@ async function saveRouteEdit() {
     edited.line.setPopupContent(`<b>${edited.route.name}</b><br>${routeTypeLabel(edited.route.type)}<br>${result.route.length} m`);
     edited.line.setStyle(routeLineStyle(edited.route.type, routeLineColor(edited.route)));
     routeHitLayerById[edited.route.id]?.setLatLngs(edited.points);
+    applyRouteVisualLanes(data.routes);
     edited.markers.forEach(marker => map.removeLayer(marker));
     (edited.midpointMarkers || []).forEach(m => map.removeLayer(m));
     routeEdit = null;

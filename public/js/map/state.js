@@ -124,6 +124,7 @@ const routeLabelsById = {};
 let activeTraceHouseId = null;
 let colorByFibers = false;
 let showCableSpecs = true;
+let parallelRouteDisplay = localStorage.getItem('ftth.parallelRouteDisplay') !== 'off';
 let rulerStart = null;
 let rulerLine = null;
 let rulerStartMarker = null;

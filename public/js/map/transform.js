@@ -89,6 +89,7 @@ async function xfApplyPointsToEntry(entry, points) {
             route.path = path;
             route.duct_length_m = length;
             refreshRouteLabels(route, routeLayerType(route.type));
+            applyRouteVisualLanes(data.routes);
         }
         return;
     }

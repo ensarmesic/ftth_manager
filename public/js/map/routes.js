@@ -8,6 +8,31 @@ function routeLayerDistancePx(latlng, line) {
     return best;
 }
 
+function bindRouteHover(route, line, hitLine) {
+    const color = routeLineColor(route);
+    const details = [
+        routeTypeLabel(route.type),
+        route.microduct_type || route.microduct,
+        route.fiber_count || route.fibers ? `${route.fiber_count || route.fibers}F` : null,
+        route.duct_length_m || route.length ? `${route.duct_length_m || route.length} m` : null,
+    ].filter(Boolean).join(' · ');
+    hitLine.bindTooltip(
+        `<span class="route-hover-swatch" style="background:${color}"></span><strong>${escapeHtml(route.name || 'Trasa')}</strong><small>${escapeHtml(details)}</small>`,
+        { sticky: true, direction: 'top', offset: [0, -8], opacity: 1, className: 'route-hover-tooltip' },
+    );
+    hitLine.on('mouseover', () => {
+        if (Number(highlightedPickedRouteId) === Number(route.id)) return;
+        line.setStyle({ weight: Math.max(4, routeWeight(route.type) + 1), opacity: 1 });
+        line.bringToFront();
+    });
+    hitLine.on('mouseout', () => {
+        if (Number(highlightedPickedRouteId) === Number(route.id)) return;
+        const style = routeLineStyle(route.type, routeLineColor(route));
+        if (route._stack) style.weight = routeStackedWeight(route, style.weight);
+        line.setStyle(style);
+    });
+}
+
 function selectRouteFromVisibleStack(event, fallbackRoute) {
     const candidates = data.routes
         .filter(route => route.path?.length > 1 && routeLayerById[route.id] && routeLayerDistancePx(event.latlng, routeLayerById[route.id]) <= 9)
@@ -51,6 +76,7 @@ function addSavedRouteToMap(route) {
         .bindPopup(`<b>${route.name}</b><br>${routeTypeLabel(route.type)}<br>${route.length ?? route.duct_length_m ?? 0} m`)
         .addTo(map);
     const hitLine = L.polyline(points, { weight: 14, opacity: 0, interactive: true }).addTo(map);
+    bindRouteHover(route, line, hitLine);
     const labels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(points, route.name, false, routeLabelSpecs(route)) : [];
     data.routes.push(route);
     savedRoutePoints.push(points);
@@ -65,6 +91,7 @@ function addSavedRouteToMap(route) {
         else if (routeEdit?.route.id === route.id) addRouteEditVertex(event.latlng);
         else selectRouteFromVisibleStack(event, route);
     }, [], () => deleteRouteWithHistory(route, [hitLine, line, ...labels]));
+    applyRouteVisualLanes(data.routes);
 }
 function resetJoinRoutes() {
     joinRoutes.forEach(item => item.line.setStyle(routeLineStyle(item.route.type, routeLineColor(item.route))));
@@ -227,6 +254,7 @@ async function joinSelectedRoutes() {
     }
     removeDraftBranchesOnPath(first.line.getLatLngs());
     document.getElementById('cad-command').textContent = `JOIN: spojeno ${others.length + 1} trasa u ${first.route.name} (${first.route.length} m)`;
+    applyRouteVisualLanes(data.routes);
     resetJoinRoutes();
 }
 function removeDraftBranchesOnPath(joinedPath) {
@@ -346,6 +374,7 @@ async function patchRouteGeometryOnMap(routeId, points) {
         const newLabels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(points, route.name, false, routeLabelSpecs(route), route._labelLane) : [];
         routeLabelsById[routeId] = newLabels || [];
         newLabels?.forEach(l => trackLayer(l, routeLayerType(route.type)));
+        applyRouteVisualLanes(data.routes);
     }
     return result;
 }
