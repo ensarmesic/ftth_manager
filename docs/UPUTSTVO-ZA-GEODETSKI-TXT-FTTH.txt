@@ -30,9 +30,11 @@ Obavezno:
 - ne stavljati navodnike oko opisa;
 - ne koristiti uglaste zagrade u stvarnom fajlu;
 - svaki BROJ mora biti jedinstven;
-- jedna fizicka tacka ide u jedan red;
+- jedno mjerenje ide u jedan red; ista fizicka tacka grananja smije se ponoviti
+  sa novim BROJ-em i istim X/Y kada od nje pocinje novi krak;
 - redove poredati redoslijedom kojim je trasa snimana;
-- razmak susjednih tacaka iste trase treba biti najvise oko 20 m;
+- tacke se u pravilu snimaju svakih 2-10 m; razmak susjednih tacaka glavnog
+  rova nikada ne smije biti veci od 20 m;
 - veliki skok do drugog kraka koristiti tek nakon zavrsne tacke prethodnog kraka.
 
 
@@ -288,7 +290,8 @@ Ako se postojeca Kuca ili Slinga pomjeri:
 
 - pronaci njen originalni BROJ tacke;
 - promijeniti samo X i Y na novu tacnu poziciju;
-- Z zadrzati ako nova visina nije izmjerena;
+- ponovo izmjeriti Z; staru Z zadrzati samo ako je projektant izricito potvrdio
+  da se visina fizicke tacke nije promijenila;
 - zadrzati vrstu Kuca ili Slinga;
 - zadrzati pripadajuci -ZO-[BROJ], osim ako je projektant odredi drugacije.
 
@@ -296,7 +299,8 @@ Ako se dodaje nova tacka:
 
 - koristiti sljedeci slobodan BROJ;
 - upisati tacan X/Y;
-- koristiti Z izmjeren na terenu ili visinu najblize geodetske tacke;
+- upisati Z izmjeren na toj fizickoj tacki; ne prepisivati visinu susjedne
+  tacke i ne izmisljati vrijednost;
 - obavezno napisati Kuca ili Slinga;
 - obavezno napisati 10/8 Crvena x1 i -ZO-[BROJ].
 
@@ -346,11 +350,19 @@ procijenjenu horizontalnu i vertikalnu tacnost u terenskom zapisniku. Ako je
 rjesenje nestabilno, tacku ponoviti umjesto da se losa koordinata preda kao
 konacna.
 
+Ovo uputstvo ne propisuje univerzalnu centimetarsku klasu tacnosti jer nju
+odreduju ugovor, projekat i ovlasteni geodeta. Ekipa prije rada mora dobiti
+trazenu klasu tacnosti od odgovornog projektanta. U TXT se izvozi konacna
+koordinata, dok se tip rjesenja, PDOP i procijenjena H/V tacnost cuvaju u
+terenskom zapisniku. Ako zahtjev nije definisan, snimanje se ne proglasava
+konacnim dok ga odgovorni geodeta ne odobri.
+
 Obavezno fizicki snimiti:
 
 - pocetak i kraj svakog rova;
 - svaku promjenu pravca rova;
-- tacku najmanje svakih 20 m i cesce u krivinama;
+- tacku svakih 2-10 m; 20 m je krajnji aplikacijski limit samo za ravnu i jasno
+  vidljivu dionicu glavnog rova, a ne preporuceni razmak;
 - svako grananje, spajanje i odvajanje cijevi;
 - ulaz i izlaz cijevi kod ODF-a i svakog ZO ormara;
 - stvarni centar/polozaj ODF-a, ZO-a, sahta, spojnice, busenja i stuba;
@@ -362,6 +374,12 @@ Na istoj fizickoj tacki grananja krakovi moraju imati potpuno isti X/Y ili novo
 mjerenje dovoljno blizu stvarnom cvoru. Ne izmisljati koordinatu i ne spajati
 krakove samo zato sto na ekranu izgledaju blizu. Fotografija i terenska biljeska
 trebaju jasno pokazati oznaku objekta i smjer nastavka trase.
+
+Aplikacija tehnicki spaja cvorove udaljene najvise 1.5 m. Ova tolerancija sluzi
+za realnu mjernu razliku pri ponovnom zauzimanju iste fizicke tacke; nije dozvola
+da se grananje snimi 1.5 m od stvarnog mjesta. Glavni rov se veze kroz uzastopne
+tacke do 20 m, a oznacena korisnicka cijev moze imati segment do 30 m. Sve preko
+tih granica aplikacija moze tretirati kao prekid trase.
 
 
 17. REDOSLIJED SNIMANJA TRASE I KRAKOVA
@@ -422,6 +440,10 @@ kopiju.
 7. Tek kada preview odgovara stvarnom stanju kliknuti "Uvezi u projekat".
 8. Nakon uvoza otvoriti provjeru projekta i pregledati duzine/materijale.
 
+Preview status "Spremno" znaci da aplikacija nije nasla blokirajucu topolosku
+gresku. To nije geodetski certifikat tacnosti. Geodeta/projektant i dalje mora
+vizuelno potvrditi polozaj, visine, opise, kolicine i vezu svakog kraka.
+
 Aplikacija automatski pravi snapshot prije potvrdenog TXT uvoza. Panel pamti
 uvezeni fajl kao zaseban batch, pa se pogresan batch moze ukloniti. Opciju
 "Obrisi SVE TXT uvoze" koristiti samo kada je namjerno potrebno ukloniti sve
@@ -451,6 +473,8 @@ geodetski uvezene podatke projekta.
 [ ] Fajl ima nastavak .txt.
 [ ] Instrument je podesen na MGI/Bessel Gauss-Kruger zonu 5, 6 ili 7.
 [ ] Kontrolna tacka je provjerena na poznatoj lokaciji.
+[ ] Zahtijevana klasa tacnosti je potvrdena sa odgovornim geodetom/projektantom.
+[ ] Terenski zapisnik cuva tip rjesenja i H/V tacnost svake problematicne tacke.
 [ ] X ima prefiks zone; vrijednosti nisu WGS84 latitude/longitude.
 [ ] Svaki red je u formatu BROJ X Y Z OPIS.
 [ ] Svi brojevi tacaka su jedinstveni.
@@ -464,6 +488,7 @@ geodetski uvezene podatke projekta.
 [ ] Stvarne slinge su opisane kao Slinga, ne Kuca.
 [ ] Broj x1/x2/x3 odgovara stvarnom broju cijevi u rovu.
 [ ] Poslije odvajanja broj cijevi se smanjuje.
+[ ] Tacke su u pravilu udaljene 2-10 m; nijedan glavni segment nije preko 20 m.
 [ ] Zelena 14/10 ima oznaku Tranzit.
 [ ] Plava 14/10 zavrsava u ZO i ponovo pocinje iz njega.
 [ ] Nema slucajnih velikih skokova unutar iste trase.
