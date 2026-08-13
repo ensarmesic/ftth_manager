@@ -127,6 +127,7 @@ npm run build
 npm run test:e2e:pages
 npm run test:e2e:map-workflow
 npm run test:e2e:visual
+npm run test:e2e:fiber
 ```
 
 E2E komande zahtijevaju `E2E_USERNAME`, `E2E_PASSWORD` i pokrenutu aplikaciju. Vizuelni audit pravi snimke desktop, laptop, velikog monitora, telefona i tableta u `storage/logs/`.

@@ -149,7 +149,7 @@ data.cabinets.forEach(c => {
     const pct = Math.round((Number(c.used_ports) || 0) / Math.max(Number(c.capacity) || 1, 1) * 100);
     const marker = L.marker(p, { icon: icon('cabinet', c.name || `FTTH ${c.id}`, color), draggable: false })
         .bindTooltip(`${c.used_ports}/${c.capacity} (${pct}%)`, { direction: 'top', offset: [0, -10] })
-        .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova (${pct}%)<br>ODF: ${c.odf}`)
+        .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova (${pct}%)<br>ODF: ${c.odf}<br><a href="/fiber-sema?project=${c.project_id}&cabinet=${c.id}">Otvori fiber šemu</a>`)
         .addTo(map);
     marker.on('click', event => {
         if (layerLocked('odo')) return document.getElementById('cad-command').textContent = 'Layer ODO je zaključan.';
@@ -739,3 +739,9 @@ document.getElementById('map-project-filter')?.addEventListener('change', functi
 
 // ── PRINT ──────────────────────────────────────────────────────────────────────
 document.getElementById('btn-map-print')?.addEventListener('click', () => window.print());
+
+const focusedCabinetId = Number(new URLSearchParams(location.search).get('cabinet') || 0);
+if (focusedCabinetId && cabinetMarkerById[focusedCabinetId]) {
+    const marker = cabinetMarkerById[focusedCabinetId];
+    requestAnimationFrame(() => { map.setView(marker.getLatLng(), Math.max(map.getZoom(), 19)); marker.openPopup(); });
+}

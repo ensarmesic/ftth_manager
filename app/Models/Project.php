@@ -10,7 +10,12 @@ class Project extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'start_date', 'deadline', 'description', 'fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube'];
+    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'start_date', 'deadline', 'description', 'fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_schema_locked', 'fiber_schema_locked_at', 'fiber_schema_locked_by', 'fiber_budget_limit_db', 'fiber_schema_layout'];
+
+    protected function casts(): array
+    {
+        return ['fiber_schema_locked' => 'boolean', 'fiber_schema_locked_at' => 'datetime', 'fiber_budget_limit_db' => 'float', 'fiber_schema_layout' => 'array'];
+    }
 
     public function odfs(): HasMany
     {
@@ -65,5 +70,15 @@ class Project extends Model
     public function snapshots(): HasMany
     {
         return $this->hasMany(ProjectSnapshot::class);
+    }
+
+    public function fiberSplices(): HasMany
+    {
+        return $this->hasMany(FiberSplice::class);
+    }
+
+    public function fiberSchemaVersions(): HasMany
+    {
+        return $this->hasMany(FiberSchemaVersion::class);
     }
 }

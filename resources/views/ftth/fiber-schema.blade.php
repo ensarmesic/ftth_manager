@@ -10,6 +10,8 @@
     .schema-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; border-bottom: 1px solid #dfeaf5; background: #f8fbff; padding: .7rem .85rem; }
     .schema-stats { display: flex; flex-wrap: wrap; gap: .35rem; }
     .schema-chip { border-radius: 999px; background: #edf6ff; padding: .2rem .5rem; color: #005f96; font-size: .71rem; font-weight: 800; }
+    .fiber-commandbar{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;border-bottom:1px solid #e2e8f0;background:#f8fafc;padding:.6rem}.fiber-commandbar input,.fiber-commandbar select{min-height:34px;border:1px solid #cbd5e1;border-radius:.45rem;background:#fff;padding:.35rem .55rem;font-size:.72rem}.fiber-commandbar input{min-width:230px;flex:1}.fiber-commandbar button,.fiber-commandbar a{min-height:34px;border:1px solid #cbd5e1;border-radius:.45rem;background:#fff;padding:.4rem .65rem;color:#334155;font-size:.68rem;font-weight:900;text-decoration:none}.fiber-commandbar .primary{border-color:#075985;background:#075985;color:#fff}.fiber-commandbar .danger{border-color:#fecaca;color:#b91c1c}.fiber-health{background:#ecfdf5;color:#047857}.fiber-health.warn{background:#fffbeb;color:#b45309}.fiber-health.error{background:#fef2f2;color:#b91c1c}.budget-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.55rem}.budget-card{border:1px solid #dbe7f3;border-radius:.55rem;padding:.7rem;background:#fff}.budget-card header{display:flex;justify-content:space-between;gap:.5rem;font-size:.75rem;font-weight:900}.budget-meter{height:7px;margin:.5rem 0;overflow:hidden;border-radius:999px;background:#e2e8f0}.budget-meter i{display:block;height:100%;background:#22c55e}.budget-card.warning .budget-meter i{background:#f59e0b}.budget-card.error .budget-meter i{background:#ef4444}.budget-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;color:#64748b;font-size:.6rem}.fiber-modal{position:fixed;inset:0;z-index:1700;display:grid;place-items:center;background:#0f172abf;padding:16px}.fiber-modal.hidden{display:none}.fiber-modal-card{width:min(620px,100%);max-height:85vh;overflow:auto;border-radius:14px;background:#fff;padding:20px;box-shadow:0 30px 80px #0006}.fiber-modal-card input,.fiber-modal-card select,.fiber-modal-card textarea{width:100%;border:1px solid #cbd5e1;border-radius:7px;padding:8px}.fiber-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.fiber-modal-actions button{border-radius:7px;padding:8px 13px;font-weight:800}.schema-project.fiber-locked{box-shadow:0 0 0 2px #16a34a,0 12px 30px #1018280f}.fiber-hidden{display:none!important}
+    .trace-highlight{outline:3px solid #0ea5e9!important;outline-offset:3px;filter:drop-shadow(0 0 8px #38bdf866)}
     .schema-shell { display: grid; gap: .65rem; padding: .65rem; max-height: 80vh; overflow-y: auto; }
     @media (min-width: 1180px) { .schema-shell { grid-template-columns: minmax(0, 1fr) 260px; } }
     .schema-board { min-width: 0; overflow: visible; border: 1px solid #dbe7f3; border-radius: .75rem; background:
@@ -313,8 +315,9 @@
             $names = $unassignedCabs->pluck('name')->implode(', ');
             $fiberWarnings[] = $unassignedCabs->count().' ormarić(a) nije dodjeljeno grani — vlakna nisu alocirana: '.$names.'.';
         }
+        $fiberPlan = app(\App\Services\FiberPlanService::class)->build($project);
     @endphp
-    <article class="schema-project" data-project-id="{{ $project->id }}">
+    <article class="schema-project {{ $project->fiber_schema_locked ? 'fiber-locked' : '' }}" data-project-id="{{ $project->id }}" data-locked="{{ $project->fiber_schema_locked ? '1' : '0' }}">
         <div class="schema-head">
             <div>
                 <h2 class="text-base font-black text-slate-950">{{ $project->name }}</h2>
@@ -325,6 +328,8 @@
                 <span class="schema-chip">{{ $allCabinets->count() }} FTTH</span>
                 <span class="schema-chip">{{ $totalHouses }}/{{ $totalCapacity }}</span>
                 <span class="schema-chip">{{ $projectUtilization }}%</span>
+                <span class="schema-chip fiber-health {{ $fiberPlan['health'] < 60 ? 'error' : ($fiberPlan['health'] < 85 ? 'warn' : '') }}">Health {{ $fiberPlan['health'] }}%</span>
+                <span class="schema-chip">{{ $project->fiber_schema_locked ? '🔒 Odobrena' : 'Radna verzija' }}</span>
                 <a href="{{ route('projects.fiber-schema-dxf', $project) }}"
                    style="display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:.2rem .6rem;font-size:.71rem;font-weight:800;text-decoration:none">
                     <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
@@ -335,7 +340,17 @@
                     <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
                     PDF Fiber Sema
                 </a>
+                <a href="{{ route('projects.fiber.csv', $project) }}" class="schema-chip">CSV / Excel</a>
             </div>
+        </div>
+
+        <div class="fiber-commandbar">
+            <input type="search" data-fiber-search placeholder="Pretraži ODF, ODO, kuću, adresu, krak ili vlakno…">
+            <select data-fiber-filter><option value="all">Svi elementi</option><option value="issues">Samo problemi</option><option value="free">Slobodan kapacitet</option></select>
+            <a href="{{ route('map.dashboard', ['project' => $project->id]) }}" data-open-map>Otvori mapu</a>
+            <button type="button" data-fiber-version class="primary">Sačuvaj verziju</button>
+            <button type="button" data-fiber-versions>Uporedi verzije</button>
+            <button type="button" data-fiber-lock class="{{ $project->fiber_schema_locked ? 'danger' : '' }}">{{ $project->fiber_schema_locked ? 'Otključaj šemu' : 'Zaključaj / odobri' }}</button>
         </div>
 
         <div class="schema-view-tabs">
@@ -346,6 +361,7 @@
             <button type="button" class="schema-view-tab" data-schema-view="port-plan">P# ODF portovi</button>
             <button type="button" class="schema-view-tab" data-schema-view="splice-plan">⋈ Splice plan</button>
             <button type="button" class="schema-view-tab" data-schema-view="fiber-check">✓ Kontrola</button>
+            <button type="button" class="schema-view-tab" data-schema-view="power-budget">dB Power budget</button>
         </div>
         @php
             $topologyGraph = [
@@ -373,6 +389,7 @@
                 'color_standard' => $project->fiber_color_standard ?? 'telcordia',
                 'reserve_per_tube' => $reservePerTube,
                 'fiber_palette' => array_values(\App\Support\FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia')),
+                'layout' => $project->fiber_schema_layout ?? [],
             ];
         @endphp
         <div data-schema-panel="cad-fiber">
@@ -437,9 +454,12 @@
                 <div class="fiber-check warn"><b>i</b><span>Profil boja: {{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE profil' : 'TIA‑598 / Telcordia' }}. Za izvedbeni plan evidentirati proizvođača i tačnu oznaku kabla iz datasheeta.</span></div>
             </div>
         </section></div>
+        <div class="hidden" data-schema-panel="power-budget"><section class="fiber-tool-panel"><h3 class="fiber-tool-title">Optički power-budget · prag {{ number_format($fiberPlan['budgetLimit'], 1) }} dB</h3><div class="budget-grid">
+            @forelse($fiberPlan['connections'] as $connection)<article class="budget-card {{ $connection['budget_status'] }}" data-fiber-item data-status="{{ $connection['budget_status'] }}"><header><span>{{ $connection['cabinet'] }}</span><span>{{ $connection['loss_db'] }} dB</span></header><div class="budget-meter"><i style="width:{{ min(100, $connection['loss_db'] / max(1,$fiberPlan['budgetLimit']) * 100) }}%"></i></div><div class="budget-meta"><span>Rezerva <b>{{ $connection['margin_db'] }} dB</b></span><span>{{ $connection['route_km'] }} km</span><span>{{ $connection['splitter_ratio'] }}</span></div><div class="mt-2 flex gap-2"><a href="{{ route('projects.fiber.field-sheet', [$project, $connection['cabinet_id']]) }}" target="_blank" class="text-[10px] font-bold text-sky-700">Terenski list</a><a href="{{ route('map.dashboard', ['project'=>$project->id, 'cabinet'=>$connection['cabinet_id']]) }}" class="text-[10px] font-bold text-emerald-700">Na mapi</a><button type="button" data-splice-cabinet="{{ $connection['cabinet_id'] }}" data-splice-fiber="{{ $connection['fiber_from'] }}" class="text-[10px] font-bold text-violet-700">Splice zapis</button></div></article>@empty<div class="fiber-check warn">Nema potpunih ODO veza za proračun.</div>@endforelse
+        </div></section></div>
         <div class="hidden" data-schema-panel="topology">
             <div class="topology-graph-shell" data-topology-graph='@json($topologyGraph)'>
-                <div class="topology-controls"><button data-topology-action="zoom-in">+</button><button data-topology-action="zoom-out">&minus;</button><button data-topology-action="fit">Fit</button><button data-topology-action="collapse">Sazmi</button></div>
+                <div class="topology-controls"><button data-topology-action="zoom-in">+</button><button data-topology-action="zoom-out">&minus;</button><button data-topology-action="fit">Fit</button><button data-topology-action="collapse">Sažmi</button><button data-topology-action="save-layout">Sačuvaj raspored</button></div>
                 <div class="topology-graph-stage"></div>
                 <div class="topology-minimap"></div>
                 <div class="topology-help">Povuci za pomjeranje / tockic za zoom / klik ODO za korisnike</div>
@@ -700,6 +720,9 @@
 @endforelse
 </section>
 
+<div id="fiber-version-modal" class="fiber-modal hidden"><div class="fiber-modal-card"><h2 class="text-lg font-black">Verzije fiber šeme</h2><p class="text-xs text-slate-500">Sačuvaj kontrolnu tačku ili uporedi trenutno stanje sa ranijom verzijom.</p><div id="fiber-version-list" class="mt-4 grid gap-2"></div><div class="fiber-modal-actions"><button type="button" data-fiber-modal-close>Zatvori</button></div></div></div>
+<div id="fiber-splice-modal" class="fiber-modal hidden"><form class="fiber-modal-card" id="fiber-splice-form"><h2 class="text-lg font-black">Splice / varenje</h2><input type="hidden" name="cabinet_id"><div class="mt-4 grid gap-3 sm:grid-cols-2"><label>Vlakno<input name="fiber_number" type="number" min="1" required></label><label>Gubitak dB<input name="loss_db" type="number" min="0" max="5" step="0.001" value="0.1" required></label><label>Kaseta<input name="tray" type="number" min="1" value="1" required></label><label>Pozicija<input name="position" type="number" min="1" value="1" required></label><label>Ulazna oznaka<input name="incoming_label"></label><label>Izlazna oznaka<input name="outgoing_label"></label></div><label class="mt-3 block">Napomena<textarea name="note" rows="3"></textarea></label><div class="fiber-modal-actions"><button type="button" data-fiber-modal-close>Poništi</button><button class="bg-sky-800 text-white" type="submit">Sačuvaj varenje</button></div></form></div>
+
 <script>
 document.querySelectorAll('.schema-project').forEach(project => {
     project.querySelectorAll('[data-schema-view]').forEach(button => button.addEventListener('click', () => {
@@ -871,6 +894,8 @@ function topologyRenderer(shell) {
     const stage = shell.querySelector('.topology-graph-stage');
     const minimap = shell.querySelector('.topology-minimap');
     const expanded = new Set();
+    const customPositions = {...(data.layout || {})};
+    shell.dataset.layout = JSON.stringify(customPositions);
     let scale = 1, panX = 0, panY = 0, dragging = false, start = null;
     const nodeW = 116, nodeH = 42, laneGap = 210, columnGap = 175;
     const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
@@ -898,6 +923,7 @@ function topologyRenderer(shell) {
             roots.forEach(branch=>addBranchLane(branch,baseX+220,`odf-${odf.id}`,nodes,edges,unassigned,laneState));
             nodes.push({ id:`odf-${odf.id}`, type:'odf', x:baseX, y:80+Math.max(0,laneState.next-1)*laneGap/2, label:odf.name, meta:`${odf.ports}P / ${odf.fibers}F` });
         });
+        nodes.forEach(node => { if(customPositions[node.id]) { node.x=Number(customPositions[node.id].x); node.y=Number(customPositions[node.id].y); } });
         return {nodes, edges};
     }
     function addBranchLane(branch, x, parent, nodes, edges, unassigned=[], laneState={next:0}) {
@@ -942,11 +968,15 @@ function topologyRenderer(shell) {
         }).join('');
         const nodeSvg = nodes.map(node => {
             const colors=node.type==='odf'?['#eff6ff','#2563eb']:node.type==='branch'?['#f8fafc','#64748b']:node.type==='house'?['#fff7ed','#f97316']:['#f2faeb','#65a845'];
-            return `<g class="topology-node" data-node-type="${node.type}" data-cabinet-id="${node.cabinet?.id||''}" transform="translate(${node.x},${node.y})"><rect width="${nodeW}" height="${nodeH}" rx="6" fill="${colors[0]}" stroke="${colors[1]}"/><text x="${nodeW/2}" y="18" text-anchor="middle">${esc(node.label)}</text><text x="${nodeW/2}" y="33" text-anchor="middle" style="font-size:9px;fill:#64748b">${esc(node.meta)}</text></g>`;
+            return `<g class="topology-node" data-node-id="${node.id}" data-node-x="${node.x}" data-node-y="${node.y}" data-node-type="${node.type}" data-cabinet-id="${node.cabinet?.id||''}" transform="translate(${node.x},${node.y})"><rect width="${nodeW}" height="${nodeH}" rx="6" fill="${colors[0]}" stroke="${colors[1]}"/><text x="${nodeW/2}" y="18" text-anchor="middle">${esc(node.label)}</text><text x="${nodeW/2}" y="33" text-anchor="middle" style="font-size:9px;fill:#64748b">${esc(node.meta)}</text></g>`;
         }).join('');
         stage.innerHTML=`<svg width="${maxX}" height="${maxY}">${edgeSvg}${nodeSvg}</svg>`;
         minimap.innerHTML=`<svg viewBox="0 0 ${maxX} ${maxY}">${edges.map(edge=>{const a=byId[edge.from],b=byId[edge.to];return a&&b?`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#94a3b8" stroke-width="5"/>`:''}).join('')}${nodes.map(n=>`<rect x="${n.x}" y="${n.y}" width="35" height="18" fill="${n.type==='odf'?'#2563eb':n.type==='house'?'#f97316':'#65a845'}"/>`).join('')}</svg>`;
-        stage.querySelectorAll('[data-node-type="cabinet"]').forEach(node => node.addEventListener('click', event => { event.stopPropagation(); const id=Number(node.dataset.cabinetId); expanded.has(id)?expanded.delete(id):expanded.add(id); render(); }));
+        stage.querySelectorAll('.topology-node').forEach(node => {
+            let dragStart=null;
+            node.addEventListener('pointerdown',event=>{event.stopPropagation();dragStart={x:event.clientX,y:event.clientY};node.setPointerCapture(event.pointerId);});
+            node.addEventListener('pointerup',event=>{if(!dragStart)return;const dx=(event.clientX-dragStart.x)/scale,dy=(event.clientY-dragStart.y)/scale;if(Math.hypot(dx,dy)>5){customPositions[node.dataset.nodeId]={x:Number(node.dataset.nodeX)+dx,y:Number(node.dataset.nodeY)+dy};shell.dataset.layout=JSON.stringify(customPositions);render();return;}if(node.dataset.nodeType==='cabinet'){const id=Number(node.dataset.cabinetId);expanded.has(id)?expanded.delete(id):expanded.add(id);render();}});
+        });
         applyTransform();
     }
     function applyTransform(){ stage.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`; }
@@ -959,6 +989,7 @@ function topologyRenderer(shell) {
     shell.querySelector('[data-topology-action="zoom-out"]').onclick=()=>{scale=Math.max(.2,scale/1.2);applyTransform()};
     shell.querySelector('[data-topology-action="fit"]').onclick=fit;
     shell.querySelector('[data-topology-action="collapse"]').onclick=()=>{expanded.clear();render();fit()};
+    shell.querySelector('[data-topology-action="save-layout"]').onclick=async()=>{const projectId=shell.closest('.schema-project').dataset.projectId;try{const result=await fiberRequest(`/projekti/${projectId}/fiber-raspored`,{method:'PUT',body:JSON.stringify({positions:customPositions})});window.ftthToast(result.message,'success');}catch(error){window.ftthToast(error.message,'error');}};
     render(); requestAnimationFrame(fit);
 }
 document.querySelectorAll('[data-topology-graph]').forEach(topologyRenderer);
@@ -966,7 +997,9 @@ document.querySelectorAll('[data-cad-fiber]').forEach(cadFiberRenderer);
 document.querySelectorAll('[data-trace-house]').forEach(button => {
     button.addEventListener('click', () => {
         document.querySelectorAll('[data-trace-house]').forEach(item => item.classList.remove('active'));
+        document.querySelectorAll('.trace-highlight').forEach(item => item.classList.remove('trace-highlight'));
         button.classList.add('active');
+        button.closest('.cabinet-node,.child-cabinet-node')?.classList.add('trace-highlight');
         const project = button.closest('.schema-project');
         const output = project?.querySelector('[data-trace-output]');
         if (!output) return;
@@ -986,6 +1019,26 @@ document.querySelectorAll('[data-trace-house]').forEach(button => {
 });
 
 // ── Project filter ───────────────────────────────────────────────────────────
+const fiberCsrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const fiberRequest = async (url, options={}) => {
+    const response = await fetch(url, { ...options, headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':fiberCsrf,'X-Requested-With':'XMLHttpRequest',...(options.headers||{})} });
+    const body = await response.json().catch(()=>({message:'Neispravan odgovor servera.'}));
+    if(!response.ok) throw new Error(body.message || `HTTP ${response.status}`);
+    return body;
+};
+document.querySelectorAll('.schema-project').forEach(project => {
+    const projectId=project.dataset.projectId;
+    const search=project.querySelector('[data-fiber-search]'), filter=project.querySelector('[data-fiber-filter]');
+    const applyFiberFilter=()=>{const query=(search.value||'').trim().toLocaleLowerCase('bs'),mode=filter.value;project.querySelectorAll('.cabinet-node,.child-cabinet-node,[data-fiber-item],.fiber-plan-line').forEach(item=>{const text=item.textContent.toLocaleLowerCase('bs');const issue=item.matches('.warn,.full,.warning,.error,[data-status="warning"],[data-status="error"]')||Boolean(item.querySelector('.warn,.full'));const free=Boolean(item.querySelector('.port.empty'))||item.dataset.status==='ok';item.classList.toggle('fiber-hidden',Boolean((query&&!text.includes(query))||(mode==='issues'&&!issue)||(mode==='free'&&!free)));});};
+    search.addEventListener('input',applyFiberFilter);filter.addEventListener('change',applyFiberFilter);
+    project.querySelector('[data-fiber-version]')?.addEventListener('click',async()=>{const label=prompt('Naziv verzije fiber šeme:',`Kontrolna verzija ${new Date().toLocaleString('bs-BA')}`);if(!label)return;try{const result=await fiberRequest(`/projekti/${projectId}/fiber-verzije`,{method:'POST',body:JSON.stringify({label})});window.ftthToast(result.message,'success');}catch(error){window.ftthToast(error.message,'error');}});
+    project.querySelector('[data-fiber-lock]')?.addEventListener('click',async()=>{const locked=project.dataset.locked==='1';if(!await window.ftthConfirm(locked?'Otključati odobrenu fiber šemu?':'Zaključati i označiti fiber šemu kao odobrenu?',{title:locked?'Otključavanje šeme':'Odobrenje fiber šeme',detail:locked?'Daljnje splice izmjene ponovo će biti dozvoljene.':'Prije zaključavanja sačuvaj verziju i provjeri power-budget i konflikte.',confirmLabel:locked?'Otključaj':'Zaključaj'}))return;try{await fiberRequest(`/projekti/${projectId}/fiber-zakljucavanje`,{method:'PATCH',body:JSON.stringify({locked:!locked})});location.reload();}catch(error){window.ftthToast(error.message,'error');}});
+    project.querySelector('[data-fiber-versions]')?.addEventListener('click',async()=>{const modal=document.getElementById('fiber-version-modal'),list=document.getElementById('fiber-version-list');modal.classList.remove('hidden');list.innerHTML='Učitavam…';try{const data=await fiberRequest(`/projekti/${projectId}/fiber-verzije`);list.innerHTML=data.versions.length?data.versions.map(v=>`<div class="flex items-center gap-2 rounded-lg border p-3"><button type="button" class="min-w-0 flex-1 text-left" data-compare-version="${v.id}"><b>${v.label}</b><small class="block text-slate-500">${v.user?.name||'Sistem'} · ${new Date(v.created_at).toLocaleString('bs-BA')}</small></button><button type="button" class="rounded border px-2 py-1 text-xs font-bold text-amber-700" data-restore-version="${v.id}">Vrati</button></div>`).join(''):'Nema sačuvanih verzija.';list.querySelectorAll('[data-compare-version]').forEach(btn=>btn.onclick=async()=>{const result=await fiberRequest(`/projekti/${projectId}/fiber-verzije/${btn.dataset.compareVersion}/poredi`);list.innerHTML=`<h3 class="font-bold">Promjene prema: ${result.version.label}</h3>${Object.entries(result.changes).map(([key,value])=>`<div class="rounded border p-2"><b>${key}</b>: ${value.before} → ${value.after}</div>`).join('')}`;});list.querySelectorAll('[data-restore-version]').forEach(btn=>btn.onclick=async()=>{if(!await window.ftthConfirm('Vratiti ovu fiber verziju?',{title:'Vraćanje fiber šeme',detail:'Trenutno stanje će prvo biti automatski sačuvano.',confirmLabel:'Vrati verziju'}))return;try{const result=await fiberRequest(`/projekti/${projectId}/fiber-verzije/${btn.dataset.restoreVersion}/vrati`,{method:'POST'});window.ftthToast(result.message,'success');location.reload();}catch(error){window.ftthToast(error.message,'error');}});}catch(error){list.textContent=error.message;}});
+    project.querySelectorAll('[data-splice-cabinet]').forEach(button=>button.addEventListener('click',()=>{if(project.dataset.locked==='1')return window.ftthToast('Fiber šema je zaključana.','warning');const form=document.getElementById('fiber-splice-form');form.dataset.projectId=projectId;form.elements.cabinet_id.value=button.dataset.spliceCabinet;form.elements.fiber_number.value=button.dataset.spliceFiber||1;document.getElementById('fiber-splice-modal').classList.remove('hidden');}));
+});
+document.querySelectorAll('[data-fiber-modal-close]').forEach(button=>button.addEventListener('click',()=>button.closest('.fiber-modal').classList.add('hidden')));
+document.getElementById('fiber-splice-form')?.addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form));for(const key of ['cabinet_id','fiber_number','tray','position','loss_db'])data[key]=Number(data[key]);try{const result=await fiberRequest(`/projekti/${form.dataset.projectId}/fiber-splice`,{method:'POST',body:JSON.stringify(data)});window.ftthToast(result.message,'success');document.getElementById('fiber-splice-modal').classList.add('hidden');}catch(error){window.ftthToast(error.message,'error');}});
+
 (function () {
     const buttons  = document.querySelectorAll('#fiber-project-filter .fpf-btn');
     const articles = document.querySelectorAll('#schema-page .schema-project');
@@ -1007,7 +1060,15 @@ document.querySelectorAll('[data-trace-house]').forEach(button => {
     const saved = sessionStorage.getItem('fiberProjectFilter');
     const firstId = buttons[0]?.dataset.filter ?? '';
     const initial = (saved && [...articles].some(el => el.dataset.projectId === saved)) ? saved : firstId;
-    applyFilter(initial);
+    const queryParams = new URLSearchParams(location.search);
+    const requestedProject = queryParams.get('project');
+    applyFilter(requestedProject && [...articles].some(el => el.dataset.projectId === requestedProject) ? requestedProject : initial);
+    const requestedCabinet = Number(queryParams.get('cabinet') || 0);
+    if (requestedCabinet) {
+        const article = [...articles].find(el => el.style.display !== 'none');
+        const cabinet = JSON.parse(article?.querySelector('[data-cad-fiber]')?.dataset.cadFiber || '{"cabinets":[]}').cabinets.find(item => Number(item.id) === requestedCabinet);
+        if (cabinet) { const input=article.querySelector('[data-fiber-search]'); input.value=cabinet.name; input.dispatchEvent(new Event('input')); article.scrollIntoView({behavior:'smooth'}); }
+    }
 })();
 </script>
 @endsection

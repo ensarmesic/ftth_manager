@@ -74,6 +74,11 @@ class ProjectManagementController extends Controller
     public function update(Request $request, int $id): RedirectResponse
     {
         $project = Project::findOrFail($id);
+        if ($project->fiber_schema_locked) {
+            foreach (['fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_budget_limit_db'] as $field) {
+                abort_if($request->has($field) && (string) $request->input($field) !== (string) $project->{$field}, 423, 'Fiber postavke su zaključane odobrenom šemom.');
+            }
+        }
         $project->update($request->validate($this->rules($project)));
 
         return back()->with('success', 'Projekat je ažuriran.');
@@ -100,6 +105,7 @@ class ProjectManagementController extends Controller
             'fiber_layout' => ['nullable', 'in:6x24,12x12,4x24,2x24'],
             'fiber_color_standard' => ['nullable', 'in:telcordia,din_vde'],
             'fiber_reserve_per_tube' => ['nullable', 'integer', 'min:0', 'max:12'],
+            'fiber_budget_limit_db' => ['nullable', 'numeric', 'min:10', 'max:60'],
         ];
     }
 }

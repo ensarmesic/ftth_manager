@@ -110,7 +110,8 @@
                                             <select name="fiber_color_standard" class="ftth-input text-[13px] font-normal normal-case tracking-normal"><option value="telcordia" @selected(($project->fiber_color_standard ?? 'telcordia')==='telcordia')>TIA‑598 / Telcordia</option><option value="din_vde" @selected($project->fiber_color_standard==='din_vde')>DIN/VDE profil</option></select>
                                         </label>
                                     </div>
-                                    <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rezerva po tubi<input type="number" min="0" max="12" name="fiber_reserve_per_tube" value="{{ $project->fiber_reserve_per_tube ?? 0 }}" class="ftth-input font-normal normal-case tracking-normal"></label>
+                                    <div class="grid grid-cols-2 gap-2"><label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rezerva po tubi<input type="number" min="0" max="12" name="fiber_reserve_per_tube" value="{{ $project->fiber_reserve_per_tube ?? 0 }}" class="ftth-input font-normal normal-case tracking-normal"></label><label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Power budget prag<input type="number" min="10" max="60" step="0.1" name="fiber_budget_limit_db" value="{{ $project->fiber_budget_limit_db ?? 28 }}" class="ftth-input font-normal normal-case tracking-normal"></label></div>
+                                    @if($project->fiber_schema_locked)<p class="rounded bg-emerald-50 p-2 text-xs font-semibold text-emerald-800">Fiber postavke su zaključane odobrenom šemom. Otključavanje se radi na Fiber šemi.</p>@endif
                                     <button class="btn-save mt-1">Sačuvaj izmjene</button>
                                 </form>
                             </details>

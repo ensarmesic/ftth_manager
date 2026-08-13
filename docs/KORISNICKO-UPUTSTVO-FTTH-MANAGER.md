@@ -18,6 +18,22 @@ Produkcijska instalacija mora koristiti `APP_DEBUG=false`, dnevnu rotaciju logov
 
 Autentificirani health-check `/sistem/health` potvrđuje rad aplikacije i baze, verziju, okruženje, deployment datum i vrijeme posljednjeg backupa. Spori HTTP zahtjevi bilježe se u dnevni Laravel log zajedno s rutom, trajanjem i korisnikom. Health-check ne zamjenjuje vanjski monitoring dostupnosti i prostora na disku.
 
+## Profesionalni fiber plan i šema
+
+Fiber šema objedinjuje šest radnih pogleda: CAD šemu, color-code, interaktivnu topologiju, rack/portove, splice plan, automatsku kontrolu i optički power-budget. Dodjela vlakana koristi evidentirani redoslijed krakova i ODO ormarića, poštuje rezervu po tubi i prikazuje raspon poput `F1–F3`, broj tube i standard boja. Primarni termin u aplikaciji je **ODO ormarić**; `ZO` se koristi samo kada predstavlja izvornu terensku oznaku.
+
+Klik na zauzeti splitter port aktivira tracing `ODF → magistralni kabel → ODO → splitter/port → kuća`. Odabrani lanac se vizuelno ističe, a izbor kuće pamti se u browseru. Link **Na mapi** otvara i fokusira isti ODO, dok popup ODO-a na karti vodi nazad na fiber šemu.
+
+Polje za pretragu pronalazi ODF, ODO, kuću, adresu, krak ili oznaku vlakna. Filteri izdvajaju probleme i elemente sa slobodnim kapacitetom. Topologija podržava zoom, pan, collapse/expand, mini-map i ručno pomjeranje blokova. Nakon ručnog pomjeranja kliknite **Sačuvaj raspored**; raspored je projektni podatak i neće se izgubiti osvježavanjem stranice.
+
+Power-budget koristi dužinu optičke trase, prigušenje vlakna `0,35 dB/km`, evidentirana ili planirana varenja, dva konektorska gubitka i standardni približni splitter gubitak. Zeleni status ima najmanje 3 dB rezerve, žuti je unutar posljednja 3 dB, a crveni prelazi projektni prag. Prag se podešava u projektu, početno 28 dB. Proračun je projektantska procjena; završni izvedeni dokument mora koristiti stvarne datasheet vrijednosti, OTDR i power-meter mjerenja.
+
+U kartici **Splice plan** prikazana je planirana terminacija. Dugme **Splice zapis** evidentira broj vlakna, kasetu, poziciju, ulaznu/izlaznu oznaku, stvarni gubitak i napomenu. Automatska kontrola prijavljuje prekoračen kapacitet, duple dodjele, nepotpune ODF/krak veze i prekoračen power-budget.
+
+**Sačuvaj verziju** sprema fiber plan, splice evidenciju i postavke. **Uporedi verzije** prikazuje promjenu broja korištenih vlakana, health statusa, veza i problema. Prije restorea aplikacija automatski čuva trenutno stanje. **Zaključaj / odobri** sprečava izmjenu splice zapisa, ručnog layouta i fiber postavki projekta dok ovlašteni korisnik ponovo ne otključa šemu.
+
+Izlazi uključuju postojeći DXF, prošireni PDF s power-budget tabelom i upozorenjima, te UTF-8 CSV koji se direktno otvara u Excelu. **Terenski list** za svaki ODO prikazuje ODF, vlakna, splitter, optičku rezervu, sve portove/kuće, potpise i lokalno generisan skenirajući QR kod koji otvara digitalni list.
+
 Ovo uputstvo opisuje svakodnevno korištenje FTTH Manager aplikacije: prijavu,
 projekte, mrežnu evidenciju, rad na mapi, uvoz podataka, kontrolu kvaliteta,
 izvještaje, sigurnosne kopije i preporučeni tok rada.

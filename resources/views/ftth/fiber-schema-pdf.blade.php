@@ -271,6 +271,12 @@
     </div>
 @endif
 
+<h2 style="margin-top:14px">Optički power-budget i kontrola</h2>
+<table class="fiber-table"><thead><tr><th>ODO</th><th>Vlakna</th><th>Trasa</th><th>Splitter</th><th>Gubitak</th><th>Rezerva</th><th>Status</th></tr></thead><tbody>
+@forelse($fiberPlan['connections'] as $connection)<tr><td>{{ $connection['cabinet'] }}</td><td>F{{ $connection['fiber_from'] }}–F{{ $connection['fiber_to'] }}</td><td>{{ $connection['route_km'] }} km</td><td>{{ $connection['splitter_ratio'] }}</td><td>{{ $connection['loss_db'] }} dB</td><td>{{ $connection['margin_db'] }} dB</td><td>{{ strtoupper($connection['budget_status']) }}</td></tr>@empty<tr><td colspan="7">Nema veza za proračun.</td></tr>@endforelse
+</tbody></table>
+@if($fiberPlan['issues']->isNotEmpty())<div class="reserve-box"><div class="reserve-title">Otvorene kontrolne stavke</div>@foreach($fiberPlan['issues'] as $issue)<div class="reserve-meta">{{ strtoupper($issue['level']) }} · {{ $issue['message'] }}</div>@endforeach</div>@endif
+
 <div class="footer">
     {{ $project->name }} &nbsp;/&nbsp; {{ $project->code }} &nbsp;/&nbsp; Dokument v{{ config('app.version') }} &nbsp;/&nbsp; FTTH Manager &nbsp;/&nbsp; {{ now()->format('d.m.Y H:i') }}
 </div>

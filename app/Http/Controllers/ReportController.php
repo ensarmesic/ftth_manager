@@ -9,6 +9,7 @@ use App\Models\Material;
 use App\Models\NetworkRoute;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
+use App\Services\FiberPlanService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -156,7 +157,7 @@ class ReportController extends Controller
         return view('ftth.splitters', ['cabinets' => $cabinets]);
     }
 
-    public function fiberSchemaPdf(Project $project): Response
+    public function fiberSchemaPdf(Project $project, FiberPlanService $fiberPlanService): Response
     {
         $project->load([
             'houses' => fn ($q) => $q->whereNull('cabinet_id')->orderBy('label'),
@@ -241,11 +242,12 @@ class ReportController extends Controller
         $odfCapacity = $project->odfs->max('fiber_capacity') ?? 144;
         $reserveFrom = $usedFiberTo + 1;
         $reserveTo = max($odfCapacity, $usedFiberTo + 1);
+        $fiberPlan = $fiberPlanService->build($project);
 
         $pdf = Pdf::loadView('ftth.fiber-schema-pdf', compact(
             'project', 'allCabinets', 'totalHouses', 'totalCapacity',
             'projectUtilization', 'fiberAllocations', 'neededSplitters',
-            'usedFiberTo', 'reserveFrom', 'reserveTo',
+            'usedFiberTo', 'reserveFrom', 'reserveTo', 'fiberPlan',
         ))->setPaper('a4', 'landscape');
 
         $filename = 'fiber-shema-'.str($project->code ?: $project->name)->slug().'-'.now()->format('Ymd').'.pdf';
