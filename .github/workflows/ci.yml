@@ -16,12 +16,12 @@ jobs:
       - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: "8.4"
           extensions: mbstring, pdo_sqlite
           coverage: none
       - uses: actions/setup-node@v5
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - run: composer install --no-interaction --prefer-dist --no-progress
       - name: Install Node dependencies
@@ -45,12 +45,12 @@ jobs:
       - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: "8.4"
           extensions: mbstring, pdo_sqlite
           coverage: none
       - uses: actions/setup-node@v5
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - run: composer install --no-interaction --prefer-dist --no-progress
       - name: Install Node dependencies
@@ -63,7 +63,7 @@ jobs:
           php artisan key:generate
           php artisan migrate --force
           php artisan db:seed --force
-          php artisan tinker --execute="App\\Models\\User::factory()->create(['name'=>'E2E','username'=>'e2e','email'=>'e2e@example.test','password'=>'e2e-password']);"
+          php artisan tinker --execute="App\\Models\\User::factory()->create(['name'=>'E2E','username'=>'e2e','email'=>'e2e@example.test','password'=>\Illuminate\Support\Facades\Hash::make('e2e-password')]);"
       - name: Start application
         run: php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-server.log 2>&1 &
       - run: npm run test:e2e
