@@ -212,6 +212,16 @@
         </div>
     </div>
 </div>
+<div id="ftth-confirm-modal" class="fixed inset-0 z-1500 hidden place-items-center bg-slate-950/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ftth-confirm-title">
+    <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div class="mb-4 flex items-start gap-3">
+            <div id="ftth-confirm-icon" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700">!</div>
+            <div><h2 id="ftth-confirm-title" class="text-base font-bold text-slate-950">Potvrdi operaciju</h2><p id="ftth-confirm-message" class="mt-1 text-sm leading-5 text-slate-500"></p></div>
+        </div>
+        <div id="ftth-confirm-detail" class="mb-4 hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600"></div>
+        <div class="flex justify-end gap-2"><button type="button" data-ftth-confirm="cancel" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Poništi</button><button type="button" data-ftth-confirm="accept" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Nastavi</button></div>
+    </div>
+</div>
 <div id="ftth-toast-region" class="ftth-toast-region" role="status" aria-live="polite" aria-atomic="false"></div>
 <script>
 const ftthMenuItems = [
@@ -238,6 +248,25 @@ window.ftthToast = function(message, type = 'info', options = {}) {
 };
 window.ftthNativeAlert = window.alert.bind(window);
 window.alert = message => window.ftthToast(String(message), 'warning', { duration: 8000 });
+window.ftthConfirm = function(message, options = {}) {
+    const modal = document.getElementById('ftth-confirm-modal');
+    if (!modal) return Promise.resolve(false);
+    document.getElementById('ftth-confirm-title').textContent = options.title || 'Potvrdi operaciju';
+    document.getElementById('ftth-confirm-message').textContent = message;
+    const detail = document.getElementById('ftth-confirm-detail');
+    detail.textContent = options.detail || '';
+    detail.classList.toggle('hidden', !options.detail);
+    const accept = modal.querySelector('[data-ftth-confirm="accept"]');
+    accept.textContent = options.confirmLabel || 'Nastavi';
+    accept.className = `rounded-lg px-4 py-2 text-sm font-semibold text-white ${options.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`;
+    modal.classList.remove('hidden'); modal.classList.add('grid');
+    requestAnimationFrame(() => accept.focus());
+    return new Promise(resolve => {
+        const finish = value => { modal.classList.add('hidden'); modal.classList.remove('grid'); accept.onclick = null; cancel.onclick = null; resolve(value); };
+        const cancel = modal.querySelector('[data-ftth-confirm="cancel"]');
+        accept.onclick = () => finish(true); cancel.onclick = () => finish(false);
+    });
+};
 window.ftthSetBusy = function(button, busy, label = 'Obrađujem…') {
     if (!button) return;
     if (busy) {
@@ -294,6 +323,9 @@ document.addEventListener('keydown', e => {
         document.getElementById('global-search')?.classList.add('hidden');
         document.getElementById('global-search')?.classList.remove('grid');
         toggleMobileSidebar(false);
+        const confirmModal = document.getElementById('ftth-confirm-modal');
+        if (confirmModal && !confirmModal.classList.contains('hidden')) confirmModal.querySelector('[data-ftth-confirm="cancel"]')?.click();
+        if (pendingDeleteForm) document.querySelector('[data-delete-modal-action="cancel"]')?.click();
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
@@ -301,6 +333,12 @@ document.addEventListener('keydown', e => {
         modal.classList.remove('hidden'); modal.classList.add('grid');
         renderGlobalSearch(); document.getElementById('global-search-input').focus();
     }
+});
+document.getElementById('ftth-confirm-modal')?.addEventListener('click', event => {
+    if (event.target === event.currentTarget) event.currentTarget.querySelector('[data-ftth-confirm="cancel"]')?.click();
+});
+document.getElementById('delete-confirmation-modal')?.addEventListener('click', event => {
+    if (event.target === event.currentTarget) event.currentTarget.querySelector('[data-delete-modal-action="cancel"]')?.click();
 });
 document.addEventListener('fullscreenchange', () => {
     const fs = !!document.fullscreenElement;
@@ -377,6 +415,21 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.querySelectorAll('.app-drawer.open').forEach(d => closeDrawer(d));
 });
 document.querySelectorAll('.app-drawer').forEach(drawer => drawer.setAttribute('aria-hidden', String(!drawer.classList.contains('open'))));
+document.querySelectorAll('.app-table-card').forEach((card, index) => {
+    const table = card.querySelector('table');
+    const bodyRows = [...(table?.tBodies?.[0]?.rows || [])].filter(row => !row.querySelector('.empty-state-wrap'));
+    if (!table || bodyRows.length < 2 || card.querySelector('[data-table-search]')) return;
+    const toolbar = document.createElement('div');
+    toolbar.className = 'table-local-tools';
+    toolbar.innerHTML = `<label><span class="sr-only">Pretraži prikazane redove</span><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg><input type="search" data-table-search="${index}" placeholder="Pretraži prikazane redove…"></label><span data-table-count>${bodyRows.length} prikazano</span>`;
+    card.insertBefore(toolbar, card.firstChild);
+    toolbar.querySelector('input').addEventListener('input', event => {
+        const query = event.target.value.trim().toLocaleLowerCase('bs');
+        let visible = 0;
+        bodyRows.forEach(row => { const show = !query || row.textContent.toLocaleLowerCase('bs').includes(query); row.hidden = !show; if (show) visible++; });
+        toolbar.querySelector('[data-table-count]').textContent = `${visible} prikazano`;
+    });
+});
 const savedFtthSettings = JSON.parse(localStorage.getItem('ftthSettings') || '{}');
 document.documentElement.classList.toggle('compact-tables', Boolean(savedFtthSettings.compactTables));
 document.documentElement.classList.toggle('small-markers', savedFtthSettings.smallMarkers !== false);

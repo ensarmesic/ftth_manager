@@ -272,7 +272,7 @@
         const batch = importSelect.value;
         if (!batch || !projectId()) return;
         const filename = importSelect.options[importSelect.selectedIndex]?.textContent || 'odabrani TXT';
-        if (!confirm(`Obrisati samo "${filename}"? Ostali TXT uvozi i ručno nacrtani elementi ostaju.`)) return;
+        if (!await window.ftthConfirm(`Obrisati samo "${filename}"?`, { title: 'Brisanje TXT importa', detail: 'Ostali TXT uvozi i ručno nacrtani elementi ostaju.', confirmLabel: 'Obriši import', danger: true })) return;
         deleteImportBtn.disabled = true;
         setStatus('Brišem samo odabrani TXT uvoz...');
         try {
@@ -336,7 +336,7 @@
     fieldSaveBtn?.addEventListener('click', async () => {
         if (!fieldPosition || !projectId()) return;
         if (!fieldCode.value.trim()) return setFieldStatus('Upiši naziv ili opis tačke.', true);
-        if (fieldPosition.accuracy > 30 && !confirm(`GPS preciznost je samo ±${fieldPosition.accuracy.toFixed(1)} m. Ipak sačuvati ovu tačku?`)) return;
+        if (fieldPosition.accuracy > 30 && !await window.ftthConfirm(`GPS preciznost je samo ±${fieldPosition.accuracy.toFixed(1)} m.`, { title: 'Niska GPS preciznost', detail: 'Ovakva tačka nije pogodna za izvedeno geodetsko stanje. Sačuvaj je samo kao informativni terenski zapis.', confirmLabel: 'Ipak sačuvaj' })) return;
         if (fieldPhoto.files?.[0]?.size > 10 * 1024 * 1024) return setFieldStatus('Fotografija je veća od 10 MB. Smanji fotografiju prije slanja.', true);
         const body = new FormData();
         body.append('session_uuid', fieldSessionUuid());
@@ -383,7 +383,7 @@
             setStatus('Prvo odaberi projekat (filter gore desno).', true);
             return;
         }
-        if (!confirm('Sigurno obrisati SVE TXT uvoze u ovom projektu? Za brisanje samo jednog fajla koristi listu iznad. Ručno nacrtani elementi ostaju netaknuti.')) {
+        if (!await window.ftthConfirm('Obrisati SVE TXT uvoze u ovom projektu?', { title: 'Brisanje svih TXT importa', detail: 'Za jedan fajl koristi listu iznad. Ručno nacrtani elementi ostaju, ali svi geodetski uvezeni podaci bit će uklonjeni.', confirmLabel: 'Obriši sve importe', danger: true })) {
             return;
         }
         clearBtn.disabled = true;

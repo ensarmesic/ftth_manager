@@ -38,6 +38,8 @@ function setMode(next) {
         split: 'SPLIT: pomjeri miša na trasu i klikni gdje hoćeš da je podijeliš. ESC prekida.',
     };
     document.getElementById('cad-command').textContent = labels[next] ?? next.toUpperCase();
+    const contextTool = document.getElementById('map-context-tool');
+    if (contextTool) contextTool.textContent = ({ pan: 'Pan / pregled', select: 'Selektovanje', odf: 'Dodavanje ODF-a', cabinet: 'Dodavanje ODO-a', house: 'Dodavanje kuća', draw: 'Crtanje trase', 'trench-draw': 'Crtanje rova', manhole: 'Dodavanje šahta', 'boring-fi-130': 'Bušenje FI130', ruler: 'Mjerenje', connect: 'Povezivanje ODF–ODO', 'connect-houses': 'Povezivanje ODO–kuće', 'branch-source': 'Krak iz ODO-a', 'trace-branch': 'Krak po liniji', trace: 'Praćenje fiber puta', join: 'Spajanje trasa', split: 'Dijeljenje trase' })[next] || next;
     updateCommandBar();
     if (next === 'select') {
         map.dragging.disable();

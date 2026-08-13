@@ -155,7 +155,7 @@
         list.innerHTML = layers.map(layer => `<div class="settings-layer"><span><b>${labels[layer.type] || layer.type}</b><small>${layer.count} objekata${layer.length_m !== null ? ' · '+layer.length_m+' m' : ''}</small></span><button type="button" data-delete-layer="${layer.type}">Obriši</button></div>`).join('');
     }
     list.addEventListener('click', async event => {
-        const button = event.target.closest('[data-delete-layer]'); if (!button || !confirm(`Obrisati sloj "${labels[button.dataset.deleteLayer] || button.dataset.deleteLayer}"?`)) return;
+        const button = event.target.closest('[data-delete-layer]'); if (!button || !await window.ftthConfirm(`Obrisati sloj "${labels[button.dataset.deleteLayer] || button.dataset.deleteLayer}"?`, {title:'Brisanje GIS sloja',detail:'Automatsko GIS planiranje više neće koristiti podatke tog sloja.',confirmLabel:'Obriši sloj',danger:true})) return;
         button.disabled = true;
         try { const response = await fetch(`${base.replace('__ID__', select.value)}/${button.dataset.deleteLayer}`, {method:'DELETE', headers:{Accept:'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content || '','X-Requested-With':'XMLHttpRequest'}}); if (!response.ok) throw new Error('Brisanje nije uspjelo.'); await load(); }
         catch (error) { alert(error.message); button.disabled = false; }

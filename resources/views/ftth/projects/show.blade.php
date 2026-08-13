@@ -9,6 +9,11 @@
     .project-breadcrumb { margin-bottom:12px; }
     .project-hero { position:relative; overflow:hidden; border:1px solid var(--card-border); background:linear-gradient(135deg,#fff 0%,#f8fbff 68%,#eefbf5 100%); box-shadow:0 14px 34px rgba(15,23,42,.07); }
     .project-hero::after { content:""; position:absolute; width:210px; height:210px; right:-90px; bottom:-145px; border-radius:999px; border:28px solid rgba(14,165,233,.07); pointer-events:none; }
+    .project-health { position:relative; z-index:1; display:grid; min-width:170px; gap:6px; border:1px solid #dbe5ef; border-radius:12px; background:rgba(255,255,255,.82); padding:10px 12px; backdrop-filter:blur(8px); }
+    .project-health-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; color:#64748b; font-size:9px; font-weight:850; letter-spacing:.07em; }
+    .project-health-head b { color:#0f5270; font-size:19px; letter-spacing:-.03em; }
+    .project-health-track { height:6px; overflow:hidden; border-radius:999px; background:#e7eef3; }.project-health-track i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#0ea5e9,#22c55e); }
+    .project-health small { color:#708396; font-size:9px; line-height:1.35; }
     .project-identity { display:flex; align-items:flex-start; gap:14px; }
     .project-monogram { display:grid; width:48px; height:48px; flex:none; place-items:center; border-radius:13px; color:#fff; font-size:14px; font-weight:900; background:linear-gradient(145deg,#0786bd,#075985); box-shadow:0 8px 18px rgba(7,89,133,.22); }
     .project-meta-line { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:8px; color:#64748b; font-size:12px; }
@@ -101,6 +106,8 @@
     $utilColor  = $utilPct >= 90 ? '#ef4444' : ($utilPct >= 70 ? '#f59e0b' : '#22c55e');
 
     $routeTypeLabels = ['backbone' => 'Backbone', 'feeder' => 'Feeder', 'distribution' => 'Distribucija', 'drop' => 'Drop', 'trench' => 'Glavni rov'];
+    $healthScore = max(0, 100 - ($valErrors->count() * 15) - ($valWarnings->count() * 5));
+    $healthNext = $valErrors->isNotEmpty() ? 'Prvo riješi greške validacije.' : ($valWarnings->isNotEmpty() ? 'Pregledaj i opravdaj upozorenja.' : 'Projekt je spreman za završnu stručnu kontrolu.');
 @endphp
 
 {{-- NAVIGACIJA NAZAD --}}
@@ -145,6 +152,12 @@
         @endif
         </div>
     </div>
+    <div class="flex flex-wrap items-start justify-end gap-3 shrink-0">
+    <div class="project-health" title="Heuristički health score na osnovu trenutnih grešaka i upozorenja">
+        <div class="project-health-head"><span>PROJECT HEALTH</span><b>{{ $healthScore }}%</b></div>
+        <div class="project-health-track"><i style="width:{{ $healthScore }}%;{{ $healthScore < 60 ? 'background:#ef4444' : ($healthScore < 85 ? 'background:#f59e0b' : '') }}"></i></div>
+        <small>{{ $healthNext }}</small>
+    </div>
     <div class="project-actions flex flex-wrap gap-2 shrink-0">
         <a href="{{ route('map.dashboard', ['project' => $project->id]) }}" class="tbl-btn" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe">
             <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M8.879.879a2.25 2.25 0 00-1.757 0L.879 3.697A2.25 2.25 0 000 5.754v4.492a2.25 2.25 0 00.879 1.757l6.243 2.818a2.25 2.25 0 001.757 0l6.243-2.818A2.25 2.25 0 0016 10.246V5.754a2.25 2.25 0 00-.879-1.757L8.879.879z" clip-rule="evenodd"/></svg>
@@ -166,6 +179,7 @@
             <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
             DXF
         </a>
+    </div>
     </div>
 </div>
 
@@ -476,7 +490,7 @@
 
     document.getElementById('project-fill-missing-drops')?.addEventListener('click', async event => {
         const button = event.currentTarget;
-        if (!window.confirm('Kreirati nedostajuće drop trase za sve kuće koje imaju dodijeljen ODO?')) return;
+        if (!await window.ftthConfirm('Kreirati nedostajuće drop trase za sve kuće koje imaju dodijeljen ODO?', {title:'Popunjavanje drop trasa',detail:'Aplikacija će koristiti trenutno povezane ODO-e i dostupnu mrežnu geometriju. Napravi snapshot prije nastavka.',confirmLabel:'Kreiraj trase'})) return;
         const original = button.textContent;
         button.disabled = true;
         button.textContent = 'Kreiram trase…';

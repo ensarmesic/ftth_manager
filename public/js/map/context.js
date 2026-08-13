@@ -107,7 +107,7 @@ function registerBranchContext(line) {
     });
 }
 async function deleteSavedElement(url, layer) {
-    if (!confirm('Sigurno obrisati?')) return;
+    if (!await window.ftthConfirm('Obrisati odabrani element?', { title: 'Brisanje elementa', confirmLabel: 'Obriši', danger: true })) return;
     const response = await fetch(url, {
         method: 'DELETE',
         headers: {
@@ -505,7 +505,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
 
     delBtn.addEventListener('click', async () => {
         if (!currentSelection.length) return;
-        if (!confirm(`Obrisati ${currentSelection.length} element(a)?`)) return;
+        if (!await window.ftthConfirm(`Obrisati ${currentSelection.length} odabranih elemenata?`, { title: 'Masovno brisanje', detail: 'Operacija može uticati na povezane trase i kapacitete. Preporučen je snapshot projekta.', confirmLabel: 'Obriši sve', danger: true })) return;
 
         const toDelete = [...currentSelection];
         clearSelection();

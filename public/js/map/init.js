@@ -704,6 +704,8 @@ document.addEventListener('click', e => {
 // ── FILTER PO PROJEKTU ─────────────────────────────────────────────────────────
 document.getElementById('map-project-filter')?.addEventListener('change', function () {
     const pid = this.value ? Number(this.value) : null;
+    const contextProject = document.getElementById('map-context-project');
+    if (contextProject) contextProject.textContent = this.options[this.selectedIndex]?.textContent || 'Svi projekti — samo pregled';
     const odfPid = {}, cabPid = {};
     data.odfs.forEach(o => odfPid[o.id] = o.project_id);
     data.cabinets.forEach(c => cabPid[c.id] = c.project_id);

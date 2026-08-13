@@ -34,4 +34,13 @@ class DocumentationTest extends TestCase
             ->assertSee('FTTH - DETALJNO UPUTSTVO ZA GEODETSKI TXT')
             ->assertSee('PODESAVANJE INSTRUMENTA I KOORDINATNI SISTEM');
     }
+
+    public function test_unknown_page_uses_the_branded_not_found_screen(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/ova-stranica-ne-postoji')
+            ->assertNotFound()
+            ->assertSee('Stranica nije pronađena')
+            ->assertSee('Nazad na pregled');
+    }
 }

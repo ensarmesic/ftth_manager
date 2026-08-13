@@ -321,7 +321,7 @@ async function deleteRouteOnServer(routeId) {
     if (!response.ok) throw new Error('Brisanje trase nije uspjelo.');
 }
 async function deleteRouteWithHistory(route, layers) {
-    if (!confirm('Sigurno obrisati?')) return;
+    if (!await window.ftthConfirm(`Obrisati trasu "${route.name || route.id}"?`, { title: 'Brisanje trase', detail: 'Nakon brisanja pokreni provjeru projekta kako bi pronašao prekinute veze.', confirmLabel: 'Obriši trasu', danger: true })) return;
     const routeSnapshot = { ...route };
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const response = await fetch(deleteUrls.route(route.id), {

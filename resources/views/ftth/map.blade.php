@@ -1053,6 +1053,11 @@
                     <div class="text-sm font-bold text-slate-900 leading-tight">Radna karta</div>
                     <div class="text-xs text-slate-500 leading-tight">Satelit · ODF · Ormarići · Trase</div>
                 </div>
+                <div class="map-work-context hidden md:flex" aria-live="polite">
+                    <span><small>PROJEKAT</small><b id="map-context-project">{{ $projects->firstWhere('id', $activeProjectId)?->name ?? 'Svi projekti — samo pregled' }}</b></span>
+                    <i></i>
+                    <span><small>AKTIVNI ALAT</small><b id="map-context-tool">Pan / pregled</b></span>
+                </div>
             </div>
             <div class="flex items-center gap-2">
                 <div class="metric-pill amber"><b id="draw-length">0 m</b><span>Trasa</span></div>
@@ -1067,20 +1072,24 @@
             <span>Prikaži</span>
         </button>
         <div id="map-cad-toolbar" class="map-toolbar">
+            <span class="toolbar-group-label">Navigacija</span>
             <button type="button" id="mode-pan" class="tc tc-white">⊕ Pan</button>
             <button type="button" id="mode-select" class="tc tc-white tool-btn" title="Selektuj i briši više elemenata (drag pravougaonik)">⬚ Selekt</button>
             <div class="tc-sep"></div>
+            <span class="toolbar-group-label">Elementi</span>
             <button type="button" id="mode-odf" class="tc tc-cyan">ODF</button>
             <button type="button" id="mode-cabinet" class="tc tc-emerald">FTTH</button>
             <button type="button" id="mode-house" class="tc tc-violet">Kuće</button>
             <button type="button" id="mode-manhole" class="tc tc-slate">Šaht</button>
             <button type="button" id="mode-boring-fi-130" class="tc tc-red">Raketa FI130</button>
             <div class="tc-sep"></div>
+            <span class="toolbar-group-label">Trase</span>
             <button type="button" id="mode-draw" class="tc tc-amber">Trasa</button>
             <button type="button" id="mode-trench-draw" class="tc tc-slate">Rov</button>
             <button type="button" id="mode-trace-branch" class="tc tc-amber">Krak po liniji</button>
             <button type="button" id="mode-ruler" class="tc tc-rose">Mjerač</button>
             <div class="tc-sep"></div>
+            <span class="toolbar-group-label">Veze</span>
             <button type="button" id="mode-connect" class="tc tc-blue">ODF↔ODO</button>
             <button type="button" id="mode-connect-houses" class="tc tc-violet">ODO↔Kuće</button>
             <button type="button" id="mode-branch-source" class="tc tc-orange">Krak iz ODO</button>
@@ -1088,6 +1097,7 @@
             <button type="button" id="mode-join" class="tc tc-rose">Join trase</button>
             <button type="button" id="mode-split" class="tc tc-orange">✂ Split</button>
             <div class="tc-sep"></div>
+            <span class="toolbar-group-label">Historija</span>
             <button type="button" id="btn-map-undo" class="tc tc-ghost" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
             <button type="button" id="btn-map-redo" class="tc tc-ghost" title="Redo (Ctrl+Y)" disabled>↪ Redo</button>
             <div class="tc-sep"></div>

@@ -151,7 +151,7 @@ function initProjectVersionHistory() {
     document.getElementById('snapshot-list').addEventListener('click', async event => {
         const button = event.target.closest('.snapshot-restore');
         const label = button?.closest('.snapshot-row')?.querySelector('strong')?.textContent || 'odabranu verziju';
-        if (!button || !confirm(`Vratiti projekat na "${label}"? Trenutno stanje bit će zamijenjeno.`)) return;
+        if (!button || !await window.ftthConfirm(`Vratiti projekat na "${label}"?`, { title: 'Vraćanje verzije projekta', detail: 'Trenutno stanje bit će zamijenjeno. Preuzmi backup ako ga želiš sačuvati za kasniju analizu.', confirmLabel: 'Vrati verziju', danger: true })) return;
         const projectId = document.getElementById('active-project-id').value;
         const baseUrl = appConfig.projectSnapshotsBaseUrl.replace('__ID__', projectId);
         const response = await fetch(`${baseUrl}/${button.dataset.snapshotId}/vrati`, { method: 'POST', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
@@ -245,7 +245,7 @@ async function auditAndRepairDropRoutes() {
         summary.textContent = `${audit.unreachable} drop-trasa nema povezani fizički koridor. Dopuni rov prije popravke.`;
         return;
     }
-    if (!window.confirm(`Pronađeno je ${audit.repairable} drop-trasa koje se mogu ponovo provući kroz fizički rov. Nastaviti?`)) {
+    if (!await window.ftthConfirm(`Pronađeno je ${audit.repairable} drop-trasa koje se mogu ponovo provući kroz fizički rov.`, { title: 'Popravka drop ruta', detail: 'Geometrija odabranih drop trasa bit će ponovo izračunata. Napravi snapshot prije nastavka.', confirmLabel: 'Pokreni popravku' })) {
         summary.textContent = 'Popravka nije pokrenuta.';
         return;
     }
