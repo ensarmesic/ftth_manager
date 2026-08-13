@@ -1,7 +1,7 @@
 @extends('ftth.layout')
 
 @section('title', 'Mapa mreže')
-@section('subtitle', 'Satelitski projektantski prikaz za ODF, FTTH ormariće, kuće i trase.')
+@section('subtitle', 'Satelitski projektantski prikaz za ODF, ODO ormariće, kuće i trase.')
 @section('wide', '1')
 
 @section('content')
@@ -1057,6 +1057,8 @@
                     <span><small>PROJEKAT</small><b id="map-context-project">{{ $projects->firstWhere('id', $activeProjectId)?->name ?? 'Svi projekti — samo pregled' }}</b></span>
                     <i></i>
                     <span><small>AKTIVNI ALAT</small><b id="map-context-tool">Pan / pregled</b></span>
+                    <i></i>
+                    <span><small>AKTIVNI ODF</small><b id="map-context-odf">Nije odabran</b></span>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -1093,9 +1095,10 @@
             <button type="button" id="mode-connect" class="tc tc-blue">ODF↔ODO</button>
             <button type="button" id="mode-connect-houses" class="tc tc-violet">ODO↔Kuće</button>
             <button type="button" id="mode-branch-source" class="tc tc-orange">Krak iz ODO</button>
-            <button type="button" id="mode-trace" class="tc tc-sky">Trace</button>
-            <button type="button" id="mode-join" class="tc tc-rose">Join trase</button>
-            <button type="button" id="mode-split" class="tc tc-orange">✂ Split</button>
+            <button type="button" id="advanced-map-tools-toggle" class="tc tc-ghost" aria-expanded="false">Napredni alati</button>
+            <button type="button" id="mode-trace" class="tc tc-sky advanced-map-tool hidden">Trace</button>
+            <button type="button" id="mode-join" class="tc tc-rose advanced-map-tool hidden">Join trase</button>
+            <button type="button" id="mode-split" class="tc tc-orange advanced-map-tool hidden">✂ Split</button>
             <div class="tc-sep"></div>
             <span class="toolbar-group-label">Historija</span>
             <button type="button" id="btn-map-undo" class="tc tc-ghost" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
@@ -1328,7 +1331,7 @@
                 <div>
                     <div class="sb-kicker">Aktivni ODF</div>
                     <select id="active-odf-index" class="sb-sel mb-2"><option value="">Prvo postavi ODF</option></select>
-                    <div id="odf-link-status" class="sb-info bg-cyan-50 text-cyan-800">Postavi ODF, zatim postavljaj FTTH ormariće.</div>
+                    <div id="odf-link-status" class="sb-info bg-cyan-50 text-cyan-800">Postavi ODF, zatim postavljaj ODO ormariće.</div>
                 </div>
                 <div class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5">
                     <div class="flex items-start justify-between gap-2">

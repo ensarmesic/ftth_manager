@@ -79,6 +79,19 @@
         </aside>
     </section>
 
-    <footer class="cc-footer"><span>© {{ date('Y') }} FTTH Manager</span><span>Verzija 1.0.0</span></footer>
+    <section class="cc-main cc-continuity">
+        <article class="cc-card"><header><h2>NASTAVI GDJE SI STAO</h2><a href="{{ $current ? route('map.dashboard', ['project' => $current['model']->id]) : route('projects.index') }}">Otvori radni prostor →</a></header><div class="cc-continuity-body">
+            @if($current)<b>{{ $current['model']->name }}</b><span>Posljednja izmjena {{ $current['model']->updated_at->diffForHumans() }} · {{ $current['issues'] }} otvorenih stavki</span><div class="cc-progress"><i style="width:{{ max(0, 100 - min(100, $current['issues'] * 8)) }}%"></i></div>@else<span>Kreirajte prvi projekt da biste započeli vođeni tok.</span>@endif
+        </div></article>
+        <aside class="cc-side"><article class="cc-card cc-attention"><header><h2>POSLJEDNJE SIGURNE VERZIJE</h2></header><div>
+            @forelse($latestSnapshots as $snapshot)<a href="{{ route('map.dashboard', ['project' => $snapshot->project_id]) }}"><i></i><span><b>{{ $snapshot->project?->name ?? 'Projekt' }}</b><small>{{ $snapshot->label }} · {{ $snapshot->created_at->diffForHumans() }}</small></span><strong>›</strong></a>@empty<div class="cc-clear">Još nema sačuvanih snapshot verzija.</div>@endforelse
+        </div></article></aside>
+    </section>
+
+    <section class="cc-card cc-activity"><header><h2>POSLJEDNJE IZMJENE</h2><a href="{{ route('settings.index') }}">Sistemske postavke →</a></header><div class="cc-activity-grid">
+        @forelse($recentActivity as $activity)<div><b>{{ $activity->method }} · {{ $activity->status_code }}</b><span>{{ $activity->route_name ?: $activity->path }}</span><small>{{ $activity->user?->name ?? 'Sistem' }} · {{ $activity->created_at->diffForHumans() }}</small></div>@empty<p>Nema zabilježenih izmjena.</p>@endforelse
+    </div></section>
+
+    <footer class="cc-footer"><span>© {{ date('Y') }} FTTH Manager · Vlasnički softver</span><span>Verzija {{ config('app.version') }}@if(config('app.deployed_at')) · {{ config('app.deployed_at') }}@endif</span></footer>
 </div>
 @endsection

@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\DropRouteMaintenanceController;
 use App\Http\Controllers\GisController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HouseController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapLayerController;
@@ -32,6 +33,7 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('/sistem/health', HealthController::class)->name('system.health');
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/uputstvo/{document?}', DocumentationController::class)->name('documentation');
     Route::get('/mapa', [MapController::class, 'map'])->name('map.dashboard');

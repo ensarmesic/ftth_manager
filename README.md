@@ -117,6 +117,20 @@ php artisan view:cache
 
 Za produkciju postavi `APP_ENV=production`, `APP_DEBUG=false`, ispravan `APP_URL` i konfiguraciju baze. Web server mora posluživati isključivo `public/` direktorij.
 
+Produkcijski `.env` treba sadržavati i `APP_VERSION`, `APP_DEPLOYED_AT` te `LOG_CHANNEL=daily`. Laravel scheduler mora biti aktivan svake minute (`php artisan schedule:run`) jer u 02:30 pokreće `ftth:backup-database --keep=14`, a u 03:15 čisti zastarjeli DXF cache. Autentificirani administratorski health-check dostupan je na `/sistem/health`; vraća status baze, verziju, deployment i datum posljednjeg automatskog backupa. Zahtjevi sporiji od `SLOW_REQUEST_MS` zapisuju se u dnevni log.
+
+Prije deploymenta pokreni:
+
+```bash
+composer check
+npm run build
+npm run test:e2e:pages
+npm run test:e2e:map-workflow
+npm run test:e2e:visual
+```
+
+E2E komande zahtijevaju `E2E_USERNAME`, `E2E_PASSWORD` i pokrenutu aplikaciju. Vizuelni audit pravi snimke desktop, laptop, velikog monitora, telefona i tableta u `storage/logs/`.
+
 ## Korištenje
 
 Kompletno uputstvo za rad sa svim dijelovima aplikacije nalazi se u

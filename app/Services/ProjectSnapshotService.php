@@ -40,6 +40,7 @@ class ProjectSnapshotService
     {
         abort_unless($snapshot->project_id === $project->id, 404);
         $payload = $snapshot->payload;
+        $this->create($project, 'Automatski: prije vraćanja verzije "'.$snapshot->label.'"');
 
         Schema::disableForeignKeyConstraints();
         try {

@@ -15,7 +15,7 @@ class ProjectManagementController extends Controller
     public function index(): View
     {
         return view('ftth.projects', [
-            'projects' => Project::latest()->paginate(12),
+            'projects' => Project::query()->withCount(['odfs', 'cabinets', 'houses', 'routes'])->latest()->paginate(12),
             'projectStats' => [
                 'total' => Project::count(),
                 'active' => Project::where('status', 'active')->count(),

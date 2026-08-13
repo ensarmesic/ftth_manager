@@ -206,6 +206,8 @@
                 <p id="delete-confirmation-message" class="text-sm text-slate-500">Sigurno obrisati ovaj zapis?</p>
             </div>
         </div>
+        <div id="delete-confirmation-detail" class="mb-4 hidden rounded-lg border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-800"></div>
+        <label id="delete-confirmation-name-wrap" class="mb-4 hidden text-xs font-bold text-slate-700">Za potvrdu upišite tačan naziv projekta<input id="delete-confirmation-name" type="text" autocomplete="off" class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="Naziv projekta"></label>
         <div class="flex justify-end gap-2">
             <button type="button" data-delete-modal-action="cancel" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Poništi</button>
             <button type="button" data-delete-modal-action="confirm" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Obriši</button>
@@ -221,6 +223,18 @@
         <div id="ftth-confirm-detail" class="mb-4 hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600"></div>
         <div class="flex justify-end gap-2"><button type="button" data-ftth-confirm="cancel" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Poništi</button><button type="button" data-ftth-confirm="accept" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Nastavi</button></div>
     </div>
+</div>
+<div id="ftth-onboarding" class="fixed inset-0 z-1500 hidden place-items-center bg-slate-950/70 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <section class="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/40 bg-white shadow-2xl">
+        <header class="bg-linear-to-r from-sky-800 to-emerald-700 px-7 py-6 text-white"><small class="font-bold tracking-widest text-sky-100">DOBRO DOŠLI</small><h2 id="onboarding-title" class="mt-1 text-2xl font-black">FTTH Manager vodič</h2><p class="mt-2 text-sm text-white/80">Siguran redoslijed rada od projekta do završnog izvještaja.</p></header>
+        <div class="grid gap-3 p-7 sm:grid-cols-2">
+            <a class="onboarding-step" href="{{ route('projects.index') }}"><b>1. Kreiraj ili odaberi projekt</b><span>Definiši šifru, lokaciju i osnovne postavke.</span></a>
+            <a class="onboarding-step" href="{{ route('map.dashboard') }}"><b>2. Postavi ODF i mrežnu osnovu</b><span>Uvezi GIS/TXT/DXF ili nacrtaj elemente na karti.</span></a>
+            <a class="onboarding-step" href="{{ route('documentation', ['document' => 'korisnicko']) }}#auto-odo"><b>3. Pregledaj Auto ODO prijedlog</b><span>Provjeri kapacitet, upozorenja i veze prije potvrde.</span></a>
+            <a class="onboarding-step" href="{{ route('project-check.index') }}"><b>4. Validiraj i izvještavaj</b><span>Otkloni greške, sačuvaj snapshot i izradi priloge.</span></a>
+        </div>
+        <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-7 py-4"><label class="flex items-center gap-2 text-xs font-semibold text-slate-600"><input id="onboarding-hide" type="checkbox"> Ne prikazuj ponovo</label><div class="flex gap-2"><a href="{{ route('documentation') }}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Otvori uputstvo</a><button id="onboarding-close" type="button" class="rounded-lg bg-sky-800 px-4 py-2 text-sm font-bold text-white">Započni rad</button></div></footer>
+    </section>
 </div>
 <div id="ftth-toast-region" class="ftth-toast-region" role="status" aria-live="polite" aria-atomic="false"></div>
 <script>
@@ -282,6 +296,19 @@ window.ftthSetBusy = function(button, busy, label = 'Obrađujem…') {
         button.removeAttribute('aria-busy');
     }
 };
+const onboarding = document.getElementById('ftth-onboarding');
+const closeOnboarding = () => {
+    if (document.getElementById('onboarding-hide')?.checked) localStorage.setItem('ftthOnboardingComplete', '1');
+    onboarding?.classList.add('hidden'); onboarding?.classList.remove('grid');
+};
+document.getElementById('onboarding-close')?.addEventListener('click', closeOnboarding);
+if (onboarding && !localStorage.getItem('ftthOnboardingComplete')) {
+    onboarding.classList.remove('hidden'); onboarding.classList.add('grid');
+    requestAnimationFrame(() => document.getElementById('onboarding-close')?.focus());
+}
+document.querySelectorAll('[title]').forEach(element => {
+    if (!element.getAttribute('aria-label') && !element.textContent.trim()) element.setAttribute('aria-label', element.getAttribute('title'));
+});
 function closeHeaderMenus(except = '') {
     ['notification-menu', 'profile-menu'].forEach(id => {
         if (id === except) return;
@@ -358,8 +385,17 @@ document.querySelectorAll('form[data-confirm-delete]').forEach(form => {
         event.preventDefault();
         pendingDeleteForm = form;
         document.getElementById('delete-confirmation-message').textContent = form.dataset.confirmDelete || 'Sigurno obrisati ovaj zapis?';
+        const detail = document.getElementById('delete-confirmation-detail');
+        detail.textContent = form.dataset.confirmDetail || ''; detail.classList.toggle('hidden', !form.dataset.confirmDetail);
+        const nameWrap = document.getElementById('delete-confirmation-name-wrap');
+        const nameInput = document.getElementById('delete-confirmation-name');
+        nameWrap.classList.toggle('hidden', !form.dataset.confirmName); nameInput.value = '';
+        const confirmButton = document.querySelector('[data-delete-modal-action="confirm"]');
+        confirmButton.disabled = Boolean(form.dataset.confirmName);
+        nameInput.oninput = () => { confirmButton.disabled = nameInput.value.trim() !== (pendingDeleteForm?.dataset.confirmName || ''); };
         const modal = document.getElementById('delete-confirmation-modal');
         modal.classList.remove('hidden'); modal.classList.add('grid');
+        requestAnimationFrame(() => (form.dataset.confirmName ? nameInput : confirmButton).focus());
     });
 });
 document.querySelector('[data-delete-modal-action="cancel"]')?.addEventListener('click', () => {
@@ -423,11 +459,30 @@ document.querySelectorAll('.app-table-card').forEach((card, index) => {
     toolbar.className = 'table-local-tools';
     toolbar.innerHTML = `<label><span class="sr-only">Pretraži prikazane redove</span><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg><input type="search" data-table-search="${index}" placeholder="Pretraži prikazane redove…"></label><span data-table-count>${bodyRows.length} prikazano</span>`;
     card.insertBefore(toolbar, card.firstChild);
-    toolbar.querySelector('input').addEventListener('input', event => {
-        const query = event.target.value.trim().toLocaleLowerCase('bs');
+    const searchInput = toolbar.querySelector('input');
+    const storageKey = `ftthTableSearch:${location.pathname}:${index}`;
+    const filterRows = queryValue => {
+        const query = queryValue.trim().toLocaleLowerCase('bs');
         let visible = 0;
         bodyRows.forEach(row => { const show = !query || row.textContent.toLocaleLowerCase('bs').includes(query); row.hidden = !show; if (show) visible++; });
         toolbar.querySelector('[data-table-count]').textContent = `${visible} prikazano`;
+    };
+    searchInput.value = sessionStorage.getItem(storageKey) || '';
+    filterRows(searchInput.value);
+    searchInput.addEventListener('input', event => {
+        sessionStorage.setItem(storageKey, event.target.value);
+        filterRows(event.target.value);
+    });
+    [...table.tHead?.rows?.[0]?.cells || []].forEach((header, column) => {
+        if (!header.textContent.trim() || header.querySelector('button,input')) return;
+        header.tabIndex = 0; header.setAttribute('role', 'button'); header.title = `Sortiraj po koloni ${header.textContent.trim()}`;
+        let ascending = true;
+        const sort = () => {
+            bodyRows.sort((left, right) => left.cells[column].textContent.trim().localeCompare(right.cells[column].textContent.trim(), 'bs', {numeric:true}) * (ascending ? 1 : -1));
+            bodyRows.forEach(row => table.tBodies[0].appendChild(row));
+            header.setAttribute('aria-sort', ascending ? 'ascending' : 'descending'); ascending = !ascending;
+        };
+        header.addEventListener('click', sort); header.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); sort(); } });
     });
 });
 const savedFtthSettings = JSON.parse(localStorage.getItem('ftthSettings') || '{}');
@@ -485,6 +540,7 @@ document.documentElement.classList.toggle('hide-header-notifications', savedFtth
         </div>
     </div>
     <div class="p-1.5">
+        <div class="px-3 py-2 text-[10px] font-semibold leading-4 text-slate-400">Verzija {{ config('app.version') }}@if(config('app.deployed_at')) · Deployment {{ config('app.deployed_at') }}@endif</div>
         <a href="{{ route('settings.index') }}" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
             <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0 text-slate-400"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
             Postavke

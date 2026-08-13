@@ -1,5 +1,23 @@
 # FTTH Manager — kompletno korisničko uputstvo
 
+## Prvi ulazak i ugrađeni vodič
+
+Pri prvom ulasku aplikacija prikazuje kratki profesionalni onboarding: kreiranje projekta, postavljanje ODF-a i mrežne osnove, stručni pregled Auto ODO prijedloga te završnu validaciju i izvještaje. Svaka kartica vodi direktno na odgovarajući radni ekran ili poglavlje dokumentacije. Opcija **Ne prikazuj ponovo** pamti izbor samo u trenutnom browseru; vodič je i dalje dostupan kroz stavku **Uputstvo**.
+
+Kontrolni centar prikazuje posljednji aktivni projekt, otvorene probleme, procijenjeni napredak, posljednje sigurne snapshot verzije i zadnje zabilježene izmjene. **Nastavi gdje si stao** otvara zadnji ažurirani projekt na karti.
+
+Na karti je stalno prikazan radni kontekst: aktivni projekt, alat i ODF. Napredni alati Trace, Join i Split su početno skriveni iza dugmeta **Napredni alati** kako slučajno ne bi bili aktivirani. Ovo ne uklanja nijednu mogućnost.
+
+Sve evidencijske tabele podržavaju lokalnu pretragu prikazane stranice, pamte unos tokom sesije i mogu se sortirati klikom na zaglavlje kolone ili tipkom Enter. Zaglavlje ostaje vidljivo tokom vertikalnog pomjeranja.
+
+Kod trajnog brisanja projekta dijalog navodi broj ODF-ova, ODO ormarića, kuća i trasa koji će biti obrisani. Nastavak je moguć tek nakon unosa tačnog naziva projekta. Prije vraćanja stare snapshot verzije aplikacija automatski čuva trenutno stanje kao novu sigurnu tačku.
+
+## Produkcijska kontrola i sigurnosne kopije
+
+Produkcijska instalacija mora koristiti `APP_DEBUG=false`, dnevnu rotaciju logova i aktivan Laravel scheduler. Svaki dan u 02:30 lokalna SQLite baza kopira se u privatni `storage/app/private/backups` direktorij; čuva se posljednjih 14 kopija. Komanda `php artisan ftth:backup-database --keep=14` može se pokrenuti i ručno. Backup direktorij ne smije biti javno dostupan i mora se dodatno kopirati na odvojeni server ili medij.
+
+Autentificirani health-check `/sistem/health` potvrđuje rad aplikacije i baze, verziju, okruženje, deployment datum i vrijeme posljednjeg backupa. Spori HTTP zahtjevi bilježe se u dnevni Laravel log zajedno s rutom, trajanjem i korisnikom. Health-check ne zamjenjuje vanjski monitoring dostupnosti i prostora na disku.
+
 Ovo uputstvo opisuje svakodnevno korištenje FTTH Manager aplikacije: prijavu,
 projekte, mrežnu evidenciju, rad na mapi, uvoz podataka, kontrolu kvaliteta,
 izvještaje, sigurnosne kopije i preporučeni tok rada.

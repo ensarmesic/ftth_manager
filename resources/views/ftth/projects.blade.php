@@ -147,7 +147,7 @@
                             </a>
 
                             {{-- Obriši --}}
-                            <form method="POST" action="{{ route('projects.delete', $project->id) }}" style="display:inline;" data-confirm-delete="Sigurno obrisati projekat {{ $project->name }}?">
+                            <form method="POST" action="{{ route('projects.delete', $project->id) }}" style="display:inline;" data-confirm-delete="Trajno brisanje projekta {{ $project->name }}" data-confirm-detail="Bit će obrisano {{ $project->odfs_count }} ODF-a, {{ $project->cabinets_count }} ODO ormarića, {{ $project->houses_count }} kuća i {{ $project->routes_count }} trasa." data-confirm-name="{{ $project->name }}">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="tbl-btn tbl-btn-del">
                                     <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M6.5 1.75a.25.25 0 01.25-.25h2.5a.25.25 0 01.25.25V3h-3V1.75zm4.5 0V3h2.25a.75.75 0 010 1.5H2.75a.75.75 0 010-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75zM4.496 6.675a.75.75 0 10-1.492.15l.66 6.6A1.75 1.75 0 005.405 15h5.19a1.75 1.75 0 001.741-1.575l.66-6.6a.75.75 0 00-1.492-.15l-.66 6.6a.25.25 0 01-.249.225H5.405a.25.25 0 01-.249-.225l-.66-6.6z"/></svg>

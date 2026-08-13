@@ -124,7 +124,7 @@
             </p>
             <span class="doc-status status-{{ $project->status }}">{{ strtoupper($project->status) }}</span>
         </div>
-        <div class="doc-code">{{ $project->code }}</div>
+        <div class="doc-code">{{ $project->code }}<br><small>Dokument v{{ config('app.version') }}</small></div>
     </div>
 
     {{-- Stats --}}
@@ -353,9 +353,9 @@
     @endif
 
     <div class="signatures">
-        <div class="signature">Projektant / odgovorna osoba</div>
-        <div class="signature">Tehnička kontrola</div>
-        <div class="signature">Investitor / naručilac</div>
+        <div class="signature">Izradio: projektant / odgovorna osoba</div>
+        <div class="signature">Kontrolisao: tehnička kontrola</div>
+        <div class="signature">Odobrio: investitor / naručilac</div>
     </div>
 
 </main>

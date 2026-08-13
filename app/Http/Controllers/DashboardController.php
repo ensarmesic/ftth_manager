@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use App\Models\ProjectSnapshot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -63,6 +65,8 @@ class DashboardController extends Controller
             ],
             'projectCards' => $projectCards,
             'attentionProjects' => $projectCards->where('issues', '>', 0)->sortByDesc('issues')->take(5),
+            'recentActivity' => ActivityLog::query()->with('user')->latest()->limit(8)->get(),
+            'latestSnapshots' => ProjectSnapshot::query()->with('project')->latest()->limit(5)->get(),
         ]);
     }
 

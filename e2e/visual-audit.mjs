@@ -21,6 +21,7 @@ try {
         page.waitForURL(`${baseUrl}/**`),
         page.click('button[type="submit"]'),
     ]);
+    await page.evaluate(() => localStorage.setItem('ftthOnboardingComplete', '1'));
 
     await page.goto(`${baseUrl}/projekti`, { waitUntil: 'networkidle' });
     const projectOverviewPath = await page.locator('a[href*="/projekti/"][href$="/pregled"]').first().getAttribute('href').catch(() => null);
@@ -59,6 +60,13 @@ try {
         await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(450);
         await page.screenshot({ path: `storage/logs/visual-${name}-mobile.png`, fullPage: true });
+    }
+
+    await page.setViewportSize({ width: 820, height: 1180 });
+    for (const [name, path] of auditPages) {
+        await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(350);
+        await page.screenshot({ path: `storage/logs/visual-${name}-tablet.png`, fullPage: true });
     }
 } finally {
     await browser.close();

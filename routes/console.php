@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('ftth:prune-dxf-cache --days=30')->dailyAt('03:15');
+Schedule::command('ftth:backup-database --keep=14')->dailyAt('02:30')->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

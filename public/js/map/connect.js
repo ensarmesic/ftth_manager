@@ -431,7 +431,7 @@ function showFiberTrace(houseId) {
     panel?.classList.remove('hidden');
 
     if (!cabinet || !odf) {
-        output.innerHTML = `<div class="rounded-md bg-red-50 p-3 text-red-700">Kuća ${house.label} nema kompletnu vezu do FTTH ormarića i ODF-a.</div>`;
+        output.innerHTML = `<div class="rounded-md bg-red-50 p-3 text-red-700">Kuća ${house.label} nema kompletnu vezu do ODO ormarića i ODF-a.</div>`;
         return;
     }
 
@@ -481,7 +481,7 @@ function showFiberTrace(houseId) {
     output.innerHTML = `
         <div class="rounded-md bg-white p-2"><b>${house.label}</b><br>Kuća</div>
         <div class="text-center font-black text-slate-500">↓</div>
-        ${supplyChain.map(item => `<div class="rounded-md bg-white p-2"><b>${item.name}</b><br>FTTH ormarić</div>`).join('<div class="text-center font-black text-slate-500">↓</div>')}
+        ${supplyChain.map(item => `<div class="rounded-md bg-white p-2"><b>${item.name}</b><br>ODO ormarić</div>`).join('<div class="text-center font-black text-slate-500">↓</div>')}
         <div class="text-center font-black text-slate-500">↓</div>
         <div class="rounded-md bg-white p-2"><b>${odf.name}</b><br>ODF</div>
         ${warning}

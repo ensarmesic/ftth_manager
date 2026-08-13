@@ -178,7 +178,7 @@
         Projekat: <b>{{ $project->name }}</b>
         @if($project->code) | Sifra: {{ $project->code }} @endif
         @if($project->location) | Lokacija: {{ $project->location }} @endif
-        | Generisano: {{ now()->format('d.m.Y') }}
+        | Verzija dokumenta: {{ config('app.version') }} | Generisano: {{ now()->format('d.m.Y') }}
     </div>
 
     <h2>Segmenti kablovske kanalizacije</h2>

@@ -10,7 +10,8 @@
         "check:js": "node scripts/check-js.mjs",
         "test:e2e": "node e2e/map-smoke.mjs",
         "test:e2e:pages": "node e2e/pages-smoke.mjs",
-        "test:e2e:map-workflow": "node e2e/map-workflow.mjs"
+        "test:e2e:map-workflow": "node e2e/map-workflow.mjs",
+        "test:e2e:visual": "node e2e/visual-audit.mjs"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

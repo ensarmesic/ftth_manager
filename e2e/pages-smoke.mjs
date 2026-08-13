@@ -54,6 +54,7 @@ try {
         page.waitForURL(`${baseUrl}/**`, { timeout: 15000 }),
         page.click('button[type="submit"]'),
     ]);
+    await page.evaluate(() => localStorage.setItem('ftthOnboardingComplete', '1'));
 
     for (const [label, path] of pages) {
         const pageErrors = [];

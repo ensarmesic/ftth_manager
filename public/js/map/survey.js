@@ -8,7 +8,7 @@
         panel.style.display = open ? 'block' : 'none';
         panelButton?.setAttribute('aria-expanded', String(open));
     };
-    panelButton?.addEventListener('click', () => setPanelOpen(panel.style.display === 'none'));
+    panelButton?.addEventListener('click', () => setPanelOpen(getComputedStyle(panel).display === 'none'));
     document.getElementById('survey-panel-close')?.addEventListener('click', () => { setPanelOpen(false); clearMapPreview(); });
 
     const fileInput = document.getElementById('survey-file-input');
@@ -26,10 +26,23 @@
     const fieldCode = document.getElementById('field-point-code');
     const fieldNote = document.getElementById('field-point-note');
     const fieldPhoto = document.getElementById('field-point-photo');
+    const fieldPhotoPreview = document.getElementById('field-photo-preview');
     const fieldStatus = document.getElementById('field-point-status');
     let selectedFile = null;
     let fieldPosition = null;
     let previewLayers = [];
+
+    document.getElementById('field-mode-toggle')?.addEventListener('click', event => {
+        const active = document.body.classList.toggle('field-mode');
+        event.currentTarget.setAttribute('aria-pressed', String(active));
+        event.currentTarget.textContent = active ? 'Puni prikaz' : 'Terenski režim';
+    });
+    fieldPhoto?.addEventListener('change', () => {
+        const file = fieldPhoto.files?.[0];
+        if (!file) { fieldPhotoPreview.style.display = 'none'; fieldPhotoPreview.removeAttribute('src'); return; }
+        fieldPhotoPreview.src = URL.createObjectURL(file);
+        fieldPhotoPreview.style.display = 'block';
+    });
 
     function clearMapPreview() {
         previewLayers.forEach(layer => { untrackLayer(layer, 'preview'); if (map.hasLayer(layer)) map.removeLayer(layer); });
@@ -367,6 +380,7 @@
             fieldCode.value = '';
             fieldNote.value = '';
             fieldPhoto.value = '';
+            fieldPhotoPreview.style.display = 'none'; fieldPhotoPreview.removeAttribute('src');
             fieldPosition = null;
             gpsPositionBox.style.display = 'none';
             fieldSaveBtn.textContent = 'Sačuvaj GPS tačku';

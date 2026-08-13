@@ -414,3 +414,9 @@ async function ppCreateProject() {
         if (submit) { submit.disabled = false; submit.removeAttribute('aria-busy'); }
     }
 }
+document.getElementById('advanced-map-tools-toggle')?.addEventListener('click', event => {
+    const expanded = event.currentTarget.getAttribute('aria-expanded') === 'true';
+    event.currentTarget.setAttribute('aria-expanded', String(!expanded));
+    event.currentTarget.textContent = expanded ? 'Napredni alati' : 'Sakrij napredne';
+    document.querySelectorAll('.advanced-map-tool').forEach(tool => tool.classList.toggle('hidden', expanded));
+});

@@ -272,7 +272,7 @@
 @endif
 
 <div class="footer">
-    {{ $project->name }} &nbsp;/&nbsp; {{ $project->code }} &nbsp;/&nbsp; FTTH Manager &nbsp;/&nbsp; {{ now()->format('d.m.Y H:i') }}
+    {{ $project->name }} &nbsp;/&nbsp; {{ $project->code }} &nbsp;/&nbsp; Dokument v{{ config('app.version') }} &nbsp;/&nbsp; FTTH Manager &nbsp;/&nbsp; {{ now()->format('d.m.Y H:i') }}
 </div>
 
 </body>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuditMutations;
+use App\Http\Middleware\MonitorPerformance;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->web(append: [SecurityHeaders::class, AuditMutations::class]);
+        $middleware->web(append: [SecurityHeaders::class, MonitorPerformance::class, AuditMutations::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -2,6 +2,7 @@
 <div id="survey-panel" class="floating-tool-panel floating-tool-panel-wide">
     <div class="floating-tool-header floating-tool-header-green">
         <span>Terenski rad</span>
+        <button type="button" id="field-mode-toggle" class="floating-tool-close" style="font-size:11px;width:auto;padding:0 8px" aria-pressed="false" title="Pojednostavljeni prikaz za telefon i terenski rad">Terenski režim</button>
         <button type="button" id="survey-panel-close" class="floating-tool-close" aria-label="Zatvori panel terenskog rada">&times;</button>
     </div>
     <div style="padding:10px 12px">
@@ -30,6 +31,7 @@
         </div>
         <textarea id="field-point-note" class="sb-inp" rows="2" placeholder="Napomena s terena" style="margin-top:7px;resize:vertical"></textarea>
         <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;border:1px dashed #cbd5e1;border-radius:7px;padding:8px;font-size:11px;color:#475569;cursor:pointer"><span>Dodaj fotografiju</span><input id="field-point-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style="max-width:165px;font-size:10px"></label>
+        <img id="field-photo-preview" alt="Pregled fotografije prije slanja" style="display:none;width:100%;max-height:180px;object-fit:cover;margin-top:7px;border-radius:8px;border:1px solid #cbd5e1">
         <button id="field-point-save" type="button" disabled style="width:100%;margin-top:8px;border-radius:8px;background:#0f766e;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer;opacity:.55">Sačuvaj GPS tačku</button>
         <div id="field-point-status" style="display:none;margin-top:7px;border-radius:7px;padding:8px;font-size:11px;font-weight:650"></div>
     </div>

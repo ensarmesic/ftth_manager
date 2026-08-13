@@ -400,7 +400,7 @@ function selectDraftElement(type, item) {
     selectedDraftElement = { type, item };
     const model = type === 'house' ? (item.meta || item) : item;
     document.getElementById('element-editor').classList.remove('hidden');
-    document.getElementById('element-editor-type').textContent = type === 'odf' ? 'ODF lokacija' : type === 'cabinet' ? 'FTTH ormarić' : 'Kućni priključak';
+    document.getElementById('element-editor-type').textContent = type === 'odf' ? 'ODF lokacija' : type === 'cabinet' ? 'ODO ormarić' : 'Korisnički priključak';
     document.getElementById('element-editor-name').value = item.pending ? '' : (model.name || model.label || '');
     document.getElementById('element-editor-address').value = model.address || '';
     document.getElementById('element-editor-odf-fields').classList.toggle('hidden', type !== 'odf');
@@ -545,7 +545,9 @@ function setActiveDraftOdf(index) {
     const value = activeOdfSelection ? `${activeOdfSelection.type}:${activeOdfSelection.type === 'saved' ? activeOdfSelection.id : activeOdfSelection.index}` : '';
     document.getElementById('active-odf-index').value = value;
     const label = activeOdfLabel();
-    document.getElementById('odf-link-status').textContent = label ? `Novi FTTH ormarići se vežu na ${label}.` : 'Odaberi ODF prije redanja FTTH ormarića.';
+    const contextOdf = document.getElementById('map-context-odf');
+    if (contextOdf) contextOdf.textContent = label || 'Nije odabran';
+    document.getElementById('odf-link-status').textContent = label ? `Novi ODO ormarići se vežu na ${label}.` : 'Odaberi ODF prije postavljanja ODO ormarića.';
     refreshDraftTooltips();
 }
 function renderDraftOdfPicker() {
@@ -561,7 +563,9 @@ function renderDraftOdfPicker() {
     const value = activeOdfSelection ? `${activeOdfSelection.type}:${activeOdfSelection.type === 'saved' ? activeOdfSelection.id : activeOdfSelection.index}` : '';
     select.value = value;
     const label = activeOdfLabel();
-    document.getElementById('odf-link-status').textContent = label ? `Novi FTTH ormarići se vežu na ${label}.` : 'Postavi ODF, zatim postavljaj FTTH ormariće.';
+    const contextOdf = document.getElementById('map-context-odf');
+    if (contextOdf) contextOdf.textContent = label || 'Nije odabran';
+    document.getElementById('odf-link-status').textContent = label ? `Novi ODO ormarići se vežu na ${label}.` : 'Postavi ODF, zatim postavljaj ODO ormariće.';
     refreshRouteOdfStatus();
 }
 function refreshDraftTooltips() {

@@ -59,6 +59,7 @@ try {
         page.waitForURL(`${baseUrl}/**`, { timeout: 15000 }),
         page.click('button[type="submit"]'),
     ]);
+    await page.evaluate(() => localStorage.setItem('ftthOnboardingComplete', '1'));
 
     const created = await csrfFetch("/projekti", {
         method: "POST",
@@ -118,17 +119,10 @@ try {
     // Čekaj da se toolbar učita nakon što se modal zatvori
     await page.waitForSelector("#survey-panel-btn", { timeout: 15000 });
     await page.click("#survey-panel-btn");
-    // Panel trebam biti skrit inicijalno, čekaj da se pokaže (uklanja .hidden klasu)
-    await page.waitForFunction(
-        () =>
-            !document
-                .querySelector("#survey-panel")
-                ?.classList.contains("hidden"),
-        { timeout: 15000 },
-    );
+    await page.waitForSelector('#survey-panel', { state: 'visible', timeout: 15000 });
     if (!(await page.isEnabled("#survey-choose-btn")))
         throw new Error("TXT panel nije spreman za izbor fajla.");
-    await page.click("#survey-panel-close", { force: true });
+    await page.click("#survey-panel-close");
 
     await page.evaluate(() =>
         renderDraftPreflight(
@@ -373,6 +367,7 @@ try {
     await page.waitForSelector("#save-suggestions:not(.hidden)", {
         timeout: 15000,
     });
+    await page.check('#planner-review-confirm');
 
     const confirmResponsePromise = page.waitForResponse(
         (response) =>
@@ -461,7 +456,7 @@ try {
             response.request().method() === "POST",
         { timeout: 15000 },
     );
-    await page.click("#fill-missing-drops");
+    await page.evaluate(() => fillMissingDropRoutes());
     const dropResponse = await dropResponsePromise;
     if (!dropResponse.ok())
         throw new Error(

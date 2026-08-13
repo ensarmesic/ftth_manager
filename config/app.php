@@ -15,6 +15,10 @@ return [
 
     'name' => env('APP_NAME', 'FTTH Manager'),
 
+    'version' => env('APP_VERSION', '1.1.0'),
+
+    'deployed_at' => env('APP_DEPLOYED_AT'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment
