@@ -408,7 +408,11 @@ function getSnapTarget(latlng) {
     if (best && best.distance <= snapPixelTolerance) return best;
 
     let bestSec = null;
-    [...savedRoutePoints, ...branches].forEach(route => {
+    const visibleSavedRoutes = data.routes
+        .filter(route => route.path?.length && routeLayerById[route.id] && map.hasLayer(routeLayerById[route.id]))
+        .map(route => route.path.map(point => L.latLng(point[0], point[1])));
+    const visibleDraftRoutes = branches.filter((route, index) => branchLines[index] && map.hasLayer(branchLines[index]));
+    [...visibleSavedRoutes, ...visibleDraftRoutes].forEach(route => {
         route.forEach((vertex, index) => {
             const d = layerPixelDistance(latlng, vertex);
             const label = index === 0 ? 'Početak trase' : (index === route.length - 1 ? 'Kraj trase' : 'Čvor trase');
