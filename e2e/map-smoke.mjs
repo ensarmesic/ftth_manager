@@ -52,10 +52,9 @@ try {
         const loginUrl = `${baseUrl}/prijava`;
 
         // Preuzmi CSRF token sa login stranice
-        const csrfToken = await page.getAttribute(
-            'meta[name="csrf-token"]',
-            "content",
-        );
+        const csrfToken = await page
+            .locator('meta[name="csrf-token"]')
+            .getAttribute("content");
 
         if (!csrfToken) {
             throw new Error("CSRF token nije pronađen na login stranici");
