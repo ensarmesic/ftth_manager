@@ -49,33 +49,24 @@ try {
             );
         }
 
-        // Pokušaj da se logiraj preko POST-a umjesto UI forme
         const loginUrl = `${baseUrl}/prijava`;
 
-        // Prvo preuzmi CSRF token sa login stranice
-        const csrfResponse = await page.goto(loginUrl, {
-            waitUntil: "domcontentloaded",
-            timeout: 10000,
-        });
-
-        const csrfToken = await page.evaluate(() => {
-            const metaTag = document.querySelector('meta[name="csrf-token"]');
-            return metaTag ? metaTag.getAttribute("content") : null;
-        });
+        // Preuzmi CSRF token sa login stranice
+        const csrfToken = await page.getAttribute(
+            'meta[name="csrf-token"]',
+            "content",
+        );
 
         if (!csrfToken) {
             throw new Error("CSRF token nije pronađen na login stranici");
         }
 
-        // Pošalji login POST request
-        const loginResponse = await page.context().request.post(loginUrl, {
+        // Pošalji login POST request koristeći page.request
+        const loginResponse = await page.request.post(loginUrl, {
             data: {
                 username: username,
                 password: password,
                 _token: csrfToken,
-            },
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
             },
         });
 
@@ -85,12 +76,7 @@ try {
             );
         }
 
-        // Čekaj da se preusmjeri na mapu
-        await page.waitForURL((url) => !url.pathname.includes("/prijava"), {
-            timeout: 10000,
-        });
-
-        // Idi na mapu
+        // Čekaj da se preusmjeri i onda idi na mapu
         await page.goto(target, {
             waitUntil: "domcontentloaded",
             timeout: 30000,
