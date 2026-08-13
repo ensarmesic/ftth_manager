@@ -32,10 +32,20 @@
 
 <div class="page-toolbar">
     <span class="page-toolbar-info">{{ $projects->total() }} projekata</span>
+    <div class="flex flex-wrap items-center gap-2">
+    <form method="POST" action="{{ route('projects.restore') }}" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2">
+        @csrf
+        <label class="tbl-btn cursor-pointer" style="background:#f0fdf4;color:#14532d;border-color:#bbf7d0" title="Odaberi FTTH Manager JSON backup">
+            <input type="file" name="backup" accept="application/json,.json" class="hidden" required onchange="this.form.requestSubmit()">
+            Vrati backup
+        </label>
+        @error('backup', 'restoreBackup')<span class="text-xs font-semibold text-red-600">{{ $message }}</span>@enderror
+    </form>
     <button class="btn-new" data-drawer-open="drawer-projects">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
         Novi projekat
     </button>
+    </div>
 </div>
 
 <div class="app-table-card">
@@ -120,6 +130,12 @@
                                title="Preuzmi GeoJSON">
                                 <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
                                 GeoJSON
+                            </a>
+                            <a href="{{ route('projects.backup', $project->id) }}"
+                               class="tbl-btn"
+                               style="background:#f0fdf4;color:#14532d;border-color:#bbf7d0"
+                               title="Preuzmi JSON backup projekta">
+                                Backup
                             </a>
                             <a href="{{ route('projects.print', $project->id) }}"
                                target="_blank"

@@ -84,6 +84,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projekti/{project}/geojson', ProjectGeoJsonController::class)->name('projects.geojson');
     Route::post('/projekti/{project}/dxf', [ProjectExportController::class, 'exportDxf'])->name('projects.dxf');
     Route::get('/projekti/{project}/fiber-schema-dxf', [ProjectExportController::class, 'exportFiberSchema'])->name('projects.fiber-schema-dxf');
+    Route::get('/projekti/{project}/backup', [ProjectExportController::class, 'backup'])->name('projects.backup');
+    Route::post('/projekti/restore', [ProjectExportController::class, 'restore'])->name('projects.restore');
     Route::get('/projekti/{project}/print', ProjectPrintController::class)->name('projects.print');
     Route::delete('/projekti/{id}', [ProjectManagementController::class, 'destroy'])->name('projects.delete');
 

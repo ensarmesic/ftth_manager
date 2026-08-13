@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\RateLimiter;
@@ -13,10 +14,16 @@ class AuthenticationTest extends TestCase
 
     public function test_guest_is_redirected_to_login(): void
     {
+        $project = Project::create([
+            'name' => 'Zaštićeni projekat', 'code' => 'AUTH-BACKUP',
+            'location' => 'Test', 'status' => 'planning',
+        ]);
         auth()->logout();
 
         $this->get('/mapa')->assertRedirect(route('login'));
         $this->get('/postavke/backup')->assertRedirect(route('login'));
+        $this->get(route('projects.backup', $project))->assertRedirect(route('login'));
+        $this->post(route('projects.restore'))->assertRedirect(route('login'));
     }
 
     public function test_user_can_log_in_and_log_out(): void
