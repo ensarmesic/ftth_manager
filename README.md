@@ -266,3 +266,9 @@ ftth_manager/
 
 - **GitHub**: [github.com/ensarmesic/ftth_manager](https://github.com/ensarmesic/ftth_manager)
 - **Issues**: [github.com/ensarmesic/ftth_manager/issues](https://github.com/ensarmesic/ftth_manager/issues)
+
+## Licenca
+
+Ovaj projekat je vlasnički softver (**proprietary / closed source**) i nije open source. Sva prava su zadržana. Bez prethodne pisane dozvole vlasnika nije dozvoljeno kopiranje, mijenjanje, distribucija, objavljivanje, sublicenciranje, prodaja niti korištenje izvornog koda ili njegovih dijelova izvan odobrene namjene.
+
+Detaljni uslovi navedeni su u [LICENSE](LICENSE) datoteci.
