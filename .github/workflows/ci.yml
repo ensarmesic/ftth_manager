@@ -12,6 +12,10 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: sqlite
+      DB_DATABASE: database/database.sqlite
     steps:
       - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
@@ -26,6 +30,12 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-progress
       - name: Install Node dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Prepare application for tests
+        run: |
+          cp .env.example .env
+          touch database/database.sqlite
+          php artisan key:generate
+          php artisan migrate --force
       - run: vendor/bin/pint --test
       - run: npm run check:js
       - run: npm run build
@@ -66,6 +76,19 @@ jobs:
           php artisan tinker --execute="App\\Models\\User::factory()->create(['name'=>'E2E','username'=>'e2e','email'=>'e2e@example.test','password'=>\Illuminate\Support\Facades\Hash::make('e2e-password')]);"
       - name: Start application
         run: php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-server.log 2>&1 &
+      - name: Wait for server to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -f http://127.0.0.1:8000/prijava > /dev/null 2>&1; then
+              echo "✓ Server is ready"
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 1
+          done
+          echo "✗ Server did not start in time"
+          cat storage/logs/ci-server.log
+          exit 1
       - run: npm run test:e2e
       - name: Upload diagnostics
         if: failure()
