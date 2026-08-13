@@ -51,10 +51,11 @@ try {
 
         const loginUrl = `${baseUrl}/prijava`;
 
-        // Preuzmi CSRF token sa login stranice
-        const csrfToken = await page
-            .locator('meta[name="csrf-token"]')
-            .getAttribute("content");
+        // Preuzmi CSRF token direktno iz DOM-a bez čekanja
+        const csrfToken = await page.evaluate(() => {
+            const metaTag = document.querySelector('meta[name="csrf-token"]');
+            return metaTag ? metaTag.getAttribute("content") : null;
+        });
 
         if (!csrfToken) {
             throw new Error("CSRF token nije pronađen na login stranici");
