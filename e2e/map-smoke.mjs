@@ -40,7 +40,7 @@ const pageErrors = [];
 page.on("pageerror", (error) => pageErrors.push(error.message));
 
 try {
-    await page.goto(target, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.goto(target, { waitUntil: "networkidle", timeout: 30000 });
 
     if (page.url().includes("/prijava")) {
         if (!username || !password) {
@@ -95,7 +95,7 @@ try {
 
         // Idi na mapu - cookies će biti automatski uključeni
         await page.goto(target, {
-            waitUntil: "domcontentloaded",
+            waitUntil: "networkidle",
             timeout: 30000,
         });
     }
