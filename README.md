@@ -119,6 +119,9 @@ Za produkciju postavi `APP_ENV=production`, `APP_DEBUG=false`, ispravan `APP_URL
 
 ## Korištenje
 
+Kompletno uputstvo za rad sa svim dijelovima aplikacije nalazi se u
+[korisničkom uputstvu za FTTH Manager](docs/KORISNICKO-UPUTSTVO-FTTH-MANAGER.md).
+
 Detaljan standard za terensko snimanje koordinata, oznake elemenata, pripremu
 TXT fajla i kontrolu uvoza nalazi se u
 [uputstvu za geodetski TXT](docs/UPUTSTVO-ZA-GEODETSKI-TXT-FTTH.txt).
