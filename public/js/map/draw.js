@@ -209,35 +209,10 @@ function redrawActiveBranch() {
     updateCommandBar();
 }
 function redrawPreviewBranch(latlng = null) {
-    if (mode !== 'draw' || !latlng) {
-        if (previewBranchLine) map.removeLayer(previewBranchLine);
-        previewBranchLine = null;
-        hideSnapIndicator();
-        return;
-    }
-    const orthoPoint = applyOrthoPoint(latlng);
-    const snapTarget = getSnapTarget(orthoPoint);
-    showSnapIndicator(snapTarget);
-    const point = snapTarget?.latlng || orthoPoint;
-    updateCommandBar(snapTarget?.label || '-', point);
-    if (!activeBranch.length) {
-        if (previewBranchLine) map.removeLayer(previewBranchLine);
-        previewBranchLine = null;
-        if (snapTarget) document.getElementById('cad-command').textContent = `SNAP: ${snapTarget.label}. Klik postavlja prvu tačku trase.`;
-        return;
-    }
-    const points = [activeBranch[activeBranch.length - 1], point];
-    const type = document.getElementById('route-draw-type').value;
-    const previewStyle = type === 'trench'
-        ? { ...routeLineStyle('trench'), weight: 4, opacity: .65 }
-        : { color: '#f59e0b', weight: 2, opacity: .75, dashArray: '4 7' };
-    if (previewBranchLine) {
-        previewBranchLine.setLatLngs(points);
-        previewBranchLine.setStyle(previewStyle);
-    } else {
-        previewBranchLine = L.polyline(points, previewStyle).addTo(map);
-    }
-    if (snapTarget) document.getElementById('cad-command').textContent = `SNAP: ${snapTarget.label}. Klik potvrduje tacku, ENTER/desni klik zavrsava krak.`;
+    if (previewBranchLine) map.removeLayer(previewBranchLine);
+    previewBranchLine = null;
+    hideSnapIndicator();
+    updateCommandBar();
 }
 async function fetchOsmRoute(from, to) {
     const url = `https://router.project-osrm.org/route/v1/foot/${from.lng.toFixed(6)},${from.lat.toFixed(6)};${to.lng.toFixed(6)},${to.lat.toFixed(6)}?geometries=geojson&overview=full`;
