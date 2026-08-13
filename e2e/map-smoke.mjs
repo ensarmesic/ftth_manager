@@ -49,24 +49,48 @@ try {
             );
         }
 
-        // Čekaj da login forma bude dostupna prije nego što pokušaš fill
-        await page.waitForSelector('input[name="username"]', {
+        // Pokušaj da se logiraj preko POST-a umjesto UI forme
+        const loginUrl = `${baseUrl}/prijava`;
+
+        // Prvo preuzmi CSRF token sa login stranice
+        const csrfResponse = await page.goto(loginUrl, {
+            waitUntil: "domcontentloaded",
             timeout: 10000,
         });
-        await page.waitForSelector('input[name="password"]', {
+
+        const csrfToken = await page.evaluate(() => {
+            const metaTag = document.querySelector('meta[name="csrf-token"]');
+            return metaTag ? metaTag.getAttribute("content") : null;
+        });
+
+        if (!csrfToken) {
+            throw new Error("CSRF token nije pronađen na login stranici");
+        }
+
+        // Pošalji login POST request
+        const loginResponse = await page.context().request.post(loginUrl, {
+            data: {
+                username: username,
+                password: password,
+                _token: csrfToken,
+            },
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        });
+
+        if (!loginResponse.ok()) {
+            throw new Error(
+                `Login POST zahtjev nije uspio (status: ${loginResponse.status()})`,
+            );
+        }
+
+        // Čekaj da se preusmjeri na mapu
+        await page.waitForURL((url) => !url.pathname.includes("/prijava"), {
             timeout: 10000,
         });
 
-        await page.fill('input[name="username"]', username);
-        await page.fill('input[name="password"]', password);
-
-        await Promise.all([
-            page.waitForURL((url) => !url.pathname.includes("/prijava"), {
-                timeout: 15000,
-            }),
-            page.click('button[type="submit"]'),
-        ]);
-
+        // Idi na mapu
         await page.goto(target, {
             waitUntil: "domcontentloaded",
             timeout: 30000,
