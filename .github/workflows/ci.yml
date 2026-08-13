@@ -75,19 +75,27 @@ jobs:
           php artisan db:seed --force
           php artisan tinker --execute="App\\Models\\User::factory()->create(['name'=>'E2E','username'=>'e2e','email'=>'e2e@example.test','password'=>\Illuminate\Support\Facades\Hash::make('e2e-password')]);"
       - name: Start application
-        run: php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-server.log 2>&1 &
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-server.log 2>&1 &
+          sleep 5
       - name: Wait for server to be ready
         run: |
-          for i in {1..30}; do
-            if curl -f http://127.0.0.1:8000/prijava > /dev/null 2>&1; then
+          max_attempts=30
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt/$max_attempts: Checking server..."
+            if curl -s http://127.0.0.1:8000/prijava > /dev/null 2>&1; then
               echo "✓ Server is ready"
               exit 0
             fi
-            echo "Waiting for server... ($i/30)"
-            sleep 1
+            sleep 2
+            attempt=$((attempt + 1))
           done
           echo "✗ Server did not start in time"
-          cat storage/logs/ci-server.log
+          echo "--- Server logs ---"
+          cat storage/logs/ci-server.log || echo "No server log file"
+          echo "--- Process list ---"
+          ps aux | grep php || echo "No php processes"
           exit 1
       - run: npm run test:e2e
       - name: Upload diagnostics
