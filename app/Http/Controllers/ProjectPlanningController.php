@@ -40,14 +40,13 @@ class ProjectPlanningController extends Controller
     {
         $data = $request->validate([
             'plan' => ['required', 'array'],
-            'create_drop_routes' => ['nullable', 'boolean'],
         ]);
 
         try {
             return response()->json($this->ftthIntelligence->confirmOdoPlan(
                 $project,
                 $data['plan'],
-                $request->boolean('create_drop_routes')
+                false
             ), 201);
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);

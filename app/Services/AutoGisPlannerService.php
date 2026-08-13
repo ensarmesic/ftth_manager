@@ -124,9 +124,8 @@ class AutoGisPlannerService
 
         $created = collect();
         $createdCabinets = collect();
-        $createdDrops = collect();
 
-        DB::transaction(function () use ($project, $segments, $plan, $created, $createdCabinets, $createdDrops): void {
+        DB::transaction(function () use ($project, $segments, $plan, $created, $createdCabinets): void {
             foreach ($segments as $index => $segment) {
                 $name = $this->uniqueRouteName($project, 'GIS krak '.($index + 1));
                 $route = NetworkRoute::create([
@@ -166,28 +165,6 @@ class AutoGisPlannerService
                         continue;
                     }
                     $house->update(['cabinet_id' => $cabinet->id]);
-                    $dropPreview = collect($cabinetPlan['drop_preview'] ?? [])->firstWhere('house_id', $house->id);
-                    $path = $dropPreview['path'] ?? [[$cabinet->latitude, $cabinet->longitude], [$house->latitude, $house->longitude]];
-                    $length = $dropPreview['length_m'] ?? $this->distance($path[0], $path[count($path) - 1]);
-                    $createdDrops->push(NetworkRoute::create([
-                        'project_id' => $project->id,
-                        'cabinet_id' => $cabinet->id,
-                        'from_type' => 'cabinet',
-                        'from_id' => $cabinet->id,
-                        'to_type' => 'house',
-                        'to_id' => $house->id,
-                        'name' => $this->uniqueRouteName($project, 'GIS drop '.$house->label),
-                        'route_type' => 'drop',
-                        'installation_type' => 'underground',
-                        'duct_length_m' => (int) $length,
-                        'fiber_length_m' => (int) $length,
-                        'fiber_count' => 4,
-                        'microduct_count' => 1,
-                        'microduct_type' => '10/8',
-                        'status' => 'planned',
-                        'path' => $path,
-                        'note' => 'Automatski drop iz GIS plana.',
-                    ]));
                 }
             }
         });
@@ -195,7 +172,6 @@ class AutoGisPlannerService
         return [
             'created' => $created->count(),
             'created_cabinets' => $createdCabinets->count(),
-            'created_drop_routes' => $createdDrops->count(),
             'routes' => $created->map(fn (NetworkRoute $route) => [
                 'id' => $route->id,
                 'name' => $route->name,

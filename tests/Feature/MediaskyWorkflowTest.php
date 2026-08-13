@@ -331,10 +331,15 @@ class MediaskyWorkflowTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('summary.routed_houses', 2)
             ->assertJsonPath('created_cabinets', 1)
-            ->assertJsonPath('created_drop_routes', 2);
+            ->assertJsonMissingPath('created_drop_routes');
+
+        $this->assertDatabaseMissing('routes', [
+            'project_id' => $project->id,
+            'route_type' => 'drop',
+        ]);
 
         $this->assertSame(3, NetworkRoute::where('project_id', $project->id)->where('route_type', 'distribution')->count());
-        $this->assertSame(2, NetworkRoute::where('project_id', $project->id)->where('route_type', 'drop')->count());
+        $this->assertSame(0, NetworkRoute::where('project_id', $project->id)->where('route_type', 'drop')->count());
         $this->assertSame(1, Cabinet::where('project_id', $project->id)->count());
         $this->assertSame(2, House::where('project_id', $project->id)->whereNotNull('cabinet_id')->count());
         $this->assertSame(3, NetworkBranch::where('project_id', $project->id)->count());

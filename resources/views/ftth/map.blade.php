@@ -1354,7 +1354,6 @@
                                     <option value="trench">Glavni rov</option>
                                     <option value="feeder">Primarni</option>
                                     <option value="distribution">Sekundarni</option>
-                                    <option value="drop">Drop</option>
                                 </select>
                             </div>
                             <div class="sb-kicker">Mikrocijevi
@@ -1419,11 +1418,7 @@
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-2">
-                <div class="grid grid-cols-2 gap-2">
-                    <button type="button" id="run-project-check" class="sb-btn sb-btn-outline">Provjeri</button>
-                    <button type="button" id="fill-missing-drops" class="sb-btn sb-btn-amber-outline">Popuni dropove</button>
-                </div>
-                <button type="button" id="repair-drop-routes" class="sb-btn sb-btn-outline">Audit i popravi drop trase</button>
+                <button type="button" id="run-project-check" class="sb-btn sb-btn-outline">Provjeri</button>
                 <div id="project-check-summary" class="text-xs text-slate-500">Odaberi projekat i pokreni provjeru.</div>
                 <div id="project-check-panel" class="grid max-h-60 gap-1 overflow-y-auto text-xs"></div>
             </div>

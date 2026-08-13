@@ -155,13 +155,6 @@ function renderAutoOdoPlan(plan) {
             .bindTooltip(`${cabinet.confirmed_name || cabinet.name} · ${cabinet.house_count}/12`, { direction: 'top', offset: [0, -10] })
             .bindPopup(`<b>${cabinet.confirmed_name || cabinet.name}</b><br>Krak ${cabinet.branch_index}<br>${cabinet.house_count}/12 kuca<br>ODF: ${cabinet.nearest_odf_name || 'nema'}`)
             .addTo(map), 'preview');
-        const dropLines = (cabinet.drop_preview || []).map(drop => {
-            const path = drop.path?.length ? drop.path : [
-                [drop.from.lat, drop.from.lng],
-                [drop.to.lat, drop.to.lng],
-            ];
-            return trackLayer(L.polyline(path, { color, weight: 1.7, opacity: .75, dashArray: '5 7' }).addTo(map), 'drop');
-        });
         (cabinet.houses || []).forEach(house => {
             const houseMarker = houseMarkerByKey[pointKey(house.latitude, house.longitude)];
             if (houseMarker) houseMarker.setIcon(icon('house', houseIconTextByKey(pointKey(house.latitude, house.longitude)), color));
@@ -174,11 +167,11 @@ function renderAutoOdoPlan(plan) {
             odf_id: cabinet.nearest_odf_id,
             branch_id: cabinet.branch_id,
             marker,
-            dropLines,
+            dropLines: [],
             plan: cabinet,
             houseKeys: (cabinet.houses || []).map(house => pointKey(house.latitude, house.longitude)),
         });
-        suggestionLayers.push(marker, ...dropLines);
+        suggestionLayers.push(marker);
     });
 
     (plan.unassigned_houses || []).forEach(house => {
@@ -314,7 +307,7 @@ async function saveGisPlan() {
         suggestionLayers.forEach(layer => map.removeLayer(layer));
         suggestionLayers = [];
         currentGisPlan = null;
-        output.innerHTML = `<b class="text-emerald-700">GIS mreza je snimljena: ${result.created || 0} trasa, ${result.created_cabinets || 0} ODO, ${result.created_drop_routes || 0} drop trasa.</b>`;
+        output.innerHTML = `<b class="text-emerald-700">GIS mreza je snimljena: ${result.created || 0} trasa i ${result.created_cabinets || 0} ODO.</b>`;
         button.classList.add('hidden');
         refreshStats();
     } catch (error) {

@@ -234,10 +234,6 @@ class FtthIntelligenceService
         $items = [];
         $project->loadMissing(['odfs.cabinets', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
         $branchRoutes = $this->branchRoutes($project);
-        $dropHouseIds = $project->routes
-            ->where('route_type', 'drop')
-            ->where('to_type', 'house')
-            ->keyBy('to_id');
 
         if ($project->odfs->isEmpty()) {
             $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mreznog plana.');
@@ -272,9 +268,6 @@ class FtthIntelligenceService
             }
             if (! $house->cabinet_id) {
                 $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kucu ODO ormaricu.');
-            }
-            if (! $dropHouseIds->has($house->id)) {
-                $items[] = $this->validationItem('warning', "{$house->label} nema drop trasu.", 'house', $house->id, 'Nacrtaj ili automatski kreiraj drop trasu.');
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
                 $distance = $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $house->cabinet->latitude, (float) $house->cabinet->longitude);

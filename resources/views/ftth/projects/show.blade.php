@@ -92,7 +92,6 @@
     $valErrors   = $validationItems->where('level', 'error');
     $valWarnings = $validationItems->where('level', 'warning');
     $valOks      = $validationItems->where('level', 'ok');
-    $missingDropCount = $validationItems->filter(fn ($item) => str_contains($item['message'] ?? '', 'nema drop trasu'))->count();
     $validationByElement = $validationItems->whereIn('level', ['error', 'warning'])->groupBy('element_type')->map->count();
 
     $capacity   = $project->cabinets->sum(fn ($c) => $c->capacity);
@@ -204,7 +203,6 @@
                     <button type="button" class="validation-filter is-active" data-validation-filter="all">Sve {{ $valErrors->count() + $valWarnings->count() }}</button>
                     <button type="button" class="validation-filter" data-validation-filter="error">Greške {{ $valErrors->count() }}</button>
                     <button type="button" class="validation-filter" data-validation-filter="warning">Upozorenja {{ $valWarnings->count() }}</button>
-                    @if($missingDropCount)<button type="button" id="project-fill-missing-drops" class="quality-action" data-url="{{ route('projects.drop-routes.fill', $project) }}">Popuni {{ $missingDropCount }} drop trasa</button>@endif
                 </div>
             </div>
             @if($validationByElement->isNotEmpty())
