@@ -51,27 +51,10 @@ try {
 
         const loginUrl = `${baseUrl}/prijava`;
 
-        // Preuzmi CSRF token direktno iz DOM-a bez čekanja
-        const csrfToken = await page.evaluate(() => {
-            const metaTag = document.querySelector('meta[name="csrf-token"]');
-            return metaTag ? metaTag.getAttribute("content") : null;
-        });
+        // Čekaj da se svi script-ovi i meta tagovi učitaju
+        await page.waitForLoadState("networkidle");
 
-        if (!csrfToken) {
-            // Debug: ispis HTML-a kada CSRF token nije pronađen
-            const pageContent = await page.content();
-            const metaTagsContent = pageContent.match(/<meta[^>]*>/g);
-            const errorInfo = [
-                `URL: ${page.url()}`,
-                `Meta tags: ${JSON.stringify(metaTagsContent)}`,
-                `HTML preview: ${pageContent.substring(0, 1000)}`,
-            ].join("\n");
-            throw new Error(
-                `CSRF token nije pronađen na login stranici.\n${errorInfo}`,
-            );
-        }
-
-        // Čekaj da input polja budu dostupna i vidljiva
+        // Čekaj da input polja budu dostupna
         await page.waitForSelector('input[name="username"]', {
             visible: true,
             timeout: 10000,
@@ -80,6 +63,37 @@ try {
             visible: true,
             timeout: 10000,
         });
+
+        // Preuzmi CSRF token iz hidden input-a (koji je kreiran sa @csrf Blade direktijom)
+        const csrfToken = await page.evaluate(() => {
+            // Pokušaj prvo meta tag
+            let token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+            // Ako ne postoji, pokušaj hidden input
+            if (!token) {
+                token = document.querySelector('input[name="_token"]')?.value;
+            }
+            return token || null;
+        });
+
+        if (!csrfToken) {
+            // Debug: ispis HTML-a kada CSRF token nije pronađen
+            const pageContent = await page.content();
+            const metaTagsContent = pageContent.match(/<meta[^>]*>/g);
+            const inputTokens = pageContent.match(
+                /<input[^>]*name="_token"[^>]*>/g,
+            );
+            const errorInfo = [
+                `URL: ${page.url()}`,
+                `Meta tags: ${JSON.stringify(metaTagsContent)}`,
+                `Token inputs: ${JSON.stringify(inputTokens)}`,
+                `HTML preview: ${pageContent.substring(0, 1000)}`,
+            ].join("\n");
+            throw new Error(
+                `CSRF token nije pronađen na login stranici.\n${errorInfo}`,
+            );
+        }
 
         // Popuni formu
         await page.fill('input[name="username"]', username);

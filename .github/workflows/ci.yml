@@ -66,9 +66,11 @@ jobs:
       - name: Install Node dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
+      - run: npm run build
       - name: Prepare application
         run: |
           cp .env.example .env
+          echo "APP_URL=http://127.0.0.1:8000" >> .env
           touch database/database.sqlite
           php artisan key:generate
           php artisan migrate --force
@@ -90,13 +92,16 @@ jobs:
               echo "✓ Server is ready and login page is available"
               exit 0
             fi
-            echo "Response preview: ${response:0:100}"
+            if echo "$response" | grep -q "<!DOCTYPE"; then
+              echo "HTML loaded but no csrf-token yet. Preview:"
+              echo "$response" | grep -o "<meta[^>]*>" | head -5
+            fi
             sleep 2
             attempt=$((attempt + 1))
           done
           echo "✗ Server did not start in time"
           echo "--- Server logs ---"
-          cat storage/logs/ci-server.log || echo "No server log file"
+          tail -50 storage/logs/ci-server.log || echo "No server log file"
           echo "--- Process list ---"
           ps aux | grep php || echo "No php processes"
           echo "--- Last curl attempt ---"
