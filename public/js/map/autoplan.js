@@ -4,6 +4,32 @@ function suggestionOdfLabel(draftOdf, odf) {
     if (odf) return `${odf.name} (${odf.distance} m)`;
     return 'nema';
 }
+function resetPlannerReview() {
+    const wrap = document.getElementById('planner-review-wrap');
+    const checkbox = document.getElementById('planner-review-confirm');
+    wrap?.classList.add('hidden');
+    wrap?.classList.remove('flex');
+    if (checkbox) checkbox.checked = false;
+    ['save-suggestions', 'save-gis-plan'].forEach(id => {
+        const button = document.getElementById(id);
+        if (button) button.disabled = true;
+    });
+}
+function requirePlannerReview(targetButtonId) {
+    const wrap = document.getElementById('planner-review-wrap');
+    const checkbox = document.getElementById('planner-review-confirm');
+    wrap?.classList.remove('hidden');
+    wrap?.classList.add('flex');
+    if (checkbox) checkbox.checked = false;
+    const button = document.getElementById(targetButtonId);
+    if (button) button.disabled = true;
+}
+document.getElementById('planner-review-confirm')?.addEventListener('change', event => {
+    const activeButton = !document.getElementById('save-suggestions')?.classList.contains('hidden')
+        ? document.getElementById('save-suggestions')
+        : document.getElementById('save-gis-plan');
+    if (activeButton) activeButton.disabled = !event.target.checked;
+});
 function optimize(points) {
     const min = Math.max(1, Math.min(12, Number(document.getElementById('planner-min').value || 8)));
     const max = Math.max(min, Math.min(12, Number(document.getElementById('planner-max').value || 12)));
@@ -107,11 +133,14 @@ function clearSuggestions() {
     document.getElementById('cabinet-count').textContent='0';
     document.getElementById('suggestion-output').innerHTML='Nacrtaj trasu i oznaci kuće.';
     document.getElementById('save-suggestions').classList.add('hidden');
+    document.getElementById('save-gis-plan')?.classList.add('hidden');
+    resetPlannerReview();
     refreshPlanSummary();
 }
 
 async function suggest() {
     clearSuggestions();
+    resetPlannerReview();
     suggestedCabinets = [];
     currentAutoPlan = null;
     const projectId = document.getElementById('active-project-id').value;
@@ -144,6 +173,7 @@ async function suggest() {
         renderAutoOdoPlan(plan);
     } catch (error) {
         output.innerHTML = `<b class="text-red-700">${escapeHtml(error.message)}</b>`;
+        window.ftthToast?.(error.message, 'error');
     }
 }
 function renderAutoOdoPlan(plan) {
@@ -193,6 +223,7 @@ function renderAutoOdoPlan(plan) {
         ${cabinetHtml}
     `;
     document.getElementById('save-suggestions').classList.remove('hidden');
+    requirePlannerReview('save-suggestions');
 
     refreshPlanSummary();
 }
@@ -218,6 +249,7 @@ function addSavedCabinetToMap(cabinet) {
 
 async function previewGisPlan() {
     clearSuggestions();
+    resetPlannerReview();
     const projectId = document.getElementById('active-project-id').value;
     const output = document.getElementById('suggestion-output');
     if (!projectId) { output.innerHTML = '<b class="text-red-700">Odaberi projekat prije GIS plana.</b>'; return; }
@@ -230,6 +262,7 @@ async function previewGisPlan() {
         renderGisPlanPreview(plan);
     } catch (error) {
         output.innerHTML = `<b class="text-red-700">${escapeHtml(error.message)}</b>`;
+        window.ftthToast?.(error.message, 'error');
     }
 }
 
@@ -279,6 +312,7 @@ function renderGisPlanPreview(plan) {
     `;
     document.getElementById('save-suggestions').classList.add('hidden');
     document.getElementById('save-gis-plan')?.classList.remove('hidden');
+    requirePlannerReview('save-gis-plan');
     refreshPlanSummary();
 }
 
@@ -286,6 +320,7 @@ async function saveGisPlan() {
     const projectId = document.getElementById('active-project-id').value;
     const output = document.getElementById('suggestion-output');
     if (!projectId || !currentGisPlan) { output.innerHTML = '<b class="text-red-700">Prvo izracunaj GIS plan.</b>'; return; }
+    if (!document.getElementById('planner-review-confirm')?.checked) { window.ftthToast?.('Prvo potvrdi da je GIS preview stručno pregledan.', 'warning'); return; }
     const button = document.getElementById('save-gis-plan');
     button.disabled = true;
     button.textContent = 'Snimam GIS mrezu...';
@@ -308,10 +343,13 @@ async function saveGisPlan() {
         suggestionLayers = [];
         currentGisPlan = null;
         output.innerHTML = `<b class="text-emerald-700">GIS mreza je snimljena: ${result.created || 0} trasa i ${result.created_cabinets || 0} ODO.</b>`;
+        window.ftthToast?.(`GIS mreža je snimljena: ${result.created || 0} trasa i ${result.created_cabinets || 0} ODO. Pokreni provjeru projekta.`, 'success', { duration: 8000 });
         button.classList.add('hidden');
+        resetPlannerReview();
         refreshStats();
     } catch (error) {
         output.innerHTML = `<b class="text-red-700">${error.message}</b>`;
+        window.ftthToast?.(error.message, 'error');
     } finally {
         button.disabled = false;
         button.textContent = 'Snimi GIS mrezu';

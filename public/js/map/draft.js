@@ -483,6 +483,7 @@ async function saveSuggestions() {
     const output = document.getElementById('suggestion-output');
     if (!projectId) { output.innerHTML = '<b class="text-red-700">Odaberi projekat prije potvrde rasporeda.</b>'; return; }
     if (!currentAutoPlan || !suggestedCabinets.length) { output.innerHTML = '<b class="text-red-700">Nema backend plana za potvrdu.</b>'; return; }
+    if (!document.getElementById('planner-review-confirm')?.checked) { window.ftthToast?.('Prvo potvrdi da je Auto ODO preview stručno pregledan.', 'warning'); return; }
     const btn = document.getElementById('save-suggestions');
     const originalText = btn.textContent;
     btn.disabled = true;
@@ -502,9 +503,11 @@ async function saveSuggestions() {
         const result = await readJsonResponse(response, 'FTTH raspored nije snimljen.');
         if (!response.ok) throw new Error(result.message || 'FTTH raspored nije snimljen.');
         output.innerHTML = `<b class="text-emerald-700">${result.message} Povezano kuca: ${result.linked_houses}.</b>`;
+        window.ftthToast?.(`${result.message} Povezano kuća: ${result.linked_houses}. Drop trase nisu automatski kreirane.`, 'success', { duration: 8000 });
         keepSavedSuggestionsOnMap();
     } catch (error) {
         output.innerHTML = `<b class="text-red-700">Greska: ${escapeHtml(error.message)}</b>`;
+        window.ftthToast?.(error.message, 'error');
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;

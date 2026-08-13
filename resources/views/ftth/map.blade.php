@@ -1480,6 +1480,19 @@
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-3">
+                <div id="planner-context" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-[11px] leading-5 text-violet-900">
+                    <b class="block">Siguran tok: parametri → preview → pregled → potvrda</b>
+                    <span id="planner-context-project">{{ $activeProjectId ? 'Aktivan je odabrani projekat.' : 'Prvo odaberi jedan projekat.' }}</span>
+                </div>
+                <details class="planner-help rounded-lg border border-slate-200 bg-white">
+                    <summary class="cursor-pointer px-3 py-2 text-[11px] font-bold text-slate-700">Kako rade Auto ODO i GIS plan?</summary>
+                    <div class="grid gap-2 border-t border-slate-100 px-3 py-2.5 text-[10px] leading-4 text-slate-600">
+                        <p><b>Predloži FTTH</b> koristi postojeće sekundarne krakove, raspoređuje nepovezane kuće i može dopuniti postojeće ODO-e.</p>
+                        <p><b>GIS plan</b> koristi dozvoljene GIS koridore ili postojeće nedrop trase i predlaže distribucijsku mrežu.</p>
+                        <p class="rounded bg-amber-50 p-2 font-semibold text-amber-800">Ni jedna potvrda ne kreira konačne pojedinačne drop trase. Preview uvijek pregledaj na mapi.</p>
+                        <a href="{{ route('documentation') }}" target="_blank" class="font-bold text-sky-700 underline">Otvori detaljno uputstvo ↗</a>
+                    </div>
+                </details>
                 <div class="grid grid-cols-4 gap-2">
                     <div class="sb-kicker">Min<input id="planner-min" type="number" min="1" max="12" value="8" class="sb-inp mt-1"></div>
                     <div class="sb-kicker">Max<input id="planner-max" type="number" min="1" max="12" value="12" class="sb-inp mt-1"></div>
@@ -1491,8 +1504,12 @@
                     <button type="button" id="preview-gis-plan" class="sb-btn sb-btn-blue">GIS plan</button>
                 </div>
                 <div id="suggestion-output" class="max-h-52 overflow-auto rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600 leading-5">Nacrtaj trasu i oznaci kuce.</div>
-                <button type="button" id="save-gis-plan" class="hidden sb-btn sb-btn-blue">Snimi GIS mrezu</button>
-                <button type="button" id="save-suggestions" class="hidden sb-btn sb-btn-violet">Potvrdi raspored</button>
+                <label id="planner-review-wrap" class="hidden items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[10px] font-semibold leading-4 text-emerald-900">
+                    <input type="checkbox" id="planner-review-confirm" class="mt-0.5">
+                    <span>Pregledao/la sam ODO pozicije, kuće bez rute, kapacitete, upozorenja i razumijem šta će biti trajno snimljeno.</span>
+                </label>
+                <button type="button" id="save-gis-plan" class="hidden sb-btn sb-btn-blue" disabled>Snimi GIS mrezu</button>
+                <button type="button" id="save-suggestions" class="hidden sb-btn sb-btn-violet" disabled>Potvrdi raspored</button>
             </div>
         </details>
 

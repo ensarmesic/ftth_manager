@@ -31,6 +31,7 @@
         ['fiber-schema.index',  'Fiber sema',         'chip'],
         ['project-check.index', 'Provjera projekta',  'shield'],
         ['settings.index',      'Postavke',           'cog'],
+        ['documentation',       'Uputstvo',            'chip'],
     ];
     $sidebarIcons = [
         'squares' => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4zM10 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1V4zM2 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zM10 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1v-6z"/></svg>',
@@ -114,6 +115,11 @@
                     <span class="hidden lg:inline">Pretraži</span>
                     <kbd class="hidden lg:inline rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-400 shadow-sm">Ctrl K</kbd>
                 </button>
+
+                <a href="{{ route('documentation') }}" title="Korisničko uputstvo" aria-label="Otvori korisničko uputstvo"
+                    class="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-sky-50 hover:text-sky-700">
+                    <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path d="M4 3a2 2 0 012-2h8a2 2 0 012 2v14a1 1 0 01-1.447.894L10 16.618l-2.553 1.276A1 1 0 016 17V5a2 2 0 00-2-2z"/><path d="M3 5a1 1 0 011-1h1v12H4a1 1 0 01-1-1V5z"/></svg>
+                </a>
 
                 {{-- Fullscreen --}}
                 <button type="button" data-header-action="fullscreen" title="Cijeli ekran" aria-label="Uključi cijeli ekran"
@@ -206,14 +212,47 @@
         </div>
     </div>
 </div>
+<div id="ftth-toast-region" class="ftth-toast-region" role="status" aria-live="polite" aria-atomic="false"></div>
 <script>
 const ftthMenuItems = [
     ['Pregled', @json(route('dashboard'))], ['Projekti', @json(route('projects.index'))], ['Mapa', @json(route('map.dashboard'))],
     ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarići', @json(route('cabinets.index'))], ['Kuće', @json(route('houses.index'))],
     ['Trase', @json(route('routes.index'))], ['Krakovi', @json(route('branches.index'))], ['Izvještaji', @json(route('reports.index'))],
     ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
-    ['Postavke', @json(route('settings.index'))],
+    ['Postavke', @json(route('settings.index'))], ['Korisničko uputstvo', @json(route('documentation'))],
+    ['Geodetski TXT standard', @json(route('documentation', ['document' => 'geodetski-txt']))],
 ];
+window.ftthToast = function(message, type = 'info', options = {}) {
+    const region = document.getElementById('ftth-toast-region');
+    if (!region || !message) return;
+    const toast = document.createElement('div');
+    const labels = { success: 'Uspješno', error: 'Greška', warning: 'Upozorenje', info: 'Informacija' };
+    toast.className = `ftth-toast ftth-toast-${type}`;
+    toast.innerHTML = `<span class="ftth-toast-dot" aria-hidden="true"></span><div><b>${labels[type] || labels.info}</b><p></p></div><button type="button" aria-label="Zatvori obavijest">×</button>`;
+    toast.querySelector('p').textContent = String(message);
+    const close = () => { toast.classList.add('is-leaving'); setTimeout(() => toast.remove(), 180); };
+    toast.querySelector('button').addEventListener('click', close);
+    region.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('is-visible'));
+    setTimeout(close, Number(options.duration || (type === 'error' ? 8000 : 5000)));
+};
+window.ftthNativeAlert = window.alert.bind(window);
+window.alert = message => window.ftthToast(String(message), 'warning', { duration: 8000 });
+window.ftthSetBusy = function(button, busy, label = 'Obrađujem…') {
+    if (!button) return;
+    if (busy) {
+        button.dataset.ftthOriginalLabel = button.textContent;
+        button.disabled = true;
+        button.classList.add('is-busy');
+        button.textContent = label;
+        button.setAttribute('aria-busy', 'true');
+    } else {
+        button.disabled = false;
+        button.classList.remove('is-busy');
+        button.textContent = button.dataset.ftthOriginalLabel || button.textContent;
+        button.removeAttribute('aria-busy');
+    }
+};
 function closeHeaderMenus(except = '') {
     ['notification-menu', 'profile-menu'].forEach(id => {
         if (id === except) return;
@@ -292,8 +331,21 @@ document.querySelector('[data-delete-modal-action="cancel"]')?.addEventListener(
 document.querySelector('[data-delete-modal-action="confirm"]')?.addEventListener('click', () => {
     const form = pendingDeleteForm; pendingDeleteForm = null;
     document.getElementById('delete-confirmation-modal')?.classList.add('hidden');
+    const button = form?.querySelector('button[type="submit"]');
+    window.ftthSetBusy(button, true, 'Brišem…');
     form?.submit();
 });
+document.addEventListener('submit', event => {
+    if (event.defaultPrevented || event.target.matches('[data-confirm-delete]')) return;
+    const button = event.submitter || event.target.querySelector('button[type="submit"]');
+    window.ftthSetBusy(button, true, button?.dataset.loadingLabel || 'Čuvam…');
+});
+@if (session('success'))
+window.addEventListener('DOMContentLoaded', () => window.ftthToast(@json(session('success')), 'success'));
+@endif
+@if ($errors->any())
+window.addEventListener('DOMContentLoaded', () => window.ftthToast(@json($errors->first()), 'error'));
+@endif
 // Drawer slide-over
 let activeDrawerTrigger = null;
 function closeDrawer(drawer, restoreFocus = true) {

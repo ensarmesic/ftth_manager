@@ -1,6 +1,8 @@
 @php
     $title = $title ?? 'Nema podataka';
     $message = $message ?? 'Dodaj prvi zapis kroz formu ili mapu.';
+    $actionUrl = $actionUrl ?? route('map.dashboard');
+    $actionLabel = $actionLabel ?? 'Otvori mapu';
 @endphp
 <div class="empty-state-wrap">
     <div class="empty-state-ico">
@@ -10,4 +12,8 @@
     </div>
     <p class="empty-state-ttl">{{ $title }}</p>
     <p class="empty-state-msg">{{ $message }}</p>
+    <div class="empty-state-actions">
+        <a href="{{ $actionUrl }}" class="empty-state-primary">{{ $actionLabel }}</a>
+        <a href="{{ route('documentation') }}" class="empty-state-help">Pogledaj uputstvo</a>
+    </div>
 </div>

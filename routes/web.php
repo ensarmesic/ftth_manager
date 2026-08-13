@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\DropRouteMaintenanceController;
 use App\Http\Controllers\GisController;
 use App\Http\Controllers\HouseController;
@@ -32,6 +33,7 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware('auth')->group(function (): void {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/uputstvo/{document?}', DocumentationController::class)->name('documentation');
     Route::get('/mapa', [MapController::class, 'map'])->name('map.dashboard');
     Route::redirect('/mapa/editor', '/mapa')->name('map.index');
     Route::post('/mapa/plan', [MapController::class, 'storePlan'])->name('map.plan.store');
