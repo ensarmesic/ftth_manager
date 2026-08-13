@@ -84,10 +84,13 @@ jobs:
           attempt=1
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt/$max_attempts: Checking server..."
-            if curl -s http://127.0.0.1:8000/prijava > /dev/null 2>&1; then
-              echo "✓ Server is ready"
+            # Čekaj da server odgovori sa HTML-om (ne samo HTTP zahtjevom)
+            response=$(curl -s http://127.0.0.1:8000/prijava 2>&1)
+            if echo "$response" | grep -q "csrf-token"; then
+              echo "✓ Server is ready and login page is available"
               exit 0
             fi
+            echo "Response preview: ${response:0:100}"
             sleep 2
             attempt=$((attempt + 1))
           done
@@ -96,6 +99,8 @@ jobs:
           cat storage/logs/ci-server.log || echo "No server log file"
           echo "--- Process list ---"
           ps aux | grep php || echo "No php processes"
+          echo "--- Last curl attempt ---"
+          curl -v http://127.0.0.1:8000/prijava || echo "Curl failed"
           exit 1
       - run: npm run test:e2e
       - name: Upload diagnostics

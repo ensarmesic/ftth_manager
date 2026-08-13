@@ -58,7 +58,17 @@ try {
         });
 
         if (!csrfToken) {
-            throw new Error("CSRF token nije pronađen na login stranici");
+            // Debug: ispis HTML-a kada CSRF token nije pronađen
+            const pageContent = await page.content();
+            const metaTagsContent = pageContent.match(/<meta[^>]*>/g);
+            const errorInfo = [
+                `URL: ${page.url()}`,
+                `Meta tags: ${JSON.stringify(metaTagsContent)}`,
+                `HTML preview: ${pageContent.substring(0, 1000)}`,
+            ].join("\n");
+            throw new Error(
+                `CSRF token nije pronađen na login stranici.\n${errorInfo}`,
+            );
         }
 
         // Pošalji login POST request koristeći page.request
