@@ -119,6 +119,10 @@ Za produkciju postavi `APP_ENV=production`, `APP_DEBUG=false`, ispravan `APP_URL
 
 ## Korištenje
 
+Detaljan standard za terensko snimanje koordinata, oznake elemenata, pripremu
+TXT fajla i kontrolu uvoza nalazi se u
+[uputstvu za geodetski TXT](docs/UPUTSTVO-ZA-GEODETSKI-TXT-FTTH.txt).
+
 ### Glavne stranice
 
 - **Pregled** (`/`) - Dashboard sa statistikom po projektu

@@ -317,10 +317,141 @@ Za svaku Kuca ili Slinga tacku program:
 Zato su tacne tacke rova, odvajanja i ZO vaznije od vizuelno pribliznog crteza.
 
 
-15. KONTROLNA LISTA PRIJE UVOZA
+15. PODESAVANJE INSTRUMENTA I KOORDINATNI SISTEM
+------------------------------------------------
+
+Prije izlaska na teren geodeta mora provjeriti postavke projekta na GNSS
+prijemniku ili totalnoj stanici:
+
+- horizontalni sistem: MGI / Bessel 1841, Gauss-Kruger;
+- koristiti odgovarajucu zonu 5, 6 ili 7;
+- X/Easting mora sadrzavati prefiks zone i imati sedam cifara prije decimale,
+  npr. 6539571.139 za zonu 6;
+- Y/Northing mora imati sedam cifara prije decimale, npr. 4926643.158;
+- Z je nadmorska visina u metrima;
+- jedinica za X, Y i Z je metar;
+- u izvoz ne stavljati WGS84 latitude/longitude vrijednosti kao 44.x i 18.x.
+
+Aplikacija prepoznaje zonu iz prve cifre X koordinate. Zamijenjeni X i Y,
+izostavljen prefiks zone ili WGS84 koordinate dovode tacku na pogresno mjesto.
+Prije kompletnog snimanja napraviti probnu kontrolnu tacku poznate lokacije i
+potvrditi njen polozaj na mapi.
+
+
+16. KAKO SNIMATI NA TERENU
+--------------------------
+
+Za svaku tacku sacekati stabilno/fiksno rjesenje instrumenta i sacuvati
+procijenjenu horizontalnu i vertikalnu tacnost u terenskom zapisniku. Ako je
+rjesenje nestabilno, tacku ponoviti umjesto da se losa koordinata preda kao
+konacna.
+
+Obavezno fizicki snimiti:
+
+- pocetak i kraj svakog rova;
+- svaku promjenu pravca rova;
+- tacku najmanje svakih 20 m i cesce u krivinama;
+- svako grananje, spajanje i odvajanje cijevi;
+- ulaz i izlaz cijevi kod ODF-a i svakog ZO ormara;
+- stvarni centar/polozaj ODF-a, ZO-a, sahta, spojnice, busenja i stuba;
+- stvarnu lokaciju kuce ili slinge, a ne najblizu tacku na cesti;
+- mjesto na kojem se mijenja broj, boja ili dimenzija mikrocijevi;
+- obje strane prepreke ili busenja kada se njihova duzina treba obracunati.
+
+Na istoj fizickoj tacki grananja krakovi moraju imati potpuno isti X/Y ili novo
+mjerenje dovoljno blizu stvarnom cvoru. Ne izmisljati koordinatu i ne spajati
+krakove samo zato sto na ekranu izgledaju blizu. Fotografija i terenska biljeska
+trebaju jasno pokazati oznaku objekta i smjer nastavka trase.
+
+
+17. REDOSLIJED SNIMANJA TRASE I KRAKOVA
+---------------------------------------
+
+Jedan kontinuirani hod snimati redom od tacke do tacke. Kada je krak zavrsen:
+
+1. zavrsiti ga na stvarnoj krajnjoj Kuca/Slinga/ZO tacki;
+2. vratiti se na fizicku tacku grananja;
+3. za novi krak upisati novi BROJ, ali zadrzati isti izmjereni X/Y grananja;
+4. nastaviti redom prema kraju novog kraka;
+5. u opisima odmah prikazati novi broj cijevi nakon odvajanja.
+
+Veliki skok u nizu program tretira kao prekid hoda. Nemojte izmedju dvije tacke
+iste dionice ubacivati tacku udaljenog kraka. Ako se radi vise dana ili sa vise
+ekipa, dogovoriti jedinstveni raspon BROJ-eva i identicne ODF/ZO oznake kako ne
+bi nastali duplikati.
+
+
+18. PRIPREMA I IZVOZ TXT FAJLA
+------------------------------
+
+Fajl mora biti obicni tekst sa nastavkom .txt i najvise 10 MB. Preporuceni
+encoding je UTF-8. Svaki zapis treba biti u zasebnom redu, a polja se razdvajaju
+jednim ili vise razmaka ili TAB znakom:
+
+BROJ X Y Z OPIS
+
+Parser prihvata:
+
+- BROJ od 1 do 5 cifara;
+- X i Y kao sedmocifrene Gauss-Kruger vrijednosti sa do 3 decimale;
+- Z od -9999 do 9999 sa do 3 decimale;
+- vise razmaka/TAB-ova i navodnike koje je instrument dodao oko opisa;
+- zapise koje je instrument slucajno spojio u isti red, ako svaki novi zapis
+  ponovo pocinje pravilnim BROJ X Y Z nizom.
+
+Ipak, za citljivost uvijek izvesti jednu tacku po redu, bez zaglavlja, kolona,
+zareza, tacka-zareza ili dodatnih brojeva prije BROJ polja. Naziv fajla neka
+opisuje projekat, podrucje i datum, npr. RAINCI-ZO-03-KRAK-A-2026-08-13.txt.
+Originalni izvoz instrumenta sacuvati odvojeno; za uvoz praviti provjerenu
+kopiju.
+
+
+19. PREVIEW, UVOZ I KONTROLA U APLIKACIJI
+-----------------------------------------
+
+1. Otvoriti ispravan projekat i napraviti projektnu snimku/backup.
+2. Na mapi otvoriti panel za geodetski TXT i odabrati fajl.
+3. Prvo pregledati preview: broj tacaka, rovova, cijevi, ODF/ZO objekata,
+   kuca/slingi, upozorenja i nepovezane korisnicke rute.
+4. Na mapi provjeriti najmanje pocetak, kraj, sva grananja, svaki ZO i nekoliko
+   poznatih kontrolnih tacaka.
+5. Ne potvrditi uvoz ako postoje dupli BROJ-evi, korisnicke tacke bez ZO oznake,
+   nedostizan ZO, nepoznate boje ili neocekivani dugi segmenti.
+6. Ispraviti izvorni TXT i ponoviti preview; upozorenje se ne popravlja rucnim
+   pomjeranjem pogresno uvezene trase.
+7. Tek kada preview odgovara stvarnom stanju kliknuti "Uvezi u projekat".
+8. Nakon uvoza otvoriti provjeru projekta i pregledati duzine/materijale.
+
+Aplikacija automatski pravi snapshot prije potvrdenog TXT uvoza. Panel pamti
+uvezeni fajl kao zaseban batch, pa se pogresan batch moze ukloniti. Opciju
+"Obrisi SVE TXT uvoze" koristiti samo kada je namjerno potrebno ukloniti sve
+geodetski uvezene podatke projekta.
+
+
+20. NAJCESCE GRESKE I NJIHOVE POSLJEDICE
+----------------------------------------
+
+- X i Y zamijenjeni: tacka se ne prikazuje na stvarnoj lokaciji.
+- WGS84 44.x/18.x umjesto Gauss-Krugera: red se ne moze pravilno uvesti.
+- Decimalni zarez: broj se prekida i zapis moze biti odbacen/pogresno procitan.
+- Dupli BROJ: preview blokira pouzdanu identifikaciju i azuriranje tacke.
+- Pogresan ili izostavljen -ZO-[BROJ]: korisnicka ruta ne zna svoj ormar.
+- Kuca oznacena kao Slinga: aplikacija pravi pogresnu vrstu zavrsne tacke.
+- Preskocena tacka grananja: program moze vidjeti dvije nepovezane trase.
+- Broj cijevi nije smanjen nakon odvajanja: materijal i topologija su netacni.
+- Razmak veci od 20 m na krivini: nacrtana duzina i polozaj rova odstupaju.
+- Razliciti nazivi istog ODF-a/ZO-a: mogu nastati dupli ili nepovezani objekti.
+- Opis ne odgovara stvarnom stanju: koordinata moze biti tacna, ali mreza,
+  kapacitet i izvjestaji ostaju pogresni.
+
+
+21. KONTROLNA LISTA PRIJE UVOZA
 -------------------------------
 
 [ ] Fajl ima nastavak .txt.
+[ ] Instrument je podesen na MGI/Bessel Gauss-Kruger zonu 5, 6 ili 7.
+[ ] Kontrolna tacka je provjerena na poznatoj lokaciji.
+[ ] X ima prefiks zone; vrijednosti nisu WGS84 latitude/longitude.
 [ ] Svaki red je u formatu BROJ X Y Z OPIS.
 [ ] Svi brojevi tacaka su jedinstveni.
 [ ] Decimalni separator je tacka.
@@ -338,9 +469,12 @@ Zato su tacne tacke rova, odvajanja i ZO vaznije od vizuelno pribliznog crteza.
 [ ] Nema slucajnih velikih skokova unutar iste trase.
 [ ] Nema redoslijeda koji ide pored ZO, zatim dole, pa se vraca gore.
 [ ] Kuca i Slinga imaju tacnu koordinatu fizickog objekta.
+[ ] Snimljeni su svi lomovi, grananja i promjene sastava cijevi.
+[ ] Preview nema blokirajuce greske ni neocekivane duge/nepovezane segmente.
+[ ] Originalni fajl instrumenta i provjerena uvozna kopija su sacuvani.
 
 
-16. MINIMALNI TEMPLATE ZA NOVI KORISNICKI FAJL
+22. MINIMALNI TEMPLATE ZA NOVI KORISNICKI FAJL
 ----------------------------------------------
 
 1 6539000.000 4926000.000 250.000 Rov + mc 10/8 Crvena x2 -ZO-1
