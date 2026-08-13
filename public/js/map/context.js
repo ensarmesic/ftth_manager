@@ -524,7 +524,11 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
                         headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     });
                     if (res.ok) {
-                        entry.allLayers.forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+                        if (entry.kind === 'route') {
+                            removeRouteFromMap(entry.id);
+                        } else {
+                            entry.allLayers.forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+                        }
                         ok++;
                     } else {
                         fail++;
