@@ -71,22 +71,29 @@ try {
             );
         }
 
-        // Pošalji login POST request koristeći page.request
-        const loginResponse = await page.request.post(loginUrl, {
-            data: {
-                username: username,
-                password: password,
-                _token: csrfToken,
-            },
+        // Čekaj da input polja budu dostupna i vidljiva
+        await page.waitForSelector('input[name="username"]', {
+            visible: true,
+            timeout: 10000,
+        });
+        await page.waitForSelector('input[name="password"]', {
+            visible: true,
+            timeout: 10000,
         });
 
-        if (!loginResponse.ok()) {
-            throw new Error(
-                `Login POST zahtjev nije uspio (status: ${loginResponse.status()})`,
-            );
-        }
+        // Popuni formu
+        await page.fill('input[name="username"]', username);
+        await page.fill('input[name="password"]', password);
 
-        // Čekaj da se preusmjeri i onda idi na mapu
+        // Klikom na submit, Playwright automatski čuva cookies
+        await Promise.all([
+            page.waitForURL((url) => !url.pathname.includes("/prijava"), {
+                timeout: 15000,
+            }),
+            page.click('button[type="submit"]'),
+        ]);
+
+        // Idi na mapu - cookies će biti automatski uključeni
         await page.goto(target, {
             waitUntil: "domcontentloaded",
             timeout: 30000,
