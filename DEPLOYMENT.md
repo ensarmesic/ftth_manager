@@ -17,6 +17,7 @@ Detaljne instrukcije za deployment FTTH Manager-a na produkcijski server.
 ### 1. Server Setup
 
 #### Zahtjevi na serveru
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
@@ -93,6 +94,7 @@ server {
 ```
 
 Enable Nginx site:
+
 ```bash
 sudo ln -s /etc/nginx/sites-available/ftth-manager /etc/nginx/sites-enabled/
 sudo nginx -t
@@ -130,6 +132,7 @@ sudo nano .env.production  # Edit with production values
 ```
 
 Production `.env.production` example:
+
 ```env
 APP_NAME="FTTH Manager"
 APP_ENV=production
@@ -240,6 +243,7 @@ WantedBy=multi-user.target
 ```
 
 Enable service:
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable ftth-queue-worker
@@ -280,6 +284,7 @@ find $BACKUP_DIR -name "database_*.sqlite.gz" -mtime +7 -delete
 ```
 
 Add to crontab:
+
 ```bash
 # Daily backup at 3 AM
 0 3 * * * /usr/local/bin/backup-ftth.sh
@@ -382,6 +387,7 @@ sudo systemctl restart ftth-queue-worker
 ## Troubleshooting
 
 ### 500 Internal Server Error
+
 ```bash
 # Check error logs
 tail -50 /var/www/ftth_manager/storage/logs/laravel.log
@@ -389,6 +395,7 @@ tail -50 /var/log/nginx/ftth_manager-error.log
 ```
 
 ### Database locked (SQLite)
+
 ```bash
 # Check for locks
 lsof | grep production.sqlite
@@ -401,6 +408,7 @@ cp /var/backups/database_backup.sqlite database/production.sqlite
 ```
 
 ### File permissions issue
+
 ```bash
 sudo chown -R www-data:www-data /var/www/ftth_manager
 sudo chmod -R 755 /var/www/ftth_manager
@@ -408,6 +416,7 @@ sudo chmod -R 775 /var/www/ftth_manager/storage
 ```
 
 ### Out of memory
+
 ```bash
 # Check PHP-FPM memory limit in /etc/php/8.4/fpm/php.ini
 memory_limit = 256M  # Increase if needed
@@ -428,6 +437,7 @@ cp /var/backups/database_<timestamp>.sqlite database/production.sqlite
 ## Support
 
 For issues, check:
+
 - `/var/www/ftth_manager/storage/logs/laravel.log`
 - `/var/log/nginx/ftth_manager-error.log`
 - `/var/log/php8.4-fpm.log` (if using PHP-FPM)
