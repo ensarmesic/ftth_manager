@@ -2,6 +2,9 @@
 function setMode(next) {
     if (routeEdit && next !== 'pan') cancelRouteEdit();
     if (mode === 'ruler' && next !== 'ruler') clearRuler();
+    if (mode === 'draw' && activeBranch.length) {
+        cancelActiveDrawing();
+    }
     mode = next;
     if (next !== 'connect') connectOdf = null;
     if (next !== 'connect-houses') resetHouseConnect();
@@ -151,6 +154,8 @@ function draftCabinetName(index) {
     return `FTTH 1-1-${base + index + 1}`;
 }
 function cancelActiveDrawing() {
+    drawingSessionId++;
+    osmRoutingLoading = false;
     quickBranchWorkflow = false;
     activeBranchMarkers.forEach(marker => map.removeLayer(marker));
     if (activeBranchLine) map.removeLayer(activeBranchLine);
@@ -161,6 +166,8 @@ function cancelActiveDrawing() {
     activeBranchMarkers = [];
     activeBranchLine = null;
     previewBranchLine = null;
+    undoStack.length = 0;
+    redoStack.length = 0;
     refreshStats();
     updateCommandBar();
 }
@@ -262,6 +269,7 @@ async function fetchGisRoute(from, to) {
 
 async function addDrawPoint(latlng) {
     if (osmRoutingLoading) return;
+    const sessionId = drawingSessionId;
     if (previewBranchLine) map.removeLayer(previewBranchLine);
     previewBranchLine = null;
     const orthoPoint = applyOrthoPoint(latlng);
@@ -280,6 +288,9 @@ async function addDrawPoint(latlng) {
             intermediates = coords.slice(1, -1).map(c => L.latLng(c[1], c[0]));
         } catch (e) {
             // fallback to straight line
+        }
+        if (sessionId !== drawingSessionId || mode !== 'draw') {
+            return;
         }
         osmRoutingLoading = false;
         updateCommandBar();

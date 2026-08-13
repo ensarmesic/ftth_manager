@@ -16,6 +16,7 @@ let quickBranchWorkflow = false;
 let activeBranchMarkers = [];
 let activeBranchLine = null;
 let previewBranchLine = null;
+let drawingSessionId = 0;
 let traceBranchStart = null;
 let traceBranchStartSnap = null;
 let traceBranchPreviewLine = null;
