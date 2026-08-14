@@ -10,7 +10,7 @@ data.routes.forEach(route => {
     // Keep exact surveyed geometry for calculations/editing, while overlapping drops
     // receive a very small parallel display lane inside the trench corridor.
     const displayPoints = route.type !== 'trench'
-        ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0)
+        ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0, route._visualSharedMask)
         : points;
     const occupancy = route.occupancy || {};
     const baseStyle = routeLineStyle(route.type, routeLineColor(route));
