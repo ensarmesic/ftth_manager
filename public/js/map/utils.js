@@ -423,8 +423,8 @@ function applyRouteLabelLanes(routes) {
 
 // Visually fan overlapping saved ducts into parallel lanes. Database geometry remains on
 // the surveyed trench axis; only Leaflet display/hit layers use these offset points.
-const ROUTE_VISUAL_MAX_SPREAD_METERS = 1.6;
-const ROUTE_VISUAL_GAP_METERS = 0.18;
+const ROUTE_VISUAL_MAX_SPREAD_METERS = 0.8;
+const ROUTE_VISUAL_GAP_METERS = 0.08;
 const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 0.75;
 function routePathsOverlapForDisplay(first, second) {
     if (!first.path?.length || !second.path?.length) return false;
