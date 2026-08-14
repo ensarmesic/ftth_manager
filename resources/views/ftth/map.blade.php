@@ -616,8 +616,36 @@
 <script src="{{ asset('js/map/interactions.js') }}?v={{ filemtime(public_path('js/map/interactions.js')) }}"></script>
 <script src="{{ asset('js/map/exports.js') }}?v={{ filemtime(public_path('js/map/exports.js')) }}"></script>
 <script src="{{ asset('js/map/controls.js') }}?v={{ filemtime(public_path('js/map/controls.js')) }}"></script>
+@if($mapDataUrl)
+<script>
+    (async () => {
+        const command = document.getElementById('cad-command');
+        const loadScript = source => new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = source;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`Skripta nije učitana: ${source}`));
+            document.head.appendChild(script);
+        });
+        try {
+            if (command) command.textContent = 'Učitavam podatke aktivnog projekta...';
+            const response = await fetch(window.ftthMapConfig.dataUrl, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const payload = await readJsonResponse(response, 'Podaci projekta nisu učitani.');
+            Object.assign(window.ftthMapConfig.data, payload);
+            await loadScript(@json(asset('js/map/hydrate.js').'?v='.filemtime(public_path('js/map/hydrate.js'))));
+            await loadScript(@json(asset('js/map/init.js').'?v='.filemtime(public_path('js/map/init.js'))));
+        } catch (error) {
+            if (command) command.textContent = error.message;
+            recoverableRequestError(error, () => window.location.reload());
+        }
+    })();
+</script>
+@else
 <script src="{{ asset('js/map/hydrate.js') }}?v={{ filemtime(public_path('js/map/hydrate.js')) }}"></script>
 <script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>
+@endif
 <script>
     (() => {
         const dock = document.querySelector('.map-vertical-tools');

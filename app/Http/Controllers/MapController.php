@@ -4,15 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Cabinet;
-use App\Models\GisRestrictedArea;
-use App\Models\GisSegment;
 use App\Models\House;
 use App\Models\MapDraft;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
+use App\Services\MapDataService;
 use App\Services\RouteGraphService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -22,211 +22,34 @@ class MapController extends Controller
 {
     use ManagesFtthData;
 
-    public function map(Request $request): View
+    public function map(Request $request, MapDataService $mapDataService): View
     {
         $requestedProjectId = (int) $request->input('project');
         $projectId = $requestedProjectId > 0 && Project::whereKey($requestedProjectId)->exists()
             ? $requestedProjectId
             : 0;
-        $scope = $projectId > 0;
-
-        $allOdfs = Odf::with('project')
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->get();
-        $odfs = $allOdfs->filter(fn ($o) => $o->latitude !== null && $o->longitude !== null)->values();
-
-        $allCabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])
-            ->withCount(['houses'])
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->get();
-        $cabinets = $allCabinets->filter(fn ($c) => $c->latitude !== null && $c->longitude !== null)->values();
-
-        $routes = NetworkRoute::with(['project', 'odf', 'cabinet', 'fromCabinet'])
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->where(function ($query) {
-                $query->whereNotNull('path')
-                    ->orWhere(function ($linkedQuery) {
-                        $linkedQuery
-                            ->whereHas('odf', fn ($odfQuery) => $odfQuery->whereNotNull('latitude')->whereNotNull('longitude'))
-                            ->whereHas('cabinet', fn ($cabinetQuery) => $cabinetQuery->whereNotNull('latitude')->whereNotNull('longitude'));
-                    });
-            })
-            ->get();
-
-        $housesPerCabinet = House::whereNotNull('cabinet_id')
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->selectRaw('cabinet_id, count(*) as cnt')
-            ->groupBy('cabinet_id')
-            ->pluck('cnt', 'cabinet_id')
-            ->all();
-
-        $houses = House::with(['project', 'cabinet'])
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->get();
-
-        $appendixItems = ProjectAppendixItem::with('project')
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->get();
-
-        $gisSegments = GisSegment::with('project')
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->where('is_allowed', true)
-            ->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])
-            ->get();
-
-        $gisRestrictedAreas = GisRestrictedArea::with('project')
-            ->when($scope, fn ($q) => $q->where('project_id', $projectId))
-            ->where('area_type', 'restricted')
-            ->get();
-
-        $allProjects = Project::orderBy('name')->get();
+        $context = $projectId > 0 ? null : $mapDataService->build(null);
+        $selectors = $projectId > 0 ? $mapDataService->selectors($projectId) : null;
 
         return view('ftth.map', [
-            'projects' => $allProjects,
+            'projects' => Project::orderBy('name')->get(),
             'activeProjectId' => $projectId ?: null,
-            'odfsForSelect' => $allOdfs->sortBy('name')->values(),
-            'cabinetsForSelect' => $allCabinets->sortBy('name')->values(),
-            'odfs' => $odfs,
-            'cabinets' => $cabinets,
-            'houses' => $houses,
-            'routes' => $routes,
-            'appendixItems' => $appendixItems,
-            'mapData' => [
-                'drafts' => MapDraft::with('project')->when($scope, fn ($q) => $q->where('project_id', $projectId))->latest()->get()->map(fn (MapDraft $draft) => [
-                    'project_id' => $draft->project_id,
-                    'project' => $draft->project->name,
-                    'payload' => $draft->payload,
-                    'updated_at' => $draft->updated_at?->format('Y-m-d H:i'),
-                ]),
-                'odfs' => $odfs->map(fn (Odf $odf) => [
-                    'id' => $odf->id,
-                    'project_id' => $odf->project_id,
-                    'name' => $odf->name,
-                    'project' => $odf->project->name,
-                    'address' => $odf->address,
-                    'fiber_capacity' => $odf->fiber_capacity,
-                    'port_count' => $odf->port_count,
-                    'lat' => (float) $odf->latitude,
-                    'lng' => (float) $odf->longitude,
-                ]),
-                'cabinets' => $cabinets->map(fn (Cabinet $cabinet) => [
-                    'id' => $cabinet->id,
-                    'project_id' => $cabinet->project_id,
-                    'name' => $cabinet->name,
-                    'project' => $cabinet->project->name,
-                    'odf_id' => $cabinet->odf_id,
-                    'parent_cabinet_id' => $cabinet->parent_cabinet_id,
-                    'branch_id' => $cabinet->branch_id,
-                    'branch_name' => $cabinet->branch?->name,
-                    'branch_code' => $cabinet->branch?->code,
-                    'odf' => $cabinet->odf->name ?? 'Nije povezano',
-                    'parent_cabinet' => $cabinet->parentCabinet?->name,
-                    'fed_from' => $cabinet->parentCabinet?->name ?? ($cabinet->odf->name ?? 'Nije povezano'),
-                    'address' => $cabinet->address,
-                    'splitter_count' => $cabinet->splitter_count,
-                    'ports_per_splitter' => $cabinet->ports_per_splitter,
-                    'capacity' => $cabinet->capacity,
-                    'used_ports' => $cabinet->houses_count,
-                    'free_ports' => max($cabinet->capacity - $cabinet->houses_count, 0),
-                    'utilization' => (int) round($cabinet->houses_count / max($cabinet->capacity, 1) * 100),
-                    'lat' => (float) $cabinet->latitude,
-                    'lng' => (float) $cabinet->longitude,
-                ]),
-                'houses' => $houses->map(fn (House $house) => [
-                    'id' => $house->id,
-                    'project_id' => $house->project_id,
-                    'label' => $house->label,
-                    'project' => $house->project->name,
-                    'cabinet' => $house->cabinet->name ?? 'Nije dodijeljeno',
-                    'cabinet_id' => $house->cabinet_id,
-                    'address' => $house->address,
-                    'status' => $house->status,
-                    // TXT origin alone does not make a point a sling: ordinary "Kuca"
-                    // readings stay K. Only an explicit Sling/Slinga description is Š.
-                    'is_sling' => (bool) preg_match('/\b[sš]linga?\b/iu', (string) $house->address),
-                    'lat' => (float) $house->latitude,
-                    'lng' => (float) $house->longitude,
-                ]),
-                'routes' => $routes->map(fn (NetworkRoute $route) => [
-                    'id' => $route->id,
-                    'name' => $route->name,
-                    'project' => $route->project->name,
-                    'type' => $route->route_type,
-                    'installation_type' => $route->installation_type,
-                    'trench_group' => $route->trench_group,
-                    'counts_as_trench' => (bool) $route->counts_as_trench,
-                    'trench_length_m' => $route->trench_length_m,
-                    'microduct_type' => $route->microduct_type,
-                    'fiber_count' => $route->fiber_count,
-                    'duct_length_m' => $route->duct_length_m,
-                    'fiber_length_m' => $route->fiber_length_m,
-                    'from' => $this->routeStartLabel($route),
-                    'to' => $route->cabinet?->name ?? '-',
-                    'length' => $route->duct_length_m,
-                    'microduct' => $route->microduct_type,
-                    'fibers' => $route->fiber_count,
-                    'odf_id' => $route->odf_id,
-                    'cabinet_id' => $route->cabinet_id,
-                    'from_type' => $route->from_type,
-                    'from_id' => $route->from_id,
-                    'to_type' => $route->to_type,
-                    'to_id' => $route->to_id,
-                    'project_id' => $route->project_id,
-                    'microduct_count' => $route->microduct_count ?? 0,
-                    'occupancy' => $this->projectMaterials->routeOccupancy($route, $housesPerCabinet),
-                    'status' => $route->status,
-                    'note' => $route->note,
-                    'path' => $route->path ?: ($route->odf && $route->cabinet ? [
-                        [(float) $route->odf->latitude, (float) $route->odf->longitude],
-                        [(float) $route->cabinet->latitude, (float) $route->cabinet->longitude],
-                    ] : []),
-                ]),
-                'gis_segments' => $gisSegments->map(fn (GisSegment $segment) => [
-                    'id' => $segment->id,
-                    'project_id' => $segment->project_id,
-                    'project' => $segment->project->name,
-                    'name' => $segment->name,
-                    'source' => $segment->source,
-                    'segment_type' => $segment->segment_type,
-                    'length_m' => $segment->length_m,
-                    'path' => $segment->path,
-                ]),
-                'gis_restricted_areas' => $gisRestrictedAreas->map(fn (GisRestrictedArea $area) => [
-                    'id' => $area->id,
-                    'project_id' => $area->project_id,
-                    'project' => $area->project->name,
-                    'name' => $area->name,
-                    'source' => $area->source,
-                    'area_type' => $area->area_type,
-                    'polygon' => $area->polygon,
-                ]),
-                'appendix_items' => $appendixItems->map(fn (ProjectAppendixItem $item) => [
-                    'id' => $item->id,
-                    'project_id' => $item->project_id,
-                    'project' => $item->project->name,
-                    'type' => $item->type,
-                    'label' => match ($item->type) {
-                        'manhole' => 'Saht',
-                        'boring_fi_130' => 'FI 130',
-                        'splice' => 'Spojnica',
-                        'loop' => 'Rezerva',
-                        default => $item->type,
-                    },
-                    'quantity' => (float) $item->quantity,
-                    'unit' => $item->unit,
-                    'note' => $item->note,
-                    'lat' => (float) $item->latitude,
-                    'lng' => (float) $item->longitude,
-                    'length_m' => $item->length_m === null ? null : (float) $item->length_m,
-                    'angle_deg' => $item->angle_deg === null ? null : (float) $item->angle_deg,
-                    'width_m' => $item->width_m === null ? null : (float) $item->width_m,
-                ]),
-            ],
+            'odfsForSelect' => $selectors['odfs'] ?? $context['odfs_for_select'],
+            'cabinetsForSelect' => $selectors['cabinets'] ?? $context['cabinets_for_select'],
+            'mapData' => $context['data'] ?? $this->emptyMapData(),
+            'mapDataUrl' => $projectId > 0 ? route('api.projects.map-data', $projectId) : null,
         ]);
+    }
+
+    public function data(Project $project, MapDataService $mapDataService): JsonResponse
+    {
+        return response()->json($mapDataService->build($project->id)['data'])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    private function emptyMapData(): array
+    {
+        return array_fill_keys(['drafts', 'odfs', 'cabinets', 'houses', 'routes', 'gis_segments', 'gis_restricted_areas', 'appendix_items'], []);
     }
 
     public function storePlan(Request $request)

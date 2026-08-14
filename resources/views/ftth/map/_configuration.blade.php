@@ -13,6 +13,7 @@ window.ftthMapConfig = {
         destructive: @json(auth()->user()->can('destructive')),
     },
     projectId: null,
+    dataUrl: @json($mapDataUrl),
     endpoints: {
         autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),
         autoOdoConfirmBaseUrl: @json(url('/projekti/__ID__/odo-plan/confirm')),

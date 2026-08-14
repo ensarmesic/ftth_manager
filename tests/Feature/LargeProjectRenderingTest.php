@@ -26,7 +26,7 @@ class LargeProjectRenderingTest extends TestCase
         $odf = Odf::factory()->create(['project_id' => $project->id, 'fiber_capacity' => 288]);
         $feeder = NetworkRoute::factory()->create([
             'project_id' => $project->id, 'odf_id' => $odf->id, 'route_type' => 'distribution',
-            'fiber_length_m' => 5000, 'fiber_count' => 288,
+            'name' => 'LAZY-PAYLOAD-ROUTE-SENTINEL', 'fiber_length_m' => 5000, 'fiber_count' => 288,
         ]);
         $branch = NetworkBranch::factory()->create([
             'project_id' => $project->id, 'odf_id' => $odf->id, 'route_id' => $feeder->id,
@@ -60,7 +60,8 @@ class LargeProjectRenderingTest extends TestCase
 
         $this->assertLessThanOrEqual(30, $mapQueries, "Mapa velikog projekta je izvršila {$mapQueries} SQL upita.");
         $this->assertLessThan(5000, $mapDurationMs, 'Mapa velikog projekta traje duže od 5 sekundi.');
-        $this->assertLessThan(5_000_000, $mapPayloadBytes, 'Početni HTML/JSON payload mape prelazi 5 MB.');
+        $this->assertLessThan(1_000_000, $mapPayloadBytes, 'Lazy početni HTML mape prelazi 1 MB.');
+        $mapResponse->assertDontSee('LAZY-PAYLOAD-ROUTE-SENTINEL')->assertSee('map-data');
 
         DB::flushQueryLog();
         DB::enableQueryLog();

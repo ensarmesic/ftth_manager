@@ -13,8 +13,8 @@ SQLite ostaje podržana i aktivna baza. Ova etapa ne uključuje MySQL/PostgreSQL
 ## Mapa
 
 - [x] Uvesti performance ugovor za SQL upite, HTML/JSON payload i vrijeme velikog projekta.
-- [ ] Definisati stabilan map-data API ugovor po projektu.
-- [ ] Uvesti lazy loading bez promjene postojećeg korisničkog toka.
+- [x] Definisati autorizovan i testiran map-data API ugovor po projektu.
+- [x] Uvesti lazy loading aktivnog projekta bez promjene postojećeg korisničkog toka.
 - [ ] Dodati viewport/bbox učitavanje tek nakon testiranja projektnog API-ja.
 
 ## Pozadinski poslovi i cache

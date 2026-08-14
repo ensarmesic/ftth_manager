@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/uputstvo/{document?}', DocumentationController::class)->name('documentation');
     Route::get('/mapa', [MapController::class, 'map'])->name('map.dashboard');
+    Route::get('/api/projekti/{project}/map-data', [MapController::class, 'data'])->middleware('can:project.view')->name('api.projects.map-data');
     Route::redirect('/mapa/editor', '/mapa')->name('map.index');
     Route::post('/mapa/plan', [MapController::class, 'storePlan'])->middleware('can:project.edit')->name('map.plan.store');
     Route::post('/mapa/draft', [MapController::class, 'storeDraft'])->middleware('can:project.edit')->name('map.draft.store');
