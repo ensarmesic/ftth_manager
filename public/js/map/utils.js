@@ -423,15 +423,9 @@ function applyRouteLabelLanes(routes) {
 
 // Visually fan overlapping saved ducts into parallel lanes. Database geometry remains on
 // the surveyed trench axis; only Leaflet display/hit layers use these offset points.
-const ROUTE_VISUAL_MAX_SPREAD_METERS = 0.8;
-const ROUTE_VISUAL_GAP_PIXELS = 1.35;
+const ROUTE_VISUAL_MAX_SPREAD_METERS = 2.4;
+const ROUTE_VISUAL_GAP_METERS = 0.35;
 const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 0.75;
-const ROUTE_VISUAL_SHARED_TOLERANCE_METERS = 0.35;
-function routeVisualGapMeters() {
-    const latitude = map.getCenter()?.lat ?? 44.45;
-    const metersPerPixel = 40075016.686 * Math.cos(latitude * Math.PI / 180) / (256 * (2 ** map.getZoom()));
-    return Math.max(0.025, Math.min(0.35, metersPerPixel * ROUTE_VISUAL_GAP_PIXELS));
-}
 function routePathsOverlapForDisplay(first, second) {
     if (!first.path?.length || !second.path?.length) return false;
     if (first.cabinet_id && second.cabinet_id && Number(first.cabinet_id) !== Number(second.cabinet_id)) return false;
@@ -445,17 +439,6 @@ function routePathsOverlapForDisplay(first, second) {
             best = Math.min(best, map.distance(point, projectOnSegment(point, L.latLng(b[i - 1][0], b[i - 1][1]), L.latLng(b[i][0], b[i][1]))));
         }
         if (best <= 1.5 && ++near >= 2) return true;
-    }
-    return false;
-}
-
-function pointTouchesRouteForDisplay(rawPoint, route, tolerance = ROUTE_VISUAL_SHARED_TOLERANCE_METERS) {
-    if (!route.path?.length) return false;
-    const point = L.latLng(rawPoint[0], rawPoint[1]);
-    for (let index = 1; index < route.path.length; index++) {
-        const before = L.latLng(route.path[index - 1][0], route.path[index - 1][1]);
-        const after = L.latLng(route.path[index][0], route.path[index][1]);
-        if (map.distance(point, projectOnSegment(point, before, after)) <= tolerance) return true;
     }
     return false;
 }
@@ -483,26 +466,13 @@ function routeDisplayBoundsOverlap(first, second, toleranceMeters = 1.5) {
         && a.maxLng + lngPadding >= b.minLng;
 }
 
-function offsetRouteDisplayPoints(points, offsetM, sharedMask = null) {
+function offsetRouteDisplayPoints(points, offsetM) {
     if (!offsetM || points.length < 2) return points.map(point => L.latLng(point.lat, point.lng));
     const travelled = [0];
     for (let index = 1; index < points.length; index++) {
         travelled[index] = travelled[index - 1] + map.distance(points[index - 1], points[index]);
     }
     const total = travelled[travelled.length - 1];
-    const distanceToShared = points.map(() => Infinity);
-    if (sharedMask) {
-        let lastSharedDistance = -Infinity;
-        for (let index = 0; index < points.length; index++) {
-            if (sharedMask[index]) lastSharedDistance = travelled[index];
-            distanceToShared[index] = travelled[index] - lastSharedDistance;
-        }
-        let nextSharedDistance = Infinity;
-        for (let index = points.length - 1; index >= 0; index--) {
-            if (sharedMask[index]) nextSharedDistance = travelled[index];
-            distanceToShared[index] = Math.min(distanceToShared[index], nextSharedDistance - travelled[index]);
-        }
-    }
     return points.map((point, index) => {
         const before = points[Math.max(0, index - 1)];
         const after = points[Math.min(points.length - 1, index + 1)];
@@ -515,7 +485,6 @@ function offsetRouteDisplayPoints(points, offsetM, sharedMask = null) {
             1,
             travelled[index] / ROUTE_VISUAL_ENDPOINT_TAPER_METERS,
             (total - travelled[index]) / ROUTE_VISUAL_ENDPOINT_TAPER_METERS,
-            sharedMask ? Math.max(0, 1 - distanceToShared[index] / ROUTE_VISUAL_ENDPOINT_TAPER_METERS) : 1,
         );
         const taperedOffset = offsetM * Math.max(0, taper);
         return metersOffset(point, (-north / length) * taperedOffset, (east / length) * taperedOffset);
@@ -526,36 +495,10 @@ function applyRouteVisualLanes(routes) {
         route._visualLane = 0;
         route._visualMaxLane = 0;
         route._visualOffsetM = 0;
-        route._visualSharedMask = null;
+        route._visualGapM = 0;
         route._visualBounds = null;
     });
     const candidates = routes.filter(route => route.type !== 'trench' && route.path?.length > 1);
-    const routesByPoint = new Map();
-    candidates.forEach(route => route.path.forEach(point => {
-        const key = `${Number(point[0]).toFixed(6)},${Number(point[1]).toFixed(6)}`;
-        if (!routesByPoint.has(key)) routesByPoint.set(key, []);
-        routesByPoint.get(key).push(route);
-    }));
-    candidates.forEach(route => {
-        const eligibleCompanions = candidates.filter(other =>
-            Number(other.id) !== Number(route.id)
-            && (route.type !== 'drop' || other.type !== 'drop')
-            && (!route.cabinet_id || !other.cabinet_id || Number(route.cabinet_id) === Number(other.cabinet_id))
-            && routeDisplayBoundsOverlap(route, other, ROUTE_VISUAL_SHARED_TOLERANCE_METERS)
-        );
-        route._visualSharedMask = route.path.map(point => {
-            const key = `${Number(point[0]).toFixed(6)},${Number(point[1]).toFixed(6)}`;
-            const companions = (routesByPoint.get(key) || []).filter(other => Number(other.id) !== Number(route.id));
-            // A drop stays on its own local trench even when several customer drops
-            // meet there. It moves into a parallel lane only after reaching a real
-            // main/feeder/distribution microduct. Other route types may still fan when
-            // they genuinely share geometry with any additional duct.
-            const exactMatch = route.type === 'drop'
-                ? companions.some(other => other.type !== 'drop')
-                : companions.length > 0;
-            return exactMatch || eligibleCompanions.some(other => pointTouchesRouteForDisplay(point, other));
-        });
-    });
     const parent = candidates.map((_, index) => index);
     const find = index => parent[index] === index ? index : (parent[index] = find(parent[index]));
     const unite = (a, b) => { const ra = find(a); const rb = find(b); if (ra !== rb) parent[rb] = ra; };
@@ -591,22 +534,22 @@ function applyRouteVisualLanes(routes) {
             route._visualLane = index === 0 ? 0 : Math.ceil(index / 2) * (index % 2 ? 1 : -1);
         });
         const maxLane = Math.max(0, ...group.map(route => Math.abs(route._visualLane)));
-        group.forEach(route => { route._visualMaxLane = maxLane; });
+        const gap = maxLane ? Math.min(ROUTE_VISUAL_GAP_METERS, ROUTE_VISUAL_MAX_SPREAD_METERS / maxLane) : 0;
+        group.forEach(route => {
+            route._visualMaxLane = maxLane;
+            route._visualGapM = gap;
+        });
     });
     refreshRouteVisualGeometry();
 }
 function refreshRouteVisualGeometry() {
-    const gap = routeVisualGapMeters();
     data.routes.forEach(route => {
-        const groupGap = route._visualMaxLane
-            ? Math.min(gap, ROUTE_VISUAL_MAX_SPREAD_METERS / route._visualMaxLane)
-            : 0;
         route._visualOffsetM = parallelRouteDisplay
-            ? (route._visualLane || 0) * groupGap
+            ? (route._visualLane || 0) * (route._visualGapM || 0)
             : 0;
         const points = (route.path || []).map(point => L.latLng(point[0], point[1]));
         const displayPoints = route.type !== 'trench'
-            ? offsetRouteDisplayPoints(points, route._visualOffsetM, route._visualSharedMask)
+            ? offsetRouteDisplayPoints(points, route._visualOffsetM)
             : points;
         routeLayerById[route.id]?.setLatLngs(displayPoints);
         routeHitLayerById[route.id]?.setLatLngs(displayPoints);
