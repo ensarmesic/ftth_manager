@@ -539,7 +539,7 @@ function applyRouteVisualLanes(routes) {
     // Detailed near-segment comparison is quadratic and becomes visibly slow on
     // large drawings. Exact shared survey points are enough to fan overlapping
     // routes there, while keeping startup work close to linear.
-    if (candidates.length > 50) {
+    if (candidates.length > 10) {
         candidates.forEach(route => {
             const companionIds = new Set();
             route._visualSharedMask = route.path.map(point => {

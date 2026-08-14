@@ -2,15 +2,18 @@
 const bounds = [];
 applyRouteStacking(data.routes);
 applyRouteLabelLanes(data.routes);
+applyRouteVisualLanes(data.routes);
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
     // Keep exact surveyed geometry for calculations/editing, while overlapping drops
     // receive a very small parallel display lane inside the trench corridor.
-    // First paint must show the surveyed line immediately. Expensive visual lane
-    // analysis is reserved for later edits instead of blocking initial hydration.
-    const displayPoints = points;
+    // Keep overlapping microducts in their parallel visual lanes while preserving
+    // the exact surveyed geometry in savedRoutePoints for editing/calculations.
+    const displayPoints = route.type !== 'trench'
+        ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0, route._visualSharedMask)
+        : points;
     const occupancy = route.occupancy || {};
     const baseStyle = routeLineStyle(route.type, routeLineColor(route));
     if (route._stack) baseStyle.weight = routeStackedWeight(route, baseStyle.weight);
