@@ -37,8 +37,8 @@ class ReportController extends Controller
         return view('ftth.reports', [
             'projects' => $projects,
             'projectInsights' => $projects->mapWithKeys(fn (Project $project) => [$project->id => [
-                'validation' => $this->ftthIntelligence->validateProject($project),
-                'materials' => $this->ftthIntelligence->materialSummary($project),
+                'validation' => $this->projectValidation->validateProject($project),
+                'materials' => $this->projectMaterials->summary($project),
             ]]),
             'totals' => [
                 'projects' => Project::count(),

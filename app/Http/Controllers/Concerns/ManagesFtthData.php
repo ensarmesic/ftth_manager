@@ -12,6 +12,8 @@ use App\Services\BranchSyncService;
 use App\Services\DXFParserService;
 use App\Services\FtthIntelligenceService;
 use App\Services\GeometryService;
+use App\Services\ProjectMaterialService;
+use App\Services\ProjectValidationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -23,6 +25,8 @@ trait ManagesFtthData
 {
     public function __construct(
         protected readonly FtthIntelligenceService $ftthIntelligence,
+        protected readonly ProjectValidationService $projectValidation,
+        protected readonly ProjectMaterialService $projectMaterials,
         protected readonly GeometryService $geometry,
         protected readonly BranchSyncService $branchSync,
         protected readonly DXFParserService $dxfParser,

@@ -22,8 +22,8 @@ class ProjectPrintController extends Controller
 
         return view('ftth.projects.print', [
             'project' => $project,
-            'validationItems' => collect($this->ftthIntelligence->validateProject($project)),
-            'materials' => $this->ftthIntelligence->materialSummary($project),
+            'validationItems' => collect($this->projectValidation->validateProject($project)),
+            'materials' => $this->projectMaterials->summary($project),
         ]);
     }
 }

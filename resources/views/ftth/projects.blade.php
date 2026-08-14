@@ -33,6 +33,7 @@
 <div class="page-toolbar">
     <span class="page-toolbar-info">{{ $projects->total() }} projekata</span>
     <div class="flex flex-wrap items-center gap-2">
+    @can('destructive')
     <form method="POST" action="{{ route('projects.restore') }}" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2">
         @csrf
         <label class="tbl-btn cursor-pointer" style="background:#f0fdf4;color:#14532d;border-color:#bbf7d0" title="Odaberi FTTH Manager JSON backup">
@@ -41,10 +42,13 @@
         </label>
         @error('backup', 'restoreBackup')<span class="text-xs font-semibold text-red-600">{{ $message }}</span>@enderror
     </form>
+    @endcan
+    @can('project.edit')
     <button class="btn-new" data-drawer-open="drawer-projects">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
         Novi projekat
     </button>
+    @endcan
     </div>
 </div>
 
@@ -77,6 +81,7 @@
                                 Pregled
                             </a>
                             {{-- Uredi --}}
+                            @can('project.edit')
                             <details class="relative inline-block">
                                 <summary class="tbl-btn tbl-btn-edit list-none cursor-pointer">
                                     <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61z"/></svg>
@@ -131,8 +136,10 @@
                                     <button class="btn-save mt-1">Sačuvaj izmjene</button>
                                 </form>
                             </details>
+                            @endcan
 
                             {{-- Export dugmad --}}
+                            @can('project.export')
                             <a href="#"
                                data-dxf-export="{{ route('projects.dxf', $project->id) }}"
                                class="tbl-btn dxf-export-btn"
@@ -148,12 +155,16 @@
                                 <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
                                 GeoJSON
                             </a>
+                            @endcan
+                            @can('project.backup')
                             <a href="{{ route('projects.backup', $project->id) }}"
                                class="tbl-btn"
                                style="background:#f0fdf4;color:#14532d;border-color:#bbf7d0"
                                title="Preuzmi JSON backup projekta">
                                 Backup
                             </a>
+                            @endcan
+                            @can('project.export')
                             <a href="{{ route('projects.print', $project->id) }}"
                                target="_blank"
                                class="tbl-btn"
@@ -162,8 +173,10 @@
                                 <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M3.75 1A1.75 1.75 0 002 2.75v1.5H1.75a.75.75 0 000 1.5H2v5.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 11.25v-5.5h.25a.75.75 0 000-1.5H14v-1.5A1.75 1.75 0 0012.25 1h-8.5zm0 1.5h8.5a.25.25 0 01.25.25V4.25H3.5V2.75a.25.25 0 01.25-.25zM3.5 11.25v-5.5h9v5.5a.25.25 0 01-.25.25h-8.5a.25.25 0 01-.25-.25zM6 8a.75.75 0 000 1.5h4a.75.75 0 000-1.5H6z"/></svg>
                                 Print
                             </a>
+                            @endcan
 
                             {{-- Obriši --}}
+                            @can('destructive')
                             <form method="POST" action="{{ route('projects.delete', $project->id) }}" style="display:inline;" data-confirm-delete="Trajno brisanje projekta {{ $project->name }}" data-confirm-detail="Bit će obrisano {{ $project->odfs_count }} ODF-a, {{ $project->cabinets_count }} ODO ormarića, {{ $project->houses_count }} kuća i {{ $project->routes_count }} trasa." data-confirm-name="{{ $project->name }}">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="tbl-btn tbl-btn-del">
@@ -171,6 +184,7 @@
                                     Obriši
                                 </button>
                             </form>
+                            @endcan
                         </div>
                     </td>
                 </tr>
@@ -187,6 +201,7 @@
     <div class="pagination-bar border-t border-slate-100 bg-slate-50/60 px-4 py-3">{{ $projects->links() }}</div>
 </div>
 
+@can('project.edit')
 <div id="drawer-projects" class="app-drawer">
     <div class="app-drawer-backdrop"></div>
     <div class="app-drawer-panel">
@@ -199,6 +214,11 @@
         </div>
         <form class="app-drawer-body" method="POST" action="{{ route('projects.store') }}">
             @csrf
+            <input type="hidden" name="next" value="map">
+            <div class="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">
+                <b class="block text-sm">Brzi početak u 3 koraka</b>
+                <span>1. Unesi osnovne podatke · 2. Sačuvaj projekat · 3. Na mapi postavi ODF i učitaj geodetske podatke.</span>
+            </div>
             <label class="ftth-label">Naziv projekta<input name="name" value="{{ old('name') }}" class="ftth-input" required></label>
             <label class="ftth-label">Šifra projekta<input name="code" value="{{ old('code') }}" class="ftth-input" required></label>
             <label class="ftth-label">Lokacija<input name="location" value="{{ old('location') }}" class="ftth-input" required></label>
@@ -216,10 +236,11 @@
                 <label class="ftth-label">Rok<input type="date" name="deadline" value="{{ old('deadline') }}" class="ftth-input"></label>
             </div>
             <label class="ftth-label">Opis<textarea name="description" rows="3" class="ftth-input">{{ old('description') }}</textarea></label>
-            <button class="btn-save">Sačuvaj projekat</button>
+            <button class="btn-save">Sačuvaj i otvori mapu →</button>
         </form>
     </div>
 </div>
+@endcan
 @if($errors->any())<script>document.getElementById('drawer-projects')?.classList.add('open');</script>@endif
 
 <script>

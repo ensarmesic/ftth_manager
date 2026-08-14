@@ -33,6 +33,9 @@
         ['settings.index',      'Postavke',           'cog'],
         ['documentation',       'Uputstvo',            'chip'],
     ];
+    if (! auth()->user()->can('settings.manage')) {
+        $sidebarItems = array_values(array_filter($sidebarItems, fn ($item) => $item[0] !== 'settings.index'));
+    }
     $sidebarIcons = [
         'squares' => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4zM10 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1V4zM2 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zM10 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1v-6z"/></svg>',
         'folder'  => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>',
@@ -243,7 +246,7 @@ const ftthMenuItems = [
     ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarići', @json(route('cabinets.index'))], ['Kuće', @json(route('houses.index'))],
     ['Trase', @json(route('routes.index'))], ['Krakovi', @json(route('branches.index'))], ['Izvještaji', @json(route('reports.index'))],
     ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
-    ['Postavke', @json(route('settings.index'))], ['Korisničko uputstvo', @json(route('documentation'))],
+    @can('settings.manage')['Postavke', @json(route('settings.index'))],@endcan ['Korisničko uputstvo', @json(route('documentation'))],
     ['Geodetski TXT standard', @json(route('documentation', ['document' => 'geodetski-txt']))],
 ];
 window.ftthToast = function(message, type = 'info', options = {}) {
@@ -252,10 +255,19 @@ window.ftthToast = function(message, type = 'info', options = {}) {
     const toast = document.createElement('div');
     const labels = { success: 'Uspješno', error: 'Greška', warning: 'Upozorenje', info: 'Informacija' };
     toast.className = `ftth-toast ftth-toast-${type}`;
-    toast.innerHTML = `<span class="ftth-toast-dot" aria-hidden="true"></span><div><b>${labels[type] || labels.info}</b><p></p></div><button type="button" aria-label="Zatvori obavijest">×</button>`;
+    toast.innerHTML = `<span class="ftth-toast-dot" aria-hidden="true"></span><div><b>${labels[type] || labels.info}</b><p></p><button type="button" class="ftth-toast-action hidden"></button></div><button type="button" class="ftth-toast-close" aria-label="Zatvori obavijest">×</button>`;
     toast.querySelector('p').textContent = String(message);
     const close = () => { toast.classList.add('is-leaving'); setTimeout(() => toast.remove(), 180); };
-    toast.querySelector('button').addEventListener('click', close);
+    toast.querySelector('.ftth-toast-close').addEventListener('click', close);
+    const action = toast.querySelector('.ftth-toast-action');
+    if (options.actionLabel && typeof options.onAction === 'function') {
+        action.textContent = options.actionLabel;
+        action.classList.remove('hidden');
+        action.addEventListener('click', () => {
+            close();
+            Promise.resolve(options.onAction()).catch(error => window.ftthToast(error?.message || 'Ponovni pokušaj nije uspio.', 'error'));
+        });
+    }
     region.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('is-visible'));
     setTimeout(close, Number(options.duration || (type === 'error' ? 8000 : 5000)));
@@ -457,21 +469,30 @@ document.querySelectorAll('.app-table-card').forEach((card, index) => {
     if (!table || bodyRows.length < 2 || card.querySelector('[data-table-search]')) return;
     const toolbar = document.createElement('div');
     toolbar.className = 'table-local-tools';
-    toolbar.innerHTML = `<label><span class="sr-only">Pretraži prikazane redove</span><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg><input type="search" data-table-search="${index}" placeholder="Pretraži prikazane redove…"></label><span data-table-count>${bodyRows.length} prikazano</span>`;
+    toolbar.innerHTML = `<label><span class="sr-only">Pretraži listu</span><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg><input type="search" data-table-search="${index}" placeholder="Pretraži listu… (Enter za sve stranice)"></label><span data-table-count>${bodyRows.length} prikazano</span>`;
     card.insertBefore(toolbar, card.firstChild);
     const searchInput = toolbar.querySelector('input');
     const storageKey = `ftthTableSearch:${location.pathname}:${index}`;
     const filterRows = queryValue => {
-        const query = queryValue.trim().toLocaleLowerCase('bs');
+        const terms = queryValue.trim().toLocaleLowerCase('bs').split(/\s+/).filter(Boolean);
         let visible = 0;
-        bodyRows.forEach(row => { const show = !query || row.textContent.toLocaleLowerCase('bs').includes(query); row.hidden = !show; if (show) visible++; });
+        bodyRows.forEach(row => { const content = row.textContent.toLocaleLowerCase('bs'); const show = terms.every(term => content.includes(term)); row.hidden = !show; if (show) visible++; });
         toolbar.querySelector('[data-table-count]').textContent = `${visible} prikazano`;
     };
-    searchInput.value = sessionStorage.getItem(storageKey) || '';
+    searchInput.value = new URLSearchParams(location.search).get('q') || sessionStorage.getItem(storageKey) || '';
     filterRows(searchInput.value);
     searchInput.addEventListener('input', event => {
         sessionStorage.setItem(storageKey, event.target.value);
         filterRows(event.target.value);
+    });
+    searchInput.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        const url = new URL(location.href);
+        const query = event.target.value.trim();
+        query ? url.searchParams.set('q', query) : url.searchParams.delete('q');
+        url.searchParams.delete('page');
+        location.assign(url);
     });
     [...table.tHead?.rows?.[0]?.cells || []].forEach((header, column) => {
         if (!header.textContent.trim() || header.querySelector('button,input')) return;
@@ -541,10 +562,12 @@ document.documentElement.classList.toggle('hide-header-notifications', savedFtth
     </div>
     <div class="p-1.5">
         <div class="px-3 py-2 text-[10px] font-semibold leading-4 text-slate-400">Verzija {{ config('app.version') }}@if(config('app.deployed_at')) · Deployment {{ config('app.deployed_at') }}@endif</div>
+        @can('settings.manage')
         <a href="{{ route('settings.index') }}" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
             <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0 text-slate-400"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
             Postavke
         </a>
+        @endcan
         <a href="{{ route('reports.index') }}" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
             <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0 text-slate-400"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd"/></svg>
             Izvještaji

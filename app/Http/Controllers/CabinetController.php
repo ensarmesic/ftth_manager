@@ -21,7 +21,7 @@ class CabinetController extends Controller
 {
     use ManagesFtthData;
 
-    public function cabinets(): View
+    public function cabinets(Request $request): View
     {
         $cabinetUsage = Cabinet::query()
             ->leftJoin('houses', 'houses.cabinet_id', '=', 'cabinets.id')
@@ -43,7 +43,11 @@ class CabinetController extends Controller
         ];
 
         return view('ftth.cabinets', [
-            'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses'])->latest()->paginate(12),
+            'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses'])
+                ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+                    ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('address', 'like', '%'.$request->string('q')->trim().'%')
+                    ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
+                ->latest()->paginate(12)->withQueryString(),
             'parentCabinets' => Cabinet::with('project')->orderBy('name')->get(),
             'branches' => NetworkBranch::with('project')->where('type', 'secondary')->orderBy('sort_order')->orderBy('name')->get(),
             'projects' => Project::orderBy('name')->get(),

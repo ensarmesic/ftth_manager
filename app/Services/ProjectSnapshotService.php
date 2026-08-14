@@ -48,12 +48,59 @@ class ProjectSnapshotService
                 foreach (array_reverse(self::TABLES) as $table) {
                     DB::table($table)->where('project_id', $project->id)->delete();
                 }
-                foreach (self::TABLES as $table) {
-                    foreach (array_chunk($payload[$table] ?? [], 250) as $rows) {
-                        if ($rows) {
-                            DB::table($table)->insert($rows);
+
+                $insert = function (string $table, array $rows): void {
+                    foreach (array_chunk($rows, 250) as $chunk) {
+                        if ($chunk !== []) {
+                            DB::table($table)->insert($chunk);
                         }
                     }
+                };
+
+                $insert('odfs', $payload['odfs'] ?? []);
+
+                $routeLinks = [];
+                $routes = collect($payload['routes'] ?? [])->map(function (array $route) use (&$routeLinks): array {
+                    $routeLinks[$route['id']] = collect($route)->only(['cabinet_id', 'from_id', 'to_id'])->all();
+                    $route['cabinet_id'] = null;
+                    $route['from_id'] = null;
+                    $route['to_id'] = null;
+
+                    return $route;
+                })->all();
+                $insert('routes', $routes);
+
+                $branchParents = [];
+                $branches = collect($payload['network_branches'] ?? [])->map(function (array $branch) use (&$branchParents): array {
+                    $branchParents[$branch['id']] = $branch['parent_branch_id'] ?? null;
+                    $branch['parent_branch_id'] = null;
+
+                    return $branch;
+                })->all();
+                $insert('network_branches', $branches);
+
+                $cabinetParents = [];
+                $cabinets = collect($payload['cabinets'] ?? [])->map(function (array $cabinet) use (&$cabinetParents): array {
+                    $cabinetParents[$cabinet['id']] = $cabinet['parent_cabinet_id'] ?? null;
+                    $cabinet['parent_cabinet_id'] = null;
+
+                    return $cabinet;
+                })->all();
+                $insert('cabinets', $cabinets);
+                $insert('houses', $payload['houses'] ?? []);
+
+                foreach ($routeLinks as $id => $links) {
+                    DB::table('routes')->where('id', $id)->update($links);
+                }
+                foreach ($branchParents as $id => $parentId) {
+                    DB::table('network_branches')->where('id', $id)->update(['parent_branch_id' => $parentId]);
+                }
+                foreach ($cabinetParents as $id => $parentId) {
+                    DB::table('cabinets')->where('id', $id)->update(['parent_cabinet_id' => $parentId]);
+                }
+
+                foreach (array_diff(self::TABLES, ['odfs', 'routes', 'network_branches', 'cabinets', 'houses']) as $table) {
+                    $insert($table, $payload[$table] ?? []);
                 }
             });
         } finally {

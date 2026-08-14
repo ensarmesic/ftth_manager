@@ -45,6 +45,8 @@ class ProjectBackupService
                 'fiber_layout' => $project->fiber_layout,
                 'fiber_color_standard' => $project->fiber_color_standard,
                 'fiber_reserve_per_tube' => $project->fiber_reserve_per_tube,
+                'fiber_budget_limit_db' => $project->fiber_budget_limit_db,
+                'fiber_schema_layout' => $project->fiber_schema_layout,
                 'pon_profile' => $project->pon_profile,
                 'feeder_splitter_ratio' => $project->feeder_splitter_ratio,
                 'fiber_attenuation_1310_db_km' => $project->fiber_attenuation_1310_db_km,
@@ -142,6 +144,16 @@ class ProjectBackupService
                     'used_quantity' => $material->used_quantity,
                     'unit_price' => $material->unit_price,
                 ])->toArray(),
+                'fiber_splices' => $project->fiberSplices->map(fn ($splice) => [
+                    'cabinet_id' => $splice->cabinet_id,
+                    'fiber_number' => $splice->fiber_number,
+                    'tray' => $splice->tray,
+                    'position' => $splice->position,
+                    'incoming_label' => $splice->incoming_label,
+                    'outgoing_label' => $splice->outgoing_label,
+                    'loss_db' => $splice->loss_db,
+                    'note' => $splice->note,
+                ])->toArray(),
             ] + collect(self::SIMPLE_TABLES)->mapWithKeys(fn (string $table) => [
                 $table => $this->projectRows($table, $project->id),
             ])->all(),
@@ -182,6 +194,8 @@ class ProjectBackupService
         return DB::transaction(function () use ($backup, $newProjectName) {
             // Create project
             $projectData = $backup['project'];
+            $fiberSchemaLayout = $projectData['fiber_schema_layout'] ?? null;
+            unset($projectData['fiber_schema_layout']);
             $projectData['name'] = $newProjectName ?? ($projectData['name'].' (Restored)');
             $projectData['code'] = $this->uniqueProjectCode((string) ($projectData['code'] ?? $projectData['name']));
 
@@ -264,6 +278,10 @@ class ProjectBackupService
                 ]);
             }
 
+            if (is_array($fiberSchemaLayout)) {
+                $project->update(['fiber_schema_layout' => $this->remapSchemaLayout($fiberSchemaLayout, $odfMap, $cabinetMap)]);
+            }
+
             // Restore houses with updated cabinet_id
             $houseMap = [];
             foreach ($backup['data']['houses'] ?? [] as $houseData) {
@@ -291,6 +309,15 @@ class ProjectBackupService
 
                 return $materialData;
             })->chunk(500)->each(fn ($rows) => DB::table('materials')->insert($rows->all()));
+
+            collect($backup['data']['fiber_splices'] ?? [])->map(function (array $spliceData) use ($project, $cabinetMap): array {
+                $spliceData = $this->safeColumns('fiber_splices', $spliceData);
+                $spliceData['project_id'] = $project->id;
+                $spliceData['cabinet_id'] = $this->mappedId($spliceData['cabinet_id'] ?? null, $cabinetMap);
+
+                return $spliceData;
+            })->filter(fn (array $splice): bool => $splice['cabinet_id'] !== null)
+                ->chunk(500)->each(fn ($rows) => DB::table('fiber_splices')->insert($rows->all()));
 
             foreach (self::SIMPLE_TABLES as $table) {
                 collect($backup['data'][$table] ?? [])->map(function (array $row) use ($project, $table): array {
@@ -346,6 +373,30 @@ class ProjectBackupService
             'house' => $this->mappedId($oldId, $houseMap),
             default => null,
         };
+    }
+
+    private function remapSchemaLayout(array $layout, array $odfMap, array $cabinetMap): array
+    {
+        $remapped = [];
+        foreach ($layout as $key => $position) {
+            $newKey = $key;
+            if (preg_match('/^cab-(\d+)$/', (string) $key, $matches)) {
+                $mapped = $this->mappedId((int) $matches[1], $cabinetMap);
+                if ($mapped === null) {
+                    continue;
+                }
+                $newKey = 'cab-'.$mapped;
+            } elseif (preg_match('/^odf-(\d+)$/', (string) $key, $matches)) {
+                $mapped = $this->mappedId((int) $matches[1], $odfMap);
+                if ($mapped === null) {
+                    continue;
+                }
+                $newKey = 'odf-'.$mapped;
+            }
+            $remapped[$newKey] = $position;
+        }
+
+        return $remapped;
     }
 
     private function validateRestoreSize(array $data): void

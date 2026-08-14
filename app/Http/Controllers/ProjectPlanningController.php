@@ -59,8 +59,8 @@ class ProjectPlanningController extends Controller
     {
         return response()->json([
             'project' => ['id' => $project->id, 'name' => $project->name],
-            'items' => $this->ftthIntelligence->validateProject($project),
-            'materials' => $this->ftthIntelligence->materialSummary($project),
+            'items' => $this->projectValidation->validateProject($project),
+            'materials' => $this->projectMaterials->summary($project),
         ]);
     }
 

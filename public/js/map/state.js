@@ -59,6 +59,9 @@ let cadContext = null;
 let autosaveTimer = null;
 let autosaveReady = false;
 let restoringDraft = false;
+let mapDraftRevision = 0;
+let savedMapDraftRevision = 0;
+let mapDraftSaveInFlight = false;
 let selectedDraftElement = null;
 let preflightIssues = [];
 let keepCurrentDraftOnProjectChange = false;
@@ -80,7 +83,7 @@ const mapHistory = {
     busy: false,
     maxSize: 30,
     push(cmd) {
-        if (this.busy) return;
+        if (this.busy || typeof cmd?.undo !== 'function' || typeof cmd?.redo !== 'function') return;
         this.stack.push(cmd);
         if (this.stack.length > this.maxSize) this.stack.shift();
         this.histRedoStack = [];
@@ -95,7 +98,9 @@ const mapHistory = {
             this.histRedoStack.push(cmd);
             document.getElementById('cad-command').textContent = `Undo: ${cmd.label}`;
         } catch (e) {
+            this.stack.push(cmd);
             document.getElementById('cad-command').textContent = `Undo nije uspio: ${e.message}`;
+            window.ftthToast?.(`Undo nije uspio: ${e.message}`, 'error');
         } finally {
             this.busy = false;
         }
@@ -110,13 +115,29 @@ const mapHistory = {
             this.stack.push(cmd);
             document.getElementById('cad-command').textContent = `Redo: ${cmd.label}`;
         } catch (e) {
+            this.histRedoStack.push(cmd);
             document.getElementById('cad-command').textContent = `Redo nije uspio: ${e.message}`;
+            window.ftthToast?.(`Redo nije uspio: ${e.message}`, 'error');
         } finally {
             this.busy = false;
         }
         updateMapHistoryUI();
     },
 };
+
+function markMapDraftDirty() {
+    mapDraftRevision += 1;
+}
+
+function hasUnsavedMapChanges() {
+    return mapDraftSaveInFlight || mapDraftRevision !== savedMapDraftRevision;
+}
+
+window.addEventListener('beforeunload', event => {
+    if (!hasUnsavedMapChanges()) return;
+    event.preventDefault();
+    event.returnValue = '';
+});
 const odfMarkerById = {};
 const cabinetMarkerById = {};
 const routeLayerById = {};

@@ -23,40 +23,97 @@ class FiberPlanService
         $project->loadMissing(['odfs', 'branches.route', 'cabinets.houses', 'cabinets.branch.route', 'routes', 'fiberSplices']);
         $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
         $reservePerTube = min((int) ($project->fiber_reserve_per_tube ?? 0), $fibersPerTube - 1);
-        $nextFiber = 1;
+        $nextFibers = [];
         $allocations = [];
+        $cabinetIndex = $project->cabinets->keyBy('id');
+        $branchIndex = $project->branches->keyBy('id');
+        $contexts = [];
 
-        $allocate = function (int $count) use (&$nextFiber, $fibersPerTube, $reservePerTube): array {
+        $resolveContext = function ($cabinet) use ($cabinetIndex): array {
+            $odfId = $cabinet->odf_id;
+            $branchId = $cabinet->branch_id;
+            $parentId = $cabinet->parent_cabinet_id;
+            $visited = [];
+            while ((! $odfId || ! $branchId) && $parentId && ! isset($visited[$parentId])) {
+                $visited[$parentId] = true;
+                $parent = $cabinetIndex->get($parentId);
+                if (! $parent) {
+                    break;
+                }
+                $odfId ??= $parent->odf_id;
+                $branchId ??= $parent->branch_id;
+                $parentId = $parent->parent_cabinet_id;
+            }
+
+            return ['odf_id' => $odfId ? (int) $odfId : null, 'branch_id' => $branchId ? (int) $branchId : null];
+        };
+
+        $allocate = function (int $count, int $odfId) use (&$nextFibers, $fibersPerTube, $reservePerTube): array {
+            $nextFiber = $nextFibers[$odfId] ?? 1;
             $position = (($nextFiber - 1) % $fibersPerTube) + 1;
             $usable = $fibersPerTube - $reservePerTube;
             if ($position > $usable || $position + $count - 1 > $usable) {
                 $nextFiber += $fibersPerTube - $position + 1;
             }
             $range = ['from' => $nextFiber, 'to' => $nextFiber + $count - 1, 'count' => $count];
-            $nextFiber += $count;
+            $nextFibers[$odfId] = $nextFiber + $count;
 
             return $range;
         };
 
-        $cabinets = $project->cabinets->sortBy(fn ($cabinet) => sprintf('%08d|%08d|%s', $cabinet->branch?->sort_order ?? 999999, $cabinet->branch_order ?? 999999, $cabinet->name));
+        foreach ($project->cabinets as $cabinet) {
+            $contexts[$cabinet->id] = $resolveContext($cabinet);
+        }
+        $branchDepth = function ($branch) use ($branchIndex, $cabinetIndex): int {
+            $depth = 0;
+            $visited = [];
+            while ($branch?->route?->from_type === 'cabinet' && $branch->route->from_id && ! isset($visited[$branch->id])) {
+                $visited[$branch->id] = true;
+                $sourceCabinet = $cabinetIndex->get($branch->route->from_id);
+                $branch = $sourceCabinet?->branch_id ? $branchIndex->get($sourceCabinet->branch_id) : null;
+                $depth++;
+            }
+
+            return $depth;
+        };
+        $cabinets = $project->cabinets->sortBy(function ($cabinet) use ($contexts, $branchIndex, $branchDepth): string {
+            $context = $contexts[$cabinet->id];
+            $branch = $branchIndex->get($context['branch_id']);
+
+            return sprintf('%08d|%08d|%08d|%s|%08d|%s', $context['odf_id'] ?? 999999, $branchDepth($branch), $branch?->sort_order ?? 999999, $branch?->name ?? '', $cabinet->branch_order ?? 999999, $cabinet->name);
+        });
         foreach ($cabinets as $cabinet) {
-            if (! $cabinet->odf_id || ! $cabinet->branch_id) {
+            $context = $contexts[$cabinet->id];
+            if (! $context['odf_id']) {
                 continue;
             }
             $splitters = max(1, (int) ceil($cabinet->houses->count() / max(1, (int) $cabinet->ports_per_splitter)));
-            $allocations[$cabinet->id] = $allocate($splitters);
+            $allocations[$cabinet->id] = $allocate($splitters, $context['odf_id']) + $context;
         }
 
-        $claimed = collect($allocations)->flatMap(fn (array $range) => range($range['from'], $range['to']));
-        $duplicates = $claimed->duplicates()->unique()->values();
-        $capacity = max(1, (int) ($project->odfs->max('fiber_capacity') ?: 144));
+        $odfPlans = $project->odfs->mapWithKeys(function ($odf) use ($allocations): array {
+            $ranges = collect($allocations)->where('odf_id', $odf->id);
+            $claimed = $ranges->flatMap(fn (array $range) => range($range['from'], $range['to']));
+
+            return [$odf->id => [
+                'name' => $odf->name,
+                'capacity' => max(1, (int) $odf->fiber_capacity),
+                'usedTo' => (int) ($ranges->max('to') ?: 0),
+                'usedFibers' => $claimed->unique()->count(),
+                'duplicates' => $claimed->duplicates()->unique()->values()->all(),
+            ]];
+        });
+        $capacity = max(1, (int) $odfPlans->sum('capacity'));
+        $usedFibers = (int) $odfPlans->sum('usedFibers');
         $usedTo = (int) (collect($allocations)->max('to') ?: 0);
         $profile = self::PON_PROFILES[$project->pon_profile ?? 'gpon_b_plus'] ?? self::PON_PROFILES['gpon_b_plus'];
         $budgetLimit = $profile['max'];
         $engineeringMargin = (float) ($project->engineering_margin_db ?? 3);
-        $connections = $cabinets->map(function ($cabinet) use ($allocations, $fibersPerTube, $project, $budgetLimit, $profile, $engineeringMargin): array {
+        $connections = $cabinets->map(function ($cabinet) use ($allocations, $contexts, $branchIndex, $fibersPerTube, $project, $budgetLimit, $profile, $engineeringMargin): array {
             $range = $allocations[$cabinet->id] ?? null;
-            $routeLengthKm = ((float) ($cabinet->branch?->route?->fiber_length_m ?: $cabinet->branch?->route?->duct_length_m)) / 1000;
+            $context = $contexts[$cabinet->id];
+            $branch = $branchIndex->get($context['branch_id']);
+            $routeLengthKm = ((float) ($branch?->route?->fiber_length_m ?: $branch?->route?->duct_length_m)) / 1000;
             $splitterRatio = max(2, (int) $cabinet->ports_per_splitter);
             $feederSplitterRatio = max(1, (int) ($project->feeder_splitter_ratio ?? 1));
             $accessSplitterLoss = $this->splitterLoss($splitterRatio);
@@ -76,15 +133,18 @@ class FiberPlanService
             $upstreamRx = $project->onu_tx_power_dbm !== null ? round((float) $project->onu_tx_power_dbm - $upstreamLoss, 2) : null;
             $downstreamReceiverMargin = $downstreamRx !== null && $project->onu_rx_sensitivity_dbm !== null ? round($downstreamRx - (float) $project->onu_rx_sensitivity_dbm, 2) : null;
             $upstreamReceiverMargin = $upstreamRx !== null && $project->olt_rx_sensitivity_dbm !== null ? round($upstreamRx - (float) $project->olt_rx_sensitivity_dbm, 2) : null;
+            $receiverMargin = collect([$downstreamReceiverMargin, $upstreamReceiverMargin])->filter(fn ($value) => $value !== null)->min();
             $loss = round(max($downstreamLoss, $upstreamLoss), 2);
             $designLoss = round($loss + $engineeringMargin, 2);
             $headroom = round($budgetLimit - $designLoss, 2);
             $belowMinimum = $loss < $profile['min'];
-            $budgetStatus = ($belowMinimum || $designLoss > $budgetLimit) ? 'error' : ($headroom < 1 ? 'warning' : 'ok');
+            $receiverLevelInvalid = $receiverMargin !== null && $receiverMargin < 0;
+            $receiverMarginLow = $receiverMargin !== null && ! $receiverLevelInvalid && $receiverMargin < $engineeringMargin;
+            $budgetStatus = ($belowMinimum || $designLoss > $budgetLimit || $receiverLevelInvalid) ? 'error' : (($headroom < 1 || $receiverMarginLow) ? 'warning' : 'ok');
 
             return [
-                'cabinet_id' => $cabinet->id, 'cabinet' => $cabinet->name, 'odf_id' => $cabinet->odf_id,
-                'branch' => $cabinet->branch?->name, 'fiber_from' => $range['from'] ?? null, 'fiber_to' => $range['to'] ?? null,
+                'cabinet_id' => $cabinet->id, 'cabinet' => $cabinet->name, 'odf_id' => $context['odf_id'],
+                'branch' => $branch?->name, 'fiber_from' => $range['from'] ?? null, 'fiber_to' => $range['to'] ?? null,
                 'tube' => $range ? FiberColorCode::describe($range['from'], $fibersPerTube, $project->fiber_color_standard ?? 'telcordia')['tube_number'] : null,
                 'houses' => $cabinet->houses->count(), 'capacity' => $cabinet->capacity, 'route_km' => round($routeLengthKm, 3),
                 'splitter_ratio' => $feederSplitterRatio > 1 ? "1:{$feederSplitterRatio} × 1:{$splitterRatio}" : "1:{$splitterRatio}", 'access_splitter_ratio' => "1:{$splitterRatio}", 'feeder_splitter_ratio' => $feederSplitterRatio > 1 ? "1:{$feederSplitterRatio}" : 'Nema', 'splice_loss_db' => round($spliceLoss, 2), 'loss_db' => $loss,
@@ -97,6 +157,7 @@ class FiberPlanService
                 'olt_tx_power_dbm' => $project->olt_tx_power_dbm, 'onu_tx_power_dbm' => $project->onu_tx_power_dbm,
                 'downstream_rx_dbm' => $downstreamRx, 'upstream_rx_dbm' => $upstreamRx,
                 'downstream_receiver_margin_db' => $downstreamReceiverMargin, 'upstream_receiver_margin_db' => $upstreamReceiverMargin,
+                'receiver_margin_db' => $receiverMargin, 'receiver_level_invalid' => $receiverLevelInvalid, 'receiver_margin_low' => $receiverMarginLow,
             ];
         })->values();
 
@@ -106,16 +167,37 @@ class FiberPlanService
         }
 
         $unassigned = $cabinets->filter(fn ($cabinet) => ! isset($allocations[$cabinet->id]));
-        $issues = collect()
-            ->when($usedTo > $capacity, fn (Collection $items) => $items->push(['level' => 'error', 'message' => "Kapacitet je prekoračen: F{$usedTo} / {$capacity}F."]))
-            ->when($duplicates->isNotEmpty(), fn (Collection $items) => $items->push(['level' => 'error', 'message' => 'Dupla dodjela: F'.$duplicates->implode(', F').'.']))
-            ->when($unassigned->isNotEmpty(), fn (Collection $items) => $items->push(['level' => 'warning', 'message' => $unassigned->count().' ODO ormarića nema potpunu ODF/krak vezu.']))
+        $staleSplices = $project->fiberSplices->filter(function ($splice) use ($allocations): bool {
+            $range = $allocations[$splice->cabinet_id] ?? null;
+
+            return ! $range || $splice->fiber_number < $range['from'] || $splice->fiber_number > $range['to'];
+        });
+        $issues = $odfPlans->flatMap(function (array $odf): array {
+            $issues = [];
+            if ($odf['usedTo'] > $odf['capacity']) {
+                $issues[] = ['level' => 'error', 'message' => "{$odf['name']}: kapacitet je prekoračen: F{$odf['usedTo']} / {$odf['capacity']}F."];
+            }
+            if ($odf['duplicates'] !== []) {
+                $issues[] = ['level' => 'error', 'message' => "{$odf['name']}: dupla dodjela: F".implode(', F', $odf['duplicates']).'.'];
+            }
+
+            return $issues;
+        })->values()
+            ->when($unassigned->isNotEmpty(), fn (Collection $items) => $items->push(['level' => 'warning', 'message' => $unassigned->count().' ODO ormarića nema ODF vezu.']))
+            ->merge($staleSplices->map(function ($splice) use ($cabinetIndex): array {
+                $cabinetName = $cabinetIndex->get($splice->cabinet_id)?->name ?? 'Nepoznati ODO';
+
+                return ['level' => 'error', 'message' => "{$cabinetName}: splice F{$splice->fiber_number} više ne pripada trenutnoj fiber dodjeli; ažurirati splice plan."];
+            }))
             ->merge($confirmed ? $connections->where('below_minimum', true)->map(fn ($item) => ['level' => 'error', 'message' => $item['cabinet'].' je ispod minimalnog ODN gubitka klase; provjeriti prijemni nivo ili predvidjeti atenuator.']) : collect())
-            ->merge($connections->where('budget_status', 'error')->where('below_minimum', false)->map(fn ($item) => ['level' => 'error', 'message' => $item['cabinet'].' prelazi projektni budžet sa rezervom za '.abs($item['headroom_db']).' dB.']))
-            ->merge($connections->where('budget_status', 'warning')->map(fn ($item) => ['level' => 'warning', 'message' => $item['cabinet'].' ima manje od 1 dB rezerve nakon inženjerske margine.']))
+            ->merge($connections->where('below_minimum', false)->filter(fn ($item) => $item['design_loss_db'] > $budgetLimit)->map(fn ($item) => ['level' => 'error', 'message' => $item['cabinet'].' prelazi projektni budžet sa rezervom za '.abs($item['headroom_db']).' dB.']))
+            ->merge($connections->where('receiver_level_invalid', true)->map(fn ($item) => ['level' => 'error', 'message' => $item['cabinet'].' ima prijemni nivo ispod osjetljivosti prijemnika.']))
+            ->merge($connections->where('receiver_margin_low', true)->map(fn ($item) => ['level' => 'warning', 'message' => $item['cabinet'].' nema punu inženjersku rezervu prema osjetljivosti prijemnika.']))
+            ->merge($connections->filter(fn ($item) => $item['headroom_db'] >= 0 && $item['headroom_db'] < 1)->map(fn ($item) => ['level' => 'warning', 'message' => $item['cabinet'].' ima manje od 1 dB rezerve nakon inženjerske margine.']))
             ->values();
 
-        return compact('allocations', 'connections', 'issues', 'fibersPerTube', 'reservePerTube', 'capacity', 'usedTo', 'budgetLimit', 'profile', 'engineeringMargin') + [
+        return compact('allocations', 'connections', 'issues', 'fibersPerTube', 'reservePerTube', 'capacity', 'usedFibers', 'usedTo', 'budgetLimit', 'profile', 'engineeringMargin') + [
+            'odfs' => $odfPlans->all(),
             'assumptionsConfirmed' => $confirmed,
             'reserveFrom' => $usedTo + 1, 'reserveTo' => $capacity, 'health' => max(0, 100 - $issues->where('level', 'error')->count() * 20 - $issues->where('level', 'warning')->count() * 7),
         ];

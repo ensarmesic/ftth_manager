@@ -272,65 +272,18 @@
             $houseCount = $cabinet->houses_count ?? ($cabinet->relationLoaded('houses') ? $cabinet->houses->count() : $cabinet->houses()->count());
             return (int) ceil(((int) $houseCount) / max(1, (int) $cabinet->ports_per_splitter));
         };
-        $fiberAllocations = [];
-        $nextFiber = 1;
+        $fiberPlan = app(\App\Services\FiberPlanService::class)->build($project);
+        $fiberAllocations = $fiberPlan['allocations'];
         $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
         $tubeCount = (int) str($project->fiber_layout ?? '6x24')->before('x')->value();
         $configuredFiberCapacity = $tubeCount * $fibersPerTube;
         $reservePerTube = min((int) ($project->fiber_reserve_per_tube ?? 0), $fibersPerTube - 1);
-        $allocateFibers = function (int $count) use (&$nextFiber, $fibersPerTube, $reservePerTube): array {
-            $position = (($nextFiber - 1) % $fibersPerTube) + 1;
-            $usable = $fibersPerTube - $reservePerTube;
-            if ($position > $usable || $position + $count - 1 > $usable) {
-                $nextFiber += $fibersPerTube - $position + 1;
-            }
-            $allocation = ['from' => $nextFiber, 'to' => $nextFiber + $count - 1, 'count' => $count];
-            $nextFiber += $count;
-            return $allocation;
-        };
-        $project->odfs
-            ->sortBy(fn ($odf) => (string) $odf->name)
-            ->each(function ($odf) use ($project, &$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-            $project->branches
-                ->where('type', 'secondary')
-                ->where('odf_id', $odf->id)
-                ->sortBy(fn ($branch) => sprintf('%06d|%s', (int) ($branch->sort_order ?? 0), (string) $branch->name))
-                ->each(function ($branch) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-                    $branch->cabinets
-                        ->sortBy(fn ($cabinet) => sprintf('%06d|%s', (int) ($cabinet->branch_order ?? 0), (string) $cabinet->name))
-                        ->each(function ($cabinet) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-                            $fiberCount = $neededSplitters($cabinet);
-                            if ($fiberCount > 0) {
-                                $fiberAllocations[$cabinet->id] = $allocateFibers($fiberCount);
-                            }
-
-                        $cabinet->childCabinets
-                            ->whereNull('branch_id')
-                            ->sortBy(fn ($child) => sprintf('%06d|%s', (int) ($child->branch_order ?? 0), (string) $child->name))
-                            ->each(function ($child) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-                                $childFiberCount = $neededSplitters($child);
-                                if ($childFiberCount > 0) {
-                                    $fiberAllocations[$child->id] = $allocateFibers($childFiberCount);
-                                }
-                            });
-                        });
-                    });
-            });
-        $usedFiberTo = collect($fiberAllocations)->max('to') ?? 0;
+        $usedFiberTo = $fiberPlan['usedTo'];
         $odfCapacity = $project->odfs->max('fiber_capacity') ?? 144;
         $reserveFrom = $usedFiberTo + 1;
         $reserveTo = max($odfCapacity, $usedFiberTo + 1);
-        $fiberWarnings = [];
-        if ($usedFiberTo > $odfCapacity) {
-            $overflow = $usedFiberTo - $odfCapacity;
-            $fiberWarnings[] = "ODF kapacitet prekoračen: potrebno {$usedFiberTo} vlakana, kapacitet {$odfCapacity}F (prekoračenje za {$overflow} vlakana).";
-        }
-        $unassignedCabs = $allCabinets->filter(fn($c) => !isset($fiberAllocations[$c->id]));
-        if ($unassignedCabs->isNotEmpty()) {
-            $names = $unassignedCabs->pluck('name')->implode(', ');
-            $fiberWarnings[] = $unassignedCabs->count().' ormarić(a) nije dodjeljeno grani — vlakna nisu alocirana: '.$names.'.';
-        }
-        $fiberPlan = app(\App\Services\FiberPlanService::class)->build($project);
+        $unassignedCabs = $allCabinets->filter(fn ($cabinet) => ! isset($fiberAllocations[$cabinet->id]));
+        $fiberWarnings = collect($fiberPlan['issues'])->pluck('message')->all();
     @endphp
     <article class="schema-project {{ $project->fiber_schema_locked ? 'fiber-locked' : '' }}" data-project-id="{{ $project->id }}" data-locked="{{ $project->fiber_schema_locked ? '1' : '0' }}">
         <div class="schema-head">
@@ -345,6 +298,7 @@
                 <span class="schema-chip">{{ $projectUtilization }}%</span>
                 <span class="schema-chip fiber-health {{ $fiberPlan['health'] < 60 ? 'error' : ($fiberPlan['health'] < 85 ? 'warn' : '') }}">Health {{ $fiberPlan['health'] }}%</span>
                 <span class="schema-chip">{{ $project->fiber_schema_locked ? '🔒 Odobrena' : 'Radna verzija' }}</span>
+                @can('project.export')
                 <a href="{{ route('projects.fiber-schema-dxf', $project) }}"
                    style="display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:.2rem .6rem;font-size:.71rem;font-weight:800;text-decoration:none">
                     <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
@@ -356,6 +310,7 @@
                     PDF Fiber Sema
                 </a>
                 <a href="{{ route('projects.fiber.csv', $project) }}" class="schema-chip">CSV / Excel</a>
+                @endcan
             </div>
         </div>
 
@@ -363,9 +318,13 @@
             <input type="search" data-fiber-search placeholder="Pretraži ODF, ODO, kuću, adresu, krak ili vlakno…">
             <select data-fiber-filter><option value="all">Svi elementi</option><option value="issues">Samo problemi</option><option value="free">Slobodan kapacitet</option></select>
             <a href="{{ route('map.dashboard', ['project' => $project->id]) }}" data-open-map>Otvori mapu</a>
+            @can('project.edit')
             <button type="button" data-fiber-version class="primary">Sačuvaj verziju</button>
+            @endcan
             <button type="button" data-fiber-versions>Uporedi verzije</button>
+            @can('project.edit')
             <button type="button" data-fiber-lock class="{{ $project->fiber_schema_locked ? 'danger' : '' }}">{{ $project->fiber_schema_locked ? 'Otključaj šemu' : 'Zaključaj / odobri' }}</button>
+            @endcan
         </div>
 
         <div class="schema-view-tabs">
@@ -461,8 +420,10 @@
                 <div class="fiber-check {{ $usedFiberTo <= $odfCapacity ? 'ok' : 'error' }}"><b>{{ $usedFiberTo <= $odfCapacity ? '✓' : '!' }}</b><span>Kapacitet: plan koristi {{ $usedFiberTo }} od {{ $odfCapacity }} vlakana.</span></div>
                 <div class="fiber-check {{ $unassignedCabs->isEmpty() ? 'ok' : 'warn' }}"><b>{{ $unassignedCabs->isEmpty() ? '✓' : '!' }}</b><span>{{ $unassignedCabs->isEmpty() ? 'Svi ODO ormarići imaju planiranu fiber dodjelu.' : $unassignedCabs->count().' ODO ormarića nema fiber dodjelu: '.$unassignedCabs->pluck('name')->implode(', ') }}</span></div>
                 @php
-                    $claimedFibers = collect($fiberAllocations)->flatMap(fn($range) => range($range['from'], $range['to']));
-                    $duplicateFibers = $claimedFibers->duplicates()->unique()->values();
+                    $duplicateFibers = collect($fiberPlan['odfs'])
+                        ->flatMap(fn ($odfPlan) => $odfPlan['duplicates'])
+                        ->unique()
+                        ->values();
                 @endphp
                 <div class="fiber-check {{ $duplicateFibers->isEmpty() ? 'ok' : 'error' }}"><b>{{ $duplicateFibers->isEmpty() ? '✓' : '!' }}</b><span>{{ $duplicateFibers->isEmpty() ? 'Nema dvostruko dodijeljenih vlakana.' : 'Konflikt na vlaknima: F'.$duplicateFibers->implode(', F') }}</span></div>
                 <div class="fiber-check {{ $configuredFiberCapacity === $odfCapacity ? 'ok' : 'warn' }}"><b>{{ $configuredFiberCapacity === $odfCapacity ? '✓' : '!' }}</b><span>Model kabla: {{ $configuredFiberCapacity }}F, {{ $tubeCount }} tuba × {{ $fibersPerTube }} niti. ODF je evidentiran kao {{ $odfCapacity }}F. Sljedeća planirana rezerva: F{{ $reserveFrom }}–F{{ $reserveTo }}.</span></div>
@@ -481,7 +442,7 @@
             <div class="budget-hero">
                 <div class="budget-hero-copy"><span class="budget-eyebrow">OPTICAL NETWORK CONTROL</span><h2>Power Budget <em>{{ $fiberPlan['profile']['label'] }}</em></h2><p>{{ $fiberPlan['profile']['standard'] }} · {{ $fiberPlan['profile']['downstream_nm'] }} / {{ $fiberPlan['profile']['upstream_nm'] }} nm · projektna margina {{ $fiberPlan['engineeringMargin'] }} dB</p><div class="budget-hero-state {{ $fiberPlan['assumptionsConfirmed'] ? 'confirmed' : 'draft' }}"><i></i>{{ $fiberPlan['assumptionsConfirmed'] ? 'PARAMETRI POTVRĐENI' : 'INŽENJERSKA PROCJENA' }}</div></div>
                 <div class="signal-orb {{ $fiberPlan['assumptionsConfirmed'] && $budgetPassing === $budgetTotal ? 'is-good' : '' }}"><span>PROSJEČNI ONU Rx</span><strong>{{ $budgetAverageRx !== null ? number_format($budgetAverageRx, 1) : '—' }}</strong><small>dBm</small></div>
-                <button type="button" class="budget-config-button" data-budget-setup data-project-id="{{ $project->id }}" data-budget-settings='@json($budgetSettings)'><span>⚙</span>{{ $fiberPlan['assumptionsConfirmed'] ? 'Podesi parametre' : 'Pokreni precizni setup' }}</button>
+                @can('project.edit')<button type="button" class="budget-config-button" data-budget-setup data-project-id="{{ $project->id }}" data-budget-settings='@json($budgetSettings)'><span>⚙</span>{{ $fiberPlan['assumptionsConfirmed'] ? 'Podesi parametre' : 'Pokreni precizni setup' }}</button>@endcan
             </div>
             <div class="budget-kpis">
                 <article><span>NAJSLABIJI SIGNAL</span><strong>{{ $budgetWorstRx !== null ? number_format($budgetWorstRx, 1).' dBm' : 'Nije unesen Tx' }}</strong><small>kritična krajnja tačka</small></article>
@@ -489,7 +450,7 @@
                 <article><span>ODN KLASA</span><strong>{{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB</strong><small>{{ $fiberPlan['profile']['standard'] }}</small></article>
                 <article><span>FEEDER SPLITTER</span><strong>{{ (int)($project->feeder_splitter_ratio ?? 1) > 1 ? '1:'.$project->feeder_splitter_ratio : 'NEMA' }}</strong><small>prvi optički stepen</small></article>
             </div>
-            <div class="budget-overview {{ $fiberPlan['assumptionsConfirmed'] ? '' : '!border-amber-300 !bg-amber-50' }}"><div><strong>{{ $fiberPlan['assumptionsConfirmed'] ? 'Da li optički signal sigurno prolazi?' : 'Prvo podesi power-budget' }}</strong><span>{{ $fiberPlan['assumptionsConfirmed'] ? 'Parametri projekta su potvrđeni. Rezultat i dalje treba potvrditi terenskim mjerenjem.' : 'Vođeni setup traži samo podatke koji su potrebni za pošten dBm proračun.' }}</span></div><div class="flex items-center gap-3"><div class="text-right"><strong>{{ $fiberPlan['profile']['label'] }}</strong><span>{{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB</span></div><button type="button" class="rounded-lg bg-sky-800 px-3 py-2 text-xs font-black text-white" data-budget-setup data-project-id="{{ $project->id }}" data-budget-settings='@json($budgetSettings)'>{{ $fiberPlan['assumptionsConfirmed'] ? 'Uredi proračun' : 'Pokreni setup' }}</button></div></div>
+            <div class="budget-overview {{ $fiberPlan['assumptionsConfirmed'] ? '' : '!border-amber-300 !bg-amber-50' }}"><div><strong>{{ $fiberPlan['assumptionsConfirmed'] ? 'Da li optički signal sigurno prolazi?' : 'Prvo podesi power-budget' }}</strong><span>{{ $fiberPlan['assumptionsConfirmed'] ? 'Parametri projekta su potvrđeni. Rezultat i dalje treba potvrditi terenskim mjerenjem.' : 'Vođeni setup traži samo podatke koji su potrebni za pošten dBm proračun.' }}</span></div><div class="flex items-center gap-3"><div class="text-right"><strong>{{ $fiberPlan['profile']['label'] }}</strong><span>{{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB</span></div>@can('project.edit')<button type="button" class="rounded-lg bg-sky-800 px-3 py-2 text-xs font-black text-white" data-budget-setup data-project-id="{{ $project->id }}" data-budget-settings='@json($budgetSettings)'>{{ $fiberPlan['assumptionsConfirmed'] ? 'Uredi proračun' : 'Pokreni setup' }}</button>@endcan</div></div>
             <div class="budget-guide"><div><span class="guide-icon">ƒ</span><p><b>Kako se računa</b><small>Tx snaga − kompletan ODN gubitak = očekivani Rx signal</small></p></div><div class="budget-legend"><span><i class="good"></i>Sigurna rezerva</span><span><i class="warn"></i>Provjeriti marginu</span><span><i class="bad"></i>Van dozvoljenog</span><span><i class="estimate"></i>Nepotvrđena procjena</span></div></div>
             <div class="budget-grid vertical-list-view">
             @forelse($fiberPlan['connections'] as $connection)
@@ -507,7 +468,7 @@
                         <div class="budget-meta"><span>ONU signal ↓<b>{{ $connection['downstream_rx_dbm'] !== null ? $connection['downstream_rx_dbm'].' dBm' : 'Nije unesen Tx' }}</b></span><span>OLT signal ↑<b>{{ $connection['upstream_rx_dbm'] !== null ? $connection['upstream_rx_dbm'].' dBm' : 'Nije unesen Tx' }}</b></span><span>ODN gubitak<b>{{ $connection['loss_db'] }} dB</b></span></div>
                         @if(! $fiberPlan['assumptionsConfirmed'])<p class="mt-2 rounded-lg bg-amber-50 p-2 text-[11px] font-bold text-amber-800">Ovo je informativna procjena iz početnih vrijednosti. Potvrdi stvarne parametre u postavkama projekta prije odluke.</p>@elseif($connection['below_minimum'])<p class="mt-2 rounded-lg bg-red-50 p-2 text-[11px] font-bold text-red-700">Signal može biti prejak. Provjeriti Tx/Rx nivo opreme i potrebu za atenuatorom.</p>@elseif($connection['budget_status']==='error')<p class="mt-2 rounded-lg bg-red-50 p-2 text-[11px] font-bold text-red-700">Plan prelazi dozvoljeni maksimum klase. Smanjiti gubitke ili izabrati odgovarajuću optičku klasu.</p>@elseif($connection['budget_status']==='warning')<p class="mt-2 rounded-lg bg-amber-50 p-2 text-[11px] font-bold text-amber-800">Veza prolazi, ali ostaje manje od 1 dB dodatne rezerve.</p>@else<p class="mt-2 rounded-lg bg-emerald-50 p-2 text-[11px] font-bold text-emerald-700">Veza je unutar klase i ima dovoljnu projektnu rezervu.</p>@endif
                         <details class="budget-details"><summary>Prikaži detaljan obračun</summary><div class="budget-formula"><span>ONU Rx signal<br><b>{{ $connection['olt_tx_power_dbm'] ?? '?' }} dBm − {{ $connection['downstream_loss_db'] }} dB = {{ $connection['downstream_rx_dbm'] ?? '?' }} dBm</b></span><span>OLT Rx signal<br><b>{{ $connection['onu_tx_power_dbm'] ?? '?' }} dBm − {{ $connection['upstream_loss_db'] }} dB = {{ $connection['upstream_rx_dbm'] ?? '?' }} dBm</b></span><span>Downstream {{ $connection['downstream_nm'] }} nm<br><b>{{ $connection['downstream_loss_db'] }} dB</b></span><span>Upstream {{ $connection['upstream_nm'] }} nm<br><b>{{ $connection['upstream_loss_db'] }} dB</b></span><span>Vlakno DS / US<br><b>{{ $connection['fiber_loss_downstream_db'] }} / {{ $connection['fiber_loss_upstream_db'] }} dB</b></span><span>Splitter {{ $connection['splitter_ratio'] }}<br><b>{{ $connection['splitter_loss_db'] }} dB</b></span><span>{{ $connection['connector_count'] }} konektora<br><b>{{ $connection['connector_loss_db'] }} dB</b></span><span>{{ $connection['splice_count'] }} varenja<br><b>{{ $connection['splice_loss_db'] }} dB</b></span><span>WDM / atenuator / ostalo<br><b>{{ $connection['additional_passive_loss_db'] }} dB</b></span><span>Projektna zaštita<br><b>ODN + {{ $connection['engineering_margin_db'] }} dB margine</b></span></div></details>
-                        <div class="mt-3 flex flex-wrap gap-3"><a href="{{ route('projects.fiber.field-sheet', [$project, $connection['cabinet_id']]) }}" target="_blank" class="text-[11px] font-bold text-sky-700">Terenski list</a><a href="{{ route('map.dashboard', ['project'=>$project->id, 'cabinet'=>$connection['cabinet_id']]) }}" class="text-[11px] font-bold text-emerald-700">Na mapi</a><button type="button" data-splice-cabinet="{{ $connection['cabinet_id'] }}" data-splice-fiber="{{ $connection['fiber_from'] }}" class="text-[11px] font-bold text-violet-700">Splice zapis</button></div>
+                        <div class="mt-3 flex flex-wrap gap-3">@can('project.export')<a href="{{ route('projects.fiber.field-sheet', [$project, $connection['cabinet_id']]) }}" target="_blank" class="text-[11px] font-bold text-sky-700">Terenski list</a>@endcan<a href="{{ route('map.dashboard', ['project'=>$project->id, 'cabinet'=>$connection['cabinet_id']]) }}" class="text-[11px] font-bold text-emerald-700">Na mapi</a>@can('project.edit')<button type="button" data-splice-cabinet="{{ $connection['cabinet_id'] }}" data-splice-fiber="{{ $connection['fiber_from'] }}" class="text-[11px] font-bold text-violet-700">Splice zapis</button>@endcan</div>
                     </div>
                 </article>
             @empty<div class="fiber-check warn">Nema potpunih ODO veza za proračun.</div>@endforelse
@@ -515,7 +476,7 @@
         </section></div>
         <div class="hidden" data-schema-panel="topology">
             <div class="topology-graph-shell" data-topology-graph='@json($topologyGraph)'>
-                <div class="topology-controls"><button data-topology-action="zoom-in">+</button><button data-topology-action="zoom-out">&minus;</button><button data-topology-action="fit">Fit</button><button data-topology-action="collapse">Sažmi</button><button data-topology-action="save-layout">Sačuvaj raspored</button></div>
+                <div class="topology-controls"><button data-topology-action="zoom-in">+</button><button data-topology-action="zoom-out">&minus;</button><button data-topology-action="fit">Fit</button><button data-topology-action="collapse">Sažmi</button>@can('project.edit')<button data-topology-action="save-layout">Sačuvaj raspored</button>@endcan</div>
                 <div class="topology-graph-stage"></div>
                 <div class="topology-minimap"></div>
                 <div class="topology-help">Povuci za pomjeranje / tockic za zoom / klik ODO za korisnike</div>
@@ -776,15 +737,7 @@
 @endforelse
 </section>
 
-<div id="fiber-version-modal" class="fiber-modal hidden"><div class="fiber-modal-card"><h2 class="text-lg font-black">Verzije fiber šeme</h2><p class="text-xs text-slate-500">Sačuvaj kontrolnu tačku ili uporedi trenutno stanje sa ranijom verzijom.</p><div id="fiber-version-list" class="mt-4 grid gap-2"></div><div class="fiber-modal-actions"><button type="button" data-fiber-modal-close>Zatvori</button></div></div></div>
-<div id="fiber-splice-modal" class="fiber-modal hidden"><form class="fiber-modal-card" id="fiber-splice-form"><h2 class="text-lg font-black">Splice / varenje</h2><input type="hidden" name="cabinet_id"><div class="mt-4 grid gap-3 sm:grid-cols-2"><label>Vlakno<input name="fiber_number" type="number" min="1" required></label><label>Gubitak dB<input name="loss_db" type="number" min="0" max="5" step="0.001" value="0.1" required></label><label>Kaseta<input name="tray" type="number" min="1" value="1" required></label><label>Pozicija<input name="position" type="number" min="1" value="1" required></label><label>Ulazna oznaka<input name="incoming_label"></label><label>Izlazna oznaka<input name="outgoing_label"></label></div><label class="mt-3 block">Napomena<textarea name="note" rows="3"></textarea></label><div class="fiber-modal-actions"><button type="button" data-fiber-modal-close>Poništi</button><button class="bg-sky-800 text-white" type="submit">Sačuvaj varenje</button></div></form></div>
-<div id="budget-setup-modal" class="fiber-modal hidden"><form class="fiber-modal-card" id="budget-setup-form"><div class="flex items-start justify-between gap-4"><div><p class="text-[10px] font-black uppercase tracking-widest text-sky-700">Vođeni setup</p><h2 class="text-xl font-black">Power-budget u 3 koraka</h2><p class="mt-1 text-xs text-slate-500">Ne ciljamo napamet −22 dBm; računamo ga iz tvoje opreme i mreže.</p></div><button type="button" data-fiber-modal-close class="rounded-lg border px-2 py-1">✕</button></div>
-    <section class="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-3"><h3 class="font-black text-sky-950">1. Tehnologija</h3><p class="text-xs text-sky-800">Izaberi klasu koja piše na OLT/ONU optičkom modulu.</p><select name="pon_profile" class="mt-2" required>@foreach(['gpon_b_plus'=>'GPON B+ · najčešći GPON','gpon_c_plus'=>'GPON C+ · veći budžet','gpon_d'=>'GPON D · prošireni budžet','xgs_n1'=>'XGS-PON N1','xgs_n2'=>'XGS-PON N2','xgs_e1'=>'XGS-PON E1','xgs_e2'=>'XGS-PON E2'] as $value=>$label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></section>
-    <section class="mt-3 rounded-xl border border-slate-200 p-3"><h3 class="font-black">2. OLT i ONU datasheet</h3><p class="text-xs text-slate-500">Prepiši vrijednosti tačnog optičkog modula. Primjer: +3 dBm − 25 dB = −22 dBm.</p><div class="mt-3 grid gap-3 sm:grid-cols-2"><label class="text-xs font-bold">OLT šalje (Tx dBm)<input name="olt_tx_power_dbm" type="number" step="0.01" placeholder="npr. 3.0" required></label><label class="text-xs font-bold">ONU prima do (Rx sensitivity dBm)<input name="onu_rx_sensitivity_dbm" type="number" step="0.01" placeholder="npr. -27" required></label><label class="text-xs font-bold">ONU šalje (Tx dBm)<input name="onu_tx_power_dbm" type="number" step="0.01" placeholder="npr. 2.0" required></label><label class="text-xs font-bold">OLT prima do (Rx sensitivity dBm)<input name="olt_rx_sensitivity_dbm" type="number" step="0.01" placeholder="npr. -28" required></label></div></section>
-    <section class="mt-3 rounded-xl border border-slate-200 p-3"><h3 class="font-black">3. Pasivna mreža i rezerva</h3><p class="text-xs text-slate-500">Početne vrijednosti možeš ostaviti samo ako odgovaraju projektu.</p><div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3"><label class="text-xs font-bold">Margina dB<input name="engineering_margin_db" type="number" step="0.1" value="3" required></label><label class="text-xs font-bold">Konektora<input name="connector_count" type="number" value="2" required></label><label class="text-xs font-bold">dB/konektor<input name="connector_loss_db" type="number" step="0.001" value="0.5" required></label><label class="text-xs font-bold">Varenja<input name="planned_splice_count" type="number" value="2" required></label><label class="text-xs font-bold">dB/varenje<input name="splice_allowance_db" type="number" step="0.001" value="0.1" required></label><label class="text-xs font-bold">WDM/atenuator dB<input name="additional_passive_loss_db" type="number" step="0.01" value="0" required></label></div></section>
-    <label class="mt-3 block text-xs font-bold text-slate-700">Feeder / centralni splitter<select name="feeder_splitter_ratio" class="mt-1" required><option value="1">Nema dodatnog stepena</option><option value="2">1:2 · 3.7 dB</option><option value="4">1:4 · 7.4 dB</option><option value="8">1:8 · 10.7 dB</option><option value="16">1:16 · 13.8 dB</option><option value="32">1:32 · 17.1 dB</option><option value="64">1:64 · 20.5 dB</option></select><span class="mt-1 block font-normal text-slate-500">Izaberi samo ako ovaj splitter fizički postoji prije ODO splittera.</span></label>
-    <div class="fiber-modal-actions"><button type="button" data-fiber-modal-close>Odustani</button><button class="bg-emerald-700 text-white" type="submit">Potvrdi i izračunaj signal</button></div></form></div>
-
+@include('ftth.fiber-schema._modals')
 <script>
 document.querySelectorAll('.budget-dashboard').forEach(dashboard => {
     dashboard.querySelector('[data-budget-fullscreen]')?.addEventListener('click', async () => {
@@ -798,358 +751,8 @@ document.querySelectorAll('.schema-project').forEach(project => {
         project.querySelectorAll('[data-schema-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.schemaPanel !== button.dataset.schemaView));
     }));
 });
-function cadFiberRenderer(shell) {
-    const data=JSON.parse(shell.dataset.cadFiber || '{"odfs":[],"cabinets":[],"branches":[]}');
-    const stage=shell.querySelector('.cad-fiber-stage');
-    const colorMode=shell.dataset.colorCode==='true';
-    let scale=1, panX=0, panY=0, dragging=false, start=null;
-    const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
-    const odfX=2800, odfY=620, odfGap=1150, odfW=280, odfH=360, cabinetW=58, cabinetH=96, cabinetGap=220, childBranchGap=70, branchGap=230, fiberPitch=8;
-    const odfPalette=['#1d4ed8','#047857','#b45309','#7c3aed','#be123c','#0f766e'];
-    const fiberPalette=(data.fiber_palette||[]).map(color=>color.hex);
-    if(!fiberPalette.length) fiberPalette.push('#2563eb','#f97316','#16a34a','#92400e','#64748b','#f8fafc','#dc2626','#111827','#facc15','#7c3aed','#ec4899','#22d3ee');
-    const odfColor=index=>odfPalette[index%odfPalette.length];
-    const fitText=(value,max=18)=>String(value??'').length>max ? `${String(value).slice(0,max-3)}...` : String(value??'');
-    function branchCabinets(branch) {
-        return data.cabinets.filter(c=>Number(c.branch_id)===Number(branch.id)).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0));
-    }
-    function cabinetFiberLabel(cabinet) {
-        const from=Number(cabinet.fiber_from)||0, to=Number(cabinet.fiber_to)||from;
-        if(!from) return 'F?';
-        return from===to ? `F${from}` : `F${from}-${to}`;
-    }
-    function fiberRangeText(cabinet) {
-        const from=Number(cabinet.fiber_from)||0, to=Number(cabinet.fiber_to)||from;
-        if(!from) return '?';
-        return from===to ? `${from}` : `${from}-${to}`;
-    }
-    function coloredFiberLines(cabinet,x1,y1,x2) {
-        if(!colorMode || !Number(cabinet.fiber_from)) return '';
-        const from=Number(cabinet.fiber_from), to=Number(cabinet.fiber_to)||from;
-        const count=Math.max(1,to-from+1), spacing=5;
-        return Array.from({length:count},(_,index)=>{
-            const number=from+index, perTube=Number(data.fibers_per_tube)||24, position=((number-1)%perTube)+1, color=fiberPalette[(position-1)%12];
-            const offset=(index-(count-1)/2)*spacing;
-            const dash=position>12 ? ' stroke-dasharray="8 3"' : '';
-            return `<line x1="${x1}" y1="${y1+offset}" x2="${x2}" y2="${y1+offset}" stroke="${color}" stroke-width="3.2" stroke-linecap="round"${dash}/>`;
-        }).join('');
-    }
-    function branchFiberRange(cabinets) {
-        const ranges=cabinets.filter(c=>Number(c.fiber_from)).map(c=>[Number(c.fiber_from),Number(c.fiber_to)||Number(c.fiber_from)]);
-        if(!ranges.length) return '?';
-        const from=Math.min(...ranges.map(range=>range[0])), to=Math.max(...ranges.map(range=>range[1]));
-        return from===to ? `${from}` : `${from}-${to}`;
-    }
-    function branchSide(branch, index) {
-        return index % 2 === 0 ? 1 : -1;
-    }
-    function branchPrefix(branch) {
-        const label=String(`${branch?.code||''} ${branch?.name||''}`).trim();
-        const match=label.match(/(\d+(?:[.-]\d+)*)/);
-        return match ? match[1].replace(/[._]/g,'-') : String(branch?.order || branch?.id || '?');
-    }
-    function cabinetDisplayName(cabinet) {
-        const branch=data.branches.find(item=>Number(item.id)===Number(cabinet.branch_id));
-        if(!branch) return cabinet.name;
-        const cabinets=branchCabinets(branch);
-        const index=Math.max(1,cabinets.findIndex(item=>Number(item.id)===Number(cabinet.id))+1);
-        return `FTTH ${branchPrefix(branch)}-${index}`;
-    }
-    function render() {
-        const parts=[], labels=[], positions={}, drawnBranches=new Set(), odfPositions={};
-        data.odfs.forEach((odf,odfIndex)=>{odfPositions[odf.id]={x:odfX,y:odfY+(odfIndex*odfGap)};});
-        const odfYs=Object.values(odfPositions).map(p=>p.y);
-        const trunkTop=Math.min(...odfYs,odfY)-360, trunkBottom=Math.max(...odfYs,odfY)+360;
-        const primaryBranches=data.branches.filter(branch=>branch.type==='primary').sort((a,b)=>a.order-b.order);
-        const primaryCount=Math.max(primaryBranches.length,2);
-        const primaryXs=[];
-        for(let index=0;index<primaryCount;index++){
-            const branch=primaryBranches[index] || null, x=odfX-28+(index*18);
-            primaryXs.push(x);
-            parts.push(`<line x1="${x}" y1="${trunkTop}" x2="${x}" y2="${trunkBottom}" stroke="${index%2?'#6366f1':'#3b82f6'}" stroke-width="${index%2?2:3}"/>`);
-            if(branch){
-                const fibers=Math.max(1,Number(branch.fibers)||12);
-                labels.push(`<g><rect x="${x-62}" y="${trunkTop-50}" width="124" height="36" rx="4" class="cad-label-bg"/><text x="${x}" y="${trunkTop-35}" text-anchor="middle" class="cad-branch">${esc(branch.name)}</text><text x="${x}" y="${trunkTop-21}" text-anchor="middle" class="cad-meta">OPTIKA ${fibers} niti</text></g>`);
-            }
-        }
-        const reserveFrom=Number(data.reserve_from)||0, reserveTo=Number(data.reserve_to)||144;
-        if(reserveFrom<=reserveTo){
-            const reserveLeft=Math.min(...primaryXs), reserveRight=Math.max(...primaryXs);
-            const reserveX=(reserveLeft+reserveRight)/2, reserveTop=trunkBottom, reserveBottom=trunkBottom+150;
-            parts.push(`<line x1="${reserveLeft}" y1="${reserveTop}" x2="${reserveRight}" y2="${reserveTop}" stroke="#16a34a" stroke-width="8" stroke-linecap="round"/><line x1="${reserveX}" y1="${reserveTop}" x2="${reserveX}" y2="${reserveBottom}" stroke="#16a34a" stroke-width="9" stroke-linecap="round"/><circle cx="${reserveLeft}" cy="${reserveTop}" r="6" fill="#16a34a"/><circle cx="${reserveRight}" cy="${reserveTop}" r="6" fill="#16a34a"/><circle cx="${reserveX}" cy="${reserveBottom}" r="7" fill="#16a34a"/>`);
-            labels.push(`<g><rect x="${reserveX-92}" y="${reserveBottom+20}" width="184" height="42" rx="6" fill="#ecfdf5" stroke="#16a34a" stroke-width="2"/><text x="${reserveX}" y="${reserveBottom+38}" text-anchor="middle" class="cad-free">REZERVA F${reserveFrom}-${reserveTo}</text><text x="${reserveX}" y="${reserveBottom+54}" text-anchor="middle" class="cad-meta">${reserveTo-reserveFrom+1} slobodnih niti</text></g>`);
-        }
-        data.odfs.forEach((odf,odfIndex)=>{
-            const centerX=odfPositions[odf.id].x, centerY=odfPositions[odf.id].y;
-            const color=odfColor(odfIndex);
-            const roots=data.branches.filter(b=>b.type==='secondary'&&Number(b.odf_id)===Number(odf.id)&&!b.from_cabinet_id).sort((a,b)=>a.order-b.order);
-            const maxSideRoots=Math.max(1,Math.ceil(roots.length/2));
-            const dynH=Math.max(odfH, maxSideRoots*branchGap+80);
-            labels.push(`<g><rect x="${centerX-odfW/2-10}" y="${centerY-dynH/2-10}" width="${odfW+20}" height="${dynH+20}" rx="14" fill="${color}" opacity=".07"/><rect x="${centerX-odfW/2-8}" y="${centerY-dynH/2-8}" width="${odfW+16}" height="${dynH+16}" rx="12" fill="none" stroke="${color}" stroke-width="3.5"/><rect x="${centerX-odfW/2-8}" y="${centerY-dynH/2-48}" width="${odfW+16}" height="32" rx="8" fill="${color}"/><text x="${centerX}" y="${centerY-dynH/2-26}" text-anchor="middle" fill="#fff" style="font:900 14px Arial;letter-spacing:.3px">${esc(odf.name)}</text></g>`);
-            parts.push(`<g><rect x="${centerX-odfW/2}" y="${centerY-dynH/2}" width="${odfW}" height="${dynH}" rx="10" fill="#f8fbff" stroke="${color}" stroke-width="4" filter="url(#sh)"/><rect x="${centerX-odfW/2}" y="${centerY-dynH/2}" width="${odfW}" height="56" rx="10" fill="${color}" opacity=".11"/><rect x="${centerX-odfW/2+10}" y="${centerY-dynH/2+12}" width="${odfW-20}" height="34" rx="5" fill="${color}" opacity=".15"/><text x="${centerX}" y="${centerY-dynH/2+36}" text-anchor="middle" class="cad-odf-title">${esc(odf.name)}</text><text x="${centerX}" y="${centerY+10}" text-anchor="middle" class="cad-odf-meta">ODF / PATCH PANEL</text><text x="${centerX}" y="${centerY+32}" text-anchor="middle" class="cad-odf-meta">${odf.ports}P / ${odf.fibers}F</text><text x="${centerX}" y="${centerY+54}" text-anchor="middle" class="cad-odf-sub">LC/APC</text><line x1="${centerX-odfW/2+20}" y1="${centerY+68}" x2="${centerX+odfW/2-20}" y2="${centerY+68}" stroke="${color}" stroke-width="1.5" opacity=".3"/><text x="${centerX}" y="${centerY+86}" text-anchor="middle" class="cad-meta">izlazi lijevo ←  → desno</text></g>`);
-            parts.push(`<rect x="${centerX-odfW/2-54}" y="${centerY-(maxSideRoots*branchGap)/2-120}" width="${odfW+108}" height="${maxSideRoots*branchGap+240}" rx="18" fill="${color}" opacity=".045" stroke="${color}" stroke-width="2" stroke-dasharray="10 8"/>`);
-            const sideSlots={1:0,'-1':0};
-            const sideCounts={1:roots.filter((item,i)=>branchSide(item,i)===1).length,'-1':roots.filter((item,i)=>branchSide(item,i)===-1).length};
-            roots.forEach((branch,index)=>{
-                const side=branchSide(branch,index), slot=sideSlots[side]++, maxSide=Math.max(1,sideCounts[side]);
-                const y=centerY+(slot-(maxSide-1)/2)*branchGap+(side>0 ? -branchGap*.18 : branchGap*.18);
-                const portX=centerX+side*(odfW/2), portY=y, portLabelX=centerX+side*(odfW/2-30);
-                parts.push(`<g><rect x="${portX+(side>0?0:-28)}" y="${portY-12}" width="28" height="24" rx="4" fill="${color}" stroke="#fff" stroke-width="2"/><circle cx="${portX}" cy="${portY}" r="5" fill="#fff" stroke="${color}" stroke-width="3"/><text x="${portLabelX}" y="${portY+4}" text-anchor="${side>0?'end':'start'}" fill="${color}" style="font:800 10px Arial">${esc(branch.name)}</text></g>`);
-                drawManualBranch(branch,centerX,y,side,`odf-${odf.id}`,parts,labels,positions,drawnBranches,color,odf.name,portY);
-            });
-        });
-        const width=Math.max(5200,...Object.values(positions).map(p=>p.x+620)), height=Math.max(2200,trunkBottom+340,...Object.values(positions).map(p=>p.y+460));
-        stage.innerHTML=`<svg width="${width}" height="${height}"><defs><filter id="sh" x="-12%" y="-12%" width="124%" height="124%"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity=".13"/></filter></defs><style>.cad-title{font:800 11px Arial;fill:#0f172a}.cad-odf-title{font:900 21px Arial;fill:#1e3a8a}.cad-odf-meta{font:800 13px Arial;fill:#1d4ed8}.cad-odf-sub{font:700 10px Arial;fill:#3b82f6;letter-spacing:.4px}.cad-branch{font:800 11px Arial;fill:#be123c}.cad-meta{font:700 9px Arial;fill:#334155}.cad-port{font:800 8px Arial;fill:#6d28d9}.cad-free{font:800 9px Arial;fill:#15803d}.cad-over{font:700 9px Arial;fill:#dc2626}.cad-label-bg{fill:#fff;stroke:#fecaca;stroke-width:1}</style>${parts.join('')}${labels.join('')}</svg>`;
-    }
-    function drawManualBranch(branch,startX,y,side,parent,parts,labels,positions,drawnBranches,color='#1d4ed8',odfName='ODF',portY=null) {
-        if(drawnBranches.has(String(branch.id))) return y;
-        drawnBranches.add(String(branch.id));
-        const cabinets=branchCabinets(branch), labelWidth=Math.max(170,String(branch.name||'').length*7+24);
-        const fromCabinet=String(parent||'').startsWith('cab-');
-        const lineCount=Math.max(1,cabinets.length);
-        const portStartY=portY ?? y;
-        const sourceX=fromCabinet ? startX : startX+side*(odfW/2);
-        const odfEdge=fromCabinet ? startX+side*150 : startX+side*(odfW/2+70);
-        const firstCabinetDistance=fromCabinet ? Math.max(410,labelWidth+210) : Math.max(470,labelWidth+240);
-        const fibers=Math.max(1,Number(branch.fibers)||12), branchRange=branchFiberRange(cabinets);
-        const stackBusHeight=(lineCount-1)*fiberPitch;
-        const busTop=y-stackBusHeight/2-15;
-        const busBottom=fromCabinet ? y : y+stackBusHeight/2+24;
-        parts.push(fromCabinet
-            ? `<path d="M${sourceX} ${portStartY} L${sourceX} ${y} L${odfEdge} ${y}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`
-            : `<path d="M${sourceX} ${portStartY} L${odfEdge} ${portStartY} L${odfEdge} ${busTop}" fill="none" stroke="${color}" stroke-width="6" opacity=".9"/><line x1="${odfEdge}" y1="${busTop-9}" x2="${odfEdge}" y2="${busBottom}" stroke="${color}" stroke-width="3"/>`);
-        if(cabinets.length) parts.push(`<circle cx="${odfEdge}" cy="${y}" r="6" fill="${color}"/><text x="${odfEdge+side*12}" y="${y-12}" text-anchor="${side>0?'start':'end'}" class="cad-free">${branchRange}</text>`);
-        const labelX=startX+side*(firstCabinetDistance*.5), labelY=y-stackBusHeight/2-82, labelFiber=branchRange!=='?' ? 'F'+branchRange : '';
-        labels.push(`<g><rect x="${labelX-112}" y="${labelY-4}" width="224" height="54" rx="8" fill="#fff" stroke="${color}" stroke-width="2" filter="url(#sh)"/><rect x="${labelX-112}" y="${labelY-4}" width="66" height="54" rx="8" fill="${color}"/><rect x="${labelX-46}" y="${labelY-4}" width="9" height="54" fill="${color}" opacity=".18"/><text x="${labelX-79}" y="${labelY+14}" text-anchor="middle" fill="#fff" style="font:700 8px Arial;letter-spacing:.3px">ODF</text><text x="${labelX-79}" y="${labelY+30}" text-anchor="middle" fill="#fff" style="font:900 12px Arial">${esc(fitText(odfName,8))}</text><text x="${labelX+56}" y="${labelY+17}" text-anchor="middle" class="cad-branch">${esc(fitText(branch.name,20))}</text><text x="${labelX+56}" y="${labelY+35}" text-anchor="middle" class="cad-meta">OPTIKA ${fibers}F  ${labelFiber}</text></g>`);
-        let branchBottomY=y+stackBusHeight/2+34;
-        cabinets.forEach((cabinet,index)=>{
-            const x=startX+side*(firstCabinetDistance+index*cabinetGap);
-            const tapY=y+(index-lineCount/2+.5)*fiberPitch;
-            const boxY=tapY+34, titleY=boxY+cabinetH+28, metaY=titleY+16;
-            positions[`cab-${cabinet.id}`]={x,y:tapY, boxY, bottomY:metaY+18};
-            branchBottomY=Math.max(branchBottomY, metaY+18);
-            parts.push(`<line x1="${odfEdge}" y1="${tapY}" x2="${x}" y2="${tapY}" stroke="${colorMode?'#cbd5e1':color}" stroke-width="${colorMode?8:2}" opacity="${colorMode?'.8':'.65'}"/>${coloredFiberLines(cabinet,odfEdge,tapY,x)}`);
-            parts.push(`<circle cx="${x}" cy="${tapY}" r="5.5" fill="${color}"/><circle cx="${x}" cy="${tapY}" r="2.5" fill="#fff"/><text x="${x-side*14}" y="${tapY-9}" text-anchor="${side>0?'end':'start'}" class="cad-port">${fiberRangeText(cabinet)}</text>`);
-            parts.push(`<rect x="${x-cabinetW/2}" y="${boxY}" width="${cabinetW}" height="${cabinetH}" rx="7" fill="#fff" stroke="${color}" stroke-width="2" filter="url(#sh)"/><rect x="${x-cabinetW/2}" y="${boxY}" width="${cabinetW}" height="22" rx="7" fill="${color}" opacity=".85"/><rect x="${x-cabinetW/2}" y="${boxY+15}" width="${cabinetW}" height="7" fill="${color}" opacity=".85"/><line x1="${x}" y1="${tapY}" x2="${x}" y2="${boxY}" stroke="${color}" stroke-width="2.5"/><rect x="${x-72}" y="${titleY-14}" width="144" height="36" rx="5" fill="#f8faff" stroke="#e2e8f0" stroke-width="1"/><text x="${x}" y="${titleY+2}" text-anchor="middle" class="cad-title">${esc(fitText(cabinetDisplayName(cabinet),18))}</text><text x="${x}" y="${metaY+2}" text-anchor="middle" class="cad-meta">${cabinetFiberLabel(cabinet)} / ${cabinet.used}/${cabinet.capacity}</text>`);
-        });
-        let childBranchCursorY=branchBottomY+childBranchGap;
-        data.branches.filter(child=>Number(child.from_cabinet_id)&&positions[`cab-${child.from_cabinet_id}`]&&Number(child.odf_id)===Number(branch.odf_id)&&!drawnBranches.has(String(child.id))).forEach((child,index)=>{
-            const anchor=positions[`cab-${child.from_cabinet_id}`], childStartY=(anchor.boxY ? anchor.boxY+cabinetH : anchor.y);
-            const childY=Math.max(anchor.childCursorY || 0, (anchor.bottomY || childStartY)+childBranchGap, childBranchCursorY);
-            const sourceCabinet=data.cabinets.find(cabinet=>Number(cabinet.id)===Number(child.from_cabinet_id));
-            const sourceName=sourceCabinet ? cabinetDisplayName(sourceCabinet) : odfName;
-            const childBottomY=drawManualBranch(child,anchor.x,childY,side,`cab-${child.from_cabinet_id}`,parts,labels,positions,drawnBranches,color,sourceName,anchor.y);
-            childBranchCursorY=childY+childBranchGap;
-            anchor.childCursorY=childY+childBranchGap;
-            anchor.bottomY=Math.max(anchor.bottomY || childStartY, childBottomY);
-            branchBottomY=Math.max(branchBottomY, childBottomY);
-        });
-        return branchBottomY;
-    }
-    function apply(){stage.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`}
-    function fit(){const svg=stage.querySelector('svg');if(!svg)return;scale=Math.min(.95,(shell.clientWidth-40)/svg.width.baseVal.value,(shell.clientHeight-40)/svg.height.baseVal.value);panX=(shell.clientWidth-svg.width.baseVal.value*scale)/2;panY=(shell.clientHeight-svg.height.baseVal.value*scale)/2;apply()}
-    shell.addEventListener('wheel',e=>{e.preventDefault();scale=Math.max(.15,Math.min(3,scale*(e.deltaY<0?1.12:.89)));apply()},{passive:false});
-    shell.addEventListener('pointerdown',e=>{if(e.target.closest('.cad-fiber-controls'))return;dragging=true;start={x:e.clientX-panX,y:e.clientY-panY};shell.setPointerCapture(e.pointerId)});
-    shell.addEventListener('pointermove',e=>{if(dragging){panX=e.clientX-start.x;panY=e.clientY-start.y;apply()}});
-    shell.addEventListener('pointerup',()=>dragging=false);
-    shell.querySelector('[data-cad-action="zoom-in"]').onclick=()=>{scale=Math.min(3,scale*1.2);apply()};
-    shell.querySelector('[data-cad-action="zoom-out"]').onclick=()=>{scale=Math.max(.15,scale/1.2);apply()};
-    shell.querySelector('[data-cad-action="fit"]').onclick=fit;
-    render(); setTimeout(fit,0);
-}
-function topologyRenderer(shell) {
-    const data = JSON.parse(shell.dataset.topologyGraph || '{"odfs":[],"cabinets":[]}');
-    const stage = shell.querySelector('.topology-graph-stage');
-    const minimap = shell.querySelector('.topology-minimap');
-    const expanded = new Set();
-    const customPositions = {...(data.layout || {})};
-    shell.dataset.layout = JSON.stringify(customPositions);
-    let scale = 1, panX = 0, panY = 0, dragging = false, start = null;
-    const nodeW = 116, nodeH = 42, laneGap = 210, columnGap = 175;
-    const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
-    function branchPrefix(branch) {
-        const label=String(`${branch?.code||''} ${branch?.name||''}`).trim();
-        const match=label.match(/(\d+(?:[.-]\d+)*)/);
-        return match ? match[1].replace(/[._]/g,'-') : String(branch?.order || branch?.id || '?');
-    }
-    function cabinetDisplayName(cabinet) {
-        const branch=data.branches.find(item=>Number(item.id)===Number(cabinet.branch_id));
-        if(!branch) return cabinet.name;
-        const cabinets=data.cabinets.filter(c=>Number(c.branch_id)===Number(branch.id)).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0));
-        const index=Math.max(1,cabinets.findIndex(item=>Number(item.id)===Number(cabinet.id))+1);
-        return `FTTH ${branchPrefix(branch)}-${index}`;
-    }
-    function graph() {
-        const nodes = [], edges = [];
-        data.odfs.forEach((odf, odfIndex) => {
-            let roots = data.branches.filter(branch => Number(branch.odf_id) === Number(odf.id) && (!branch.parent_id || branch.from_cabinet_id))
-                .sort((a,b)=>Number(Boolean(a.from_cabinet_id))-Number(Boolean(b.from_cabinet_id)) || a.order-b.order);
-            const unassigned = data.cabinets.filter(c => Number(c.odf_id) === Number(odf.id) && !c.branch_id);
-            if (unassigned.length) roots.push({ id:`unassigned-${odf.id}`, name:'Neraspoređeni ODO', code:'?', type:'secondary', synthetic:true });
-            const baseX=80+odfIndex*1800;
-            const laneState={next:0, anchorBranches:{}};
-            roots.forEach(branch=>addBranchLane(branch,baseX+220,`odf-${odf.id}`,nodes,edges,unassigned,laneState));
-            nodes.push({ id:`odf-${odf.id}`, type:'odf', x:baseX, y:80+Math.max(0,laneState.next-1)*laneGap/2, label:odf.name, meta:`${odf.ports}P / ${odf.fibers}F` });
-        });
-        nodes.forEach(node => { if(customPositions[node.id]) { node.x=Number(customPositions[node.id].x); node.y=Number(customPositions[node.id].y); } });
-        return {nodes, edges};
-    }
-    function addBranchLane(branch, x, parent, nodes, edges, unassigned=[], laneState={next:0}) {
-        laneState.anchorBranches ||= {};
-        let y=80+laneState.next*laneGap;
-        laneState.next++;
-        const anchorNode=branch.from_cabinet_id ? nodes.find(node=>node.id===`cab-${branch.from_cabinet_id}`) : null;
-        if (anchorNode) {
-            const anchorIndex=laneState.anchorBranches[branch.from_cabinet_id] || 0;
-            laneState.anchorBranches[branch.from_cabinet_id]=anchorIndex+1;
-            parent=anchorNode.id;
-            x=anchorNode.x;
-            y=anchorNode.y+95+(anchorIndex*95);
-        }
-        const branchNodeId=`branch-${branch.id}`;
-        nodes.push({ id:branchNodeId, type:'branch', x, y, label:branch.name, meta:branch.code || branch.type });
-        edges.push({ from:parent, to:branchNodeId, type:branch.from_cabinet_id ? 'cabinet-branch' : (branch.parent_id ? 'child' : '') });
-        const cabinets=(branch.synthetic ? unassigned : data.cabinets.filter(c=>Number(c.branch_id)===Number(branch.id) && (!c.parent_id || Number(c.parent_id)===Number(branch.from_cabinet_id)))).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0));
-        let previous=branchNodeId;
-        cabinets.forEach((cabinet,index)=>{addCabinet(cabinet,x+(index+1)*columnGap,y,previous,1,nodes,edges);previous=`cab-${cabinet.id}`;});
-        data.branches.filter(item=>Number(item.parent_id)===Number(branch.id) && !item.from_cabinet_id).sort((a,b)=>a.order-b.order).forEach(child=>addBranchLane(child,x+columnGap,branchNodeId,nodes,edges,unassigned,laneState));
-    }
-    function addCabinet(cabinet, x, y, parent, side, nodes, edges) {
-        const fiberLabel=cabinet.fiber_from ? (Number(cabinet.fiber_from)===Number(cabinet.fiber_to) ? `F${cabinet.fiber_from}` : `F${cabinet.fiber_from}-${cabinet.fiber_to}`) : 'F?';
-        nodes.push({ id:`cab-${cabinet.id}`, type:'cabinet', x, y, label:cabinetDisplayName(cabinet), meta:`${cabinet.used}/${cabinet.capacity} / ${fiberLabel}`, cabinet });
-        edges.push({ from:parent, to:`cab-${cabinet.id}`, type:cabinet.parent_id ? 'child' : '' });
-        data.cabinets.filter(c => Number(c.parent_id) === Number(cabinet.id) && Number(c.branch_id)===Number(cabinet.branch_id)).sort((a,b)=>(a.branch_order||0)-(b.branch_order||0)).forEach((child, index) => addCabinet(child, x + side * (index + 1) * columnGap, y, `cab-${cabinet.id}`, side, nodes, edges));
-        if (expanded.has(cabinet.id)) cabinet.houses.forEach((house, index) => {
-            const hx = x + (index % 4) * 82, hy = y + 64 + Math.floor(index / 4) * 48;
-            nodes.push({ id:`house-${house.id}`, type:'house', x:hx, y:hy, label:house.label, meta:'' });
-            edges.push({ from:`cab-${cabinet.id}`, to:`house-${house.id}`, type:'drop' });
-        });
-    }
-    function render() {
-        const {nodes, edges} = graph();
-        const byId = Object.fromEntries(nodes.map(node => [node.id, node]));
-        const maxX = Math.max(1100, ...nodes.map(n => n.x + nodeW + 80)), maxY = Math.max(520, ...nodes.map(n => n.y + nodeH + 80));
-        const edgeSvg = edges.map(edge => {
-            const a=byId[edge.from], b=byId[edge.to]; if(!a||!b)return '';
-            const ax=a.x+nodeW/2, ay=a.y+nodeH/2, bx=b.x+nodeW/2, by=b.y+nodeH/2, mid=(ax+bx)/2;
-            return `<path class="topology-edge ${edge.type}" d="M${ax} ${ay} C${mid} ${ay},${mid} ${by},${bx} ${by}"/>`;
-        }).join('');
-        const nodeSvg = nodes.map(node => {
-            const colors=node.type==='odf'?['#eff6ff','#2563eb']:node.type==='branch'?['#f8fafc','#64748b']:node.type==='house'?['#fff7ed','#f97316']:['#f2faeb','#65a845'];
-            return `<g class="topology-node" data-node-id="${node.id}" data-node-x="${node.x}" data-node-y="${node.y}" data-node-type="${node.type}" data-cabinet-id="${node.cabinet?.id||''}" transform="translate(${node.x},${node.y})"><rect width="${nodeW}" height="${nodeH}" rx="6" fill="${colors[0]}" stroke="${colors[1]}"/><text x="${nodeW/2}" y="18" text-anchor="middle">${esc(node.label)}</text><text x="${nodeW/2}" y="33" text-anchor="middle" style="font-size:9px;fill:#64748b">${esc(node.meta)}</text></g>`;
-        }).join('');
-        stage.innerHTML=`<svg width="${maxX}" height="${maxY}">${edgeSvg}${nodeSvg}</svg>`;
-        minimap.innerHTML=`<svg viewBox="0 0 ${maxX} ${maxY}">${edges.map(edge=>{const a=byId[edge.from],b=byId[edge.to];return a&&b?`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#94a3b8" stroke-width="5"/>`:''}).join('')}${nodes.map(n=>`<rect x="${n.x}" y="${n.y}" width="35" height="18" fill="${n.type==='odf'?'#2563eb':n.type==='house'?'#f97316':'#65a845'}"/>`).join('')}</svg>`;
-        stage.querySelectorAll('.topology-node').forEach(node => {
-            let dragStart=null;
-            node.addEventListener('pointerdown',event=>{event.stopPropagation();dragStart={x:event.clientX,y:event.clientY};node.setPointerCapture(event.pointerId);});
-            node.addEventListener('pointerup',event=>{if(!dragStart)return;const dx=(event.clientX-dragStart.x)/scale,dy=(event.clientY-dragStart.y)/scale;if(Math.hypot(dx,dy)>5){customPositions[node.dataset.nodeId]={x:Number(node.dataset.nodeX)+dx,y:Number(node.dataset.nodeY)+dy};shell.dataset.layout=JSON.stringify(customPositions);render();return;}if(node.dataset.nodeType==='cabinet'){const id=Number(node.dataset.cabinetId);expanded.has(id)?expanded.delete(id):expanded.add(id);render();}});
-        });
-        applyTransform();
-    }
-    function applyTransform(){ stage.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`; }
-    function fit(){ const svg=stage.querySelector('svg'); if(!svg)return; scale=Math.min(.95,(shell.clientWidth-40)/svg.width.baseVal.value,(shell.clientHeight-40)/svg.height.baseVal.value); panX=(shell.clientWidth-svg.width.baseVal.value*scale)/2; panY=(shell.clientHeight-svg.height.baseVal.value*scale)/2; applyTransform(); }
-    shell.addEventListener('wheel', e=>{e.preventDefault(); scale=Math.max(.2,Math.min(2.5,scale*(e.deltaY<0?1.12:.89)));applyTransform();},{passive:false});
-    shell.addEventListener('pointerdown',e=>{if(e.target.closest('.topology-node,.topology-controls'))return;dragging=true;start={x:e.clientX-panX,y:e.clientY-panY};shell.setPointerCapture(e.pointerId)});
-    shell.addEventListener('pointermove',e=>{if(!dragging)return;panX=e.clientX-start.x;panY=e.clientY-start.y;applyTransform()});
-    shell.addEventListener('pointerup',()=>dragging=false);
-    shell.querySelector('[data-topology-action="zoom-in"]').onclick=()=>{scale=Math.min(2.5,scale*1.2);applyTransform()};
-    shell.querySelector('[data-topology-action="zoom-out"]').onclick=()=>{scale=Math.max(.2,scale/1.2);applyTransform()};
-    shell.querySelector('[data-topology-action="fit"]').onclick=fit;
-    shell.querySelector('[data-topology-action="collapse"]').onclick=()=>{expanded.clear();render();fit()};
-    shell.querySelector('[data-topology-action="save-layout"]').onclick=async()=>{const projectId=shell.closest('.schema-project').dataset.projectId;try{const result=await fiberRequest(`/projekti/${projectId}/fiber-raspored`,{method:'PUT',body:JSON.stringify({positions:customPositions})});window.ftthToast(result.message,'success');}catch(error){window.ftthToast(error.message,'error');}};
-    render(); requestAnimationFrame(fit);
-}
-document.querySelectorAll('[data-topology-graph]').forEach(topologyRenderer);
-document.querySelectorAll('[data-cad-fiber]').forEach(cadFiberRenderer);
-document.querySelectorAll('[data-trace-house]').forEach(button => {
-    button.addEventListener('click', () => {
-        document.querySelectorAll('[data-trace-house]').forEach(item => item.classList.remove('active'));
-        document.querySelectorAll('.trace-highlight').forEach(item => item.classList.remove('trace-highlight'));
-        button.classList.add('active');
-        button.closest('.cabinet-node,.child-cabinet-node')?.classList.add('trace-highlight');
-        const project = button.closest('.schema-project');
-        const output = project?.querySelector('[data-trace-output]');
-        if (!output) return;
-        const parentStep = button.dataset.parentCabinet
-            ? `<div class="trace-step"><b>${button.dataset.parentCabinet}</b><span>Roditeljski FTTH ormaric / uzete niti za izvedeni ODO</span></div>`
-            : '';
-        output.innerHTML = `
-            <div class="trace-step"><b>${button.dataset.odfName}</b><span>ODF OUT ${button.dataset.out} / patch panel</span></div>
-            <div class="trace-step"><b>Magistralni kabl</b><span>SM FO vlakna ${button.dataset.fiberRange || '?'} prema FTTH ormaricu</span></div>
-            ${parentStep}
-            <div class="trace-step"><b>${button.dataset.cabinetName}</b><span>FTTH ormaric / splitter blok</span></div>
-            <div class="trace-step"><b>Splitter ${button.dataset.splitter} / P${button.dataset.port}</b><span>1:4 izlaz prema korisniku</span></div>
-            <div class="trace-step"><b>${button.dataset.houseLabel}</b><span>Kuca / krajnja tacka</span></div>
-        `;
-        localStorage.setItem('ftthTraceHouseId', button.dataset.traceHouse);
-    });
-});
-
-// ── Project filter ───────────────────────────────────────────────────────────
-const fiberCsrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
-const fiberEscape = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
-const fiberRequest = async (url, options={}) => {
-    const response = await fetch(url, { ...options, headers:{Accept:'application/json','Content-Type':'application/json','X-CSRF-TOKEN':fiberCsrf,'X-Requested-With':'XMLHttpRequest',...(options.headers||{})} });
-    const body = await response.json().catch(()=>({message:'Neispravan odgovor servera.'}));
-    const validationMessage=body.errors ? Object.values(body.errors).flat().find(Boolean) : null;
-    if(!response.ok) throw new Error(validationMessage || body.message || `HTTP ${response.status}`);
-    return body;
-};
-document.querySelectorAll('.schema-project').forEach(project => {
-    const projectId=project.dataset.projectId;
-    const search=project.querySelector('[data-fiber-search]'), filter=project.querySelector('[data-fiber-filter]');
-    const applyFiberFilter=()=>{const query=(search.value||'').trim().toLocaleLowerCase('bs'),mode=filter.value;project.querySelectorAll('.cabinet-node,.child-cabinet-node,[data-fiber-item],.fiber-plan-line').forEach(item=>{const text=item.textContent.toLocaleLowerCase('bs');const issue=item.matches('.warn,.full,.warning,.error,[data-status="warning"],[data-status="error"]')||Boolean(item.querySelector('.warn,.full'));const free=Boolean(item.querySelector('.port.empty'))||item.dataset.status==='ok';item.classList.toggle('fiber-hidden',Boolean((query&&!text.includes(query))||(mode==='issues'&&!issue)||(mode==='free'&&!free)));});};
-    search.addEventListener('input',applyFiberFilter);filter.addEventListener('change',applyFiberFilter);
-    project.querySelector('[data-fiber-version]')?.addEventListener('click',async()=>{const label=prompt('Naziv verzije fiber šeme:',`Kontrolna verzija ${new Date().toLocaleString('bs-BA')}`);if(!label)return;try{const result=await fiberRequest(`/projekti/${projectId}/fiber-verzije`,{method:'POST',body:JSON.stringify({label})});window.ftthToast(result.message,'success');}catch(error){window.ftthToast(error.message,'error');}});
-    project.querySelector('[data-fiber-lock]')?.addEventListener('click',async()=>{const locked=project.dataset.locked==='1';if(!await window.ftthConfirm(locked?'Otključati odobrenu fiber šemu?':'Zaključati i označiti fiber šemu kao odobrenu?',{title:locked?'Otključavanje šeme':'Odobrenje fiber šeme',detail:locked?'Daljnje splice izmjene ponovo će biti dozvoljene.':'Prije zaključavanja sačuvaj verziju i provjeri power-budget i konflikte.',confirmLabel:locked?'Otključaj':'Zaključaj'}))return;try{await fiberRequest(`/projekti/${projectId}/fiber-zakljucavanje`,{method:'PATCH',body:JSON.stringify({locked:!locked})});location.reload();}catch(error){window.ftthToast(error.message,'error');}});
-    project.querySelector('[data-fiber-versions]')?.addEventListener('click',async()=>{const modal=document.getElementById('fiber-version-modal'),list=document.getElementById('fiber-version-list');modal.classList.remove('hidden');list.innerHTML='Učitavam…';try{const data=await fiberRequest(`/projekti/${projectId}/fiber-verzije`);list.innerHTML=data.versions.length?data.versions.map(v=>`<div class="flex items-center gap-2 rounded-lg border p-3"><button type="button" class="min-w-0 flex-1 text-left" data-compare-version="${Number(v.id)}"><b>${fiberEscape(v.label)}</b><small class="block text-slate-500">${fiberEscape(v.user?.name||'Sistem')} · ${fiberEscape(new Date(v.created_at).toLocaleString('bs-BA'))}</small></button><button type="button" class="rounded border px-2 py-1 text-xs font-bold text-amber-700" data-restore-version="${Number(v.id)}">Vrati</button></div>`).join(''):'Nema sačuvanih verzija.';list.querySelectorAll('[data-compare-version]').forEach(btn=>btn.onclick=async()=>{const result=await fiberRequest(`/projekti/${projectId}/fiber-verzije/${btn.dataset.compareVersion}/poredi`);list.innerHTML=`<h3 class="font-bold">Promjene prema: ${fiberEscape(result.version.label)}</h3>${Object.entries(result.changes).map(([key,value])=>`<div class="rounded border p-2"><b>${fiberEscape(key)}</b>: ${fiberEscape(value.before)} → ${fiberEscape(value.after)}</div>`).join('')}`;});list.querySelectorAll('[data-restore-version]').forEach(btn=>btn.onclick=async()=>{if(!await window.ftthConfirm('Vratiti ovu fiber verziju?',{title:'Vraćanje fiber šeme',detail:'Trenutno stanje će prvo biti automatski sačuvano.',confirmLabel:'Vrati verziju'}))return;try{const result=await fiberRequest(`/projekti/${projectId}/fiber-verzije/${btn.dataset.restoreVersion}/vrati`,{method:'POST'});window.ftthToast(result.message,'success');location.reload();}catch(error){window.ftthToast(error.message,'error');}});}catch(error){list.textContent=error.message;}});
-    project.querySelectorAll('[data-splice-cabinet]').forEach(button=>button.addEventListener('click',()=>{if(project.dataset.locked==='1')return window.ftthToast('Fiber šema je zaključana.','warning');const form=document.getElementById('fiber-splice-form');form.dataset.projectId=projectId;form.elements.cabinet_id.value=button.dataset.spliceCabinet;form.elements.fiber_number.value=button.dataset.spliceFiber||1;document.getElementById('fiber-splice-modal').classList.remove('hidden');}));
-});
-document.querySelectorAll('[data-fiber-modal-close]').forEach(button=>button.addEventListener('click',()=>button.closest('.fiber-modal').classList.add('hidden')));
-document.querySelectorAll('[data-budget-setup]').forEach(button=>button.addEventListener('click',()=>{
-    const form=document.getElementById('budget-setup-form'),settings=JSON.parse(button.dataset.budgetSettings||'{}');
-    form.dataset.projectId=button.dataset.projectId;
-    Object.entries(settings).forEach(([name,value])=>{if(form.elements[name]&&value!==null)form.elements[name].value=value;});
-    document.getElementById('budget-setup-modal').classList.remove('hidden');
-}));
-document.getElementById('budget-setup-form')?.addEventListener('submit',async event=>{
-    event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
-    for(const key of ['feeder_splitter_ratio','olt_tx_power_dbm','onu_tx_power_dbm','onu_rx_sensitivity_dbm','olt_rx_sensitivity_dbm','engineering_margin_db','connector_count','connector_loss_db','planned_splice_count','splice_allowance_db','additional_passive_loss_db'])data[key]=Number(data[key]);
-    try{const result=await fiberRequest(`/projekti/${form.dataset.projectId}/power-budget`,{method:'PATCH',body:JSON.stringify(data)});window.ftthToast(result.message,'success');location.reload();}catch(error){window.ftthToast(error.message,'error');}
-});
-document.getElementById('fiber-splice-form')?.addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form));for(const key of ['cabinet_id','fiber_number','tray','position','loss_db'])data[key]=Number(data[key]);try{const result=await fiberRequest(`/projekti/${form.dataset.projectId}/fiber-splice`,{method:'POST',body:JSON.stringify(data)});window.ftthToast(result.message,'success');document.getElementById('fiber-splice-modal').classList.add('hidden');}catch(error){window.ftthToast(error.message,'error');}});
-
-(function () {
-    const buttons  = document.querySelectorAll('#fiber-project-filter .fpf-btn');
-    const articles = document.querySelectorAll('#schema-page .schema-project');
-
-    function applyFilter(projectId) {
-        articles.forEach(el => {
-            el.style.display = (!projectId || el.dataset.projectId === projectId) ? '' : 'none';
-        });
-        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.filter === projectId));
-
-        // Persist selection
-        if (projectId) sessionStorage.setItem('fiberProjectFilter', projectId);
-        else sessionStorage.removeItem('fiberProjectFilter');
-    }
-
-    buttons.forEach(btn => btn.addEventListener('click', () => applyFilter(btn.dataset.filter)));
-
-    // Restore last selection, otherwise default to first project
-    const saved = sessionStorage.getItem('fiberProjectFilter');
-    const firstId = buttons[0]?.dataset.filter ?? '';
-    const initial = (saved && [...articles].some(el => el.dataset.projectId === saved)) ? saved : firstId;
-    const queryParams = new URLSearchParams(location.search);
-    const requestedProject = queryParams.get('project');
-    applyFilter(requestedProject && [...articles].some(el => el.dataset.projectId === requestedProject) ? requestedProject : initial);
-    const requestedCabinet = Number(queryParams.get('cabinet') || 0);
-    if (requestedCabinet) {
-        const article = [...articles].find(el => el.style.display !== 'none');
-        const cabinet = JSON.parse(article?.querySelector('[data-cad-fiber]')?.dataset.cadFiber || '{"cabinets":[]}').cabinets.find(item => Number(item.id) === requestedCabinet);
-        if (cabinet) { const input=article.querySelector('[data-fiber-search]'); input.value=cabinet.name; input.dispatchEvent(new Event('input')); article.scrollIntoView({behavior:'smooth'}); }
-    }
-})();
+@include('ftth.fiber-schema._cad-renderer')
+@include('ftth.fiber-schema._topology-renderer')
+@include('ftth.fiber-schema._actions')
 </script>
 @endsection

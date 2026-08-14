@@ -17,7 +17,7 @@ class MapLayerController extends Controller
         ini_set('memory_limit', '1G');
 
         $request->validate([
-            'file' => ['required', 'file', 'max:102400', 'extensions:dxf,dwg'],
+            'file' => ['required', 'file', 'max:'.config('uploads.map_cad_kb'), 'extensions:dxf,dwg'],
         ]);
 
         try {

@@ -6,6 +6,7 @@
         <button type="button" id="survey-panel-close" class="floating-tool-close" aria-label="Zatvori panel terenskog rada">&times;</button>
     </div>
     <div style="padding:10px 12px">
+        @can('project.edit')
         <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Uvoz geodetskog TXT fajla</div>
         <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Format: <code>broj&nbsp;X&nbsp;Y&nbsp;Z&nbsp;opis</code> (Gauss-Krüger). Rovovi se spajaju u linije, ZO/ODF/šahtovi postaju elementi mreže.</p>
         <button id="survey-choose-btn" type="button" style="width:100%;border-radius:7px;background:#059669;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Odaberi TXT fajl</button>
@@ -18,9 +19,11 @@
             <select id="survey-import-select" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px;font-size:11px;background:#fff;font-family:inherit">
                 <option value="">Učitavam listu...</option>
             </select>
-            <button id="survey-delete-import-btn" type="button" disabled style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fca5a5;cursor:pointer;font-family:inherit">Obriši samo odabrani TXT fajl</button>
+            @can('destructive')<button id="survey-delete-import-btn" type="button" disabled style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#b91c1c;padding:8px;font-size:11px;font-weight:700;border:1px solid #fca5a5;cursor:pointer;font-family:inherit">Obriši samo odabrani TXT fajl</button>@endcan
         </div>
-        <button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#991b1b;padding:8px;font-size:10px;font-weight:700;border:1px dashed #fecaca;cursor:pointer;font-family:inherit">Obriši SVE TXT uvoze</button>
+        @can('destructive')<button id="survey-clear-btn" type="button" style="width:100%;margin-top:6px;border-radius:7px;background:#fff;color:#991b1b;padding:8px;font-size:10px;font-weight:700;border:1px dashed #fecaca;cursor:pointer;font-family:inherit">Obriši SVE TXT uvoze</button>@endcan
+        @endcan
+        @can('field.capture')
         <div style="height:1px;background:#e2e8f0;margin:14px 0"></div>
         <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Nova GPS tačka</div>
         <button id="field-gps-read" type="button" style="width:100%;border-radius:8px;background:#075985;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer">Očitaj trenutnu GPS lokaciju</button>
@@ -34,5 +37,6 @@
         <img id="field-photo-preview" alt="Pregled fotografije prije slanja" style="display:none;width:100%;max-height:180px;object-fit:cover;margin-top:7px;border-radius:8px;border:1px solid #cbd5e1">
         <button id="field-point-save" type="button" disabled style="width:100%;margin-top:8px;border-radius:8px;background:#0f766e;color:#fff;padding:10px;font-size:12px;font-weight:800;border:none;cursor:pointer;opacity:.55">Sačuvaj GPS tačku</button>
         <div id="field-point-status" style="display:none;margin-top:7px;border-radius:7px;padding:8px;font-size:11px;font-weight:650"></div>
+        @endcan
     </div>
 </div>

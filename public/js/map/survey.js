@@ -87,7 +87,7 @@
     async function loadImportedFiles() {
         if (!importSelect || !projectId()) return;
         importSelect.innerHTML = '<option value="">Učitavam listu...</option>';
-        deleteImportBtn.disabled = true;
+        if (deleteImportBtn) deleteImportBtn.disabled = true;
         try {
             const response = await fetch(`/projekti/${projectId()}/tacke/importi`, {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -253,13 +253,13 @@
         }
     }
 
-    chooseBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => {
+    chooseBtn?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', () => {
         if (fileInput.files?.[0]) previewFile(fileInput.files[0]);
         fileInput.value = '';
     });
 
-    confirmBtn.addEventListener('click', async () => {
+    confirmBtn?.addEventListener('click', async () => {
         if (!selectedFile) return;
         confirmBtn.disabled = true;
         setStatus('Uvozim tacke i crtam elemente...');
@@ -278,7 +278,7 @@
     });
 
     importSelect?.addEventListener('change', () => {
-        deleteImportBtn.disabled = !importSelect.value;
+        if (deleteImportBtn) deleteImportBtn.disabled = !importSelect.value;
     });
 
     deleteImportBtn?.addEventListener('click', async () => {

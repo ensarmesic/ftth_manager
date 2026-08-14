@@ -16,10 +16,13 @@ class OdfController extends Controller
 {
     use ManagesFtthData;
 
-    public function odfs(): View
+    public function odfs(Request $request): View
     {
         return view('ftth.odfs', [
-            'odfs' => Odf::with('project')->latest()->paginate(12),
+            'odfs' => Odf::with('project')->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+                ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('address', 'like', '%'.$request->string('q')->trim().'%')
+                ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
+                ->latest()->paginate(12)->withQueryString(),
             'projects' => Project::orderBy('name')->get(),
             'odfStats' => [
                 'total' => Odf::count(),

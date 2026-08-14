@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use PDO;
 use Tests\TestCase;
 
 class SystemOperationsTest extends TestCase
@@ -18,6 +19,7 @@ class SystemOperationsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('status', 'ok')
             ->assertJsonPath('database', 'ok')
+            ->assertJsonStructure(['database_backup' => ['status', 'age_hours', 'checksum_valid'], 'scheduler' => ['status', 'last_task', 'last_completed_at', 'age_hours']])
             ->assertJsonPath('version', config('app.version'));
     }
 
@@ -31,7 +33,11 @@ class SystemOperationsTest extends TestCase
     {
         $source = storage_path('framework/testing/backup-source.sqlite');
         File::ensureDirectoryExists(dirname($source));
-        File::put($source, 'ftth-test-database');
+        File::delete($source);
+        $database = new PDO('sqlite:'.$source);
+        $database->exec('CREATE TABLE restore_probe (id INTEGER PRIMARY KEY, value TEXT NOT NULL)');
+        $database->exec("INSERT INTO restore_probe (value) VALUES ('ftth-test-database')");
+        $database = null;
         config()->set('database.default', 'sqlite');
         config()->set('database.connections.sqlite.database', $source);
 
@@ -39,10 +45,19 @@ class SystemOperationsTest extends TestCase
 
         $copies = File::glob(storage_path('app/private/backups/database-*.sqlite'));
         $this->assertNotEmpty($copies);
-        $this->assertSame('ftth-test-database', File::get(collect($copies)->sortDesc()->first()));
+        $copy = collect($copies)->sortDesc()->first();
+        $this->assertFileExists($copy.'.sha256');
+        $this->assertStringStartsWith(hash_file('sha256', $copy), File::get($copy.'.sha256'));
+
+        // Probno vraćanje ne koristi aktivnu konekciju: kopija se otvara kao
+        // zasebna baza i iz nje se čita zapis koji postoji samo u izvoru.
+        $restored = new PDO('sqlite:'.$copy);
+        $this->assertSame('ok', $restored->query('PRAGMA quick_check')->fetchColumn());
+        $this->assertSame('ftth-test-database', $restored->query('SELECT value FROM restore_probe')->fetchColumn());
+        $restored = null;
 
         File::delete($source);
-        collect($copies)->each(fn (string $copy) => File::delete($copy));
+        collect($copies)->each(fn (string $copy) => File::delete([$copy, $copy.'.sha256']));
     }
 
     public function test_responses_expose_server_timing_for_diagnostics(): void
@@ -50,5 +65,14 @@ class SystemOperationsTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('dashboard'))
             ->assertHeader('Server-Timing');
+    }
+
+    public function test_scheduler_contains_backup_integrity_audit_and_cache_maintenance(): void
+    {
+        $this->artisan('schedule:list')
+            ->expectsOutputToContain('ftth:backup-database --keep=14')
+            ->expectsOutputToContain('ftth:audit-integrity')
+            ->expectsOutputToContain('ftth:prune-dxf-cache --days=30')
+            ->assertSuccessful();
     }
 }

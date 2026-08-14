@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Cabinet;
+use App\Models\FiberSplice;
 use App\Models\House;
 use App\Models\Material;
 use App\Models\NetworkBranch;
@@ -50,6 +51,18 @@ class ProjectBackupTest extends TestCase
         ]);
         $cabinet->update(['branch_id' => $branch->id]);
         $house->update(['branch_id' => $branch->id]);
+        $project->update([
+            'fiber_budget_limit_db' => 31,
+            'fiber_schema_layout' => [
+                'odf-'.$odf->id => ['x' => 100, 'y' => 120],
+                'cab-'.$cabinet->id => ['x' => 300, 'y' => 220],
+            ],
+        ]);
+        FiberSplice::create([
+            'project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'fiber_number' => 1,
+            'tray' => 2, 'position' => 3, 'incoming_label' => 'ODF-F1', 'outgoing_label' => 'ODO-F1',
+            'loss_db' => .11, 'note' => 'Terensko varenje',
+        ]);
         Material::create([
             'project_id' => $project->id, 'name' => 'Kabl 24F', 'unit' => 'm',
             'planned_quantity' => 120, 'used_quantity' => 25, 'unit_price' => 1.5,
@@ -74,6 +87,7 @@ class ProjectBackupTest extends TestCase
         $this->assertSame('K-001', $backup['data']['houses'][0]['label']);
         $this->assertSame(1, $backup['summary']['houses']);
         $this->assertSame(1, $backup['summary']['gis_segments']);
+        $this->assertSame(1, $backup['summary']['fiber_splices']);
         $this->assertContains('survey_point_photos', $backup['excluded_files']);
 
         $response = $this->post(route('projects.restore'), [
@@ -94,6 +108,10 @@ class ProjectBackupTest extends TestCase
         $this->assertDatabaseHas('project_appendix_items', ['project_id' => $restored->id, 'type' => 'šaht']);
         $this->assertDatabaseHas('gis_segments', ['project_id' => $restored->id, 'name' => 'Cesta A']);
         $this->assertDatabaseHas('map_drafts', ['project_id' => $restored->id]);
+        $this->assertDatabaseHas('fiber_splices', [
+            'project_id' => $restored->id, 'fiber_number' => 1, 'tray' => 2, 'position' => 3,
+            'incoming_label' => 'ODF-F1', 'outgoing_label' => 'ODO-F1', 'note' => 'Terensko varenje',
+        ]);
 
         $restoredCabinet = Cabinet::where('project_id', $restored->id)->firstOrFail();
         $restoredHouse = House::where('project_id', $restored->id)->firstOrFail();
@@ -107,6 +125,10 @@ class ProjectBackupTest extends TestCase
         $this->assertSame('ROV-A', $restoredRoute->trench_group);
         $this->assertTrue($restoredRoute->counts_as_trench);
         $this->assertSame(95, $restoredRoute->trench_length_m);
+        $this->assertSame(31.0, $restored->fiber_budget_limit_db);
+        $this->assertSame(['x' => 100, 'y' => 120], $restored->fiber_schema_layout['odf-'.$restored->odfs()->sole()->id]);
+        $this->assertSame(['x' => 300, 'y' => 220], $restored->fiber_schema_layout['cab-'.$restoredCabinet->id]);
+        $this->assertSame($restoredCabinet->id, $restored->fiberSplices()->sole()->cabinet_id);
     }
 
     public function test_restore_rejects_an_unrelated_json_file(): void

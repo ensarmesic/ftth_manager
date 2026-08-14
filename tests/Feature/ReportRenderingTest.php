@@ -165,7 +165,13 @@ class ReportRenderingTest extends TestCase
         // Export routes
         $this->getJson(route('projects.geojson', $project))->assertOk();
         $this->post(route('projects.dxf', $project))->assertOk();
-        $this->get(route('projects.fiber-schema-dxf', $project))->assertOk();
+        $this->get(route('projects.fiber-schema-dxf', $project))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/dxf')
+            ->assertHeader('content-disposition', 'attachment; filename="smoke-fiber-schema.dxf"')
+            ->assertSee("SECTION\r\n2\r\nHEADER", false)
+            ->assertSee('FTTH_FIBER_COLORS', false)
+            ->assertSee("ENDSEC\r\n0\r\nEOF", false);
     }
 
     public function test_fiber_schema_pdf_downloads_for_project(): void

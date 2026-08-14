@@ -12,10 +12,18 @@ class ProjectManagementController extends Controller
 {
     use ManagesFtthData;
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $projects = Project::query()->withCount(['odfs', 'cabinets', 'houses', 'routes'])
+            ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+                ->where('name', 'like', '%'.$request->string('q')->trim().'%')
+                ->orWhere('code', 'like', '%'.$request->string('q')->trim().'%')
+                ->orWhere('location', 'like', '%'.$request->string('q')->trim().'%')
+                ->orWhere('investor', 'like', '%'.$request->string('q')->trim().'%')))
+            ->latest()->paginate(12)->withQueryString();
+
         return view('ftth.projects', [
-            'projects' => Project::query()->withCount(['odfs', 'cabinets', 'houses', 'routes'])->latest()->paginate(12),
+            'projects' => $projects,
             'projectStats' => [
                 'total' => Project::count(),
                 'active' => Project::where('status', 'active')->count(),
@@ -36,8 +44,8 @@ class ProjectManagementController extends Controller
             'materials',
         ]);
 
-        $validationItems = collect($this->ftthIntelligence->validateProject($project));
-        $materials = $this->ftthIntelligence->materialSummary($project);
+        $validationItems = collect($this->projectValidation->validateProject($project));
+        $materials = $this->projectMaterials->summary($project);
         $cableRoutes = $project->routes->where('route_type', '!=', 'trench');
         $trenchRoutes = $project->routes->where('route_type', 'trench');
         $odfCapacity = $project->odfs->map(fn ($odf) => [
@@ -66,6 +74,11 @@ class ProjectManagementController extends Controller
                 'message' => 'Projekat je kreiran.',
                 'project' => ['id' => $project->id, 'name' => $project->name],
             ]);
+        }
+
+        if ($request->input('next') === 'map') {
+            return redirect()->route('map.dashboard', ['project' => $project->id])
+                ->with('success', 'Projekat je kreiran. Sada postavi ODF i mrežne elemente na mapu.');
         }
 
         return back()->with('success', 'Projekat je kreiran.');

@@ -665,7 +665,7 @@ class MediaskyWorkflowTest extends TestCase
             ->assertSee('Kuca 2')
             ->assertSee('F 1-3')
             ->assertSee('F 4')
-            ->assertSee('F 5-6')
+            ->assertSee('F 1-2')
             ->assertSee('Magistralna optika / raspored iz 144')
             ->assertSee('Color Code')
             ->assertSee('data-color-code="true"', false)

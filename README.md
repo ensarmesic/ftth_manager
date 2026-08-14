@@ -141,6 +141,9 @@ Detaljan standard za terensko snimanje koordinata, oznake elemenata, pripremu
 TXT fajla i kontrolu uvoza nalazi se u
 [uputstvu za geodetski TXT](docs/UPUTSTVO-ZA-GEODETSKI-TXT-FTTH.txt).
 
+Deployment, scheduler, backup/restore, health-check i incidentne procedure nalaze se u
+[produkcijskom uputstvu](docs/PRODUKCIJSKO-UPUTSTVO.md).
+
 ### Glavne stranice
 
 - **Pregled** (`/`) - Dashboard sa statistikom po projektu
@@ -187,7 +190,7 @@ TXT fajla i kontrolu uvoza nalazi se u
 - ✅ Validacija ulaza na frontend i backend
 - ✅ Sigurnosni HTTP headeri i audit zapis izmjena
 - ✅ SQLite baza (ili MySQL/PostgreSQL sa odgovarajućim dozvolama)
-- ⚠️ Bez role/permission sistema (za mali tim 2-3 osobe)
+- ✅ Eksplicitne uloge i dozvole: administrator, projektant, teren i pregled
 - ⚠️ Bez 2FA/MFA (preporučuje se ako je dostupno na serveru)
 
 ## Testiranje

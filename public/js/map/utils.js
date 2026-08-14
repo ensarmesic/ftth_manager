@@ -13,6 +13,19 @@ async function readJsonResponse(response, fallbackMessage) {
     }
     return payload;
 }
+function recoverableRequestError(error, retry = null) {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const raw = String(error?.message || error || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const message = offline
+        ? 'Nema mrežne veze. Izmjene su ostale u pregledniku.'
+        : (raw || 'Zahtjev nije uspio. Provjeri vezu i pokušaj ponovo.');
+    window.ftthToast?.(message, 'error', retry ? {
+        duration: 12000,
+        actionLabel: 'Pokušaj ponovo',
+        onAction: retry,
+    } : { duration: 10000 });
+    return message;
+}
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, character => ({
         '&': '&amp;',

@@ -8,7 +8,13 @@ Kontrolni centar prikazuje posljednji aktivni projekt, otvorene probleme, procij
 
 Na karti je stalno prikazan radni kontekst: aktivni projekt, alat i ODF. Napredni alati Trace, Join i Split su početno skriveni iza dugmeta **Napredni alati** kako slučajno ne bi bili aktivirani. Ovo ne uklanja nijednu mogućnost.
 
-Sve evidencijske tabele podržavaju lokalnu pretragu prikazane stranice, pamte unos tokom sesije i mogu se sortirati klikom na zaglavlje kolone ili tipkom Enter. Zaglavlje ostaje vidljivo tokom vertikalnog pomjeranja.
+Sve glavne evidencijske tabele podržavaju pretragu i sortiranje. Unos odmah filtrira prikazane redove; tipka **Enter** pretražuje kompletan skup podataka na svim stranicama, uključujući pripadajući projekat. Upit ostaje sačuvan pri prelasku kroz paginaciju.
+
+Dugme **Novi projekat** vodi kroz kratki tok: unesite osnovne podatke, kliknite **Sačuvaj i otvori mapu**, zatim na otvorenoj projektnoj mapi postavite ODF i učitajte geodetske podatke. Ovo smanjuje mogućnost rada bez aktivnog projekta.
+
+Mapa automatski čuva radni nacrt nakon izmjene. Status desno prikazuje čuvanje ili grešku; kod mrežne greške nudi **Pokušaj ponovo**, a izmjene ostaju u pregledniku. Ako korisnik pokuša napustiti stranicu prije uspješnog čuvanja, browser prikazuje upozorenje. `Ctrl+Z` i `Ctrl+Y` sigurno poništavaju/vraćaju podržane operacije; neuspjela serverska operacija ostaje u historiji za novi pokušaj.
+
+Pristup je podijeljen po ulogama: **administrator** upravlja sistemom i destruktivnim operacijama, **projektant** uređuje i izvozi projekte, **teren** evidentira terenske tačke, a **pregled** ima read-only pristup. Ako dugme nije prikazano ili server vrati zabranu, račun nema potrebnu dozvolu; administrator treba provjeriti dodijeljenu ulogu.
 
 Kod trajnog brisanja projekta dijalog navodi broj ODF-ova, ODO ormarića, kuća i trasa koji će biti obrisani. Nastavak je moguć tek nakon unosa tačnog naziva projekta. Prije vraćanja stare snapshot verzije aplikacija automatski čuva trenutno stanje kao novu sigurnu tačku.
 
@@ -47,7 +53,7 @@ izvještaje, sigurnosne kopije i preporučeni tok rada.
 | Naziv | FTTH Manager — kompletno korisničko uputstvo |
 | Vrsta | Operativna korisnička i funkcionalna dokumentacija |
 | Verzija | 2.0 |
-| Datum revizije | 13. august 2026. |
+| Datum revizije | 14. august 2026. |
 | Namjena | Projektovanje, evidencija, kontrola i izvještavanje FTTH mreže |
 | Povjerljivost | Vlasnička dokumentacija — nije za neovlaštenu distribuciju |
 

@@ -177,7 +177,7 @@ class MapController extends Controller
                     'to_id' => $route->to_id,
                     'project_id' => $route->project_id,
                     'microduct_count' => $route->microduct_count ?? 0,
-                    'occupancy' => $this->ftthIntelligence->routeOccupancy($route, $housesPerCabinet),
+                    'occupancy' => $this->projectMaterials->routeOccupancy($route, $housesPerCabinet),
                     'status' => $route->status,
                     'note' => $route->note,
                     'path' => $route->path ?: ($route->odf && $route->cabinet ? [

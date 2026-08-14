@@ -6,6 +6,12 @@ if (window.MapEditor.initialized) {
 window.MapEditor.initialized = true;
 window.ftthMapConfig = {
     mode: 'editor',
+    permissions: {
+        edit: @json(auth()->user()->can('project.edit')),
+        fieldCapture: @json(auth()->user()->can('field.capture')),
+        export: @json(auth()->user()->can('project.export')),
+        destructive: @json(auth()->user()->can('destructive')),
+    },
     projectId: null,
     endpoints: {
         autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),

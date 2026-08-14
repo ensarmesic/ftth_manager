@@ -3,10 +3,34 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('ftth:prune-dxf-cache --days=30')->dailyAt('03:15');
-Schedule::command('ftth:backup-database --keep=14')->dailyAt('02:30')->withoutOverlapping();
+$schedulerHeartbeat = storage_path('app/private/health/scheduler-heartbeat.json');
+$markScheduledSuccess = function (string $task) use ($schedulerHeartbeat): void {
+    File::ensureDirectoryExists(dirname($schedulerHeartbeat));
+    File::put($schedulerHeartbeat, json_encode(['task' => $task, 'completed_at' => now()->toIso8601String()], JSON_PRETTY_PRINT));
+};
+$logScheduledFailure = fn (string $task) => Log::error('Neuspješan zakazani FTTH zadatak', ['task' => $task]);
+
+Schedule::command('ftth:backup-database --keep=14')
+    ->dailyAt('02:30')->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/scheduler.log'))
+    ->onSuccess(fn () => $markScheduledSuccess('database-backup'))
+    ->onFailure(fn () => $logScheduledFailure('database-backup'));
+
+Schedule::command('ftth:audit-integrity')
+    ->dailyAt('03:00')->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/scheduler.log'))
+    ->onSuccess(fn () => $markScheduledSuccess('integrity-audit'))
+    ->onFailure(fn () => $logScheduledFailure('integrity-audit'));
+
+Schedule::command('ftth:prune-dxf-cache --days=30')
+    ->dailyAt('03:15')->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/scheduler.log'))
+    ->onSuccess(fn () => $markScheduledSuccess('dxf-cache-prune'))
+    ->onFailure(fn () => $logScheduledFailure('dxf-cache-prune'));
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

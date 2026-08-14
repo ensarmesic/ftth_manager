@@ -104,6 +104,37 @@ class FiberManagementTest extends TestCase
         ])->assertOk()->assertJsonPath('splice.loss_db', .08);
     }
 
+    public function test_locked_schema_rejects_every_operation_that_changes_its_contents(): void
+    {
+        ['project' => $project, 'cabinet' => $cabinet] = $this->projectWithFiberPath();
+        $spliceId = $this->postJson(route('projects.fiber.splice.store', $project), [
+            'cabinet_id' => $cabinet->id, 'fiber_number' => 1, 'tray' => 1, 'position' => 1, 'loss_db' => .1,
+        ])->assertCreated()->json('splice.id');
+        $versionId = $this->postJson(route('projects.fiber.versions.store', $project), ['label' => 'Zaključana verzija'])
+            ->assertCreated()->json('version.id');
+        $this->patchJson(route('projects.fiber.lock', $project), ['locked' => true])->assertOk();
+
+        $this->deleteJson(route('projects.fiber.splice.destroy', [$project, $spliceId]))->assertStatus(423);
+        $this->putJson(route('projects.fiber.layout', $project), ['positions' => []])->assertStatus(423);
+        $this->patchJson(route('projects.fiber.budget-settings', $project), [])->assertStatus(423);
+        $this->postJson(route('projects.fiber.versions.restore', [$project, $versionId]))->assertStatus(423);
+    }
+
+    public function test_splice_cannot_reference_a_cabinet_from_another_project(): void
+    {
+        ['project' => $project] = $this->projectWithFiberPath();
+        $foreignCabinet = Cabinet::factory()->create();
+
+        $this->postJson(route('projects.fiber.splice.store', $project), [
+            'cabinet_id' => $foreignCabinet->id, 'fiber_number' => 1, 'tray' => 1, 'position' => 1, 'loss_db' => .1,
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseMissing('fiber_splices', [
+            'project_id' => $project->id,
+            'cabinet_id' => $foreignCabinet->id,
+        ]);
+    }
+
     public function test_csv_quotes_delimiters_and_neutralizes_spreadsheet_formulas(): void
     {
         ['project' => $project, 'cabinet' => $cabinet] = $this->projectWithFiberPath();
@@ -138,6 +169,50 @@ class FiberManagementTest extends TestCase
         $this->assertSame(round($connection['downstream_rx_dbm'] + 28, 2), $connection['downstream_receiver_margin_db']);
     }
 
+    public function test_power_budget_rejects_levels_below_the_configured_receiver_sensitivity(): void
+    {
+        ['project' => $project] = $this->projectWithFiberPath();
+        $project->update([
+            'power_budget_confirmed' => true,
+            'additional_passive_loss_db' => 4,
+            'olt_tx_power_dbm' => 0,
+            'onu_tx_power_dbm' => 0,
+            'onu_rx_sensitivity_dbm' => -10,
+            'olt_rx_sensitivity_dbm' => -10,
+        ]);
+
+        $plan = app(FiberPlanService::class)->build($project->fresh());
+        $connection = $plan['connections']->first();
+
+        $this->assertTrue($connection['receiver_level_invalid']);
+        $this->assertSame('error', $connection['budget_status']);
+        $this->assertTrue(collect($plan['issues'])->contains(
+            fn (array $issue): bool => str_contains($issue['message'], 'ispod osjetljivosti prijemnika'),
+        ));
+    }
+
+    public function test_reserved_last_fiber_in_a_tube_is_skipped(): void
+    {
+        ['project' => $project, 'odf' => $odf, 'branch' => $branch, 'cabinet' => $firstCabinet] = $this->projectWithFiberPath();
+        $project->update(['fiber_layout' => '12x12', 'fiber_reserve_per_tube' => 1]);
+        House::where('cabinet_id', $firstCabinet->id)->limit(2)->delete();
+        $cabinets = collect([$firstCabinet]);
+        foreach (range(2, 12) as $order) {
+            $cabinet = Cabinet::factory()->create([
+                'project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $branch->id,
+                'branch_order' => $order, 'ports_per_splitter' => 4,
+            ]);
+            House::factory()->count(4)->create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id]);
+            $cabinets->push($cabinet);
+        }
+
+        $plan = app(FiberPlanService::class)->build($project->fresh());
+
+        $this->assertSame(11, $plan['allocations'][$cabinets[10]->id]['from']);
+        $this->assertSame(13, $plan['allocations'][$cabinets[11]->id]['from']);
+        $this->assertSame(12, $plan['usedFibers']);
+    }
+
     public function test_restore_rejects_a_version_that_references_a_deleted_cabinet(): void
     {
         ['project' => $project, 'cabinet' => $cabinet] = $this->projectWithFiberPath();
@@ -150,6 +225,65 @@ class FiberManagementTest extends TestCase
         $this->postJson(route('projects.fiber.versions.restore', [$project, $versionId]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('version');
+    }
+
+    public function test_restore_reinstates_versioned_settings_and_splice_details(): void
+    {
+        ['project' => $project, 'cabinet' => $cabinet] = $this->projectWithFiberPath();
+        $project->update([
+            'fiber_layout' => '12x12',
+            'fiber_reserve_per_tube' => 2,
+            'pon_profile' => 'xgs_n2',
+            'engineering_margin_db' => 4,
+        ]);
+        $this->postJson(route('projects.fiber.splice.store', $project), [
+            'cabinet_id' => $cabinet->id, 'fiber_number' => 1, 'tray' => 2, 'position' => 3,
+            'incoming_label' => 'IN-v1', 'outgoing_label' => 'OUT-v1', 'loss_db' => .12, 'note' => 'Odobreno',
+        ])->assertCreated();
+        $versionId = $this->postJson(route('projects.fiber.versions.store', $project), ['label' => 'Kompletna v1'])
+            ->assertCreated()->json('version.id');
+
+        $project->update([
+            'fiber_layout' => '6x24',
+            'fiber_reserve_per_tube' => 0,
+            'pon_profile' => 'gpon_b_plus',
+            'engineering_margin_db' => 1,
+        ]);
+        $this->postJson(route('projects.fiber.splice.store', $project), [
+            'cabinet_id' => $cabinet->id, 'fiber_number' => 1, 'tray' => 4, 'position' => 5,
+            'incoming_label' => 'promijenjeno', 'loss_db' => .4,
+        ])->assertOk();
+
+        $this->postJson(route('projects.fiber.versions.restore', [$project, $versionId]))->assertOk();
+
+        $project->refresh();
+        $splice = $project->fiberSplices()->sole();
+        $this->assertSame('12x12', $project->fiber_layout);
+        $this->assertSame(2, $project->fiber_reserve_per_tube);
+        $this->assertSame('xgs_n2', $project->pon_profile);
+        $this->assertSame(4.0, $project->engineering_margin_db);
+        $this->assertSame(2, $splice->tray);
+        $this->assertSame(3, $splice->position);
+        $this->assertSame('IN-v1', $splice->incoming_label);
+        $this->assertSame('OUT-v1', $splice->outgoing_label);
+        $this->assertSame('Odobreno', $splice->note);
+    }
+
+    public function test_schema_version_history_keeps_only_the_latest_twenty_versions(): void
+    {
+        ['project' => $project] = $this->projectWithFiberPath();
+
+        foreach (range(1, 22) as $number) {
+            $this->postJson(route('projects.fiber.versions.store', $project), ['label' => "Verzija {$number}"])
+                ->assertCreated();
+        }
+
+        $labels = $project->fiberSchemaVersions()->latest()->pluck('label');
+        $this->assertCount(20, $labels);
+        $this->assertSame('Verzija 22', $labels->first());
+        $this->assertSame('Verzija 3', $labels->last());
+        $this->assertFalse($labels->contains('Verzija 1'));
+        $this->assertFalse($labels->contains('Verzija 2'));
     }
 
     public function test_guided_budget_setup_saves_equipment_levels_and_confirms_the_calculation(): void
@@ -190,5 +324,85 @@ class FiberManagementTest extends TestCase
 
         $this->assertCount(41, $plan['connections']);
         $this->assertLessThanOrEqual(10, $queryCount, "Fiber plan je izvršio {$queryCount} SQL upita.");
+    }
+
+    public function test_each_odf_has_an_independent_fiber_range_and_capacity_check(): void
+    {
+        ['project' => $project, 'odf' => $firstOdf, 'cabinet' => $firstCabinet] = $this->projectWithFiberPath();
+        $firstOdf->update(['fiber_capacity' => 1]);
+        House::where('cabinet_id', $firstCabinet->id)->limit(2)->delete();
+
+        $secondOdf = Odf::factory()->create(['project_id' => $project->id, 'fiber_capacity' => 1]);
+        $secondRoute = NetworkRoute::factory()->create([
+            'project_id' => $project->id, 'odf_id' => $secondOdf->id, 'route_type' => 'distribution',
+        ]);
+        $secondBranch = NetworkBranch::factory()->create([
+            'project_id' => $project->id, 'odf_id' => $secondOdf->id, 'route_id' => $secondRoute->id,
+        ]);
+        $secondCabinet = Cabinet::factory()->create([
+            'project_id' => $project->id, 'odf_id' => $secondOdf->id, 'branch_id' => $secondBranch->id,
+            'ports_per_splitter' => 4,
+        ]);
+        House::factory()->count(4)->create(['project_id' => $project->id, 'cabinet_id' => $secondCabinet->id]);
+
+        $plan = app(FiberPlanService::class)->build($project->fresh());
+
+        $this->assertSame(1, $plan['allocations'][$firstCabinet->id]['from']);
+        $this->assertSame(1, $plan['allocations'][$secondCabinet->id]['from']);
+        $this->assertSame(1, $plan['odfs'][$firstOdf->id]['usedTo']);
+        $this->assertSame(1, $plan['odfs'][$secondOdf->id]['usedTo']);
+        $this->assertSame(2, $plan['capacity']);
+        $this->assertSame(2, $plan['usedFibers']);
+        $this->assertFalse(collect($plan['issues'])->contains(
+            fn (array $issue): bool => str_contains($issue['message'], 'Dupla dodjela')
+                || str_contains($issue['message'], 'Kapacitet je prekoračen'),
+        ));
+    }
+
+    public function test_child_cabinet_inherits_its_parent_fiber_path(): void
+    {
+        ['project' => $project, 'odf' => $odf, 'branch' => $branch, 'cabinet' => $parent] = $this->projectWithFiberPath();
+        $child = Cabinet::factory()->create([
+            'project_id' => $project->id,
+            'parent_cabinet_id' => $parent->id,
+            'odf_id' => null,
+            'branch_id' => null,
+            'ports_per_splitter' => 4,
+        ]);
+        House::factory()->count(4)->create(['project_id' => $project->id, 'cabinet_id' => $child->id]);
+
+        $plan = app(FiberPlanService::class)->build($project->fresh());
+        $connection = $plan['connections']->firstWhere('cabinet_id', $child->id);
+
+        $this->assertArrayHasKey($child->id, $plan['allocations']);
+        $this->assertSame($odf->id, $plan['allocations'][$child->id]['odf_id']);
+        $this->assertSame($branch->id, $plan['allocations'][$child->id]['branch_id']);
+        $this->assertSame($odf->id, $connection['odf_id']);
+        $this->assertSame($branch->name, $connection['branch']);
+        $this->assertFalse(collect($plan['issues'])->contains(
+            fn (array $issue): bool => str_contains($issue['message'], 'nema ODF vezu'),
+        ));
+    }
+
+    public function test_plan_reports_a_splice_made_stale_by_a_topology_change(): void
+    {
+        ['project' => $project, 'odf' => $odf, 'branch' => $branch, 'cabinet' => $cabinet] = $this->projectWithFiberPath();
+        $cabinet->update(['branch_order' => 2]);
+        $this->postJson(route('projects.fiber.splice.store', $project), [
+            'cabinet_id' => $cabinet->id, 'fiber_number' => 1, 'tray' => 1, 'position' => 1, 'loss_db' => .1,
+        ])->assertCreated();
+
+        $earlierCabinet = Cabinet::factory()->create([
+            'project_id' => $project->id, 'odf_id' => $odf->id, 'branch_id' => $branch->id,
+            'branch_order' => 1, 'name' => 'ODO prije postojećeg', 'ports_per_splitter' => 4,
+        ]);
+        House::factory()->count(4)->create(['project_id' => $project->id, 'cabinet_id' => $earlierCabinet->id]);
+
+        $plan = app(FiberPlanService::class)->build($project->fresh());
+
+        $this->assertGreaterThan(1, $plan['allocations'][$cabinet->id]['from']);
+        $this->assertTrue(collect($plan['issues'])->contains(
+            fn (array $issue): bool => str_contains($issue['message'], 'splice F1 više ne pripada'),
+        ));
     }
 }

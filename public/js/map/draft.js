@@ -59,10 +59,10 @@ function initDraftPreflight() {
 
 function initDraftPersistenceControls() {
     document.getElementById('save-draft').addEventListener('click', () => saveDraft().catch(error => {
-        document.getElementById('bulk-plan-status').textContent = error.message;
+        document.getElementById('bulk-plan-status').textContent = recoverableRequestError(error, () => saveDraft());
     }));
     document.getElementById('quick-save-draft').addEventListener('click', () => saveDraft().catch(error => {
-        document.getElementById('bulk-plan-status').textContent = error.message;
+        document.getElementById('bulk-plan-status').textContent = recoverableRequestError(error, () => saveDraft());
     }));
 
     const planStatus = document.getElementById('bulk-plan-status');
@@ -433,11 +433,12 @@ function restoreDraft(payload) {
 
 function scheduleDraftAutosave() {
     if (!autosaveReady || restoringDraft || !document.getElementById('active-project-id').value) return;
+    markMapDraftDirty();
     clearTimeout(autosaveTimer);
     const status = document.getElementById('bulk-plan-status');
     status.textContent = 'Izmjena spremna za automatsko čuvanje...';
     autosaveTimer = setTimeout(() => saveDraft({ quiet: true }).catch(error => {
-        status.textContent = error.message;
+        status.textContent = recoverableRequestError(error, () => saveDraft({ quiet: true }));
     }), 700);
 }
 
@@ -449,26 +450,33 @@ async function saveDraft({ quiet = false } = {}) {
         return;
     }
 
+    const revisionBeingSaved = mapDraftRevision;
+    const payloadBeingSaved = draftPayload();
     const body = new FormData();
     body.append('_token', document.querySelector('#bulk-plan-form input[name="_token"]').value);
     body.append('project_id', projectId);
-    body.append('draft', JSON.stringify(draftPayload()));
+    body.append('draft', JSON.stringify(payloadBeingSaved));
     status.textContent = quiet ? 'Automatski čuvam nacrt...' : 'Cuvam nacrt...';
+    mapDraftSaveInFlight = true;
+    try {
+        const response = await fetch(appConfig.mapDraftStore, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body,
+        });
 
-    const response = await fetch(appConfig.mapDraftStore, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body,
-    });
+        if (!response.ok) {
+            const message = (await response.text()).trim() || 'Nacrt nije sačuvan.';
+            throw new Error(message);
+        }
 
-    if (!response.ok) {
-        status.textContent = await response.text();
-        return;
+        const result = await readJsonResponse(response, 'Nacrt nije sačuvan.');
+        draftsByProject[projectId] = payloadBeingSaved;
+        savedMapDraftRevision = Math.max(savedMapDraftRevision, revisionBeingSaved);
+        status.textContent = quiet ? `Nacrt automatski sačuvan (${result.updated_at})` : `${result.message} (${result.updated_at})`;
+    } finally {
+        mapDraftSaveInFlight = false;
     }
-
-    const result = await readJsonResponse(response, 'Nacrt nije sačuvan.');
-    draftsByProject[projectId] = draftPayload();
-    status.textContent = quiet ? `Nacrt automatski sačuvan (${result.updated_at})` : `${result.message} (${result.updated_at})`;
 }
 
 function commitTrenchLines() {

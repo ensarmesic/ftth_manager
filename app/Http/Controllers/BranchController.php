@@ -15,7 +15,7 @@ class BranchController extends Controller
 {
     use ManagesFtthData;
 
-    public function branches(): View
+    public function branches(Request $request): View
     {
         $branchStats = [
             'total' => NetworkBranch::whereNotIn('type', ['rov'])->count(),
@@ -26,7 +26,11 @@ class BranchController extends Controller
         ];
 
         return view('ftth.branches', [
-            'branches' => NetworkBranch::with(['project', 'odf', 'parentBranch', 'route'])->withCount('cabinets')->orderBy('project_id')->orderBy('sort_order')->paginate(30),
+            'branches' => NetworkBranch::with(['project', 'odf', 'parentBranch', 'route'])->withCount('cabinets')
+                ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+                    ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('code', 'like', '%'.$request->string('q')->trim().'%')
+                    ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
+                ->orderBy('project_id')->orderBy('sort_order')->paginate(30)->withQueryString(),
             'projects' => Project::orderBy('name')->get(),
             'odfs' => Odf::with('project')->orderBy('name')->get(),
             'parentBranches' => NetworkBranch::with('project')->orderBy('name')->get(),

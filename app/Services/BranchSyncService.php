@@ -45,15 +45,18 @@ class BranchSyncService
             'sort_order' => (int) NetworkBranch::query()->where('project_id', $route->project_id)->max('sort_order') + 1,
         ]);
 
-        if ($sourceCabinet && $route->cabinet_id) {
+        if ($route->cabinet_id) {
+            $cabinetUpdate = [
+                'branch_id' => $branch->id,
+                'odf_id' => $odfId,
+            ];
+            if ($sourceCabinet) {
+                $cabinetUpdate['parent_cabinet_id'] = $sourceCabinet->id;
+            }
             Cabinet::query()
                 ->where('project_id', $route->project_id)
                 ->whereKey($route->cabinet_id)
-                ->update([
-                    'branch_id' => $branch->id,
-                    'parent_cabinet_id' => $sourceCabinet->id,
-                    'odf_id' => $route->odf_id ?? $sourceCabinet->odf_id,
-                ]);
+                ->update($cabinetUpdate);
         }
 
         return $branch;
@@ -96,6 +99,16 @@ class BranchSyncService
             'code' => preg_match('/(\d+(?:[.-]\d+)*)/', $route->name, $match) ? str_replace('-', '.', $match[1]) : null,
             'type' => in_array($route->route_type, ['backbone', 'feeder'], true) ? 'primary' : 'secondary',
         ]);
+
+        if ($route->cabinet_id) {
+            Cabinet::query()
+                ->where('project_id', $route->project_id)
+                ->whereKey($route->cabinet_id)
+                ->update([
+                    'branch_id' => $branch->id,
+                    'odf_id' => $syncOdfId ?? $branch->odf_id,
+                ]);
+        }
     }
 
     /**

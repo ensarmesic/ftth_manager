@@ -24,7 +24,7 @@ class SurveyPointController extends Controller
     public function preview(Request $request, Project $project): JsonResponse
     {
         $data = $request->validate([
-            'points_file' => ['required', 'file', 'max:10240', 'mimes:txt'],
+            'points_file' => ['required', 'file', 'max:'.config('uploads.survey_txt_kb'), 'mimes:txt'],
         ]);
 
         try {
@@ -41,7 +41,7 @@ class SurveyPointController extends Controller
     public function import(Request $request, Project $project): JsonResponse
     {
         $data = $request->validate([
-            'points_file' => ['required', 'file', 'max:10240', 'mimes:txt'],
+            'points_file' => ['required', 'file', 'max:'.config('uploads.survey_txt_kb'), 'mimes:txt'],
             'overrides' => ['nullable', 'string'],
         ]);
 
@@ -113,7 +113,7 @@ class SurveyPointController extends Controller
             'code' => ['required', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
             'captured_at' => ['nullable', 'date'],
-            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.config('uploads.field_photo_kb')],
         ]);
 
         $sequence = (int) SurveyPoint::where('project_id', $project->id)

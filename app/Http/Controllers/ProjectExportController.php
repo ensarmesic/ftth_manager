@@ -3,22 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ManagesFtthData;
-use App\Models\NetworkBranch;
+use App\Http\Controllers\Concerns\WritesDxfEntities;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
-use App\Services\ProjectBackupService;
-use App\Support\FiberColorCode;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
-use InvalidArgumentException;
-use JsonException;
-use Throwable;
 
 class ProjectExportController extends Controller
 {
     use ManagesFtthData;
+    use WritesDxfEntities;
 
     public function exportDxf(Project $project, Request $request)
     {
@@ -588,323 +583,6 @@ class ProjectExportController extends Controller
         ])->deleteFileAfterSend(true);
     }
 
-    public function exportFiberSchema(Project $project)
-    {
-        $project->load([
-            'odfs',
-            'branches' => fn ($q) => $q->with([
-                'route',
-                'cabinets' => fn ($q2) => $q2->withCount('houses')->orderBy('branch_order')->orderBy('name'),
-            ])->orderBy('sort_order'),
-        ]);
-
-        // ── Dodjela vlakana ───────────────────────────────────────────────────
-        $fiberAlloc = [];
-        $nextF = 1;
-        $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
-        $dxfColorByName = ['Blue' => 5, 'Orange' => 30, 'Green' => 3, 'Brown' => 32, 'Slate' => 8, 'White' => 7, 'Red' => 1, 'Black' => 250, 'Yellow' => 2, 'Violet' => 6, 'Rose' => 210, 'Aqua' => 4];
-        $fiberDxfColors = collect(FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia'))->map(fn (array $color) => $dxfColorByName[$color['english']])->values()->all();
-        $reservePerTube = min((int) ($project->fiber_reserve_per_tube ?? 0), $fibersPerTube - 1);
-        $allocateFibers = function (int $count) use (&$nextF, $fibersPerTube, $reservePerTube): array {
-            $position = (($nextF - 1) % $fibersPerTube) + 1;
-            $usable = $fibersPerTube - $reservePerTube;
-            if ($position > $usable || $position + $count - 1 > $usable) {
-                $nextF += $fibersPerTube - $position + 1;
-            }
-            $allocation = ['from' => $nextF, 'to' => $nextF + $count - 1];
-            $nextF += $count;
-
-            return $allocation;
-        };
-        $project->branches
-            ->where('type', 'secondary')
-            ->sortBy(fn ($b) => sprintf('%06d|%s', (int) ($b->sort_order ?? 0), (string) $b->name))
-            ->each(function ($branch) use (&$fiberAlloc, &$nextF, $allocateFibers) {
-                $branch->cabinets
-                    ->sortBy(fn ($c) => sprintf('%06d|%s', (int) ($c->branch_order ?? 0), (string) $c->name))
-                    ->each(function ($cabinet) use (&$fiberAlloc, &$nextF, $allocateFibers) {
-                        $n = (int) ceil(((int) ($cabinet->houses_count ?? 0)) / max(1, (int) $cabinet->ports_per_splitter));
-                        if ($n > 0) {
-                            $fiberAlloc[$cabinet->id] = $allocateFibers($n);
-                        }
-                    });
-            });
-
-        // ── Konstante ─────────────────────────────────────────────────────────
-        $OX = 280.0;
-        $OY = 200.0;
-        $OW = 30.0;
-        $OH = 36.0;
-        $OG = 115.0;
-        $BG = 23.0;
-        $CG = 22.0;
-        $FP = 0.8;
-        $TM = 40.0;
-        $CW = 5.8;
-        $CH = 9.6;
-        $FCD = 47.0;
-        $FCD_CAB = 25.0;
-        $CHILD_BG = 22.0; // razmak između dijete-grana u child zoni
-
-        // ── DXF header ───────────────────────────────────────────────────────
-        $L = [
-            '0', 'SECTION', '2', 'HEADER',
-            '9', '$ACADVER', '1', 'AC1009',
-            '9', '$LTSCALE', '40', '1.0',
-            '0', 'ENDSEC',
-            '0', 'SECTION', '2', 'TABLES',
-            '0', 'TABLE', '2', 'LTYPE', '70', '1',
-            '0', 'LTYPE', '2', 'CONTINUOUS', '70', '64', '3', '', '72', '65', '73', '0', '40', '0.0',
-            '0', 'ENDTAB',
-            '0', 'TABLE', '2', 'LAYER', '70', '7',
-            '0', 'LAYER', '2', '0', '70', '64', '62', '7', '6', 'CONTINUOUS',
-            '0', 'LAYER', '2', 'FTTH_ODF', '70', '64', '62', '5', '6', 'CONTINUOUS',
-            '0', 'LAYER', '2', 'FTTH_PRIMARY', '70', '64', '62', '5', '6', 'CONTINUOUS',
-            '0', 'LAYER', '2', 'FTTH_SECONDARY', '70', '64', '62', '6', '6', 'CONTINUOUS',
-            '0', 'LAYER', '2', 'FTTH_CABINETS', '70', '64', '62', '7', '6', 'CONTINUOUS',
-            '0', 'LAYER', '2', 'FTTH_LABELS', '70', '64', '62', '1', '6', 'CONTINUOUS',
-            '0', 'LAYER', '2', 'FTTH_FIBER_COLORS', '70', '64', '62', '7', '6', 'CONTINUOUS',
-            '0', 'ENDTAB',
-            '0', 'TABLE', '2', 'STYLE', '70', '1',
-            '0', 'STYLE', '2', 'FTTH', '70', '0', '40', '0.0', '41', '0.8', '50', '0.0', '71', '0', '42', '3.0',
-            '3', 'romans.shx', '4', '',
-            '0', 'ENDTAB',
-            '0', 'ENDSEC',
-            '0', 'SECTION', '2', 'ENTITIES',
-        ];
-
-        // ODF Y pozicije
-        $odfCY = [];
-        foreach ($project->odfs as $oi => $odf) {
-            $odfCY[$odf->id] = $OY + $oi * $OG;
-        }
-        $allCY = array_values($odfCY) ?: [$OY];
-        $trunkT = max($allCY) + $OH / 2 + $TM;
-        $trunkB = min($allCY) - $OH / 2 - $TM;
-
-        // Primarni trup (vertikalne plave linije)
-        $primBranches = $project->branches->where('type', 'primary')->sortBy('sort_order')->values();
-        $primCount = max($primBranches->count(), 2);
-        $primXs = [];
-        for ($pi = 0; $pi < $primCount; $pi++) {
-            $px = $OX - 1.4 + $pi * 1.8;
-            $primXs[] = $px;
-            array_push($L, ...$this->dxfLine($px, $trunkB, $px, $trunkT, 'FTTH_PRIMARY', ($pi % 2 === 0) ? 5 : 6));
-        }
-        foreach ($primBranches as $pi => $pb) {
-            $px = $primXs[$pi] ?? ($OX - 1.4 + $pi * 1.8);
-            $spec = $pb->route?->fiber_count ? ' '.$pb->route->fiber_count.'F' : '';
-            if ($pb->route?->duct_length_m) {
-                $spec .= '/'.(int) $pb->route->duct_length_m.'m';
-            }
-            array_push($L, ...$this->dxfText($px + 2.0, $trunkT + 2.0, $pb->name.$spec, 'FTTH_PRIMARY', 1, 2.2));
-        }
-
-        // Pratimo gdje je svaki ormarić nacrtan: [x, tapY, boxTop, boxBot, side]
-        $cabPos = [];
-
-        foreach ($project->odfs as $odf) {
-            $cx = $OX;
-            $cy = $odfCY[$odf->id];
-
-            // ── FAZA 1: Grane koje dolaze direktno iz ODF-a ──────────────────
-            // Uključujemo i grane bez odf_id (koje nisu eksplicitno dodijeljene)
-            $directBranches = $project->branches
-                ->where('type', 'secondary')
-                ->filter(fn ($b) => $b->route !== null
-                    && $b->route->from_type !== 'cabinet'
-                    && ($b->odf_id === $odf->id
-                        || ($b->odf_id === null && $b->route->from_type === 'odf')))
-                ->sortBy('sort_order')
-                ->values();
-
-            $sideCnt = [1 => 0, -1 => 0];
-            $sideSlt = [1 => 0, -1 => 0];
-            foreach ($directBranches as $i => $_) {
-                $sideCnt[($i % 2 === 0) ? 1 : -1]++;
-            }
-
-            // Dinamički OH: ODF visina prati raspon grana (max offset ± BG/2 sa marginom)
-            $maxSide = max($sideCnt[1], $sideCnt[-1], 1);
-            $maxOffset = (($maxSide - 1) / 2.0) * $BG;
-            $dynOH = max($OH, $maxOffset * 2.0 + 10.0);
-            $odfL = $cx - $OW / 2;
-            $odfR = $cx + $OW / 2;
-
-            // ODF kutija (dinamička visina)
-            array_push($L, ...$this->dxfRect($odfL, $cy - $dynOH / 2, $odfR, $cy + $dynOH / 2, 'FTTH_ODF', 5));
-            array_push($L, ...$this->dxfText($odfL + 2, $cy + 5, $odf->name, 'FTTH_ODF', 7, 2.8));
-            array_push($L, ...$this->dxfText($odfL + 2, $cy + 1, 'ODF / PATCH PANEL', 'FTTH_ODF', 5, 1.6));
-            array_push($L, ...$this->dxfText($odfL + 2, $cy - 2.5, ($odf->port_count ?? '?').'P / '.($odf->fiber_capacity ?? '?').'F', 'FTTH_ODF', 5, 1.6));
-            array_push($L, ...$this->dxfText($odfL + 2, $cy - 5.5, 'LC/APC', 'FTTH_ODF', 4, 1.4));
-
-            $phaseOneMinY = $cy; // prati najmanji boxBot svih direktnih grana
-
-            foreach ($directBranches as $idx => $branch) {
-                $side = ($idx % 2 === 0) ? 1 : -1;
-                $slot = $sideSlt[$side]++;
-                $maxS = max(1, $sideCnt[$side]);
-                $bY = $cy - ($slot - ($maxS - 1) / 2.0) * $BG;
-
-                $portX = ($side > 0) ? $odfR : $odfL;
-                $edgeX = $portX + $side * 7.0;
-
-                $tw = 2.8;
-                $th = 2.4;
-                $tl = ($side > 0) ? $portX : $portX - $tw;
-                array_push($L, ...$this->dxfRect($tl, $bY - $th / 2, $tl + $tw, $bY + $th / 2, 'FTTH_ODF', 5));
-                array_push($L, ...$this->dxfLine($portX, $bY, $edgeX, $bY, 'FTTH_SECONDARY', 6));
-
-                $this->schemaLabel($L, $branch, $edgeX, $bY, $side);
-                $this->schemaCabinets($L, $branch->cabinets, $portX, $edgeX, $bY, $side, $FCD, $CG, $CW, $CH, $FP, $fiberAlloc, $cabPos, $phaseOneMinY, $fibersPerTube, $fiberDxfColors);
-            }
-
-            // ── FAZA 2: Dijete-grane u zasebnoj zoni ispod svih Faze 1 grana ──
-            $childBranches = $project->branches
-                ->where('type', 'secondary')
-                ->filter(fn ($b) => $b->route?->from_type === 'cabinet')
-                ->sortBy('sort_order')
-                ->values();
-
-            // Child zona počinje 15 jedinica ispod najnižeg boxBot iz Faze 1
-            $childBaseY = $phaseOneMinY - 15.0;
-            $childIdx = 0;
-
-            foreach ($childBranches as $branch) {
-                $srcId = $branch->route->from_id ?? null;
-                if (! $srcId || ! isset($cabPos[$srcId])) {
-                    continue;
-                }
-
-                $src = $cabPos[$srcId];
-                $side = $src['side'];
-                $srcX = $src['x'];
-
-                // Sekvencijalni Y u child zoni — svaka grana $CHILD_BG ispod prethodne
-                $bY = $childBaseY - ($childIdx * $CHILD_BG);
-                $edgeX = $srcX + $side * 12.0;
-                $childIdx++;
-
-                // L-konektor: vertikalno od dna izvora do bY, horizontalno do edgeX
-                array_push($L, ...$this->dxfLine($srcX, $src['boxBot'], $srcX, $bY, 'FTTH_SECONDARY', 6));
-                array_push($L, ...$this->dxfLine($srcX, $bY, $edgeX, $bY, 'FTTH_SECONDARY', 6));
-
-                $this->schemaLabel($L, $branch, $edgeX, $bY, $side);
-
-                $dummyMin = PHP_FLOAT_MAX;
-                $this->schemaCabinets($L, $branch->cabinets, $srcX, $edgeX, $bY, $side, $FCD_CAB, $CG, $CW, $CH, $FP, $fiberAlloc, $cabPos, $dummyMin, $fibersPerTube, $fiberDxfColors);
-            }
-        }
-
-        array_push($L, '0', 'ENDSEC', '0', 'EOF');
-
-        $exportCode = str($project->code ?: $project->name)->slug()->value() ?: 'projekat-'.$project->id;
-
-        return response(implode("\r\n", $L)."\r\n", 200, [
-            'Content-Type' => 'application/dxf',
-            'Content-Disposition' => 'attachment; filename="'.$exportCode.'-fiber-schema.dxf"',
-        ]);
-    }
-
-    // Oznaka grane iznad linije — desno ako side=+1, lijevo-poravnato ako side=-1
-    private function schemaLabel(array &$L, NetworkBranch $branch, float $edgeX, float $bY, int $side): void
-    {
-        $name = $branch->name ?? '';
-        $specs = '';
-        if ($branch->route) {
-            $specs = 'OPTIKA '.($branch->route->fiber_count ?? '?').'F';
-            if ($branch->route->duct_length_m) {
-                $specs .= ' / '.(int) $branch->route->duct_length_m.'m';
-            }
-        }
-
-        if ($side > 0) {
-            array_push($L, ...$this->dxfText($edgeX + 2, $bY + 3.2, $name, 'FTTH_LABELS', 1, 1.8));
-            if ($specs !== '') {
-                array_push($L, ...$this->dxfText($edgeX + 2, $bY + 1.2, $specs, 'FTTH_LABELS', 6, 1.3));
-            }
-        } else {
-            array_push($L, ...$this->dxfTextRight($edgeX - 2, $bY + 3.2, $name, 'FTTH_LABELS', 1, 1.8));
-            if ($specs !== '') {
-                array_push($L, ...$this->dxfTextRight($edgeX - 2, $bY + 1.2, $specs, 'FTTH_LABELS', 6, 1.3));
-            }
-        }
-    }
-
-    // Crta ormarice uz horizontalnu bus-liniju
-    private function schemaCabinets(
-        array &$L, Collection $cabinets, float $portX, float $edgeX,
-        float $bY, int $side, float $fcd, float $cg,
-        float $cw, float $ch, float $fp,
-        array $fiberAlloc, array &$cabPos, float &$minBoxBot, int $fibersPerTube = 24, array $fiberDxfColors = []
-    ): void {
-        $cabs = $cabinets
-            ->sortBy(fn ($c) => sprintf('%06d|%s', (int) ($c->branch_order ?? 0), (string) $c->name))
-            ->values();
-        $nCab = $cabs->count();
-        if ($nCab === 0) {
-            return;
-        }
-
-        $stackH = ($nCab - 1) * $fp;
-        $busT = $bY + $stackH / 2 + 1.5;
-        $busB = $bY - $stackH / 2 - 2.4;
-        array_push($L, ...$this->dxfLine($edgeX, $busB, $edgeX, $busT + 0.9, 'FTTH_SECONDARY', 6));
-
-        foreach ($cabs as $ci => $cabinet) {
-            $x = $portX + $side * ($fcd + $ci * $cg);
-            $tapY = $bY - ($ci - $nCab / 2.0 + 0.5) * $fp;
-            $boxT = $tapY - 3.4;
-            $boxB = $boxT - $ch;
-            $boxL = $x - $cw / 2;
-            $boxR = $x + $cw / 2;
-
-            // Horizontalna linija vlakna + tap krug + oznaka vlakna
-            array_push($L, ...$this->dxfLine($edgeX, $tapY, $x, $tapY, 'FTTH_SECONDARY', 6));
-            array_push($L, ...$this->dxfCircle($x, $tapY, 0.55, 'FTTH_SECONDARY', 6));
-
-            $fa = $fiberAlloc[$cabinet->id] ?? null;
-            if ($fa) {
-                $fiberDxfColors = $fiberDxfColors ?: [5, 30, 3, 32, 8, 7, 1, 250, 2, 6, 210, 4];
-                $fiberCount = $fa['to'] - $fa['from'] + 1;
-                foreach (range($fa['from'], $fa['to']) as $fiberIndex => $fiberNumber) {
-                    $position = (($fiberNumber - 1) % $fibersPerTube) + 1;
-                    $offset = ($fiberIndex - ($fiberCount - 1) / 2) * 0.24;
-                    $dxfColor = $fiberDxfColors[($position - 1) % 12];
-                    array_push($L, ...$this->dxfLine($edgeX, $tapY + $offset, $x, $tapY + $offset, 'FTTH_FIBER_COLORS', $dxfColor));
-                }
-            }
-            $fl = $fa
-                ? ($fa['from'] === $fa['to'] ? (string) $fa['from'] : $fa['from'].'-'.$fa['to'])
-                : '?';
-            array_push($L, ...$this->dxfText($x - 1.8, $tapY + 1.5, $fl, 'FTTH_LABELS', 6, 1.2));
-
-            // Vertikalna kapljica tap → vrh kutije
-            array_push($L, ...$this->dxfLine($x, $tapY, $x, $boxT, 'FTTH_SECONDARY', 6));
-
-            // Kutija ormarića + naziv unutar (90°, h=0.9 stane u CH=9.6)
-            array_push($L, ...$this->dxfRect($boxL, $boxB, $boxR, $boxT, 'FTTH_CABINETS', 7));
-            array_push($L, ...$this->dxfTextRotated($boxL + 1.0, $boxB + 0.5, $cabinet->name, 'FTTH_CABINETS', 7, 0.9, 90.0));
-
-            $cabPos[$cabinet->id] = ['x' => $x, 'tapY' => $tapY, 'boxTop' => $boxT, 'boxBot' => $boxB, 'side' => $side];
-            $minBoxBot = min($minBoxBot, $boxB);
-        }
-    }
-
-    // Desno-poravnat tekst (DXF group 72=2, alignment point 11/21)
-    private function dxfTextRight(float $x, float $y, string $text, string $layer, int $color, float $height = 2.0): array
-    {
-        return [
-            '0', 'TEXT', '8', $layer, '62', (string) $color,
-            '7', 'FTTH',
-            '10', '0', '20', '0', '30', '0',
-            '40', (string) $height,
-            '72', '2',
-            '11', (string) $x, '21', (string) $y, '31', '0',
-            '1', $this->dxfSafeText($text),
-        ];
-    }
-
     private function dxfPolylineGk(array $gkPath, string $layer, int $color): array
     {
         $lines = ['0', 'POLYLINE', '8', $layer, '62', (string) $color, '66', '1', '70', '0'];
@@ -977,28 +655,6 @@ class ProjectExportController extends Controller
     {
         // Minimalni razmak 50 m između labela (labela je ~30-40 m široka)
         return max(1, min(6, (int) floor($lengthM / 50)));
-    }
-
-    private function dxfCircle(float $x, float $y, float $radius, string $layer, int $color): array
-    {
-        return ['0', 'CIRCLE', '8', $layer, '62', (string) $color, '10', (string) $x, '20', (string) $y, '30', '0', '40', (string) $radius];
-    }
-
-    private function dxfCircleDashed(float $x, float $y, float $radius, string $layer, int $color, float $ltScale = 4.0): array
-    {
-        return ['0', 'CIRCLE', '8', $layer, '62', (string) $color, '6', 'DASHED', '48', (string) $ltScale, '10', (string) $x, '20', (string) $y, '30', '0', '40', (string) $radius];
-    }
-
-    // Ispunjeni četverokut (SOLID) — koristi se za ispunjene tačke i simbole
-    private function dxfSolid(float $x1, float $y1, float $x2, float $y2, float $x3, float $y3, float $x4, float $y4, string $layer, int $color): array
-    {
-        return [
-            '0', 'SOLID', '8', $layer, '62', (string) $color,
-            '10', (string) $x1, '20', (string) $y1, '30', '0',
-            '11', (string) $x2, '21', (string) $y2, '31', '0',
-            '12', (string) $x3, '22', (string) $y3, '32', '0',
-            '13', (string) $x4, '23', (string) $y4, '33', '0',
-        ];
     }
 
     // Ormarić: romb + ispunjena kružnica u centru (kao u ručnom projektu)
@@ -1092,35 +748,6 @@ class ProjectExportController extends Controller
         return [...$walls, ...$roof];
     }
 
-    // Pravokutnik iz 4 linije
-    private function dxfRect(float $x1, float $y1, float $x2, float $y2, string $layer, int $color): array
-    {
-        return [
-            ...$this->dxfLine($x1, $y1, $x2, $y1, $layer, $color),
-            ...$this->dxfLine($x2, $y1, $x2, $y2, $layer, $color),
-            ...$this->dxfLine($x2, $y2, $x1, $y2, $layer, $color),
-            ...$this->dxfLine($x1, $y2, $x1, $y1, $layer, $color),
-        ];
-    }
-
-    // Tekst s kutom rotacije (group 50)
-    private function dxfTextRotated(float $x, float $y, string $text, string $layer, int $color, float $height, float $angle): array
-    {
-        return [
-            '0', 'TEXT', '8', $layer, '62', (string) $color,
-            '7', 'FTTH',
-            '10', (string) $x, '20', (string) $y, '30', '0',
-            '40', (string) $height,
-            '50', (string) $angle,
-            '1', $this->dxfSafeText($text),
-        ];
-    }
-
-    private function dxfLine(float $x1, float $y1, float $x2, float $y2, string $layer, int $color): array
-    {
-        return ['0', 'LINE', '8', $layer, '62', (string) $color, '10', (string) $x1, '20', (string) $y1, '30', '0', '11', (string) $x2, '21', (string) $y2, '31', '0'];
-    }
-
     // Dvije linije koje čine strelicu na vrhu leadera. (dx, dy) = normalizovani smjer strelice prema meti.
     private function dxfArrowhead(float $x, float $y, float $dx, float $dy, float $size, string $layer, int $color): array
     {
@@ -1182,17 +809,6 @@ class ProjectExportController extends Controller
         }
 
         return [$tanX, $tanY];
-    }
-
-    private function dxfText(float $x, float $y, string $text, string $layer, int $color, float $height = 3.0): array
-    {
-        return [
-            '0', 'TEXT', '8', $layer, '62', (string) $color,
-            '7', 'FTTH',
-            '10', (string) $x, '20', (string) $y, '30', '0',
-            '40', (string) $height,
-            '1', $this->dxfSafeText($text),
-        ];
     }
 
     // Koordinate iz importovanog DXF-a → standardni GK [easting, northing].
@@ -1306,61 +922,5 @@ class ProjectExportController extends Controller
             'backbone', 'feeder' => 5,
             default => 3,
         };
-    }
-
-    private function dxfSafeText(string $text): string
-    {
-        // romans.shx ne podrzava bosanska slova — transliteracija
-        $map = [
-            'č' => 'c', 'Č' => 'C', 'ć' => 'c', 'Ć' => 'C',
-            'š' => 's', 'Š' => 'S', 'ž' => 'z', 'Ž' => 'Z',
-            'đ' => 'dj', 'Đ' => 'Dj', 'dž' => 'dz', 'Dž' => 'Dz', 'DŽ' => 'DZ',
-        ];
-        $text = strtr($text, $map);
-
-        return str_replace(["\r", "\n"], ' ', $text);
-    }
-
-    /**
-     * Export project as JSON backup for download.
-     */
-    public function backup(Project $project, ProjectBackupService $backupService)
-    {
-        $backup = $backupService->backup($project);
-        $filename = str($project->code ?: $project->name)->slug().'-backup-'.now()->format('Ymd-His').'.json';
-
-        return response()->json($backup, 200, [
-            'Content-Disposition' => "attachment; filename=\"$filename\"",
-            'Content-Type' => 'application/json',
-        ]);
-    }
-
-    /**
-     * Restore project from uploaded JSON backup.
-     */
-    public function restore(Request $request, ProjectBackupService $backupService)
-    {
-        $request->validateWithBag('restoreBackup', [
-            'backup' => 'required|file|mimes:json,txt|max:10240',
-            'project_name' => 'nullable|string|max:255',
-        ]);
-
-        try {
-            $backupFile = $request->file('backup');
-            $backup = json_decode(file_get_contents($backupFile->getRealPath()), true, 512, JSON_THROW_ON_ERROR);
-
-            $restoredProject = $backupService->restore($backup, $request->input('project_name'));
-
-            return redirect()->route('projects.index')->with('success',
-                "Projekt '{$restoredProject->name}' je uspješno restauriran.");
-        } catch (JsonException) {
-            return redirect()->back()->with('error', 'Backup datoteka nije ispravan JSON dokument.');
-        } catch (InvalidArgumentException) {
-            return redirect()->back()->with('error', 'Datoteka nije podržani FTTH Manager backup.');
-        } catch (Throwable $e) {
-            report($e);
-
-            return redirect()->back()->with('error', 'Backup nije moguće vratiti. Provjeri datoteku i pokušaj ponovo.');
-        }
     }
 }

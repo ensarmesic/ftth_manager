@@ -18,9 +18,13 @@ class RouteController extends Controller
 {
     use ManagesFtthData;
 
-    public function routes(): View
+    public function routes(Request $request): View
     {
-        $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->where('route_type', '!=', 'trench')->latest()->paginate(12);
+        $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->where('route_type', '!=', 'trench')
+            ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+                ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('microduct_type', 'like', '%'.$request->string('q')->trim().'%')
+                ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
+            ->latest()->paginate(12)->withQueryString();
         $totalDuct = NetworkRoute::where('route_type', 'trench')->sum('duct_length_m');
         $effectiveMicroduct = NetworkRoute::query()
             ->where('route_type', '!=', 'trench')
@@ -377,7 +381,7 @@ class RouteController extends Controller
     {
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
-            'dxf' => ['required', 'file', 'max:10240', 'extensions:dxf'],
+            'dxf' => ['required', 'file', 'max:'.config('uploads.route_dxf_kb'), 'extensions:dxf'],
         ]);
 
         $entities = $this->parseDxfPolylines($data['dxf']->get());

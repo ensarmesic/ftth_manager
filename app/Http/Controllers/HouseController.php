@@ -18,10 +18,14 @@ class HouseController extends Controller
 {
     use ManagesFtthData;
 
-    public function houses(): View
+    public function houses(Request $request): View
     {
         return view('ftth.houses', [
-            'houses' => House::with(['project', 'cabinet'])->latest()->paginate(12),
+            'houses' => House::with(['project', 'cabinet'])->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+                ->where('label', 'like', '%'.$request->string('q')->trim().'%')->orWhere('address', 'like', '%'.$request->string('q')->trim().'%')
+                ->orWhere('import_batch', 'like', '%'.$request->string('q')->trim().'%')
+                ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
+                ->latest()->paginate(12)->withQueryString(),
             'projects' => Project::orderBy('name')->get(),
             'cabinets' => Cabinet::with(['project'])->withCount('houses')->orderBy('name')->get(),
             'houseStats' => [

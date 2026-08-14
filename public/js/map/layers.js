@@ -102,8 +102,8 @@ function syncRouteEditUndoButtons() {
 function updateMapHistoryUI() {
     const u = document.getElementById('btn-map-undo');
     const r = document.getElementById('btn-map-redo');
-    if (u) u.disabled = mapHistory.stack.length === 0;
-    if (r) r.disabled = mapHistory.histRedoStack.length === 0;
+    if (u) u.disabled = mapHistory.busy || mapHistory.stack.length === 0;
+    if (r) r.disabled = mapHistory.busy || mapHistory.histRedoStack.length === 0;
 }
 function routeLayerType(type) {
     return ['trench', 'backbone', 'drop'].includes(type) ? type : 'distribution';
