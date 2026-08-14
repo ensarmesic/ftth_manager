@@ -6,6 +6,7 @@ use App\Models\GisRestrictedArea;
 use App\Models\GisSegment;
 use App\Models\NetworkRoute;
 use Illuminate\Support\Collection;
+use SplPriorityQueue;
 
 class RouteGraphService
 {
@@ -76,6 +77,7 @@ class RouteGraphService
                 'edges' => array_sum(array_map('count', $graph['edges'])),
                 'segments' => $segments->count(),
                 'restricted_areas' => count($restrictedAreas),
+                'nearby_comparisons' => $graph['nearby_comparisons'],
             ],
         ];
     }
@@ -106,25 +108,43 @@ class RouteGraphService
             }
         }
 
-        $this->connectNearbyNodes($nodes, $edges);
+        $nearbyComparisons = $this->connectNearbyNodes($nodes, $edges);
 
-        return ['nodes' => $nodes, 'edges' => $edges];
+        return ['nodes' => $nodes, 'edges' => $edges, 'nearby_comparisons' => $nearbyComparisons];
     }
 
-    private function connectNearbyNodes(array $nodes, array &$edges, float $toleranceMeters = 2.0): void
+    private function connectNearbyNodes(array $nodes, array &$edges, float $toleranceMeters = 2.0): int
     {
-        $keys = array_keys($nodes);
-        for ($i = 0; $i < count($keys); $i++) {
-            for ($j = $i + 1; $j < count($keys); $j++) {
-                $aKey = $keys[$i];
-                $bKey = $keys[$j];
-                $distance = $this->geometry->distanceBetweenPoints($nodes[$aKey], $nodes[$bKey]);
-                if ($distance > 0 && $distance <= $toleranceMeters) {
-                    $edges[$aKey][$bKey] = min($edges[$aKey][$bKey] ?? INF, $distance);
-                    $edges[$bKey][$aKey] = min($edges[$bKey][$aKey] ?? INF, $distance);
+        if (count($nodes) < 2 || $toleranceMeters <= 0) {
+            return 0;
+        }
+
+        $referenceLatitude = array_sum(array_column($nodes, 0)) / count($nodes);
+        $longitudeScale = 111320 * max(cos(deg2rad($referenceLatitude)), 0.00001);
+        $grid = [];
+        $comparisons = 0;
+
+        foreach ($nodes as $aKey => $point) {
+            $cellX = (int) floor(((float) $point[1] * $longitudeScale) / $toleranceMeters);
+            $cellY = (int) floor(((float) $point[0] * 111320) / $toleranceMeters);
+
+            for ($x = $cellX - 1; $x <= $cellX + 1; $x++) {
+                for ($y = $cellY - 1; $y <= $cellY + 1; $y++) {
+                    foreach ($grid[$x.':'.$y] ?? [] as $bKey) {
+                        $comparisons++;
+                        $distance = $this->geometry->distanceBetweenPoints($nodes[$aKey], $nodes[$bKey]);
+                        if ($distance > 0 && $distance <= $toleranceMeters) {
+                            $edges[$aKey][$bKey] = min($edges[$aKey][$bKey] ?? INF, $distance);
+                            $edges[$bKey][$aKey] = min($edges[$bKey][$aKey] ?? INF, $distance);
+                        }
+                    }
                 }
             }
+
+            $grid[$cellX.':'.$cellY][] = $aKey;
         }
+
+        return $comparisons;
     }
 
     private function attachPoint(array &$graph, Collection $routes, array $point, string $key, array $restrictedAreas = []): ?string
@@ -302,11 +322,17 @@ class RouteGraphService
     {
         $dist = [$start => 0.0];
         $prev = [];
-        $queue = [$start => 0.0];
+        $queue = new SplPriorityQueue;
+        $queue->setExtractFlags(SplPriorityQueue::EXTR_BOTH);
+        $queue->insert($start, 0.0);
 
-        while ($queue) {
-            $current = array_search(min($queue), $queue, true);
-            unset($queue[$current]);
+        while (! $queue->isEmpty()) {
+            $entry = $queue->extract();
+            $current = (string) $entry['data'];
+            $currentDistance = -(float) $entry['priority'];
+            if ($currentDistance > ($dist[$current] ?? INF)) {
+                continue;
+            }
 
             if ($current === $end) {
                 break;
@@ -317,7 +343,7 @@ class RouteGraphService
                 if ($candidate < ($dist[$next] ?? INF)) {
                     $dist[$next] = $candidate;
                     $prev[$next] = $current;
-                    $queue[$next] = $candidate;
+                    $queue->insert($next, -$candidate);
                 }
             }
         }

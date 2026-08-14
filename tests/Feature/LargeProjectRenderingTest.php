@@ -48,6 +48,20 @@ class LargeProjectRenderingTest extends TestCase
         DB::disableQueryLog();
 
         $this->assertLessThanOrEqual(15, $dashboardQueries, "Dashboard je izvršio {$dashboardQueries} SQL upita.");
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $mapStarted = hrtime(true);
+        $mapResponse = $this->get(route('map.dashboard', ['project' => $project->id]))->assertOk();
+        $mapDurationMs = (hrtime(true) - $mapStarted) / 1_000_000;
+        $mapQueries = count(DB::getQueryLog());
+        $mapPayloadBytes = strlen($mapResponse->getContent());
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(30, $mapQueries, "Mapa velikog projekta je izvršila {$mapQueries} SQL upita.");
+        $this->assertLessThan(5000, $mapDurationMs, 'Mapa velikog projekta traje duže od 5 sekundi.');
+        $this->assertLessThan(5_000_000, $mapPayloadBytes, 'Početni HTML/JSON payload mape prelazi 5 MB.');
+
         DB::flushQueryLog();
         DB::enableQueryLog();
         $overviewStarted = hrtime(true);
