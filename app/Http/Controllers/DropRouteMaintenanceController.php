@@ -81,6 +81,7 @@ class DropRouteMaintenanceController extends Controller
                         [(float) $house->latitude, (float) $house->longitude],
                         [(float) $cabinet->latitude, (float) $cabinet->longitude],
                         true,
+                        true,
                     )
                     : null;
 

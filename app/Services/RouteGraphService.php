@@ -12,7 +12,7 @@ class RouteGraphService
 {
     public function __construct(private readonly GeometryService $geometry) {}
 
-    public function shortestPath(int $projectId, array $from, array $to, bool $preferSurveyedRoutes = false): ?array
+    public function shortestPath(int $projectId, array $from, array $to, bool $preferSurveyedRoutes = false, bool $preferNetworkRouteAtDestination = false): ?array
     {
         $segments = collect();
         $source = $preferSurveyedRoutes ? 'routes' : 'gis';
@@ -53,9 +53,18 @@ class RouteGraphService
                 ->all()
             : [];
 
-        $graph = $this->buildGraph($segments, $restrictedAreas);
+        $graph = $this->buildGraph($segments, $restrictedAreas, $preferNetworkRouteAtDestination);
         $start = $this->attachPoint($graph, $segments, $from, '__start', $restrictedAreas);
-        $end = $this->attachPoint($graph, $segments, $to, '__end', $restrictedAreas);
+        $destinationSegments = $preferNetworkRouteAtDestination
+            ? $segments->filter(fn ($segment) => ($segment->route_type ?? null) !== 'trench')->values()
+            : $segments;
+        $end = $this->attachPoint(
+            $graph,
+            $destinationSegments->isNotEmpty() ? $destinationSegments : $segments,
+            $to,
+            '__end',
+            $restrictedAreas,
+        );
 
         if (! $start || ! $end) {
             return null;
@@ -82,10 +91,11 @@ class RouteGraphService
         ];
     }
 
-    private function buildGraph(Collection $routes, array $restrictedAreas = []): array
+    private function buildGraph(Collection $routes, array $restrictedAreas = [], bool $preferNetworkRoutes = false): array
     {
         $nodes = [];
         $edges = [];
+        $routeSegments = [];
 
         foreach ($routes as $route) {
             $path = $route->path ?? [];
@@ -103,14 +113,91 @@ class RouteGraphService
                 }
 
                 $weight = $this->geometry->distanceBetweenPoints($path[$i - 1], $path[$i]);
+                if ($preferNetworkRoutes && ($route->route_type ?? null) === 'trench') {
+                    // The physical trench is the access corridor. Once a connected
+                    // distribution/feeder route exists, prefer following it to ODO.
+                    $weight *= 1.15;
+                }
                 $edges[$prevKey][$key] = min($edges[$prevKey][$key] ?? INF, $weight);
                 $edges[$key][$prevKey] = min($edges[$key][$prevKey] ?? INF, $weight);
+                $routeSegments[] = [
+                    'route_id' => $route->id,
+                    'a' => $this->normalizedPoint($path[$i - 1]),
+                    'b' => $this->normalizedPoint($path[$i]),
+                    'a_key' => $prevKey,
+                    'b_key' => $key,
+                ];
             }
         }
 
+        $intersectionComparisons = $this->connectSegmentIntersections($routeSegments, $nodes, $edges);
         $nearbyComparisons = $this->connectNearbyNodes($nodes, $edges);
 
-        return ['nodes' => $nodes, 'edges' => $edges, 'nearby_comparisons' => $nearbyComparisons];
+        return ['nodes' => $nodes, 'edges' => $edges, 'nearby_comparisons' => $nearbyComparisons + $intersectionComparisons];
+    }
+
+    private function connectSegmentIntersections(array $segments, array &$nodes, array &$edges): int
+    {
+        $comparisons = 0;
+        $count = count($segments);
+
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count; $j++) {
+                $first = $segments[$i];
+                $second = $segments[$j];
+                if ($first['route_id'] === $second['route_id'] || ! $this->segmentBoundsOverlap($first, $second)) {
+                    continue;
+                }
+                $comparisons++;
+                $intersection = $this->segmentIntersection($first['a'], $first['b'], $second['a'], $second['b']);
+                if (! $intersection) {
+                    continue;
+                }
+
+                $intersectionKey = $this->nodeKey($intersection);
+                $nodes[$intersectionKey] = $intersection;
+                foreach ([$first, $second] as $segment) {
+                    foreach ([['key' => $segment['a_key'], 'point' => $segment['a']], ['key' => $segment['b_key'], 'point' => $segment['b']]] as $endpoint) {
+                        $weight = $this->geometry->distanceBetweenPoints($intersection, $endpoint['point']);
+                        $edges[$intersectionKey][$endpoint['key']] = min($edges[$intersectionKey][$endpoint['key']] ?? INF, $weight);
+                        $edges[$endpoint['key']][$intersectionKey] = min($edges[$endpoint['key']][$intersectionKey] ?? INF, $weight);
+                    }
+                }
+            }
+        }
+
+        return $comparisons;
+    }
+
+    private function segmentBoundsOverlap(array $first, array $second): bool
+    {
+        return min($first['a'][0], $first['b'][0]) <= max($second['a'][0], $second['b'][0])
+            && max($first['a'][0], $first['b'][0]) >= min($second['a'][0], $second['b'][0])
+            && min($first['a'][1], $first['b'][1]) <= max($second['a'][1], $second['b'][1])
+            && max($first['a'][1], $first['b'][1]) >= min($second['a'][1], $second['b'][1]);
+    }
+
+    private function segmentIntersection(array $a, array $b, array $c, array $d): ?array
+    {
+        $denominator = (($a[1] - $b[1]) * ($c[0] - $d[0])) - (($a[0] - $b[0]) * ($c[1] - $d[1]));
+        if (abs($denominator) < 1e-14) {
+            return null;
+        }
+        $firstDeterminant = ($a[1] * $b[0]) - ($a[0] * $b[1]);
+        $secondDeterminant = ($c[1] * $d[0]) - ($c[0] * $d[1]);
+        $lng = (($firstDeterminant * ($c[1] - $d[1])) - (($a[1] - $b[1]) * $secondDeterminant)) / $denominator;
+        $lat = (($firstDeterminant * ($c[0] - $d[0])) - (($a[0] - $b[0]) * $secondDeterminant)) / $denominator;
+        $point = [$lat, $lng];
+
+        return $this->pointWithinSegment($point, $a, $b) && $this->pointWithinSegment($point, $c, $d) ? $point : null;
+    }
+
+    private function pointWithinSegment(array $point, array $a, array $b): bool
+    {
+        $epsilon = 1e-9;
+
+        return $point[0] >= min($a[0], $b[0]) - $epsilon && $point[0] <= max($a[0], $b[0]) + $epsilon
+            && $point[1] >= min($a[1], $b[1]) - $epsilon && $point[1] <= max($a[1], $b[1]) + $epsilon;
     }
 
     private function connectNearbyNodes(array $nodes, array &$edges, float $toleranceMeters = 2.0): int
