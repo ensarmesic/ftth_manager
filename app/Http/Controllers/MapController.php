@@ -28,18 +28,17 @@ class MapController extends Controller
         $projectId = $requestedProjectId > 0 && Project::whereKey($requestedProjectId)->exists()
             ? $requestedProjectId
             : 0;
-        // Keep the project picker fast: never build the combined geometry for all
-        // projects. A selected project's drawing is fetched independently while
-        // the editor shell is already visible and responsive.
-        $selectors = $projectId > 0 ? $mapDataService->selectors($projectId) : ['odfs' => [], 'cabinets' => []];
+        // Keep the picker empty and fast, but embed one selected project's data
+        // in the first response so its lines render without a second request.
+        $context = $projectId > 0 ? $mapDataService->build($projectId) : null;
 
         return view('ftth.map', [
             'projects' => Project::orderBy('name')->get(),
             'activeProjectId' => $projectId ?: null,
-            'odfsForSelect' => $selectors['odfs'],
-            'cabinetsForSelect' => $selectors['cabinets'],
-            'mapData' => $this->emptyMapData(),
-            'mapDataUrl' => $projectId > 0 ? route('api.projects.map-data', $projectId) : null,
+            'odfsForSelect' => $context['odfs_for_select'] ?? [],
+            'cabinetsForSelect' => $context['cabinets_for_select'] ?? [],
+            'mapData' => $context['data'] ?? $this->emptyMapData(),
+            'mapDataUrl' => null,
         ]);
     }
 

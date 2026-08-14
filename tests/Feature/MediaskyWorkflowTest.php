@@ -620,12 +620,9 @@ class MediaskyWorkflowTest extends TestCase
 
         $this->get(route('map.dashboard', ['project' => $project->id]))
             ->assertOk()
-            ->assertSee('Učitavam crtež odabranog projekta')
+            ->assertSee('"odf_id":'.$odf->id, false)
+            ->assertSee('"cabinet_id":'.$cabinet->id, false)
             ->assertSee('map-trace-panel');
-
-        $payload = $this->getJson(route('api.projects.map-data', $project))->assertOk();
-        $payload->assertJsonFragment(['odf_id' => $odf->id]);
-        $payload->assertJsonFragment(['cabinet_id' => $cabinet->id]);
     }
 
     public function test_map_trace_uses_network_path_fallback_instead_of_direct_shortest_line(): void

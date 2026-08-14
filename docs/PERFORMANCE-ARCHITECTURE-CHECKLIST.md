@@ -14,7 +14,7 @@ SQLite ostaje podržana i aktivna baza. Ova etapa ne uključuje MySQL/PostgreSQL
 
 - [x] Uvesti performance ugovor za SQL upite, HTML/JSON payload i vrijeme velikog projekta.
 - [x] Definisati autorizovan i testiran map-data API ugovor po projektu.
-- [x] Učitavati samo podatke odabranog projekta; početni izbor projekta ne smije učitavati zbirnu geometriju svih projekata.
+- [x] Početni izbor ne učitava geometriju; nakon izbora se samo jedan projekt ugradi u prvi odgovor radi trenutnog iscrtavanja linija.
 - [ ] Dodati viewport/bbox učitavanje tek nakon testiranja projektnog API-ja.
 
 ## Pozadinski poslovi i cache
