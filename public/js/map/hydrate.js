@@ -9,8 +9,6 @@ data.routes.forEach(route => {
     savedRoutePoints.push(points);
     // Keep exact surveyed geometry for calculations/editing, while overlapping drops
     // receive a very small parallel display lane inside the trench corridor.
-    // Keep overlapping microducts in their parallel visual lanes while preserving
-    // the exact surveyed geometry in savedRoutePoints for editing/calculations.
     const displayPoints = route.type !== 'trench'
         ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0, route._visualSharedMask)
         : points;
@@ -26,9 +24,7 @@ data.routes.forEach(route => {
         line.bringToBack();
         hitLine.bringToBack();
     }
-    // Persistent labels create several DOM markers per route and delay the first
-    // visible line. Route details remain available through hover/click popups.
-    const labels = [];
+    const labels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(displayPoints, route.name, false, routeLabelSpecs(route), route._labelLane) : [];
     routeLayerById[route.id] = line;
     routeHitLayerById[route.id] = hitLine;
     routeLabelsById[route.id] = labels || [];
