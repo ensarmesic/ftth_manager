@@ -65,9 +65,11 @@ class SystemOperationsTest extends TestCase
 
     public function test_responses_expose_server_timing_for_diagnostics(): void
     {
-        $this->actingAs(User::factory()->create())
-            ->get(route('dashboard'))
-            ->assertHeader('Server-Timing');
+        $timing = $this->actingAs(User::factory()->create())
+            ->get(route('dashboard'))->assertOk()
+            ->headers->get('Server-Timing');
+
+        $this->assertMatchesRegularExpression('/^db;dur=[\d.]+, app;dur=[\d.]+$/', (string) $timing);
     }
 
     public function test_scheduler_contains_backup_integrity_audit_and_cache_maintenance(): void

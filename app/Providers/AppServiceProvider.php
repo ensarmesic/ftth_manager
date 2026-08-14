@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\RequestPerformanceMetrics;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(RequestPerformanceMetrics::class);
     }
 
     /**
@@ -34,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('heavy', fn (Request $request) => Limit::perMinute(12)->by($request->user()?->id ?: $request->ip()));
 
         DB::listen(function (QueryExecuted $query): void {
+            app(RequestPerformanceMetrics::class)->recordQuery((float) $query->time);
             $threshold = (float) env('SLOW_QUERY_MS', 250);
             if ($query->time < $threshold) {
                 return;

@@ -19,7 +19,14 @@ SQLite ostaje podržana i aktivna baza. Ova etapa ne uključuje MySQL/PostgreSQL
 
 ## Pozadinski poslovi i cache
 
-- [ ] Izmjeriti trajanje velikih importa, izvoza i Auto ODO planiranja.
-- [ ] Prebaciti u queue samo poslove koji realno prelaze HTTP budžet.
-- [ ] Definisati invalidaciju projektnih summary/validation cache podataka.
-- [ ] Dodati health metrike za queue samo ako queue postane operativna zavisnost.
+- [x] Proširiti slow-request metrike brojem SQL upita, DB vremenom, memorijom i veličinom odgovora.
+- [x] Definisati pragove za izdvajanje velikih importa, izvoza i Auto ODO planiranja.
+- [x] Odgoditi queue dok produkcijske metrike ne pokažu posao iznad praga; trenutni workflow ostaje jednostavniji.
+- [x] Definisati pravilo invalidacije budućeg projektnog summary/validation cachea.
+- [x] Ne uvoditi queue health metrike dok queue nije operativna zavisnost.
+
+### Odluka za queue i cache
+
+Posao prelazi u queue kada na stvarnim projektima ispuni najmanje jedan uslov: p95 trajanje iznad 5 sekundi, memorijski peak iznad 256 MB, ulaz veći od 10 MB ili rezultat koji korisnik ne mora dobiti u istom HTTP odgovoru. Prvi kandidati su veliki DXF/TXT import, veliki DXF/PDF/GeoJSON izvoz i Auto ODO nad cijelim gradskim projektom. Mali izvozi i planiranje ostaju sinhroni jer queue trenutno uvodi više operativne složenosti nego koristi.
+
+Projektni summary/validation cache uvodi se tek ako izmjereno računanje prelazi 250 ms. Ključ mora sadržavati ID projekta i njegov `updated_at`/verziju podataka, tako da svaka izmjena ODF-a, ODO-a, kuće, trase, kraka, splice zapisa ili materijala automatski čini staru vrijednost nedostupnom. Ručno cache čišćenje nije prihvatljiva strategija invalidacije.

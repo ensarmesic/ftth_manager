@@ -26,7 +26,7 @@ Najmanje jednom mjesečno izvršiti probni restore na izolovanoj kopiji: otvorit
 
 ## Monitoring
 
-Administratorski endpoint `/sistem/health` provjerava bazu, scheduler heartbeat, starost i checksum posljednjeg backupa, verziju i deployment datum. Monitoring treba alarmirati ako endpoint nije uspješan, heartbeat kasni, backup je prestar ili disk ostaje bez prostora. Spori HTTP zahtjevi iznad `SLOW_REQUEST_MS` bilježe rutu, trajanje i korisnika u dnevni log.
+Administratorski endpoint `/sistem/health` provjerava bazu, scheduler heartbeat, starost i checksum posljednjeg backupa, verziju i deployment datum. Monitoring treba alarmirati ako endpoint nije uspješan, heartbeat kasni, backup je prestar ili disk ostaje bez prostora. Spori HTTP zahtjevi iznad `SLOW_REQUEST_MS` bilježe rutu, ukupno trajanje, broj i ukupno vrijeme SQL upita, rast/peak memorije, veličinu odgovora i korisnika. HTTP `Server-Timing` zaglavlje zasebno prikazuje `db` i `app` trajanje.
 
 ## Incident i rollback
 
