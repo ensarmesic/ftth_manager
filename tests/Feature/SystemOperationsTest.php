@@ -32,18 +32,21 @@ class SystemOperationsTest extends TestCase
     public function test_database_backup_command_creates_a_rotatable_copy(): void
     {
         $source = storage_path('framework/testing/backup-source.sqlite');
+        $backupDirectory = storage_path('framework/testing/database-backups');
         File::ensureDirectoryExists(dirname($source));
         File::delete($source);
+        File::deleteDirectory($backupDirectory);
         $database = new PDO('sqlite:'.$source);
         $database->exec('CREATE TABLE restore_probe (id INTEGER PRIMARY KEY, value TEXT NOT NULL)');
         $database->exec("INSERT INTO restore_probe (value) VALUES ('ftth-test-database')");
         $database = null;
         config()->set('database.default', 'sqlite');
         config()->set('database.connections.sqlite.database', $source);
+        config()->set('database.backup_directory', $backupDirectory);
 
         $this->artisan('ftth:backup-database --keep=1')->assertSuccessful();
 
-        $copies = File::glob(storage_path('app/private/backups/database-*.sqlite'));
+        $copies = File::glob($backupDirectory.'/database-*.sqlite');
         $this->assertNotEmpty($copies);
         $copy = collect($copies)->sortDesc()->first();
         $this->assertFileExists($copy.'.sha256');
@@ -57,7 +60,7 @@ class SystemOperationsTest extends TestCase
         $restored = null;
 
         File::delete($source);
-        collect($copies)->each(fn (string $copy) => File::delete([$copy, $copy.'.sha256']));
+        File::deleteDirectory($backupDirectory);
     }
 
     public function test_responses_expose_server_timing_for_diagnostics(): void

@@ -28,7 +28,7 @@ class BackupDatabase extends Command
             return self::FAILURE;
         }
 
-        $directory = storage_path('app/private/backups');
+        $directory = (string) config('database.backup_directory', storage_path('app/private/backups'));
         File::ensureDirectoryExists($directory);
         $destination = $directory.'/database-'.now()->format('Y-m-d_His_u').'.sqlite';
         $partial = $destination.'.partial';
