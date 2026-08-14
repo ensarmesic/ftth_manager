@@ -28,16 +28,18 @@ class MapController extends Controller
         $projectId = $requestedProjectId > 0 && Project::whereKey($requestedProjectId)->exists()
             ? $requestedProjectId
             : 0;
-        $context = $projectId > 0 ? null : $mapDataService->build(null);
-        $selectors = $projectId > 0 ? $mapDataService->selectors($projectId) : null;
+        // The editor must be ready on the first render. Loading project data only
+        // after JavaScript starts left a temporarily empty canvas and inactive
+        // project controls, which made selecting a project require extra clicks.
+        $context = $mapDataService->build($projectId ?: null);
 
         return view('ftth.map', [
             'projects' => Project::orderBy('name')->get(),
             'activeProjectId' => $projectId ?: null,
-            'odfsForSelect' => $selectors['odfs'] ?? $context['odfs_for_select'],
-            'cabinetsForSelect' => $selectors['cabinets'] ?? $context['cabinets_for_select'],
-            'mapData' => $context['data'] ?? $this->emptyMapData(),
-            'mapDataUrl' => $projectId > 0 ? route('api.projects.map-data', $projectId) : null,
+            'odfsForSelect' => $context['odfs_for_select'],
+            'cabinetsForSelect' => $context['cabinets_for_select'],
+            'mapData' => $context['data'],
+            'mapDataUrl' => null,
         ]);
     }
 
@@ -45,11 +47,6 @@ class MapController extends Controller
     {
         return response()->json($mapDataService->build($project->id)['data'])
             ->header('Cache-Control', 'private, no-store');
-    }
-
-    private function emptyMapData(): array
-    {
-        return array_fill_keys(['drafts', 'odfs', 'cabinets', 'houses', 'routes', 'gis_segments', 'gis_restricted_areas', 'appendix_items'], []);
     }
 
     public function storePlan(Request $request)

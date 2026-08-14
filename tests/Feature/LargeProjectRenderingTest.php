@@ -61,7 +61,7 @@ class LargeProjectRenderingTest extends TestCase
         $this->assertLessThanOrEqual(30, $mapQueries, "Mapa velikog projekta je izvršila {$mapQueries} SQL upita.");
         $this->assertLessThan(5000, $mapDurationMs, 'Mapa velikog projekta traje duže od 5 sekundi.');
         $this->assertLessThan(1_000_000, $mapPayloadBytes, 'Lazy početni HTML mape prelazi 1 MB.');
-        $mapResponse->assertDontSee('LAZY-PAYLOAD-ROUTE-SENTINEL')->assertSee('map-data');
+        $mapResponse->assertSee('LAZY-PAYLOAD-ROUTE-SENTINEL')->assertDontSee('Učitavam podatke aktivnog projekta');
 
         DB::flushQueryLog();
         DB::enableQueryLog();
