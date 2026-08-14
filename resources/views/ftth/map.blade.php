@@ -131,6 +131,12 @@
 
         <div id="map-container" class="min-h-0 flex-1 w-full relative">
             <div id="network-map" class="w-full h-full"></div>
+            @if($mapDataUrl)
+            <div id="map-project-loader" role="status" aria-live="polite" style="position:absolute;inset:0;z-index:2100;display:grid;place-items:center;background:linear-gradient(135deg,rgba(248,250,252,.96),rgba(239,246,255,.94));">
+                <div style="display:grid;justify-items:center;gap:10px;color:#0f4f7a;font:700 13px/1.4 ui-sans-serif,system-ui,sans-serif;"><i style="width:30px;height:30px;border:3px solid #bfdbfe;border-top-color:#0874cc;border-radius:50%;animation:mapProjectSpin .75s linear infinite;"></i><span>Učitavam crtež odabranog projekta…</span></div>
+            </div>
+            <style>@keyframes mapProjectSpin{to{transform:rotate(360deg)}}</style>
+            @endif
             <nav class="map-vertical-tools" aria-label="Brzi alati mape">
                 <button type="button" data-map-tool="select" title="Selektuj elemente" aria-label="Selektuj elemente">
                     <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 2.7v13.8c0 .7.84 1.04 1.33.55l3.1-3.1 2.15 3.55a1 1 0 001.72-1.03l-2.14-3.57h4.38c.7 0 1.05-.85.55-1.34L5.34 2.16A.78.78 0 004 2.7z"/></svg>
@@ -636,8 +642,11 @@
             Object.assign(window.ftthMapConfig.data, payload);
             await loadScript(@json(asset('js/map/hydrate.js').'?v='.filemtime(public_path('js/map/hydrate.js'))));
             await loadScript(@json(asset('js/map/init.js').'?v='.filemtime(public_path('js/map/init.js'))));
+            document.getElementById('map-project-loader')?.remove();
         } catch (error) {
             if (command) command.textContent = error.message;
+            const loader = document.getElementById('map-project-loader');
+            if (loader) loader.querySelector('span').textContent = 'Crtež nije učitan. Pokušaj ponovo.';
             recoverableRequestError(error, () => window.location.reload());
         }
     })();

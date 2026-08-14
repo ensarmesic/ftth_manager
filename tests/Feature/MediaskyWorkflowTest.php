@@ -618,11 +618,14 @@ class MediaskyWorkflowTest extends TestCase
         House::create(['project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'label' => 'Kuca 12', 'latitude' => 44.452, 'longitude' => 18.652, 'status' => 'planned']);
         NetworkRoute::create(['project_id' => $project->id, 'odf_id' => $odf->id, 'cabinet_id' => $cabinet->id, 'name' => 'ODF do FTTH', 'route_type' => 'distribution', 'installation_type' => 'underground', 'duct_length_m' => 20, 'fiber_length_m' => 20, 'fiber_count' => 12, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => [[44.45, 18.65], [44.451, 18.651]]]);
 
-        $this->get(route('map.dashboard'))
+        $this->get(route('map.dashboard', ['project' => $project->id]))
             ->assertOk()
-            ->assertSee('"odf_id":'.$odf->id, false)
-            ->assertSee('"cabinet_id":'.$cabinet->id, false)
+            ->assertSee('Učitavam crtež odabranog projekta')
             ->assertSee('map-trace-panel');
+
+        $payload = $this->getJson(route('api.projects.map-data', $project))->assertOk();
+        $payload->assertJsonFragment(['odf_id' => $odf->id]);
+        $payload->assertJsonFragment(['cabinet_id' => $cabinet->id]);
     }
 
     public function test_map_trace_uses_network_path_fallback_instead_of_direct_shortest_line(): void
