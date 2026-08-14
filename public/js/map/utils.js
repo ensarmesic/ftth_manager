@@ -536,6 +536,30 @@ function applyRouteVisualLanes(routes) {
         if (!routesByPoint.has(key)) routesByPoint.set(key, []);
         routesByPoint.get(key).push(route);
     }));
+    // Detailed near-segment comparison is quadratic and becomes visibly slow on
+    // large drawings. Exact shared survey points are enough to fan overlapping
+    // routes there, while keeping startup work close to linear.
+    if (candidates.length > 50) {
+        candidates.forEach(route => {
+            const companionIds = new Set();
+            route._visualSharedMask = route.path.map(point => {
+                const key = `${Number(point[0]).toFixed(6)},${Number(point[1]).toFixed(6)}`;
+                const companions = (routesByPoint.get(key) || []).filter(other =>
+                    Number(other.id) !== Number(route.id)
+                    && (route.type !== 'drop' || other.type !== 'drop')
+                    && (!route.cabinet_id || !other.cabinet_id || Number(route.cabinet_id) === Number(other.cabinet_id))
+                );
+                companions.forEach(other => companionIds.add(Number(other.id)));
+                return companions.length > 0;
+            });
+            const orderedIds = [Number(route.id), ...companionIds].sort((a, b) => a - b);
+            const index = orderedIds.indexOf(Number(route.id));
+            route._visualLane = index === 0 ? 0 : Math.ceil(index / 2) * (index % 2 ? 1 : -1);
+            route._visualMaxLane = Math.max(0, Math.ceil((orderedIds.length - 1) / 2));
+        });
+        refreshRouteVisualGeometry();
+        return;
+    }
     candidates.forEach(route => {
         const eligibleCompanions = candidates.filter(other =>
             Number(other.id) !== Number(route.id)
