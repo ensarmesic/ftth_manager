@@ -2,16 +2,15 @@
 const bounds = [];
 applyRouteStacking(data.routes);
 applyRouteLabelLanes(data.routes);
-applyRouteVisualLanes(data.routes);
 data.routes.forEach(route => {
     if (!route.path?.length) return;
     const points = route.path.map(point => L.latLng(point[0], point[1]));
     savedRoutePoints.push(points);
     // Keep exact surveyed geometry for calculations/editing, while overlapping drops
     // receive a very small parallel display lane inside the trench corridor.
-    const displayPoints = route.type !== 'trench'
-        ? offsetRouteDisplayPoints(points, route._visualOffsetM || 0, route._visualSharedMask)
-        : points;
+    // First paint must show the surveyed line immediately. Expensive visual lane
+    // analysis is reserved for later edits instead of blocking initial hydration.
+    const displayPoints = points;
     const occupancy = route.occupancy || {};
     const baseStyle = routeLineStyle(route.type, routeLineColor(route));
     if (route._stack) baseStyle.weight = routeStackedWeight(route, baseStyle.weight);
@@ -24,7 +23,9 @@ data.routes.forEach(route => {
         line.bringToBack();
         hitLine.bringToBack();
     }
-    const labels = shouldShowPersistentRouteLabel(route) ? addRouteLabel(displayPoints, route.name, false, routeLabelSpecs(route), route._labelLane) : [];
+    // Persistent labels create several DOM markers per route and delay the first
+    // visible line. Route details remain available through hover/click popups.
+    const labels = [];
     routeLayerById[route.id] = line;
     routeHitLayerById[route.id] = hitLine;
     routeLabelsById[route.id] = labels || [];
