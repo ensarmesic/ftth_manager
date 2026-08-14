@@ -425,7 +425,7 @@ function applyRouteLabelLanes(routes) {
 // the surveyed trench axis; only Leaflet display/hit layers use these offset points.
 const ROUTE_VISUAL_MAX_SPREAD_METERS = 0.8;
 const ROUTE_VISUAL_GAP_PIXELS = 1.35;
-const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 0.75;
+const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 8;
 const ROUTE_VISUAL_SHARED_TOLERANCE_METERS = 0.35;
 function routeVisualGapMeters() {
     const latitude = map.getCenter()?.lat ?? 44.45;
