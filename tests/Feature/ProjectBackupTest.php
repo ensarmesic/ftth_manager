@@ -201,4 +201,41 @@ class ProjectBackupTest extends TestCase
         $this->assertDatabaseHas('cabinets', ['project_id' => $restored->id, 'odf_id' => null]);
         $this->assertDatabaseHas('houses', ['project_id' => $restored->id, 'cabinet_id' => null]);
     }
+
+    public function test_restore_strips_internal_columns_from_untrusted_rows(): void
+    {
+        $backup = [
+            'format' => 'ftth-manager-project-backup', 'version' => 1,
+            'project' => ['name' => 'Siguran restore', 'code' => 'SAFE', 'location' => 'Test'],
+            'data' => ['map_drafts' => [[
+                'id' => 999999, 'project_id' => 999999, 'created_at' => '2000-01-01 00:00:00',
+                'payload' => json_encode(['zoom' => 12]), 'nepostojeca_kolona' => 'napad',
+            ]]],
+        ];
+
+        $this->post(route('projects.restore'), [
+            'backup' => UploadedFile::fake()->createWithContent('safe.json', json_encode($backup)),
+        ])->assertRedirect(route('projects.index'));
+
+        $project = Project::where('code', 'SAFE')->firstOrFail();
+        $draft = DB::table('map_drafts')->where('project_id', $project->id)->first();
+        $this->assertNotNull($draft);
+        $this->assertNotSame(999999, $draft->id);
+        $this->assertSame($project->id, $draft->project_id);
+    }
+
+    public function test_restore_rejects_non_array_table_rows_before_writing(): void
+    {
+        $backup = [
+            'format' => 'ftth-manager-project-backup', 'version' => 1,
+            'project' => ['name' => 'Los red', 'code' => 'BAD-ROW', 'location' => 'Test'],
+            'data' => ['houses' => ['nije-red']],
+        ];
+
+        $this->from(route('projects.index'))->post(route('projects.restore'), [
+            'backup' => UploadedFile::fake()->createWithContent('bad-row.json', json_encode($backup)),
+        ])->assertRedirect(route('projects.index'))->assertSessionHas('error');
+
+        $this->assertDatabaseCount('projects', 0);
+    }
 }

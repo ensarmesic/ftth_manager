@@ -4,10 +4,17 @@ namespace App\Services;
 
 use App\Models\Project;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ProjectBackupService
 {
+    private array $safeColumnCache = [];
+
+    private const MAX_TOTAL_ROWS = 250000;
+
+    private const MAX_ROWS_PER_TABLE = 100000;
+
     private const SIMPLE_TABLES = [
         'project_appendix_items',
         'gis_segments',
@@ -38,6 +45,22 @@ class ProjectBackupService
                 'fiber_layout' => $project->fiber_layout,
                 'fiber_color_standard' => $project->fiber_color_standard,
                 'fiber_reserve_per_tube' => $project->fiber_reserve_per_tube,
+                'pon_profile' => $project->pon_profile,
+                'feeder_splitter_ratio' => $project->feeder_splitter_ratio,
+                'fiber_attenuation_1310_db_km' => $project->fiber_attenuation_1310_db_km,
+                'fiber_attenuation_1490_db_km' => $project->fiber_attenuation_1490_db_km,
+                'fiber_attenuation_1577_db_km' => $project->fiber_attenuation_1577_db_km,
+                'connector_loss_db' => $project->connector_loss_db,
+                'connector_count' => $project->connector_count,
+                'splice_allowance_db' => $project->splice_allowance_db,
+                'planned_splice_count' => $project->planned_splice_count,
+                'engineering_margin_db' => $project->engineering_margin_db,
+                'additional_passive_loss_db' => $project->additional_passive_loss_db,
+                'power_budget_confirmed' => $project->power_budget_confirmed,
+                'olt_tx_power_dbm' => $project->olt_tx_power_dbm,
+                'onu_tx_power_dbm' => $project->onu_tx_power_dbm,
+                'onu_rx_sensitivity_dbm' => $project->onu_rx_sensitivity_dbm,
+                'olt_rx_sensitivity_dbm' => $project->olt_rx_sensitivity_dbm,
             ],
             'data' => [
                 'odfs' => $project->odfs->map(fn ($odf) => [
@@ -154,6 +177,8 @@ class ProjectBackupService
             }
         }
 
+        $this->validateRestoreSize($backup['data']);
+
         return DB::transaction(function () use ($backup, $newProjectName) {
             // Create project
             $projectData = $backup['project'];
@@ -167,6 +192,7 @@ class ProjectBackupService
             foreach ($backup['data']['odfs'] ?? [] as $odfData) {
                 $odfId = $odfData['id'];
                 unset($odfData['id']);
+                $odfData = $this->safeColumns('odfs', $odfData);
                 $odfData['project_id'] = $project->id;
                 $newOdf = DB::table('odfs')->insertGetId($odfData);
                 $odfMap[$odfId] = $newOdf;
@@ -178,6 +204,7 @@ class ProjectBackupService
             foreach ($backup['data']['routes'] ?? [] as $routeData) {
                 $routeId = $routeData['id'];
                 unset($routeData['id']);
+                $routeData = $this->safeColumns('routes', $routeData);
                 $routeLinks[$routeId] = [
                     'cabinet_id' => $routeData['cabinet_id'] ?? null,
                     'from_type' => $routeData['from_type'] ?? null,
@@ -203,6 +230,7 @@ class ProjectBackupService
                 $branchId = $branchData['id'];
                 $branchParents[$branchId] = $branchData['parent_branch_id'] ?? null;
                 unset($branchData['id']);
+                $branchData = $this->safeColumns('network_branches', $branchData);
                 $branchData['project_id'] = $project->id;
                 $branchData['odf_id'] = $this->mappedId($branchData['odf_id'] ?? null, $odfMap);
                 $branchData['route_id'] = $this->mappedId($branchData['route_id'] ?? null, $routeMap);
@@ -222,6 +250,7 @@ class ProjectBackupService
                 $cabinetId = $cabinetData['id'];
                 $cabinetParents[$cabinetId] = $cabinetData['parent_cabinet_id'] ?? null;
                 unset($cabinetData['id']);
+                $cabinetData = $this->safeColumns('cabinets', $cabinetData);
                 $cabinetData['project_id'] = $project->id;
                 $cabinetData['odf_id'] = $this->mappedId($cabinetData['odf_id'] ?? null, $odfMap);
                 $cabinetData['branch_id'] = $this->mappedId($cabinetData['branch_id'] ?? null, $branchMap);
@@ -240,6 +269,7 @@ class ProjectBackupService
             foreach ($backup['data']['houses'] ?? [] as $houseData) {
                 $houseId = $houseData['id'];
                 unset($houseData['id']);
+                $houseData = $this->safeColumns('houses', $houseData);
                 $houseData['project_id'] = $project->id;
                 $houseData['cabinet_id'] = $this->mappedId($houseData['cabinet_id'] ?? null, $cabinetMap);
                 $houseData['branch_id'] = $this->mappedId($houseData['branch_id'] ?? null, $branchMap);
@@ -255,20 +285,24 @@ class ProjectBackupService
                 ]);
             }
 
-            foreach ($backup['data']['materials'] ?? [] as $materialData) {
+            collect($backup['data']['materials'] ?? [])->map(function (array $materialData) use ($project): array {
+                $materialData = $this->safeColumns('materials', $materialData);
                 $materialData['project_id'] = $project->id;
-                DB::table('materials')->insert($materialData);
-            }
+
+                return $materialData;
+            })->chunk(500)->each(fn ($rows) => DB::table('materials')->insert($rows->all()));
 
             foreach (self::SIMPLE_TABLES as $table) {
-                foreach ($backup['data'][$table] ?? [] as $row) {
+                collect($backup['data'][$table] ?? [])->map(function (array $row) use ($project, $table): array {
+                    $row = $this->safeColumns($table, $row);
                     $row['project_id'] = $project->id;
                     if ($table === 'survey_points') {
                         // The JSON backup does not contain photo binaries.
                         $row['photo_path'] = null;
                     }
-                    DB::table($table)->insert($row);
-                }
+
+                    return $row;
+                })->chunk(500)->each(fn ($rows) => DB::table($table)->insert($rows->all()));
             }
 
             return $project->fresh();
@@ -312,5 +346,35 @@ class ProjectBackupService
             'house' => $this->mappedId($oldId, $houseMap),
             default => null,
         };
+    }
+
+    private function validateRestoreSize(array $data): void
+    {
+        $total = 0;
+        foreach ($data as $table => $rows) {
+            if (! is_array($rows)) {
+                throw new \InvalidArgumentException("Backup table {$table} is not an array");
+            }
+            if (count($rows) > self::MAX_ROWS_PER_TABLE) {
+                throw new \InvalidArgumentException("Backup table {$table} is too large");
+            }
+            foreach ($rows as $row) {
+                if (! is_array($row)) {
+                    throw new \InvalidArgumentException("Backup table {$table} contains an invalid row");
+                }
+            }
+            $total += count($rows);
+            if ($total > self::MAX_TOTAL_ROWS) {
+                throw new \InvalidArgumentException('Backup contains too many records');
+            }
+        }
+    }
+
+    private function safeColumns(string $table, array $row): array
+    {
+        $blocked = ['id', 'project_id', 'created_at', 'updated_at'];
+        $allowed = $this->safeColumnCache[$table] ??= array_values(array_diff(Schema::getColumnListing($table), $blocked));
+
+        return array_intersect_key($row, array_flip($allowed));
     }
 }

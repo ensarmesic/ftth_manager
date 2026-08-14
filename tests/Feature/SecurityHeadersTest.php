@@ -17,7 +17,9 @@ class SecurityHeadersTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('X-Frame-Options', 'DENY')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-            ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=()');
+            ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=()')
+            ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin')
+            ->assertHeader('X-Permitted-Cross-Domain-Policies', 'none');
     }
 
     public function test_authenticated_html_pages_are_not_browser_cached(): void

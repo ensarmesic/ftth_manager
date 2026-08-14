@@ -22,6 +22,14 @@ try{
     await project.locator('[data-schema-view="topology"]').click();
     await project.locator('.topology-graph-stage svg').waitFor();
     await project.locator('[data-topology-action="collapse"]').click();
+    await project.locator('[data-schema-view="rack"]').click();
+    const occupiedPort=project.locator('[data-trace-house]').first();
+    if(await occupiedPort.count()){
+        await occupiedPort.click();
+        await project.locator('[data-trace-output]').getByText('Magistralni kabl').waitFor();
+        const fiberRange=await occupiedPort.getAttribute('data-fiber-range');
+        if(!fiberRange||fiberRange==='?'||fiberRange.includes('???'))throw new Error('Rack tracing nema stvarnu dodjelu vlakana.');
+    }
     const search=project.locator('[data-fiber-search]');await search.fill('ODO');await search.fill('');
     if(errors.length)throw new Error(`JavaScript/console: ${errors.join(' | ')}`);
     if(failed.length)throw new Error(`HTTP: ${failed.join(' | ')}`);

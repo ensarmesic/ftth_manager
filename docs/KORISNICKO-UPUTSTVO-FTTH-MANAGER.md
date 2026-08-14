@@ -26,7 +26,11 @@ Klik na zauzeti splitter port aktivira tracing `ODF → magistralni kabel → OD
 
 Polje za pretragu pronalazi ODF, ODO, kuću, adresu, krak ili oznaku vlakna. Filteri izdvajaju probleme i elemente sa slobodnim kapacitetom. Topologija podržava zoom, pan, collapse/expand, mini-map i ručno pomjeranje blokova. Nakon ručnog pomjeranja kliknite **Sačuvaj raspored**; raspored je projektni podatak i neće se izgubiti osvježavanjem stranice.
 
-Power-budget koristi dužinu optičke trase, prigušenje vlakna `0,35 dB/km`, evidentirana ili planirana varenja, dva konektorska gubitka i standardni približni splitter gubitak. Zeleni status ima najmanje 3 dB rezerve, žuti je unutar posljednja 3 dB, a crveni prelazi projektni prag. Prag se podešava u projektu, početno 28 dB. Proračun je projektantska procjena; završni izvedeni dokument mora koristiti stvarne datasheet vrijednosti, OTDR i power-meter mjerenja.
+Power-budget bira stvarnu PON/ODN klasu: GPON B+/C+/D prema ITU-T G.984.2 ili XGS-PON N1/N2/E1/E2 prema ITU-T G.9807.1. Kontrola primjenjuje i minimalni i maksimalni gubitak klase; prenizak ODN gubitak je greška jer može zahtijevati atenuator i provjeru prijemnog nivoa, a ne samo „više rezerve“.
+
+Proračun se radi odvojeno za downstream i upstream talasnu dužinu. Sabiraju se gubitak vlakna po kilometru, splitter, konektori, evidentirana ili planirana varenja te dodatna pasiva kao WDM ili atenuator. Nepovoljnijem smjeru dodaje se zasebna inženjerska margina, početno 3 dB. `Headroom` je prostor koji ostane do maksimuma klase nakon te margine. Parametri vlakna početno su konzervativno postavljeni prema ITU-T G.652.D granicama i moraju se zamijeniti ugovorenim datasheet vrijednostima kada su poznate.
+
+Zeleni status znači da je fizički ODN unutar minimalnog/maksimalnog raspona klase i da nakon inženjerske margine ostaje najmanje 1 dB. Žuti status znači manje od 1 dB headrooma. Crveni status znači gubitak ispod minimuma klase ili projektni gubitak iznad maksimuma. IEC 61300-3-4 opisuje metode mjerenja atenuacije komponenti; završni izvedeni dokument mora koristiti kalibrirani OLTS/LSPM, OTDR i power-meter mjerenja. Projektantski proračun nije zamjena za prijemno mjerenje niti potvrda usklađenosti aktivne OLT/ONU opreme.
 
 U kartici **Splice plan** prikazana je planirana terminacija. Dugme **Splice zapis** evidentira broj vlakna, kasetu, poziciju, ulaznu/izlaznu oznaku, stvarni gubitak i napomenu. Automatska kontrola prijavljuje prekoračen kapacitet, duple dodjele, nepotpune ODF/krak veze i prekoračen power-budget.
 

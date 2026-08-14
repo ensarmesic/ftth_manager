@@ -6,7 +6,6 @@ use App\Models\ActivityLog;
 use App\Models\Cabinet;
 use App\Models\House;
 use App\Models\NetworkRoute;
-use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectSnapshot;
 use Illuminate\Http\JsonResponse;
@@ -29,17 +28,21 @@ class DashboardController extends Controller
             ->latest('updated_at')
             ->get();
 
-        $cabinets = Cabinet::query()->withCount('houses')->get();
-        $capacity = $cabinets->sum(fn (Cabinet $cabinet) => $cabinet->capacity);
-        $usedPorts = $cabinets->sum('houses_count');
+        $capacityByProject = Cabinet::query()
+            ->select('project_id')
+            ->selectRaw('SUM(splitter_count * ports_per_splitter) as total_capacity')
+            ->groupBy('project_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->project_id => (int) $row->total_capacity]);
+        $capacity = (int) $capacityByProject->sum();
+        $usedPorts = (int) $projects->sum(fn (Project $project) => $project->houses_count - $project->unassigned_houses_count);
         $routeLength = (float) NetworkRoute::query()->where('route_type', '!=', 'drop')->sum('duct_length_m');
-        $connectedHouses = House::query()->whereNotNull('cabinet_id')->count();
-        $totalHouses = House::count();
+        $connectedHouses = $usedPorts;
+        $totalHouses = (int) $projects->sum('houses_count');
 
-        $projectCards = $projects->map(function (Project $project) use ($cabinets): array {
-            $projectCabinets = $cabinets->where('project_id', $project->id);
-            $projectCapacity = $projectCabinets->sum(fn (Cabinet $cabinet) => $cabinet->capacity);
-            $projectUsed = $projectCabinets->sum('houses_count');
+        $projectCards = $projects->map(function (Project $project) use ($capacityByProject): array {
+            $projectCapacity = (int) ($capacityByProject[$project->id] ?? 0);
+            $projectUsed = (int) ($project->houses_count - $project->unassigned_houses_count);
 
             return [
                 'model' => $project,
@@ -53,8 +56,8 @@ class DashboardController extends Controller
         return view('ftth.dashboard', [
             'stats' => [
                 'projects' => $projects->count(),
-                'odfs' => Odf::count(),
-                'cabinets' => $cabinets->count(),
+                'odfs' => (int) $projects->sum('odfs_count'),
+                'cabinets' => (int) $projects->sum('cabinets_count'),
                 'houses' => $totalHouses,
                 'route_km' => $routeLength / 1000,
                 'total_ports' => $capacity,

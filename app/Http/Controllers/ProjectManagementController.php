@@ -75,7 +75,7 @@ class ProjectManagementController extends Controller
     {
         $project = Project::findOrFail($id);
         if ($project->fiber_schema_locked) {
-            foreach (['fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_budget_limit_db'] as $field) {
+            foreach (['fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_budget_limit_db', 'pon_profile', 'fiber_attenuation_1310_db_km', 'fiber_attenuation_1490_db_km', 'fiber_attenuation_1577_db_km', 'connector_loss_db', 'connector_count', 'splice_allowance_db', 'planned_splice_count', 'engineering_margin_db', 'additional_passive_loss_db', 'power_budget_confirmed', 'olt_tx_power_dbm', 'onu_tx_power_dbm', 'onu_rx_sensitivity_dbm', 'olt_rx_sensitivity_dbm'] as $field) {
                 abort_if($request->has($field) && (string) $request->input($field) !== (string) $project->{$field}, 423, 'Fiber postavke su zaključane odobrenom šemom.');
             }
         }
@@ -106,6 +106,21 @@ class ProjectManagementController extends Controller
             'fiber_color_standard' => ['nullable', 'in:telcordia,din_vde'],
             'fiber_reserve_per_tube' => ['nullable', 'integer', 'min:0', 'max:12'],
             'fiber_budget_limit_db' => ['nullable', 'numeric', 'min:10', 'max:60'],
+            'pon_profile' => ['nullable', 'in:gpon_b_plus,gpon_c_plus,gpon_d,xgs_n1,xgs_n2,xgs_e1,xgs_e2'],
+            'fiber_attenuation_1310_db_km' => ['nullable', 'numeric', 'min:0.1', 'max:2'],
+            'fiber_attenuation_1490_db_km' => ['nullable', 'numeric', 'min:0.1', 'max:2'],
+            'fiber_attenuation_1577_db_km' => ['nullable', 'numeric', 'min:0.1', 'max:2'],
+            'connector_loss_db' => ['nullable', 'numeric', 'min:0', 'max:2'],
+            'connector_count' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'splice_allowance_db' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'planned_splice_count' => ['nullable', 'integer', 'min:0', 'max:200'],
+            'engineering_margin_db' => ['nullable', 'numeric', 'min:0', 'max:10'],
+            'additional_passive_loss_db' => ['nullable', 'numeric', 'min:0', 'max:20'],
+            'power_budget_confirmed' => ['nullable', 'boolean'],
+            'olt_tx_power_dbm' => ['nullable', 'required_if:power_budget_confirmed,1', 'numeric', 'min:-10', 'max:20'],
+            'onu_tx_power_dbm' => ['nullable', 'required_if:power_budget_confirmed,1', 'numeric', 'min:-10', 'max:20'],
+            'onu_rx_sensitivity_dbm' => ['nullable', 'required_if:power_budget_confirmed,1', 'numeric', 'min:-50', 'max:0'],
+            'olt_rx_sensitivity_dbm' => ['nullable', 'required_if:power_budget_confirmed,1', 'numeric', 'min:-50', 'max:0'],
         ];
     }
 }

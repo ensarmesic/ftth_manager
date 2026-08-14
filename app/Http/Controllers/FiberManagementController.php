@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class FiberManagementController extends Controller
@@ -24,16 +25,39 @@ class FiberManagementController extends Controller
         return response()->json($service->build($project));
     }
 
-    public function storeSplice(Request $request, Project $project): JsonResponse
+    public function storeSplice(Request $request, Project $project, FiberPlanService $service): JsonResponse
     {
         abort_if($project->fiber_schema_locked, 423, 'Fiber šema je zaključana.');
         $data = $request->validate([
             'cabinet_id' => ['required', 'integer', 'exists:cabinets,id'], 'fiber_number' => ['required', 'integer', 'min:1'],
-            'tray' => ['required', 'integer', 'min:1'], 'position' => ['required', 'integer', 'min:1'],
+            'tray' => ['required', 'integer', 'min:1', 'max:65535'], 'position' => ['required', 'integer', 'min:1', 'max:65535'],
             'incoming_label' => ['nullable', 'string', 'max:255'], 'outgoing_label' => ['nullable', 'string', 'max:255'],
             'loss_db' => ['required', 'numeric', 'min:0', 'max:5'], 'note' => ['nullable', 'string', 'max:1000'],
         ]);
         abort_unless(Cabinet::whereKey($data['cabinet_id'])->where('project_id', $project->id)->exists(), 422);
+
+        $allocation = $service->build($project)['allocations'][$data['cabinet_id']] ?? null;
+        if (! $allocation || $data['fiber_number'] < $allocation['from'] || $data['fiber_number'] > $allocation['to']) {
+            throw ValidationException::withMessages([
+                'fiber_number' => $allocation
+                    ? "Vlakno mora pripadati rasponu F{$allocation['from']}–F{$allocation['to']} dodijeljenom ovom ODO-u."
+                    : 'Odabrani ODO nema dodijeljen raspon vlakana.',
+            ]);
+        }
+
+        $positionOccupied = FiberSplice::query()
+            ->where('project_id', $project->id)
+            ->where('cabinet_id', $data['cabinet_id'])
+            ->where('tray', $data['tray'])
+            ->where('position', $data['position'])
+            ->where('fiber_number', '!=', $data['fiber_number'])
+            ->exists();
+        if ($positionOccupied) {
+            throw ValidationException::withMessages([
+                'position' => "Kaseta {$data['tray']}, pozicija {$data['position']} već je zauzeta drugim vlaknom.",
+            ]);
+        }
+
         $splice = FiberSplice::updateOrCreate(
             ['project_id' => $project->id, 'cabinet_id' => $data['cabinet_id'], 'fiber_number' => $data['fiber_number']],
             $data,
@@ -56,9 +80,9 @@ class FiberManagementController extends Controller
         $data = $request->validate(['label' => ['required', 'string', 'max:255']]);
         $version = FiberSchemaVersion::create([
             'project_id' => $project->id, 'user_id' => $request->user()->id, 'label' => $data['label'],
-            'payload' => ['plan' => $service->build($project), 'splices' => $project->fiberSplices()->get()->toArray(), 'settings' => $project->only(['fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_budget_limit_db'])],
+            'payload' => ['plan' => $service->build($project), 'splices' => $project->fiberSplices()->get()->toArray(), 'settings' => $project->only($this->versionedSettings())],
         ]);
-        FiberSchemaVersion::where('project_id', $project->id)->latest()->get()->slice(20)->each->delete();
+        $this->pruneVersions($project);
 
         return response()->json(['message' => 'Verzija fiber šeme je sačuvana.', 'version' => $version], 201);
     }
@@ -86,15 +110,24 @@ class FiberManagementController extends Controller
     {
         abort_if($project->fiber_schema_locked, 423, 'Prvo otključajte fiber šemu.');
         abort_unless($version->project_id === $project->id, 404);
+        $spliceCabinetIds = collect($version->payload['splices'] ?? [])->pluck('cabinet_id')->filter()->unique();
+        $existingCabinetIds = $project->cabinets()->whereKey($spliceCabinetIds)->pluck('id');
+        if ($spliceCabinetIds->diff($existingCabinetIds)->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'version' => 'Verzija se ne može vratiti jer neki ODO ormarići iz nje više ne postoje u projektu.',
+            ]);
+        }
+
         DB::transaction(function () use ($request, $project, $version, $service): void {
-            FiberSchemaVersion::create(['project_id' => $project->id, 'user_id' => $request->user()->id, 'label' => 'Automatski: prije vraćanja '.$version->label, 'payload' => ['plan' => $service->build($project), 'splices' => $project->fiberSplices()->get()->toArray(), 'settings' => $project->only(['fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_budget_limit_db'])]]);
+            FiberSchemaVersion::create(['project_id' => $project->id, 'user_id' => $request->user()->id, 'label' => 'Automatski: prije vraćanja '.$version->label, 'payload' => ['plan' => $service->build($project), 'splices' => $project->fiberSplices()->get()->toArray(), 'settings' => $project->only($this->versionedSettings())]]);
             $settings = $version->payload['settings'] ?? [];
-            $project->update(collect($settings)->only(['fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_budget_limit_db'])->all());
+            $project->update(collect($settings)->only($this->versionedSettings())->all());
             $project->fiberSplices()->delete();
             foreach ($version->payload['splices'] ?? [] as $splice) {
                 $project->fiberSplices()->create(collect($splice)->only(['cabinet_id', 'fiber_number', 'tray', 'position', 'incoming_label', 'outgoing_label', 'loss_db', 'note'])->all());
             }
         });
+        $this->pruneVersions($project);
 
         return response()->json(['message' => 'Fiber šema je vraćena na odabranu verziju; prethodno stanje je automatski sačuvano.']);
     }
@@ -105,6 +138,28 @@ class FiberManagementController extends Controller
         $project->update(['fiber_schema_locked' => $data['locked'], 'fiber_schema_locked_at' => $data['locked'] ? now() : null, 'fiber_schema_locked_by' => $data['locked'] ? $request->user()->id : null]);
 
         return response()->json(['message' => $data['locked'] ? 'Fiber šema je zaključana i odobrena.' : 'Fiber šema je otključana.', 'locked' => $project->fiber_schema_locked]);
+    }
+
+    public function updateBudgetSettings(Request $request, Project $project): JsonResponse
+    {
+        abort_if($project->fiber_schema_locked, 423, 'Fiber šema je zaključana.');
+        $data = $request->validate([
+            'pon_profile' => ['required', 'in:gpon_b_plus,gpon_c_plus,gpon_d,xgs_n1,xgs_n2,xgs_e1,xgs_e2'],
+            'feeder_splitter_ratio' => ['required', 'integer', 'in:1,2,4,8,16,32,64'],
+            'olt_tx_power_dbm' => ['required', 'numeric', 'min:-10', 'max:20'],
+            'onu_tx_power_dbm' => ['required', 'numeric', 'min:-10', 'max:20'],
+            'onu_rx_sensitivity_dbm' => ['required', 'numeric', 'min:-50', 'max:0'],
+            'olt_rx_sensitivity_dbm' => ['required', 'numeric', 'min:-50', 'max:0'],
+            'engineering_margin_db' => ['required', 'numeric', 'min:0', 'max:10'],
+            'connector_count' => ['required', 'integer', 'min:0', 'max:20'],
+            'connector_loss_db' => ['required', 'numeric', 'min:0', 'max:2'],
+            'planned_splice_count' => ['required', 'integer', 'min:0', 'max:200'],
+            'splice_allowance_db' => ['required', 'numeric', 'min:0', 'max:1'],
+            'additional_passive_loss_db' => ['required', 'numeric', 'min:0', 'max:20'],
+        ]);
+        $project->update($data + ['power_budget_confirmed' => true]);
+
+        return response()->json(['message' => 'Power-budget parametri su potvrđeni i proračun je osvježen.']);
     }
 
     public function storeLayout(Request $request, Project $project): JsonResponse
@@ -119,12 +174,13 @@ class FiberManagementController extends Controller
     public function csv(Project $project, FiberPlanService $service): Response
     {
         $plan = $service->build($project);
-        $lines = ['ODO;ODF ID;Krak;Vlakna;Tuba;Kuće;Kapacitet;Dužina km;Splitter;Gubitak dB;Rezerva dB;Status'];
+        $rows = [['ODO', 'ODF ID', 'Krak', 'Vlakna', 'Tuba', 'Kuće', 'Kapacitet', 'Dužina km', 'ODN klasa', 'Standard', 'Splitter', 'OLT Tx dBm', 'ONU Rx dBm', 'ONU Tx dBm', 'OLT Rx dBm', 'Vlakno DS dB', 'Vlakno US dB', 'Splitter dB', 'Konektori dB', 'Varenja dB', 'Ostala pasiva dB', 'DS ukupno dB', 'US ukupno dB', 'ODN gubitak dB', 'Projektna margina dB', 'Projektni gubitak dB', 'Headroom dB', 'Status']];
         foreach ($plan['connections'] as $row) {
-            $lines[] = implode(';', [$row['cabinet'], $row['odf_id'], $row['branch'], 'F'.$row['fiber_from'].'-F'.$row['fiber_to'], $row['tube'], $row['houses'], $row['capacity'], $row['route_km'], $row['splitter_ratio'], $row['loss_db'], $row['margin_db'], $row['budget_status']]);
+            $rows[] = [$row['cabinet'], $row['odf_id'], $row['branch'], 'F'.$row['fiber_from'].'-F'.$row['fiber_to'], $row['tube'], $row['houses'], $row['capacity'], $row['route_km'], $plan['profile']['label'], $plan['profile']['standard'], $row['splitter_ratio'], $row['olt_tx_power_dbm'], $row['downstream_rx_dbm'], $row['onu_tx_power_dbm'], $row['upstream_rx_dbm'], $row['fiber_loss_downstream_db'], $row['fiber_loss_upstream_db'], $row['splitter_loss_db'], $row['connector_loss_db'], $row['splice_loss_db'], $row['additional_passive_loss_db'], $row['downstream_loss_db'], $row['upstream_loss_db'], $row['loss_db'], $row['engineering_margin_db'], $row['design_loss_db'], $row['headroom_db'], $row['budget_status']];
         }
+        $lines = collect($rows)->map(fn (array $row): string => collect($row)->map($this->csvCell(...))->implode(';'));
 
-        return response("\xEF\xBB\xBF".implode("\r\n", $lines), 200, ['Content-Type' => 'text/csv; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="fiber-plan-'.str($project->code ?: $project->name)->slug().'.csv"']);
+        return response("\xEF\xBB\xBF".$lines->implode("\r\n"), 200, ['Content-Type' => 'text/csv; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="fiber-plan-'.str($project->code ?: $project->name)->slug().'.csv"']);
     }
 
     public function fieldSheet(Project $project, Cabinet $cabinet, FiberPlanService $service): View
@@ -136,5 +192,25 @@ class FiberManagementController extends Controller
         $qrDataUri = (new SvgWriter)->write($qrCode)->getDataUri();
 
         return view('ftth.fiber-field-sheet', compact('project', 'cabinet', 'plan', 'qrDataUri'));
+    }
+
+    private function pruneVersions(Project $project): void
+    {
+        $project->fiberSchemaVersions()->latest()->get()->slice(20)->each->delete();
+    }
+
+    private function csvCell(mixed $value): string
+    {
+        $value = (string) ($value ?? '');
+        if (preg_match('/^[=+\-@]/u', $value) === 1) {
+            $value = "'".$value;
+        }
+
+        return '"'.str_replace('"', '""', $value).'"';
+    }
+
+    private function versionedSettings(): array
+    {
+        return ['fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_budget_limit_db', 'pon_profile', 'feeder_splitter_ratio', 'fiber_attenuation_1310_db_km', 'fiber_attenuation_1490_db_km', 'fiber_attenuation_1577_db_km', 'connector_loss_db', 'connector_count', 'splice_allowance_db', 'planned_splice_count', 'engineering_margin_db', 'additional_passive_loss_db', 'power_budget_confirmed', 'olt_tx_power_dbm', 'onu_tx_power_dbm', 'onu_rx_sensitivity_dbm', 'olt_rx_sensitivity_dbm'];
     }
 }

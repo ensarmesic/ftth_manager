@@ -41,7 +41,7 @@ Route::middleware('auth')->group(function (): void {
     Route::redirect('/mapa/editor', '/mapa')->name('map.index');
     Route::post('/mapa/plan', [MapController::class, 'storePlan'])->name('map.plan.store');
     Route::post('/mapa/draft', [MapController::class, 'storeDraft'])->name('map.draft.store');
-    Route::get('/mapa/auto-route', [MapController::class, 'autoRoute'])->name('map.auto-route');
+    Route::get('/mapa/auto-route', [MapController::class, 'autoRoute'])->middleware('throttle:heavy')->name('map.auto-route');
     Route::post('/mapa/sugestije', [CabinetController::class, 'storeSuggestedCabinets'])->name('map.suggestions.store');
     Route::get('/izvjestaji', [ReportController::class, 'reports'])->name('reports.index');
     Route::post('/izvjestaji/projekti/{project}/stavke-priloga', [ReportController::class, 'storeAppendixItem'])->name('reports.appendix-items.store');
@@ -59,6 +59,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projekti/{project}/fiber-verzije/{version}/poredi', [FiberManagementController::class, 'compare'])->name('projects.fiber.versions.compare');
     Route::post('/projekti/{project}/fiber-verzije/{version}/vrati', [FiberManagementController::class, 'restore'])->name('projects.fiber.versions.restore');
     Route::patch('/projekti/{project}/fiber-zakljucavanje', [FiberManagementController::class, 'toggleLock'])->name('projects.fiber.lock');
+    Route::patch('/projekti/{project}/power-budget', [FiberManagementController::class, 'updateBudgetSettings'])->name('projects.fiber.budget-settings');
     Route::put('/projekti/{project}/fiber-raspored', [FiberManagementController::class, 'storeLayout'])->name('projects.fiber.layout');
     Route::get('/projekti/{project}/fiber-teren/{cabinet}', [FiberManagementController::class, 'fieldSheet'])->name('projects.fiber.field-sheet');
     Route::get('/krakovi', [BranchController::class, 'branches'])->name('branches.index');
@@ -69,7 +70,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/provjera-projekta', [ProjectSettingsController::class, 'projectCheck'])->name('project-check.index');
     Route::get('/postavke', [ProjectSettingsController::class, 'settings'])->name('settings.index');
     Route::get('/postavke/backup', [ProjectSettingsController::class, 'backup'])->name('settings.backup');
-    Route::post('/postavke/gis/import', [GisController::class, 'import'])->name('gis.import');
+    Route::post('/postavke/gis/import', [GisController::class, 'import'])->middleware('throttle:heavy')->name('gis.import');
     Route::get('/postavke/gis/{project}/slojevi', [GisController::class, 'layers'])->name('gis.layers');
     Route::delete('/postavke/gis/{project}/slojevi/{type}', [GisController::class, 'destroyLayer'])->name('gis.layers.destroy');
 
@@ -77,8 +78,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti', [ProjectManagementController::class, 'store'])->name('projects.store');
     Route::get('/projekti/{project}/pregled', [ProjectManagementController::class, 'show'])->name('projects.show');
     Route::match(['put', 'patch'], '/projekti/{id}', [ProjectManagementController::class, 'update'])->name('projects.update');
-    Route::post('/projekti/{project}/odo-plan/preview', [ProjectPlanningController::class, 'previewOdo'])->name('projects.odo-plan.preview');
-    Route::get('/projekti/{project}/gis-plan/preview', [ProjectPlanningController::class, 'previewGis'])->name('projects.gis-plan.preview');
+    Route::post('/projekti/{project}/odo-plan/preview', [ProjectPlanningController::class, 'previewOdo'])->middleware('throttle:heavy')->name('projects.odo-plan.preview');
+    Route::get('/projekti/{project}/gis-plan/preview', [ProjectPlanningController::class, 'previewGis'])->middleware('throttle:heavy')->name('projects.gis-plan.preview');
     Route::post('/projekti/{project}/gis-plan/confirm', [ProjectPlanningController::class, 'confirmGis'])->name('projects.gis-plan.confirm');
     Route::post('/projekti/{project}/odo-plan/confirm', [ProjectPlanningController::class, 'confirmOdo'])->name('projects.odo-plan.confirm');
     Route::get('/projekti/{project}/validacija', [ProjectPlanningController::class, 'validateProject'])->name('projects.validation');
@@ -90,18 +91,18 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/drop-trase/popuni', MissingDropRouteController::class)->name('projects.drop-routes.fill');
     Route::get('/projekti/{project}/drop-trase/audit', [DropRouteMaintenanceController::class, 'audit'])->name('projects.drop-routes.audit');
     Route::post('/projekti/{project}/drop-trase/popravi', [DropRouteMaintenanceController::class, 'repair'])->name('projects.drop-routes.repair');
-    Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->name('projects.survey-points.preview');
-    Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->name('projects.survey-points.import');
+    Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->middleware('throttle:heavy')->name('projects.survey-points.preview');
+    Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->middleware('throttle:heavy')->name('projects.survey-points.import');
     Route::get('/projekti/{project}/tacke/importi', [SurveyPointController::class, 'imports'])->name('projects.survey-points.imports');
     Route::delete('/projekti/{project}/tacke/importi/{batch}', [SurveyPointController::class, 'destroyImport'])->where('batch', '[a-f0-9]{40}')->name('projects.survey-points.imports.destroy');
     Route::post('/projekti/{project}/teren/tacke', [SurveyPointController::class, 'storeFieldPoint'])->name('projects.field-points.store');
     Route::get('/projekti/{project}/teren/tacke/{point}/fotografija', [SurveyPointController::class, 'fieldPointPhoto'])->name('projects.field-points.photo');
     Route::delete('/projekti/{project}/tacke', [SurveyPointController::class, 'destroy'])->name('projects.survey-points.destroy');
     Route::get('/projekti/{project}/geojson', ProjectGeoJsonController::class)->name('projects.geojson');
-    Route::post('/projekti/{project}/dxf', [ProjectExportController::class, 'exportDxf'])->name('projects.dxf');
-    Route::get('/projekti/{project}/fiber-schema-dxf', [ProjectExportController::class, 'exportFiberSchema'])->name('projects.fiber-schema-dxf');
+    Route::post('/projekti/{project}/dxf', [ProjectExportController::class, 'exportDxf'])->middleware('throttle:heavy')->name('projects.dxf');
+    Route::get('/projekti/{project}/fiber-schema-dxf', [ProjectExportController::class, 'exportFiberSchema'])->middleware('throttle:heavy')->name('projects.fiber-schema-dxf');
     Route::get('/projekti/{project}/backup', [ProjectExportController::class, 'backup'])->name('projects.backup');
-    Route::post('/projekti/restore', [ProjectExportController::class, 'restore'])->name('projects.restore');
+    Route::post('/projekti/restore', [ProjectExportController::class, 'restore'])->middleware('throttle:heavy')->name('projects.restore');
     Route::get('/projekti/{project}/print', ProjectPrintController::class)->name('projects.print');
     Route::delete('/projekti/{id}', [ProjectManagementController::class, 'destroy'])->name('projects.delete');
 
@@ -131,10 +132,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/trase/{id}/split', [RouteController::class, 'splitRoute'])->name('routes.split');
     Route::post('/trase/{id}/join', [RouteController::class, 'joinRoutes'])->name('routes.join.multiple');
     Route::post('/trase/{id}/join/{otherId}', [RouteController::class, 'joinRoutes'])->name('routes.join');
-    Route::post('/trase/dxf', [RouteController::class, 'importDxf'])->name('routes.dxf.import');
+    Route::post('/trase/dxf', [RouteController::class, 'importDxf'])->middleware('throttle:heavy')->name('routes.dxf.import');
     Route::delete('/trase/{id}', [RouteController::class, 'deleteRoute'])->name('routes.delete');
 
-    Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->name('map.dxf-layer.upload');
+    Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->middleware('throttle:heavy')->name('map.dxf-layer.upload');
 
     Route::get('/api/notifications', [DashboardController::class, 'notifications'])->name('api.notifications');
     Route::post('/odjava', [LoginController::class, 'destroy'])->name('logout');
