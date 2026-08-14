@@ -2,7 +2,15 @@
 const data = window.ftthMapConfig.data;
 const appConfig = window.ftthMapConfig.endpoints;
 const defaultCenter = [44.4493, 18.6498];
-const map = L.map('network-map', { zoomSnap: 0.25 }).setView(defaultCenter, 17);
+// Leaflet's default vector padding is intentionally small and clips routes while
+// the user pans into the neighboring viewport. A wider SVG renderer keeps lines
+// visible throughout the drag; disabling inertia avoids a second hidden glide.
+const mapVectorRenderer = L.svg({ padding: 2 });
+const map = L.map('network-map', {
+    zoomSnap: 0.25,
+    inertia: false,
+    renderer: mapVectorRenderer,
+}).setView(defaultCenter, 17);
 window.ftthNetworkMap = map;
 // The map's container height depends on sibling panels (branch list, status bar,
 // accordions) that change size as the user works — without this, Leaflet keeps
