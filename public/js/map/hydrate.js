@@ -41,6 +41,11 @@ data.routes.forEach(route => {
     }, [], () => deleteRouteWithHistory(route, renderedRouteLayers));
     points.forEach(p => bounds.push([p.lat, p.lng]));
 });
+// Keep complete customer drops above the blue main routes. Otherwise their shared
+// red section to the assigned ODO is geometrically present but visually covered.
+data.routes
+    .filter(route => route.type === 'drop')
+    .forEach(route => routeLayerById[route.id]?.bringToFront());
 (data.gis_segments || []).forEach(segment => {
     if (!segment.path?.length) return;
     const points = segment.path.map(point => L.latLng(point[0], point[1]));

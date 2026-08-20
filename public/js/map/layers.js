@@ -118,7 +118,10 @@ function updateLayerCount(type) {
         odf: () => data.odfs.length + draftOdfs.length,
         odo: () => data.cabinets.length + draftCabinets.length,
         houses: () => data.houses.length + Math.max(houseMarkers.length - data.houses.length, 0),
-        trench: () => data.routes.filter(route => route.type === 'trench').length + branchMeta.filter(route => route.route_type === 'trench').length,
+        trench: () => new Set([
+            ...data.routes.filter(route => route.type === 'trench').map(route => route.trench_group || `route:${route.id}`),
+            ...branchMeta.filter(route => route.route_type === 'trench').map((route, index) => route.trench_group || `draft:${index}`),
+        ]).size,
         backbone: () => data.routes.filter(route => route.type === 'backbone').length + branchMeta.filter(route => route.route_type === 'backbone').length,
         distribution: () => data.routes.filter(route => !['trench', 'backbone', 'drop'].includes(route.type)).length + branchMeta.filter(route => !['trench', 'backbone', 'drop'].includes(route.route_type)).length,
         drop: () => data.routes.filter(route => route.type === 'drop').length,

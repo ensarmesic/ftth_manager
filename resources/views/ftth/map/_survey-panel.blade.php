@@ -13,6 +13,15 @@
         <input id="survey-file-input" type="file" accept=".txt" style="display:none">
         <div id="survey-status" style="display:none;margin-top:8px;border-radius:6px;border:1px solid #bbf7d0;background:#f0fdf4;padding:7px 10px;font-size:11px;font-weight:600;color:#166534"></div>
         <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
+        <div id="survey-coordinate-editor" style="display:none;margin-top:9px;padding:8px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">
+            <div style="font-size:10px;font-weight:800;color:#1e40af;margin-bottom:6px">RUČNA KOREKCIJA KOORDINATA</div>
+            <button id="survey-edit-toggle" type="button" style="width:100%;border-radius:7px;background:#7c3aed;color:#fff;padding:8px;font-size:11px;font-weight:800;border:none;cursor:pointer">Uredi tačke i cijevi</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+                <button id="survey-edit-reset" type="button" disabled style="border-radius:7px;background:#fff;color:#475569;padding:7px;font-size:10px;font-weight:750;border:1px solid #cbd5e1;cursor:pointer">Vrati početno</button>
+                <button id="survey-edit-export" type="button" disabled style="border-radius:7px;background:#0369a1;color:#fff;padding:7px;font-size:10px;font-weight:750;border:none;cursor:pointer">Preuzmi korekcije</button>
+            </div>
+            <p id="survey-edit-help" style="margin:6px 0 0;font-size:9.5px;color:#475569;line-height:1.35">Povuci numerisani kružić za zajedničku koordinatu ili klikni direktno cijev pa pomjeraj njene hvataljke.</p>
+        </div>
         <button id="survey-confirm-btn" type="button" disabled style="width:100%;margin-top:10px;border-radius:7px;background:#2563eb;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;opacity:1">Uvezi u projekat</button>
         <div style="margin-top:10px;padding:9px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
             <div style="font-size:10px;font-weight:800;color:#475569;margin-bottom:6px">UVEZENI TXT FAJLOVI</div>

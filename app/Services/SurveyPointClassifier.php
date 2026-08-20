@@ -13,7 +13,10 @@ class SurveyPointClassifier
         'ze' => 'Zelena', 'cr' => 'Crvena', 'pl' => 'Plava', 'zu' => 'Zuta', 'bj' => 'Bjela',
     ];
 
-    public function __construct(private readonly SurveyPointCodeNormalizer $codeNormalizer) {}
+    public function __construct(
+        private readonly SurveyPointCodeNormalizer $codeNormalizer,
+        private readonly SurveyTargetZoParser $targetZoParser,
+    ) {}
 
     public function classify(string $code): array
     {
@@ -68,9 +71,14 @@ class SurveyPointClassifier
             $microductCount = max($microductCount, array_sum($colorCounts));
         }
 
-        // Which cabinet the duct belongs to: "- ZO 3", "_ZO_1.1", "-Z0-02", "Z 7.00"...
-        $zoTag = null;
-        if (preg_match_all('/z(?:\s*[o0](?:rmar)?)?[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/', $n, $m) && count($m[1]) > 0) {
+        // Explicit ZO destinations are parsed independently from geometry. Keep the
+        // legacy short field notation (Z1/Z0-1) only as a backwards-compatible tag;
+        // target_zo_explicit remains false for those non-ZO descriptions.
+        $targetZo = $this->targetZoParser->parse($code);
+        $zoTag = $targetZo['target_zo'] !== null
+            ? substr($targetZo['target_zo'], 3)
+            : null;
+        if ($zoTag === null && preg_match_all('/z(?:\s*[o0](?:rmar)?)?[\s\-_.]*([0-9]+(?:[.\-][0-9]+)*)/', $n, $m) && count($m[1]) > 0) {
             $zoTag = $this->codeNormalizer->cabinetTag(end($m[1]));
         } elseif (preg_match('/zelen[ai]\s+ormar(?:ic[ai])?\s*(?:br\.?\s*)?([0-9]+(?:[.\-][0-9]+)*)/', $n, $m)) {
             // Common AutoCAD callout: "ZELENA ORMARICA BR. 7". It denotes the
@@ -115,6 +123,10 @@ class SurveyPointClassifier
             'colors' => $colors,
             'color_counts' => $colorCounts,
             'zo_tag' => $zoTag,
+            'raw_description' => $targetZo['raw_description'],
+            'target_zo' => $targetZo['target_zo'],
+            'target_zo_match' => $targetZo['matched_text'],
+            'target_zo_explicit' => $targetZo['explicit'],
             'duct_identities' => $this->parseMultipleDuctIdentities($n),
             'prepared_sling' => $isPreparedSling,
             'house_ref' => $houseRef,

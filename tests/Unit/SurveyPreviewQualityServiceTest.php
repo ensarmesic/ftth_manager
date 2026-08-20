@@ -21,12 +21,25 @@ class SurveyPreviewQualityServiceTest extends TestCase
         $quality = (new SurveyPreviewQualityService)->analyze($points, $ducts);
 
         $this->assertSame('blocked', $quality['status']);
-        $this->assertCount(4, $quality['errors']);
+        $this->assertCount(3, $quality['errors']);
+        $this->assertCount(1, $quality['warnings']);
         $this->assertSame([1], $quality['duplicate_point_numbers']);
         $this->assertSame([1], $quality['customer_points_without_cabinet']);
         $this->assertSame(['nepoznato'], $quality['unrecognized_codes']);
         $this->assertSame(1, $quality['unreachable_drop_routes']);
         $this->assertCount(2, $quality['issue_points']);
+    }
+
+    public function test_unreachable_drop_warns_but_does_not_block_manual_correction(): void
+    {
+        $quality = (new SurveyPreviewQualityService)->analyze([], [[
+            'prepared_sling' => true,
+            'cabinet_reached' => false,
+        ]]);
+        $this->assertSame('ready', $quality['status']);
+        $this->assertSame([], $quality['errors']);
+        $this->assertCount(1, $quality['warnings']);
+        $this->assertSame(1, $quality['unreachable_drop_routes']);
     }
 
     public function test_it_marks_a_connected_clean_survey_as_ready(): void

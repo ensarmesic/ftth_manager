@@ -43,6 +43,7 @@ class SurveyPointController extends Controller
         $data = $request->validate([
             'points_file' => ['required', 'file', 'max:'.config('uploads.survey_txt_kb'), 'mimes:txt'],
             'overrides' => ['nullable', 'string'],
+            'route_corrections' => ['nullable', 'string'],
         ]);
 
         $cabinetOverrides = [];
@@ -52,6 +53,14 @@ class SurveyPointController extends Controller
                 $cabinetOverrides = array_map('intval', $decoded);
             }
         }
+        $routeCorrections = [];
+        if (! empty($data['route_corrections'])) {
+            $decoded = json_decode($data['route_corrections'], true);
+            if (! is_array($decoded)) {
+                return response()->json(['message' => 'Ručne korekcije trase nisu ispravan JSON.'], 422);
+            }
+            $routeCorrections = $decoded;
+        }
 
         try {
             $this->snapshots->create($project, 'Automatski: prije TXT uvoza '.$data['points_file']->getClientOriginalName());
@@ -60,6 +69,7 @@ class SurveyPointController extends Controller
                 $data['points_file']->get(),
                 $data['points_file']->getClientOriginalName(),
                 $cabinetOverrides,
+                $routeCorrections,
             );
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);

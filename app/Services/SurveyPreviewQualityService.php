@@ -20,12 +20,15 @@ class SurveyPreviewQualityService
             ->when($duplicatePointNumbers->isNotEmpty(), fn (Collection $items) => $items->push('Dupli brojevi tačaka: '.$duplicatePointNumbers->take(12)->join(', ').'.'))
             ->when($unrecognizedCodes->isNotEmpty(), fn (Collection $items) => $items->push($unrecognizedCodes->count().' opisa nije prepoznato.'))
             ->when($customerPointsWithoutCabinet->isNotEmpty(), fn (Collection $items) => $items->push($customerPointsWithoutCabinet->count().' korisničkih 10/8 tačaka nema -ZO oznaku.'))
-            ->when($unreachableDucts->isNotEmpty(), fn (Collection $items) => $items->push($unreachableDucts->count().' korisničkih linija nema dokazanu putanju kroz rov do ODO-a.'))
+            ->values();
+        $warnings = collect()
+            ->when($unreachableDucts->isNotEmpty(), fn (Collection $items) => $items->push($unreachableDucts->count().' korisničkih linija nema dokazanu putanju kroz rov do ODO-a; možeš je ručno ispraviti prije uvoza.'))
             ->values();
 
         return [
             'status' => $errors->isEmpty() ? 'ready' : 'blocked',
             'errors' => $errors->all(),
+            'warnings' => $warnings->all(),
             'complete_drop_routes' => $terminalDucts->count() - $unreachableDucts->count(),
             'unreachable_drop_routes' => $unreachableDucts->count(),
             'duplicate_point_numbers' => $duplicatePointNumbers->all(),
@@ -35,10 +38,8 @@ class SurveyPreviewQualityService
                 || $duplicatePointNumbers->contains($point['point_no'])
                 || $customerPointsWithoutCabinet->contains($point['point_no'])
             )->map(fn (array $point) => [
-                'point_no' => $point['point_no'],
-                'code' => $point['code'],
-                'lat' => $point['lat'],
-                'lng' => $point['lng'],
+                'point_no' => $point['point_no'], 'code' => $point['code'],
+                'lat' => $point['lat'], 'lng' => $point['lng'],
             ])->values()->all(),
         ];
     }

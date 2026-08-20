@@ -19,6 +19,11 @@
     const deleteImportBtn = document.getElementById('survey-delete-import-btn');
     const statusBox = document.getElementById('survey-status');
     const summaryBox = document.getElementById('survey-summary');
+    const coordinateEditor = document.getElementById('survey-coordinate-editor');
+    const editToggleBtn = document.getElementById('survey-edit-toggle');
+    const editResetBtn = document.getElementById('survey-edit-reset');
+    const editExportBtn = document.getElementById('survey-edit-export');
+    const editHelp = document.getElementById('survey-edit-help');
     const gpsReadBtn = document.getElementById('field-gps-read');
     const gpsPositionBox = document.getElementById('field-gps-position');
     const fieldSaveBtn = document.getElementById('field-point-save');
@@ -31,6 +36,15 @@
     let selectedFile = null;
     let fieldPosition = null;
     let previewLayers = [];
+    let previewRouteLayers = [];
+    let editablePointMarkers = [];
+    let editableDuctLayers = [];
+    let ductEditRecords = new Map();
+    let activeDuctEdit = null;
+    let activeDuctHandles = [];
+    let originalPreviewData = null;
+    let currentPreviewData = null;
+    let coordinateEditActive = false;
 
     document.getElementById('field-mode-toggle')?.addEventListener('click', event => {
         const active = document.body.classList.toggle('field-mode');
@@ -47,20 +61,219 @@
     function clearMapPreview() {
         previewLayers.forEach(layer => { untrackLayer(layer, 'preview'); if (map.hasLayer(layer)) map.removeLayer(layer); });
         previewLayers = [];
+        previewRouteLayers = [];
+        editablePointMarkers = [];
+        editableDuctLayers = [];
+        ductEditRecords = new Map();
+        activeDuctEdit = null;
+        activeDuctHandles = [];
+        coordinateEditActive = false;
+        if (coordinateEditor) coordinateEditor.style.display = 'none';
+    }
+
+    const sameCoordinate = (left, right) => map.distance(L.latLng(left), L.latLng(right)) <= 0.08;
+
+    function moveCoordinateEverywhere(from, to) {
+        previewRouteLayers.forEach(layer => {
+            const updated = layer.getLatLngs().map(point => sameCoordinate(point, from) ? L.latLng(to) : point);
+            layer.setLatLngs(updated);
+        });
+        editablePointMarkers.forEach(entry => {
+            if (entry.dragging || !sameCoordinate(entry.current, from)) return;
+            entry.current = L.latLng(to);
+            entry.marker.setLatLng(entry.current);
+        });
+    }
+
+    function setCoordinateEditActive(active) {
+        coordinateEditActive = active && editablePointMarkers.length > 0;
+        editablePointMarkers.forEach(entry => {
+            if (coordinateEditActive) entry.marker.dragging?.enable();
+            else entry.marker.dragging?.disable();
+        });
+        if (editToggleBtn) {
+            editToggleBtn.textContent = coordinateEditActive ? 'Završi uređivanje' : 'Uredi tačke i cijevi';
+            editToggleBtn.style.background = coordinateEditActive ? '#059669' : '#7c3aed';
+        }
+        if (editHelp) editHelp.textContent = coordinateEditActive
+            ? 'Povuci numerisani kružić ili klikni cijev. Kvadratne hvataljke mijenjaju samo izabranu putanju cijevi.'
+            : 'Uključi uređivanje, zatim pomjeraj koordinatne kružiće ili klikni direktno cijev.';
+        editableDuctLayers.forEach(entry => entry.hitLayer.setStyle({ opacity: coordinateEditActive ? 0.01 : 0 }));
+        if (!coordinateEditActive) clearActiveDuctHandles();
+    }
+
+    function clearActiveDuctHandles() {
+        activeDuctHandles.forEach(handle => {
+            untrackLayer(handle, 'preview');
+            if (map.hasLayer(handle)) map.removeLayer(handle);
+            const index = previewLayers.indexOf(handle);
+            if (index >= 0) previewLayers.splice(index, 1);
+        });
+        activeDuctHandles = [];
+        activeDuctEdit = null;
+    }
+
+    function selectDuctForEditing(entry) {
+        if (!coordinateEditActive) return;
+        clearActiveDuctHandles();
+        let initialPath = entry.path.map(point => [Number(point[0]), Number(point[1])]);
+        if (entry.duct.target_zo_coordinate?.length === 2 && initialPath.length > 1) {
+            const target = [Number(entry.duct.target_zo_coordinate[0]), Number(entry.duct.target_zo_coordinate[1])];
+            const firstDistance = map.distance(L.latLng(initialPath[0]), L.latLng(target));
+            const lastDistance = map.distance(L.latLng(initialPath[initialPath.length - 1]), L.latLng(target));
+            if (firstDistance <= lastDistance) initialPath[0] = target;
+            else initialPath[initialPath.length - 1] = target;
+        }
+        const record = ductEditRecords.get(entry.id) || {
+            id: entry.id,
+            key: entry.duct.key,
+            terminal_point: entry.duct.terminal_point,
+            label: entry.duct.label,
+            target_zo: entry.duct.target_zo,
+            original_path: entry.path.map(point => [Number(point[0]), Number(point[1])]),
+            corrected_path: initialPath,
+            changed: false,
+        };
+        ductEditRecords.set(entry.id, record);
+        activeDuctEdit = { entry, record };
+        entry.editLine.setLatLngs(record.corrected_path).setStyle({ opacity: 1 });
+        record.corrected_path.forEach((point, index) => {
+            const handle = L.marker(point, {
+                draggable: true,
+                keyboard: false,
+                icon: L.divIcon({
+                    className: '', iconSize: [12, 12], iconAnchor: [6, 6],
+                    html: '<span style="display:block;width:11px;height:11px;box-sizing:border-box;background:#fff;border:2px solid #7c3aed;box-shadow:0 1px 4px #0008"></span>',
+                }),
+            });
+            handle.on('drag', event => {
+                const position = event.target.getLatLng();
+                record.corrected_path[index] = [Number(position.lat.toFixed(8)), Number(position.lng.toFixed(8))];
+                record.changed = true;
+                entry.editLine.setLatLngs(record.corrected_path);
+                if (editResetBtn) editResetBtn.disabled = false;
+                if (editExportBtn) editExportBtn.disabled = false;
+                if (confirmBtn) confirmBtn.textContent = 'Uvezi i sačuvaj korekcije';
+            });
+            previewLayers.push(handle);
+            trackLayer(handle, 'preview');
+            handle.addTo(map);
+            activeDuctHandles.push(handle);
+        });
+        setStatus(`Uređuješ: ${record.label}${record.target_zo ? ` → ${record.target_zo}` : ''}. Pomjeraj kvadratne hvataljke.`);
+    }
+
+    function exportCoordinateCorrections() {
+        if (!currentPreviewData) return;
+        const points = editablePointMarkers.map(entry => ({
+            point_no: entry.point.point_no,
+            code: entry.point.code,
+            original_gauss_kruger: { x: entry.point.x, y: entry.point.y, z: entry.point.z },
+            original_wgs84: { lat: Number(entry.original.lat.toFixed(8)), lng: Number(entry.original.lng.toFixed(8)) },
+            corrected_wgs84: { lat: Number(entry.current.lat.toFixed(8)), lng: Number(entry.current.lng.toFixed(8)) },
+            changed: !sameCoordinate(entry.original, entry.current),
+        }));
+        const payload = {
+            format: 'ftth-survey-coordinate-corrections-v1',
+            source_file: currentPreviewData.filename,
+            exported_at: new Date().toISOString(),
+            changed_points: points.filter(point => point.changed),
+            all_points: points,
+            corrected_duct_routes: Array.from(ductEditRecords.values()).filter(route => route.changed),
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${String(currentPreviewData.filename || 'geodetski-pregled').replace(/\.txt$/i, '')}-korekcije.json`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        setStatus(`Preuzeto: ${payload.changed_points.length} pomjerenih tačaka i ${payload.corrected_duct_routes.length} izmijenjenih cijevi. Pošalji mi JSON da prema njemu ispravimo algoritam.`);
+    }
+
+    function ductPreviewColor(duct) {
+        const value = String(duct.color || '').toLocaleLowerCase('bs');
+        if (value.includes('crven')) return '#dc2626';
+        if (value.includes('plav')) return '#2563eb';
+        if (value.includes('zelen')) return '#16a34a';
+        if (value.includes('žut') || value.includes('zut')) return '#eab308';
+        if (value.includes('narand') || value.includes('naran')) return '#f97316';
+        if (value.includes('ljubič') || value.includes('ljubic')) return '#7c3aed';
+        return '#16a34a';
     }
 
     function drawMapPreview(data) {
         clearMapPreview();
+        const previewDropLines = [];
         const add = layer => { previewLayers.push(layer); trackLayer(layer, 'preview'); return layer.addTo(map); };
+        const addRoute = layer => { previewRouteLayers.push(layer); return add(layer); };
         (data.trench_runs || []).forEach(run => {
-            if (run.path?.length > 1) add(L.polyline(run.path, { color: '#0f172a', weight: 4, opacity: .65, dashArray: '8 7', interactive: false }));
+            if (run.path?.length > 1) addRoute(L.polyline(run.path, { color: '#0f172a', weight: 4, opacity: .65, dashArray: '8 7', interactive: false }));
         });
-        (data.ducts || []).forEach(duct => {
-            if (!duct.path?.length || duct.path.length < 2) return;
+        (data.ducts || []).forEach((duct, ductIndex) => {
             const error = duct.routing_status === 'unreachable';
-            add(L.polyline(duct.path, { color: error ? '#dc2626' : (duct.route_type === 'drop' ? '#16a34a' : '#2563eb'), weight: error ? 4 : 2.5, opacity: .9, dashArray: error ? '3 5' : null, interactive: false }));
+            const ductColor = ductPreviewColor(duct);
+            // An unresolved route has no proven geometry. Drawing its provisional path
+            // as a red line falsely presents a nearest-route guess as surveyed cable.
+            if (error) return;
+            // Always draw the authoritative end-to-end geometry. Drawing only the
+            // own/shared fragments omitted the final shared segment and visually made
+            // correctly routed ducts stop before their assigned ZO.
+            const completePath = duct.full_geometry?.length > 1 ? duct.full_geometry : duct.path;
+            if (completePath?.length > 1) {
+                const completeLine = addRoute(L.polyline(completePath, {
+                    color: duct.route_type === 'drop' ? ductColor : '#2563eb',
+                    weight: 2.5,
+                    opacity: .95,
+                    dashArray: '2 5',
+                    interactive: false,
+                }));
+                if (duct.route_type === 'drop') previewDropLines.push(completeLine);
+            }
+            if (duct.entry_point) add(L.circleMarker(duct.entry_point, { radius: 6, color: '#fff', weight: 2, fillColor: '#f59e0b', fillOpacity: 1 }).bindTooltip('Ulaz u zajednički rov'));
+            if (duct.target_zo_coordinate) add(L.circleMarker(duct.target_zo_coordinate, { radius: 7, color: '#fff', weight: 2, fillColor: duct.target_zo_found ? '#7c3aed' : '#dc2626', fillOpacity: 1 }).bindTooltip(escapeHtml(duct.target_zo || 'Ciljni ZO')));
+            const editablePath = duct.full_geometry?.length > 1 ? duct.full_geometry : duct.path;
+            if (editablePath?.length > 1) {
+                const editLine = add(L.polyline(editablePath, { color: ductColor, weight: 4, opacity: 0, dashArray: '2 5', interactive: false }));
+                const hitLayer = add(L.polyline(editablePath, { color: '#7c3aed', weight: 18, opacity: 0, interactive: true }));
+                const entry = { id: `${ductIndex}:${duct.key}:${duct.terminal_point || ''}`, duct, path: editablePath, editLine, hitLayer };
+                hitLayer.on('click', event => {
+                    L.DomEvent.stopPropagation(event);
+                    selectDuctForEditing(entry);
+                });
+                editableDuctLayers.push(entry);
+            }
         });
+        previewDropLines.forEach(line => line.bringToFront());
         (data.quality?.issue_points || []).forEach(point => add(L.circleMarker([point.lat, point.lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip(`Tačka ${point.point_no}: ${escapeHtml(point.code)}`)));
+        (data.survey_points || []).forEach(point => {
+            const marker = add(L.marker([point.lat, point.lng], {
+                interactive: true,
+                draggable: false,
+                keyboard: false,
+                icon: L.divIcon({
+                    className: '',
+                    iconSize: [64, 20],
+                    iconAnchor: [6, 10],
+                    html: `<div style="display:flex;align-items:center;gap:3px;white-space:nowrap;pointer-events:none"><span style="display:block;width:9px;height:9px;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:#f59e0b;box-shadow:0 0 0 1px #92400e,0 1px 3px #0008"></span><b style="display:block;padding:1px 3px;border:1px solid #cbd5e1;border-radius:3px;background:rgba(255,255,255,.92);box-shadow:0 1px 3px #0004;color:#0f172a;font:700 10px/12px Arial,sans-serif">${escapeHtml(point.point_no)}</b></div>`,
+                }),
+            }).bindTooltip(`Tačka ${escapeHtml(point.point_no)} — ${escapeHtml(point.code)}`, { direction: 'top' }));
+            const entry = { marker, point, original: L.latLng(point.lat, point.lng), current: L.latLng(point.lat, point.lng), dragging: false };
+            marker.on('dragstart', () => { entry.dragging = true; });
+            marker.on('drag', event => {
+                const previous = entry.current;
+                const next = event.target.getLatLng();
+                entry.current = L.latLng(next);
+                moveCoordinateEverywhere(previous, next);
+            });
+            marker.on('dragend', () => {
+                entry.dragging = false;
+                if (editResetBtn) editResetBtn.disabled = false;
+                if (editExportBtn) editExportBtn.disabled = false;
+            });
+            editablePointMarkers.push(entry);
+        });
+        if (coordinateEditor) coordinateEditor.style.display = 'block';
+        setCoordinateEditActive(false);
         if (previewLayers.length && data.bounds?.lat && data.bounds?.lng) map.fitBounds([[data.bounds.lat[0], data.bounds.lng[0]], [data.bounds.lat[1], data.bounds.lng[1]]], { padding: [35, 35], maxZoom: 20 });
     }
 
@@ -119,12 +332,13 @@
         return uuid;
     }
 
-    async function requestJson(url, file, overrides) {
+    async function requestJson(url, file, overrides, corrections = null) {
         const body = new FormData();
         body.append('points_file', file);
         if (overrides && Object.keys(overrides).length) {
             body.append('overrides', JSON.stringify(overrides));
         }
+        if (corrections?.length) body.append('route_corrections', JSON.stringify(corrections));
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -195,6 +409,8 @@
         try {
             const data = await requestJson(`/projekti/${projectId()}/tacke/preview`, file);
             selectedFile = file;
+            originalPreviewData = JSON.parse(JSON.stringify(data));
+            currentPreviewData = data;
             drawMapPreview(data);
             const kinds = Object.entries(data.by_kind || {})
                 .map(([kind, count]) => `${count} ${kindLabel(kind)}`)
@@ -203,7 +419,7 @@
                 const duct = run.microduct_type
                     ? `/ ${run.microduct_count > 1 ? `${run.microduct_count}x` : ''}${run.microduct_type} mc`
                     : '';
-                return `<li>${run.points} tac. / ${run.length_m} m ${duct} <span style="color:#94a3b8">${escapeHtml(run.code)}</span></li>`;
+                return `<li>${run.points} tac. / ${Math.round(Number(run.length_m || 0) * 10) / 10} m ${duct} <span style="color:#94a3b8">${escapeHtml(run.code)}</span></li>`;
             }).join('');
             const ducts = (data.ducts || []).map(ductRowHtml).join('');
             const mainDucts = (data.ducts || []).filter(duct => duct.route_type !== 'drop').length;
@@ -228,14 +444,14 @@
                 <p style="margin:0"><b>${escapeHtml(data.filename)}</b> - ${data.total_points} tacaka</p>
                 <p style="margin:4px 0 0">${kinds}</p>
                 <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:8px 0">
-                    ${previewStat('Rovovi', (data.trench_runs || []).length, 'slate')}
+                    ${previewStat('Rovovi', Number(data.trench_network_count || 0), 'slate')}
                     ${previewStat('Glavne MC', mainDucts, 'blue')}
                     ${previewStat('Drop trase', dropDucts, dropDucts ? 'emerald' : 'slate')}
                     ${previewStat('Kuće / šlinge', houseAndSlingCount, 'violet')}
                     ${previewStat('ZO ormari', (data.cabinets || []).length, 'amber')}
                     ${previewStat('Greške', qualityErrors.length, qualityErrors.length ? 'red' : 'emerald')}
                 </div>
-                <p style="margin:6px 0 2px"><b>Rovovi (${(data.trench_runs || []).length})</b> - ukupno ${data.trench_total_m} m:</p>
+                <p style="margin:6px 0 2px"><b>Rov (${Number(data.trench_network_count || 0)})</b> - ukupno ${Math.round(Number(data.trench_total_m || 0) * 10) / 10} m; dionice koordinatnog grafa:</p>
                 <ul style="margin:0;padding-left:16px;max-height:120px;overflow-y:auto">${runs || '<li>nema</li>'}</ul>
                 <p style="margin:6px 0 2px"><b>Mikrocijevi (${(data.ducts || []).length})</b>:</p>
                 <ul style="margin:0;padding-left:16px;max-height:140px;overflow-y:auto">${ducts || '<li>nema</li>'}</ul>
@@ -253,6 +469,17 @@
         }
     }
 
+    editToggleBtn?.addEventListener('click', () => setCoordinateEditActive(!coordinateEditActive));
+    editResetBtn?.addEventListener('click', () => {
+        if (!originalPreviewData) return;
+        currentPreviewData = JSON.parse(JSON.stringify(originalPreviewData));
+        drawMapPreview(currentPreviewData);
+        editResetBtn.disabled = true;
+        editExportBtn.disabled = true;
+        setStatus('Sve ručne korekcije su vraćene na originalne TXT koordinate.');
+    });
+    editExportBtn?.addEventListener('click', exportCoordinateCorrections);
+
     chooseBtn?.addEventListener('click', () => fileInput?.click());
     fileInput?.addEventListener('change', () => {
         if (fileInput.files?.[0]) previewFile(fileInput.files[0]);
@@ -267,8 +494,11 @@
         summaryBox.querySelectorAll('.survey-duct-override').forEach(select => {
             if (select.value) overrides[select.dataset.ductKey] = parseInt(select.value, 10);
         });
+        const routeCorrections = Array.from(ductEditRecords.values())
+            .filter(route => route.changed)
+            .map(route => ({ key: route.key, terminal_point: route.terminal_point, path: route.corrected_path }));
         try {
-            const data = await requestJson(`/projekti/${projectId()}/tacke/import`, selectedFile, overrides);
+            const data = await requestJson(`/projekti/${projectId()}/tacke/import`, selectedFile, overrides, routeCorrections);
             setStatus(`${data.message} Osvjezavam mapu...`);
             setTimeout(() => window.location.reload(), 900);
         } catch (error) {

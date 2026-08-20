@@ -13,6 +13,18 @@ function routeEditMidpointIcon() {
         iconAnchor: [4, 4],
     });
 }
+
+function snapRouteEditPointsToAssignedCabinet(route, points) {
+    if (!route?.cabinet_id || route.type === 'trench' || points.length < 2) return points;
+    const cabinet = data.cabinets.find(item => Number(item.id) === Number(route.cabinet_id));
+    if (!cabinet) return points;
+    const target = L.latLng(cabinet.lat, cabinet.lng);
+    const snapped = points.map(point => L.latLng(point.lat, point.lng));
+    if (map.distance(snapped[0], target) <= map.distance(snapped[snapped.length - 1], target)) snapped[0] = target;
+    else snapped[snapped.length - 1] = target;
+    return snapped;
+}
+
 function startRouteEdit(route, line) {
     if (routeEdit?.route.id === route.id) return;
     cancelRouteEdit();
@@ -21,7 +33,7 @@ function startRouteEdit(route, line) {
     syncRouteEditUndoButtons();
     // Display lines may be fanned sideways for selection; editing always starts from the
     // true surveyed/database geometry so a visual lane can never be persisted as a shift.
-    const points = route.path.map(point => L.latLng(point[0], point[1]));
+    const points = snapRouteEditPointsToAssignedCabinet(route, route.path.map(point => L.latLng(point[0], point[1])));
     line.setLatLngs(points);
     routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [], midpointMarkers: [] };
     line.setStyle({ color: '#2563eb', weight: 4, opacity: 1, dashArray: '2 4' });
@@ -299,6 +311,8 @@ async function saveRouteEdit() {
         document.getElementById('cad-command').textContent = 'EDIT ROUTE: nije moguće snimiti trasu sa manje od 2 tačke.';
         return;
     }
+    routeEdit.points = snapRouteEditPointsToAssignedCabinet(routeEdit.route, routeEdit.points);
+    routeEdit.line.setLatLngs(routeEdit.points);
     const oldPoints = routeEdit.originalPoints.map(p => L.latLng(p.lat, p.lng));
     const routeId = routeEdit.route.id;
     const routeName = routeEdit.route.name;

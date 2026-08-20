@@ -34,8 +34,12 @@ class SurveyNetworkPersistenceService
         $counts = ['trenches' => 0, 'ducts' => 0, 'manholes' => 0, 'borings' => 0, 'splices' => 0, 'loops' => 0];
         $freshRouteIds = [];
         $freshDropHouseIds = [];
+        $trenchGroup = 'Geodetski rov '.substr($batch, 0, 8);
 
         foreach ($network['trenches'] as $index => $chain) {
+            if ($chain['_routing_only'] ?? false) {
+                continue;
+            }
             $existing = $this->routeReconciliation->findExistingRouteGeometry($project->id, 'trench', $chain['path'], $freshRouteIds, $elementToleranceM);
             if ($existing) {
                 $mergedPath = $this->routeReconciliation->mergeTouchingPaths($existing->path ?? [], $chain['path'], $elementToleranceM);
@@ -50,8 +54,9 @@ class SurveyNetworkPersistenceService
 
             $trench = NetworkRoute::create([
                 'project_id' => $project->id,
-                'name' => $this->identity->uniqueName(NetworkRoute::class, $project->id, 'Rov '.($index + 1)),
+                'name' => $this->identity->uniqueName(NetworkRoute::class, $project->id, 'Dionica rova '.($index + 1)),
                 'route_type' => 'trench', 'installation_type' => 'underground', 'counts_as_trench' => true,
+                'trench_group' => $trenchGroup,
                 'duct_length_m' => $chain['length_m'], 'fiber_length_m' => 0, 'fiber_count' => 0,
                 'microduct_count' => 0, 'microduct_type' => null, 'status' => 'planned',
                 'path' => $chain['path'], 'note' => 'Geodetski snimak: '.$chain['code'], 'import_batch' => $batch,
@@ -66,6 +71,11 @@ class SurveyNetworkPersistenceService
             $odf = $binding['odf'];
             $house = $binding['house'];
             $routeType = $binding['route_type'];
+            // Persist exactly the same proven end-to-end geometry shown in preview:
+            // house/sling -> private branch -> shared/main trench -> assigned ODO.
+            // The old code truncated every drop at its first contact with the main
+            // route, so the red shared section disappeared immediately after import.
+            $persistedPath = $this->geometry->compactPath($duct['path']);
             $this->ductBinding->assignCabinetToOdf($cabinet, $odf);
 
             if ($routeType === 'drop' && $house !== null && isset($freshDropHouseIds[$house->id])) {
@@ -87,7 +97,7 @@ class SurveyNetworkPersistenceService
 
             $existing = $this->routeReconciliation->findExistingDuctRoute($project->id, $duct, $routeType, $house?->id, $freshRouteIds, $elementToleranceM);
             if ($existing) {
-                $mergedPath = $this->routeReconciliation->mergeTouchingPaths($existing->path ?? [], $duct['path'], $elementToleranceM);
+                $mergedPath = $this->routeReconciliation->mergeTouchingPaths($existing->path ?? [], $persistedPath, $elementToleranceM);
                 $existing->update([
                     'path' => $mergedPath,
                     'duct_length_m' => $this->geometry->polylineLength($mergedPath),
@@ -111,9 +121,14 @@ class SurveyNetworkPersistenceService
                 'from_type' => $fromType, 'from_id' => $fromId, 'to_type' => $toType, 'to_id' => $toId,
                 'name' => $this->identity->uniqueName(NetworkRoute::class, $project->id, $duct['label']),
                 'route_type' => $routeType, 'installation_type' => 'underground', 'counts_as_trench' => false,
-                'duct_length_m' => $duct['length_m'], 'fiber_length_m' => 0, 'fiber_count' => 0,
+                'duct_length_m' => $this->geometry->polylineLength($persistedPath), 'fiber_length_m' => 0, 'fiber_count' => 0,
                 'microduct_count' => $duct['microduct_count'], 'microduct_type' => $duct['microduct_type'],
-                'status' => 'planned', 'path' => $duct['path'],
+                'status' => 'planned', 'path' => $persistedPath,
+                'coordinates_json' => $routeType === 'drop' ? [
+                    'own_geometry' => $persistedPath,
+                    'target_zo' => $duct['target_zo'] ?? ($duct['zo_tag'] !== null ? 'ZO-'.$duct['zo_tag'] : null),
+                    'shared_route_edges' => $duct['shared_route_edges'] ?? [],
+                ] : null,
                 'note' => $this->routeReconciliation->ductImportNote($duct), 'import_batch' => $batch,
             ]);
             $freshRouteIds[] = $route->id;

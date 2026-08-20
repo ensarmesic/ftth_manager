@@ -110,6 +110,10 @@ class SurveyPointImportTest extends TestCase
         $this->assertSame('trench', $zo3Trench['kind']);
         $this->assertSame('10/8', $zo3Trench['microduct_type']);
         $this->assertSame('3', $zo3Trench['zo_tag']);
+        $this->assertSame('ZO-3', $zo3Trench['target_zo']);
+        $this->assertSame('zo3', $zo3Trench['target_zo_match']);
+        $this->assertTrue($zo3Trench['target_zo_explicit']);
+        $this->assertSame('rov+mc 10/8 X1 - zo3', $zo3Trench['raw_description']);
 
         // The 14/10 run carries the green duct.
         $green = collect($points)->firstWhere('code', 'Rov +14/10 Zelena');
@@ -120,6 +124,8 @@ class SurveyPointImportTest extends TestCase
         $network = $service->buildNetwork($points);
         $this->assertCount(1, $network['trenches']);
         $this->assertSame(7, $network['trenches'][0]['points']);
+        $this->assertNotEmpty($network['main_route_graph']['nodes']);
+        $this->assertNotEmpty($network['main_route_graph']['edges']);
 
         // Ducts: green 14/10 (first 4 points) + the ZO 3 10/8 (last 3) —
         // the transition edge between them carries neither duct.
@@ -238,6 +244,8 @@ class SurveyPointImportTest extends TestCase
 
         $this->assertSame(12, $points[0]['microduct_count']);
         $this->assertSame('4', $points[0]['zo_tag']);
+        $this->assertSame('ZO-4', $points[0]['target_zo']);
+        $this->assertSame('ZO 4', $points[0]['target_zo_match']);
 
         $ducts = $service->buildNetwork($points)['ducts'];
         $this->assertCount(1, $ducts);
@@ -651,9 +659,11 @@ class SurveyPointImportTest extends TestCase
 
         $this->assertNotNull($drop);
         $this->assertSame('7', $drop['zo_tag']);
-        $this->assertCount(5, $drop['path']);
-        $this->assertTrue($drop['routed_via_trench'] ?? false);
-        $this->assertTrue($drop['cabinet_reached'] ?? false);
+        // The cabinet coordinate is not connected by a surveyed trench segment. The
+        // strict importer must not append a direct final line merely because it is near.
+        $this->assertFalse($drop['cabinet_reached'] ?? true);
+        $this->assertSame('network_path_not_found', $drop['strict_reconstruction']['error_code']);
+        $this->assertSame([], $drop['strict_reconstruction']['full_geometry']);
     }
 
     public function test_every_customer_route_runs_from_its_house_to_its_cabinet_not_to_another_house(): void
@@ -1151,14 +1161,11 @@ class SurveyPointImportTest extends TestCase
 
         $t309 = $drops->firstWhere('house_ref', 'T309');
         $this->assertNotNull($t309);
-        $this->assertTrue($t309['routed_via_trench'] ?? false, json_encode($t309));
+        $this->assertFalse($t309['cabinet_reached'] ?? true, json_encode($t309));
+        $this->assertSame('network_path_not_found', $t309['strict_reconstruction']['error_code']);
         $zo4 = collect($points)->first(fn (array $point) => $point['kind'] === 'cabinet' && $point['code'] === 'Z Ormar 4');
         $this->assertNotNull($zo4);
-        $this->assertGreaterThan(20.0, $t309['length_m'], json_encode($t309));
-        $this->assertLessThanOrEqual(30.0, min(...array_map(
-            fn (array $endpoint) => app(GeometryService::class)->distanceMeters($zo4['lat'], $zo4['lng'], $endpoint[0], $endpoint[1]),
-            [$t309['path'][0], end($t309['path'])]
-        )), json_encode($t309));
+        $this->assertNotEmpty($t309['routing_warnings']);
     }
 
     public function test_reserve_loop_gets_its_own_dedicated_microduct_without_becoming_a_house(): void
@@ -1449,12 +1456,11 @@ class SurveyPointImportTest extends TestCase
         $this->assertSame(10, collect($points)->where('kind', 'cabinet')->count());
         $this->assertSame(30, collect($points)->where('kind', 'sling')->count());
         $this->assertSame(1500, $preview['total_points']);
-        $this->assertSame('ready', $preview['quality']['status']);
-        $this->assertSame(30, $preview['quality']['complete_drop_routes']);
-        $this->assertSame(0, $preview['quality']['unreachable_drop_routes']);
+        $this->assertSame('blocked', $preview['quality']['status']);
+        $this->assertGreaterThan(0, $preview['quality']['unreachable_drop_routes']);
         $dropDucts = collect($preview['ducts'])->where('route_type', 'drop')->values();
         $this->assertCount(30, $dropDucts);
-        $this->assertSame([], $dropDucts->where('routing_status', '!=', 'complete')->values()->all());
+        $this->assertNotEmpty($dropDucts->where('routing_status', 'unreachable')->values()->all());
         $this->assertSame([], $dropDucts->filter(fn (array $duct) => ! in_array((int) $duct['zo_tag'], range(1, 10), true))->values()->all());
     }
 
@@ -1497,5 +1503,177 @@ class SurveyPointImportTest extends TestCase
             $this->assertCount($pointCount, $network['trenches'][0]['path']);
             $this->assertLessThan($maxSeconds, $elapsed, "Obrada {$pointCount} tačaka trajala je {$elapsed} s.");
         }
+    }
+
+    public function test_trench_walk_uses_recorded_geometry_not_numeric_point_order(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $contents = implode("\n", [
+            '900 6549699.731 4923604.537 234.000 Rov',
+            '12 6549703.731 4923604.537 234.000 Rov',
+            '777 6549707.731 4923604.537 234.000 Rov',
+        ]);
+
+        $points = $service->parse($contents);
+        $network = $service->buildNetwork($points);
+
+        $this->assertSame([900, 12, 777], collect($points)->pluck('point_no')->all());
+        $this->assertCount(1, $network['trenches']);
+        $this->assertSame(
+            collect($points)->map(fn (array $point) => [$point['lat'], $point['lng']])->all(),
+            $network['trenches'][0]['path'],
+        );
+    }
+
+    public function test_tagged_slinga_follows_its_branch_then_shared_trench_to_its_odo(): void
+    {
+        $project = Project::factory()->create();
+        $service = app(SurveyPointImportService::class);
+        $contents = implode("\n", [
+            '501 6549699.731 4923604.537 234.000 ZO-7',
+            '44 6549700.500 4923604.537 234.000 Rov',
+            '803 6549704.500 4923604.537 234.000 Rov',
+            '19 6549708.500 4923604.537 234.000 Rov',
+            '620 6549708.500 4923608.537 234.000 Rov',
+            '7 6549708.500 4923612.537 234.000 Slinga 10/8 Crvena x1 -ZO-7',
+        ]);
+
+        $preview = $service->preview($project, $contents, 'slinga-do-odo.txt');
+        $drop = collect($preview['ducts'])->firstWhere('terminal_point', 7);
+
+        $this->assertNotNull($drop);
+        $this->assertSame('complete', $drop['routing_status']);
+        $this->assertSame('ZO-7', $drop['target_zo']);
+        $this->assertGreaterThan(2, count($drop['full_geometry']), 'Slinga ne smije ići direktnom linijom do ODO-a.');
+        $this->assertSame(0, $preview['quality']['unreachable_drop_routes']);
+
+        $correctedPath = $drop['full_geometry'];
+        $correctedPath[1][0] = round($correctedPath[1][0] + 0.000001, 8);
+        $service->confirm($project, $contents, 'slinga-do-odo.txt', [], [[
+            'key' => $drop['key'],
+            'terminal_point' => $drop['terminal_point'],
+            'path' => $correctedPath,
+        ]]);
+        $savedDrop = $project->routes()->where('route_type', 'drop')->firstOrFail();
+        $savedCabinet = $savedDrop->cabinet()->firstOrFail();
+        $savedPath = $savedDrop->path;
+        $cabinetCoordinate = [(float) $savedCabinet->latitude, (float) $savedCabinet->longitude];
+        $this->assertLessThanOrEqual(
+            0.5,
+            min(
+                app(GeometryService::class)->distanceBetweenPoints($savedPath[0], $cabinetCoordinate),
+                app(GeometryService::class)->distanceBetweenPoints(end($savedPath), $cabinetCoordinate),
+            ),
+            'Spremljena drop mikrocijev mora zadrzati puni preview put sve do ODO-a.',
+        );
+        $this->assertSame($correctedPath, $savedPath, 'Spremanje mora sačuvati ručno ispravljenu putanju do ODO-a.');
+    }
+
+    public function test_new_trench_branch_returns_to_an_earlier_fork_instead_of_continuing_from_previous_end(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '90 6549699.000 4923604.000 234.000 Rov',
+            '4 6549703.000 4923604.000 234.000 Rov',
+            '71 6549707.000 4923604.000 234.000 Rov',
+            '8 6549711.000 4923604.000 234.000 Rov',
+            // The field walk returned beside point 4 before recording branch two.
+            '305 6549703.000 4923605.000 234.000 Rov',
+            '2 6549703.000 4923609.000 234.000 Rov',
+        ]));
+
+        $network = $service->buildNetwork($points);
+
+        $this->assertCount(2, $network['trenches']);
+        $this->assertSame([$points[0]['lat'], $points[0]['lng']], $network['trenches'][0]['path'][0]);
+        $this->assertSame([$points[3]['lat'], $points[3]['lng']], end($network['trenches'][0]['path']));
+        $this->assertSame([$points[1]['lat'], $points[1]['lng']], $network['trenches'][1]['path'][0]);
+        $this->assertSame([$points[4]['lat'], $points[4]['lng']], $network['trenches'][1]['path'][1]);
+    }
+
+    public function test_separate_same_zo_trench_runs_join_only_at_close_surveyed_coordinates(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '100 6549699.000 4923604.000 234.000 Rov 10/8 -ZO-5',
+            '101 6549703.000 4923604.000 234.000 Rov 10/8 -ZO-5',
+            '102 6549707.000 4923604.000 234.000 Rov 10/8 -ZO-5',
+            '103 6549707.000 4923604.000 234.000 Napomena',
+            '200 6549703.000 4923608.000 234.000 Rov 10/8 -ZO-5',
+            '201 6549703.000 4923612.000 234.000 Rov 10/8 -ZO-5',
+        ]));
+
+        $network = $service->buildNetwork($points);
+        $connector = collect($network['trenches'])->firstWhere('code', 'rov-spoj');
+
+        $this->assertNotNull($connector);
+        $this->assertLessThanOrEqual(20.0, $connector['length_m']);
+        $surveyCoordinates = collect($points)->map(fn (array $point) => [$point['lat'], $point['lng']])->all();
+        $this->assertContains($connector['path'][0], $surveyCoordinates);
+        $this->assertContains($connector['path'][1], $surveyCoordinates);
+    }
+
+    public function test_one_branched_survey_trench_is_counted_and_persisted_as_one_logical_rov(): void
+    {
+        $project = Project::factory()->create();
+        $service = app(SurveyPointImportService::class);
+        $contents = implode("\n", [
+            '1 6549699.000 4923604.000 234.000 Rov',
+            '2 6549703.000 4923604.000 234.000 Rov',
+            '3 6549707.000 4923604.000 234.000 Rov',
+            '4 6549707.000 4923604.000 234.000 Napomena',
+            '5 6549703.000 4923608.000 234.000 Rov',
+            '6 6549703.000 4923612.000 234.000 Rov',
+        ]);
+
+        $preview = $service->preview($project, $contents, 'jedan-rov.txt');
+        $service->confirm($project, $contents, 'jedan-rov.txt');
+        $trenches = NetworkRoute::where('project_id', $project->id)->where('route_type', 'trench')->get();
+
+        $this->assertSame(1, $preview['trench_network_count']);
+        $this->assertGreaterThanOrEqual(2, count($preview['trench_runs']));
+        $this->assertCount(count($preview['trench_runs']), $trenches);
+        $this->assertCount(1, $trenches->pluck('trench_group')->unique());
+        $this->assertNotNull($trenches->first()->trench_group);
+    }
+
+    public function test_duplicate_house_coordinate_ends_one_trench_branch_before_the_next_branch(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '1 6549699.000 4923604.000 234.000 Rov 10/8 -ZO-7',
+            '2 6549703.000 4923604.000 234.000 Rov 10/8 -ZO-7',
+            '3 6549707.000 4923604.000 234.000 Rov 10/8 -ZO-7',
+            '4 6549711.000 4923604.000 234.000 Rov 10/8 -ZO-7',
+            '90 6549703.000 4923604.000 234.000 Kuca 10/8 -ZO-7',
+        ]));
+
+        $trenches = app(SurveyPointImportService::class)->buildNetwork($points)['trenches'];
+        $forbidden = [[$points[1]['lat'], $points[1]['lng']], [$points[2]['lat'], $points[2]['lng']]];
+
+        $this->assertFalse(collect($trenches)->contains(function (array $trench) use ($forbidden): bool {
+            for ($index = 1; $index < count($trench['path']); $index++) {
+                if ($trench['path'][$index - 1] === $forbidden[0] && $trench['path'][$index] === $forbidden[1]) {
+                    return true;
+                }
+            }
+
+            return false;
+        }));
+    }
+
+    public function test_isolated_trench_point_before_house_is_kept_as_the_house_branch_endpoint(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $points = $service->parse(implode("\n", [
+            '1 6549699.000 4923604.000 234.000 Rov 10/8 -ZO-6',
+            '2 6549703.000 4923604.000 234.000 Rov 10/8 -ZO-6',
+            '3 6549728.000 4923604.000 234.000 Rov 10/8 -ZO-6',
+            '4 6549729.500 4923604.000 234.000 Kuca 10/8 -ZO-6',
+        ]));
+
+        $trenches = $service->buildNetwork($points)['trenches'];
+
+        $this->assertTrue(collect($trenches)->contains(fn (array $trench) => end($trench['path']) === [$points[2]['lat'], $points[2]['lng']]));
     }
 }
