@@ -534,10 +534,10 @@ class SurveyDropRoutingService
                     $duct['routed_via_trench'] = true;
                 }
 
-                // If this approximate house endpoint belongs to a cluster whose short
-                // surveyed spur is disconnected from the main graph, join the closest
-                // already-proven route for the SAME ZO. The peer route represents the
-                // shared physical trench, not another customer's private shortcut.
+                // Legacy graph reconstruction used by the proven test_koordinate
+                // project: an isolated approximate terminal may join only an already
+                // completed route for the same ZO. With graph-built trenches this is a
+                // last-resort continuation, not the primary topology builder.
                 if (! ($duct['cabinet_reached'] ?? false)) {
                     $bestPeer = null;
                     foreach ($ducts as $peer) {
@@ -592,6 +592,63 @@ class SurveyDropRoutingService
             $cabinetPoint = [(float) $cabinet['lat'], (float) $cabinet['lng']];
             if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetPoint) > 0.5) {
                 $fullPath[] = $cabinetPoint;
+            }
+            $duct['path'] = $this->geometry->compactPath($fullPath);
+            $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
+            $duct['cabinet_reached'] = true;
+            $duct['routed_via_trench'] = true;
+        }
+        unset($duct);
+
+        // Resolve order-independent peer continuations only after every directly
+        // provable customer route has had a chance to reach its cabinet. Previously an
+        // early house could not use a valid same-ZO corridor that appeared later in the
+        // TXT, while reversing the records produced a different map.
+        foreach ($ducts as &$duct) {
+            if (($duct['cabinet_reached'] ?? false)
+                || ($duct['microduct_type'] ?? null) !== '10/8'
+                || ($duct['zo_tag'] ?? null) === null
+                || count($duct['path'] ?? []) < 2) {
+                continue;
+            }
+            $terminal = isset($duct['_terminal_point'])
+                ? collect($points)->firstWhere('point_no', (int) $duct['_terminal_point'])
+                : null;
+            $cabinet = $cabinets->first(fn ($point) => $this->identity->cabinetTag($point['code']) === $duct['zo_tag']);
+            if ($terminal === null || $cabinet === null) {
+                continue;
+            }
+            $terminalCoordinate = [round((float) $terminal['lat'], 7), round((float) $terminal['lng'], 7)];
+            $bestPeer = null;
+            foreach ($ducts as $peer) {
+                if (! ($peer['cabinet_reached'] ?? false)
+                    || ($peer['microduct_type'] ?? null) !== '10/8'
+                    || ($peer['zo_tag'] ?? null) !== $duct['zo_tag']
+                    || count($peer['path'] ?? []) < 2) {
+                    continue;
+                }
+                $projection = $this->geometry->projectPointToPath($terminalCoordinate, $peer['path']);
+                if ($projection['distance_m'] > self::CUSTOMER_SPUR_TO_TRENCH_M
+                    || ($bestPeer !== null && $projection['distance_m'] >= $bestPeer['distance_m'])) {
+                    continue;
+                }
+                $bestPeer = $projection + ['path' => $peer['path']];
+            }
+            if ($bestPeer === null) {
+                continue;
+            }
+            $peerPath = $bestPeer['path'];
+            $projectionPoint = [$bestPeer['lat'], $bestPeer['lng']];
+            $segmentIndex = max(1, min((int) $bestPeer['segment_index'], count($peerPath) - 1));
+            $cabinetCoordinate = [(float) $cabinet['lat'], (float) $cabinet['lng']];
+            $cabinetAtStart = $this->geometry->distanceBetweenPoints($peerPath[0], $cabinetCoordinate)
+                <= $this->geometry->distanceBetweenPoints(end($peerPath), $cabinetCoordinate);
+            $sharedPath = $cabinetAtStart
+                ? array_merge([$projectionPoint], array_reverse(array_slice($peerPath, 0, $segmentIndex)))
+                : array_merge([$projectionPoint], array_slice($peerPath, $segmentIndex));
+            $fullPath = array_merge([$terminalCoordinate], $sharedPath);
+            if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetCoordinate) > 0.5) {
+                $fullPath[] = $cabinetCoordinate;
             }
             $duct['path'] = $this->geometry->compactPath($fullPath);
             $duct['length_m'] = $this->geometry->polylineLength($duct['path']);

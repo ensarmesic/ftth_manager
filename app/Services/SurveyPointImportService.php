@@ -157,146 +157,30 @@ class SurveyPointImportService
         // plain unmarked trench point — only 'sling' (an explicit house) ends a duct.
         $ductPoints = array_values(array_filter($points, fn ($p) => in_array($p['kind'], ['trench', 'sling', 'loop'], true)));
 
+        [$trenchNodes, $trenchEdges] = $this->graphBuilder->build(
+            $trenchPoints,
+            self::NODE_MERGE_M,
+            self::CUSTOMER_SPUR_TO_TRENCH_M,
+            self::TAGGED_DUCT_GAP_M,
+            self::TRENCH_GAP_M,
+        );
         $trenches = [];
-        $orderedRun = [];
-        $priorTrenchCoordinates = [];
-        $terminalCoordinateKeys = collect($points)
-            ->where('kind', 'sling')
-            ->mapWithKeys(fn (array $point) => [sprintf('%.7f,%.7f', $point['lat'], $point['lng']) => true])
-            ->all();
-        $flushOrderedRun = function () use (&$orderedRun, &$trenches): void {
-            if (count($orderedRun) >= 2) {
+        if (count($trenchEdges) > 0) {
+            $trenchPaths = array_map(
+                fn (array $chain) => array_map(fn (int $node) => $trenchNodes[$node], $chain['nodes']),
+                $this->chainWalker->walk($trenchEdges, null)
+            );
+            $trenchPaths = $this->pathGeometry->mergeCollinearChains($trenchPaths);
+
+            foreach ($trenchPaths as $path) {
                 $trenches[] = [
-                    'path' => $orderedRun,
-                    'points' => count($orderedRun),
-                    'length_m' => $this->geometry->polylineLength($orderedRun),
+                    'path' => $path,
+                    'points' => count($path),
+                    'length_m' => $this->geometry->polylineLength($path),
                     'code' => 'rov',
                 ];
             }
-            $orderedRun = [];
-        };
-        // The point number is an immutable field label, never a routing instruction.
-        // Follow the physical survey walk exactly as recorded in the TXT; numbers may
-        // jump, decrease or be otherwise non-consecutive.
-        $orderedPoints = array_values($points);
-        foreach ($orderedPoints as $pointIndex => $point) {
-            $isTrenchCoordinate = ($point['kind'] ?? null) === 'trench'
-                || (in_array($point['kind'] ?? null, ['sling', 'loop'], true)
-                    && preg_match('/\brov\b|rov\+/i', $point['code'] ?? ''));
-            if (! $isTrenchCoordinate) {
-                $flushOrderedRun();
-
-                continue;
-            }
-            $coordinate = [(float) $point['lat'], (float) $point['lng']];
-            $coordinateKey = sprintf('%.7f,%.7f', $coordinate[0], $coordinate[1]);
-            $nextPoint = $orderedPoints[$pointIndex + 1] ?? null;
-            $followedByCustomerEndpoint = $nextPoint !== null
-                && ($nextPoint['kind'] ?? null) === 'sling'
-                && $this->geometry->distanceBetweenPoints(
-                    $coordinate,
-                    [(float) $nextPoint['lat'], (float) $nextPoint['lng']],
-                ) <= self::TRENCH_GAP_M;
-            if ($orderedRun !== [] && $followedByCustomerEndpoint
-                && $this->geometry->distanceBetweenPoints(end($orderedRun), $coordinate) > self::TRENCH_GAP_M) {
-                $flushOrderedRun();
-            }
-            $anchoredTerminalLead = false;
-            if ($orderedRun === [] && $followedByCustomerEndpoint) {
-                $bestStart = null;
-                $bestStartDistance = INF;
-                foreach ($priorTrenchCoordinates as $earlierCoordinate) {
-                    $earlierKey = sprintf('%.7f,%.7f', $earlierCoordinate[0], $earlierCoordinate[1]);
-                    if (isset($terminalCoordinateKeys[$earlierKey])) {
-                        continue;
-                    }
-                    $distance = $this->geometry->distanceBetweenPoints($earlierCoordinate, $coordinate);
-                    if ($distance <= self::DUCT_ENDPOINT_BIND_M && $distance < $bestStartDistance) {
-                        $bestStart = $earlierCoordinate;
-                        $bestStartDistance = $distance;
-                    }
-                }
-                if ($bestStart !== null) {
-                    $orderedRun = [$bestStart];
-                    $anchoredTerminalLead = true;
-                }
-            }
-            if ($orderedRun !== [] && ! $followedByCustomerEndpoint) {
-                $walkGap = $this->geometry->distanceBetweenPoints(end($orderedRun), $coordinate);
-                $returnCoordinate = null;
-                $returnDistance = INF;
-                foreach (array_slice($priorTrenchCoordinates, 0, -1) as $earlierCoordinate) {
-                    $distance = $this->geometry->distanceBetweenPoints($earlierCoordinate, $coordinate);
-                    if ($distance <= 10.0 && $distance < $returnDistance) {
-                        $returnCoordinate = $earlierCoordinate;
-                        $returnDistance = $distance;
-                    }
-                }
-                if ($returnCoordinate !== null && $returnDistance + 2.0 < $walkGap) {
-                    $flushOrderedRun();
-                    $orderedRun = [$returnCoordinate];
-                }
-            }
-            if ($orderedRun !== [] && ! $anchoredTerminalLead
-                && $this->geometry->distanceBetweenPoints(end($orderedRun), $coordinate) > self::TRENCH_GAP_M) {
-                $flushOrderedRun();
-            }
-            $orderedRun[] = $coordinate;
-            $priorTrenchCoordinates[] = $coordinate;
-            if (isset($terminalCoordinateKeys[$coordinateKey])) {
-                // A later house measurement at this exact coordinate proves that this
-                // is a leaf. The next surveyed trench point starts another branch.
-                $flushOrderedRun();
-            }
         }
-        $flushOrderedRun();
-
-        // Separate survey walks can end a few metres apart at one physical junction.
-        // These links are routing topology only: they must never be displayed, persisted
-        // or counted as an additional physical trench.
-        $connectors = [];
-        $trenchKeys = array_map(
-            fn (array $trench) => array_fill_keys(array_map(
-                fn (array $vertex) => sprintf('%.7f,%.7f', $vertex[0], $vertex[1]),
-                $trench['path'],
-            ), true),
-            $trenches,
-        );
-        foreach ($trenches as $leftIndex => $left) {
-            foreach ([$left['path'][0], end($left['path'])] as $endpoint) {
-                $best = null;
-                foreach ($trenches as $rightIndex => $right) {
-                    if ($rightIndex === $leftIndex
-                        || array_intersect_key($trenchKeys[$leftIndex], $trenchKeys[$rightIndex]) !== []) {
-                        continue;
-                    }
-                    foreach ($right['path'] as $vertex) {
-                        $distance = $this->geometry->distanceBetweenPoints($endpoint, $vertex);
-                        if ($distance <= 0.05 || $distance > self::TRENCH_GAP_M) {
-                            continue;
-                        }
-                        if ($best === null || $distance < $best['distance']) {
-                            $best = ['vertex' => $vertex, 'distance' => $distance];
-                        }
-                    }
-                }
-                if ($best !== null) {
-                    $keyParts = [
-                        sprintf('%.7f,%.7f', $endpoint[0], $endpoint[1]),
-                        sprintf('%.7f,%.7f', $best['vertex'][0], $best['vertex'][1]),
-                    ];
-                    sort($keyParts, SORT_STRING);
-                    $connectors[implode('|', $keyParts)] = [
-                        'path' => [$endpoint, $best['vertex']],
-                        'points' => 2,
-                        'length_m' => $best['distance'],
-                        'code' => 'rov-spoj',
-                        '_routing_only' => true,
-                    ];
-                }
-            }
-        }
-        $trenches = array_merge($trenches, array_values($connectors));
 
         [$ductNodes, $ductEdges, $dropCheckpointNodes] = $this->graphBuilder->build(
             $ductPoints,
