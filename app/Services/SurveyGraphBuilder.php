@@ -22,6 +22,7 @@ class SurveyGraphBuilder
         float $customerSpurMeters,
         float $taggedDuctGapMeters,
         float $trenchGapMeters,
+        array $knownTerminalCoordinates = [],
     ): array {
         $count = count($points);
         if ($count < 2) {
@@ -29,6 +30,7 @@ class SurveyGraphBuilder
         }
 
         $parent = range(0, $count - 1);
+        $clusterMembers = array_map(fn (int $index) => [$index], range(0, $count - 1));
         $find = function (int $i) use (&$parent, &$find): int {
             return $parent[$i] === $i ? $i : ($parent[$i] = $find($parent[$i]));
         };
@@ -61,13 +63,32 @@ class SurveyGraphBuilder
                 if (abs($points[$i]['lng'] - $points[$j]['lng']) > 0.00005) {
                     continue;
                 }
-                $mergeDistance = $iIsTerminal && $jIsTerminal ? 0.5 : $nodeMergeMeters;
-                if ($this->geometry->distanceMeters(
+                // Preserve distinct field observations even when they are less than
+                // 1.5 m apart (1569 and 1570). Only near-identical readings are the
+                // same graph node; this still collapses true duplicates such as
+                // 1460/1461.
+                $mergeDistance = min($nodeMergeMeters, 0.5);
+                $rootI = $find($i);
+                $rootJ = $find($j);
+                $withinWholeCluster = collect($clusterMembers[$rootJ] ?? [$j])->every(
+                    fn (int $member) => $this->geometry->distanceMeters(
+                        $points[$i]['lat'], $points[$i]['lng'],
+                        $points[$member]['lat'], $points[$member]['lng']
+                    ) <= $mergeDistance
+                );
+                if ($withinWholeCluster && $this->geometry->distanceMeters(
                     $points[$i]['lat'], $points[$i]['lng'],
                     $points[$j]['lat'], $points[$j]['lng']
                 ) <= $mergeDistance
                     && (! $iIsTerminal || ($points[$i]['zo_tag'] ?? null) === ($points[$j]['zo_tag'] ?? null))) {
-                    $parent[$find($j)] = $find($i);
+                    if ($rootI !== $rootJ) {
+                        $parent[$rootJ] = $rootI;
+                        $clusterMembers[$rootI] = array_values(array_unique(array_merge(
+                            $clusterMembers[$rootI] ?? [$i],
+                            $clusterMembers[$rootJ] ?? [$j],
+                        )));
+                        unset($clusterMembers[$rootJ]);
+                    }
                 }
             }
             $spatialBuckets[$latBucket.'|'.$lngBucket][] = $i;
@@ -111,6 +132,9 @@ class SurveyGraphBuilder
 
                 foreach ([-1, 1] as $direction) {
                     for ($j = $terminalIndex + $direction; $j >= 0 && $j < $count; $j += $direction) {
+                        if (($points[$j]['_segment_no'] ?? 0) !== ($points[$terminalIndex]['_segment_no'] ?? 0)) {
+                            break;
+                        }
                         if (in_array($points[$j]['kind'], ['sling', 'loop'], true)) {
                             continue;
                         }
@@ -193,6 +217,10 @@ class SurveyGraphBuilder
         };
 
         $returnBuckets = [];
+        $terminalCoordinates = array_merge($knownTerminalCoordinates, array_values(array_map(
+            fn (array $point) => [$point['lat'], $point['lng']],
+            array_filter($points, fn (array $point) => in_array($point['kind'], ['sling', 'loop'], true))
+        )));
         $returnLatCell = 10 / 111320;
         $returnLngCell = 10 / (111320 * cos(deg2rad($points[0]['lat'])));
         foreach ($points as $pointIndex => $point) {
@@ -201,6 +229,11 @@ class SurveyGraphBuilder
         }
 
         for ($i = 1; $i < $count; $i++) {
+            // A blank line in the TXT explicitly ends one recorded branch. Never
+            // invent an edge from its last point to the first point of the next block.
+            if (($points[$i - 1]['_segment_no'] ?? 0) !== ($points[$i]['_segment_no'] ?? 0)) {
+                continue;
+            }
             $a = $nodeOf[$i - 1];
             $b = $nodeOf[$i];
             $fromPointIndex = $i - 1;
@@ -222,7 +255,13 @@ class SurveyGraphBuilder
             $returnDistance = INF;
             $returnIdentityMatches = -1;
             $toIdents = $this->ductIdentity->identitiesAt($points[$i]);
-            $followsTerminal = in_array($points[$i - 1]['kind'], ['sling', 'loop'], true);
+            $followsTerminal = in_array($points[$i - 1]['kind'], ['sling', 'loop'], true)
+                || collect($terminalCoordinates)->contains(
+                    fn (array $terminalCoordinate) => $this->geometry->distanceMeters(
+                        $points[$i - 1]['lat'], $points[$i - 1]['lng'],
+                        $terminalCoordinate[0], $terminalCoordinate[1]
+                    ) <= 0.5
+                );
             $returnSearchRadius = $followsTerminal ? $customerSpurMeters : 10.0;
             $returnLatBucket = (int) floor($points[$i]['lat'] / $returnLatCell);
             $returnLngBucket = (int) floor($points[$i]['lng'] / $returnLngCell);
@@ -264,7 +303,11 @@ class SurveyGraphBuilder
             }
             $shouldReanchor = $returnNode !== null
                 && (($followsTerminal && $returnIdentityMatches > 0)
-                    || ($returnDistance <= 10.0 && $returnDistance + 2.0 < $gap));
+                    // A normal short surveyed bend must retain every consecutive
+                    // vertex (1453 -> 1463 -> 1462 -> 1460). Re-anchoring is only
+                    // justified after a real recording jump, not within the usual
+                    // <= 10 m spacing between field observations.
+                    || ($gap > 10.0 && $returnDistance <= 10.0 && $returnDistance + 2.0 < $gap));
             if ($shouldReanchor) {
                 $a = $returnNode;
                 $fromPointIndex = $returnPointIndex;

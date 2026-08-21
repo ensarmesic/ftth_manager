@@ -21,7 +21,15 @@ class SurveyPointParser
         }
 
         $points = [];
+        $segmentNo = 0;
         foreach ($matches as $index => $match) {
+            if ($index > 0) {
+                $previousNumericEnd = $matches[$index - 1][0][1] + strlen($matches[$index - 1][0][0]);
+                $betweenRecords = substr($contents, $previousNumericEnd, $match[0][1] - $previousNumericEnd);
+                if (preg_match('/\R[ \t]*\R/', $betweenRecords)) {
+                    $segmentNo++;
+                }
+            }
             $start = $match[0][1] + strlen($match[0][0]);
             $end = isset($matches[$index + 1]) ? $matches[$index + 1][0][1] : strlen($contents);
             $code = trim(str_replace(['"', "\r"], '', substr($contents, $start, $end - $start)));
@@ -46,6 +54,7 @@ class SurveyPointParser
                 'code' => $code,
                 'lat' => $lat,
                 'lng' => $lng,
+                '_segment_no' => $segmentNo,
             ] + $classification;
         }
 

@@ -156,6 +156,11 @@ class SurveyPointImportService
         // 'loop' (a reserve coil, no house) still carries the duct through it, same as a
         // plain unmarked trench point — only 'sling' (an explicit house) ends a duct.
         $ductPoints = array_values(array_filter($points, fn ($p) => in_array($p['kind'], ['trench', 'sling', 'loop'], true)));
+        $terminalCoordinates = collect($points)
+            ->whereIn('kind', ['sling', 'loop'])
+            ->map(fn (array $point) => [$point['lat'], $point['lng']])
+            ->values()
+            ->all();
 
         [$trenchNodes, $trenchEdges] = $this->graphBuilder->build(
             $trenchPoints,
@@ -163,6 +168,7 @@ class SurveyPointImportService
             self::CUSTOMER_SPUR_TO_TRENCH_M,
             self::TAGGED_DUCT_GAP_M,
             self::TRENCH_GAP_M,
+            $terminalCoordinates,
         );
         $trenches = [];
         if (count($trenchEdges) > 0) {

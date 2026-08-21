@@ -12,6 +12,9 @@ class SurveyDropRoutingService
 
     private const CUSTOMER_SPUR_TO_TRENCH_M = 60.0;
 
+    /** A recorded drop may end one normal survey interval before the shared route. */
+    private const PEER_ROUTE_JOIN_M = 20.0;
+
     public function __construct(
         private readonly GeometryService $geometry,
         private readonly SurveyDuctIdentityService $ductIdentity,
@@ -93,19 +96,90 @@ class SurveyDropRoutingService
                 continue;
             }
 
+            // When an implicit house sits exactly on the end of a newly surveyed
+            // trench chain, that whole chain is its recorded access geometry. Keep
+            // every TXT vertex instead of reducing it to a one-segment stub and later
+            // allowing a shortest-path shortcut across an older saved route.
+            $surveyAccessPath = null;
+            foreach ($trenches as $trench) {
+                $candidatePath = array_values($trench['path'] ?? []);
+                if (($trench['_routing_source'] ?? 'survey') !== 'survey' || count($candidatePath) < 2) {
+                    continue;
+                }
+                $firstDistance = $this->geometry->distanceMeters(
+                    $terminal['lat'], $terminal['lng'], $candidatePath[0][0], $candidatePath[0][1]
+                );
+                $last = end($candidatePath);
+                $lastDistance = $this->geometry->distanceMeters(
+                    $terminal['lat'], $terminal['lng'], $last[0], $last[1]
+                );
+                if (min($firstDistance, $lastDistance) > 0.5) {
+                    continue;
+                }
+                if ($lastDistance < $firstDistance) {
+                    $candidatePath = array_reverse($candidatePath);
+                }
+                $candidatePath[0] = [round((float) $terminal['lat'], 7), round((float) $terminal['lng'], 7)];
+                // Do not make this customer visit another customer's leaf and come
+                // back. Remove that side spur and continue from its nearest preceding
+                // junction (T1682: 1570 -> 1574, not 1570 -> 1573 -> 1574).
+                foreach ($points as $otherTerminal) {
+                    if (($otherTerminal['kind'] ?? null) !== 'sling'
+                        || (int) $otherTerminal['point_no'] === (int) $terminal['point_no']) {
+                        continue;
+                    }
+                    for ($pathIndex = 1; $pathIndex < count($candidatePath) - 1; $pathIndex++) {
+                        if ($this->geometry->distanceMeters(
+                            $otherTerminal['lat'], $otherTerminal['lng'],
+                            $candidatePath[$pathIndex][0], $candidatePath[$pathIndex][1]
+                        ) > 0.5) {
+                            continue;
+                        }
+                        $nextPoint = $candidatePath[$pathIndex + 1];
+                        $junctionIndex = $pathIndex - 1;
+                        $junctionDistance = INF;
+                        for ($previousIndex = 0; $previousIndex < $pathIndex; $previousIndex++) {
+                            $distance = $this->geometry->distanceBetweenPoints($candidatePath[$previousIndex], $nextPoint);
+                            if ($distance < $junctionDistance) {
+                                $junctionDistance = $distance;
+                                $junctionIndex = $previousIndex;
+                            }
+                        }
+                        array_splice($candidatePath, $junctionIndex + 1, $pathIndex - $junctionIndex);
+                        break 2;
+                    }
+                }
+                $surveyAccessPath = $this->geometry->compactPath($candidatePath);
+                break;
+            }
+
             $nearest = null;
             $nearestDistance = INF;
+            $coincident = null;
             foreach ($trenchVertices as $vertex) {
                 $distance = $this->geometry->distanceMeters($terminal['lat'], $terminal['lng'], $vertex[0], $vertex[1]);
+                // A previously saved path can contain the terminal coordinate itself.
+                // Using it creates T -> T (0 m), which has no edge into the graph.
+                // Prefer the next real surveyed trench vertex (e.g. T1682 -> 1567).
+                if ($distance <= 0.5) {
+                    $coincident ??= $vertex;
+
+                    continue;
+                }
                 if ($distance < $nearestDistance) {
                     $nearest = $vertex;
                     $nearestDistance = $distance;
                 }
             }
+            if ($nearest === null) {
+                $nearest = $coincident;
+                $nearestDistance = $nearest === null ? INF : 0.0;
+            }
             if ($nearest === null || $nearestDistance > self::DUCT_ENDPOINT_BIND_M) {
                 continue;
             }
 
+            $implicitPath = $surveyAccessPath ?? [[$terminal['lat'], $terminal['lng']], $nearest];
             $ducts[] = [
                 'key' => '10/8|zo:'.$terminal['zo_tag'].'|point:'.$terminal['point_no'],
                 'label' => $this->ductIdentity->label([
@@ -117,8 +191,8 @@ class SurveyDropRoutingService
                 'microduct_count' => max(1, (int) $terminal['microduct_count']),
                 'color' => $terminal['colors'][0] ?? null,
                 'zo_tag' => $terminal['zo_tag'],
-                'path' => [[$terminal['lat'], $terminal['lng']], $nearest],
-                'length_m' => $nearestDistance,
+                'path' => $implicitPath,
+                'length_m' => $this->geometry->polylineLength($implicitPath),
                 '_terminal_point' => $terminal['point_no'],
                 'house_ref' => $terminal['house_ref'] ?? null,
                 'prepared_sling' => true,
@@ -244,7 +318,10 @@ class SurveyDropRoutingService
                 if ($existingIsTerminal xor $pointIsTerminal) {
                     continue;
                 }
-                $mergeDistance = $pointIsTerminal ? 0.5 : self::NODE_MERGE_M;
+                // Use the same strict identity threshold as the rendered trench graph.
+                // Distinct field readings such as T1626 and T1628 (about 1.42 m apart)
+                // must remain separate or T1627/T1628 disappear from the red route.
+                $mergeDistance = 0.5;
                 if ($this->geometry->distanceBetweenPoints($point, $existingPoint) <= $mergeDistance) {
                     if ($pointIsTerminal) {
                         $terminalGraphNodes[$existingKey] = array_values(array_unique(array_merge(
@@ -280,66 +357,16 @@ class SurveyDropRoutingService
             }
         };
 
-        // A freshly surveyed customer spur commonly ends on the middle of an older
-        // main-trench segment. Its endpoint therefore has no matching old vertex. Snap
-        // that endpoint to the segment projection and split the old graph edge there,
-        // so routing continues along the already mapped trench instead of drawing a
-        // direct house-to-cabinet shortcut.
         $existingPaths = array_values(array_filter(
             $trenches,
             fn (array $trench) => ($trench['_routing_source'] ?? null) === 'existing'
                 && count($trench['path'] ?? []) >= 2
         ));
-        $snapPaths = [];
-        $terminalSnapEdges = [];
-        if ($existingPaths !== []) {
-            foreach ($trenches as $trench) {
-                if (($trench['_routing_source'] ?? null) === 'existing' || count($trench['path'] ?? []) < 2) {
-                    continue;
-                }
-                $surveyPath = array_values($trench['path']);
-                foreach ([$surveyPath[0], end($surveyPath)] as $endpoint) {
-                    $isTerminalEndpoint = $terminalNumbersAt($endpoint) !== [];
-                    foreach ($existingPaths as $existingTrench) {
-                        $projection = $this->geometry->projectPointToPath($endpoint, $existingTrench['path']);
-                        $snapLimit = $isTerminalEndpoint ? 0.5 : 5.0;
-                        if ($projection['distance_m'] > $snapLimit || $projection['segment_index'] < 1) {
-                            continue;
-                        }
-                        $projectionPoint = [$projection['lat'], $projection['lng']];
-                        $segmentIndex = (int) $projection['segment_index'];
-                        $snapPaths[] = [
-                            $existingTrench['path'][$segmentIndex - 1],
-                            $projectionPoint,
-                            $existingTrench['path'][$segmentIndex],
-                        ];
-                        if ($isTerminalEndpoint) {
-                            $terminalSnapEdges[] = [$endpoint, $projectionPoint];
-                        } else {
-                            $snapPaths[] = [$endpoint, $projectionPoint];
-                        }
-                    }
-                }
-            }
-        }
         foreach ($trenches as $trench) {
             $addPathToGraph(
                 $trench['path'],
                 ($trench['_routing_source'] ?? null) !== 'existing'
             );
-        }
-        foreach ($snapPaths as $snapPath) {
-            $addPathToGraph($snapPath, false);
-        }
-        foreach ($terminalSnapEdges as [$terminalEndpoint, $projectionPoint]) {
-            $a = $nodeId($terminalEndpoint, true);
-            $b = $nodeId($projectionPoint, false);
-            if ($a === $b) {
-                continue;
-            }
-            $weight = $this->geometry->distanceBetweenPoints($nodes[$a], $nodes[$b]);
-            $adjacency[$a][] = [$b, $weight];
-            $adjacency[$b][] = [$a, $weight];
         }
 
         $trenchNodes = $nodes;
@@ -356,6 +383,168 @@ class SurveyDropRoutingService
             $slice[] = [$to['lat'], $to['lng']];
 
             return $reverse ? array_reverse($slice) : $slice;
+        };
+        $conformToSurveyGeometry = function (array $path) use (
+            $trenches,
+            $pathBetweenProjections,
+            $trenchNodes,
+            $trenchAdjacency,
+        ): array {
+            $path = array_values($path);
+            if (count($path) < 2) {
+                return $path;
+            }
+            $result = [$path[0]];
+            for ($index = 1; $index < count($path); $index++) {
+                $from = $path[$index - 1];
+                $to = $path[$index];
+                $best = null;
+                foreach ($trenches as $trench) {
+                    $surveyPath = $trench['path'] ?? [];
+                    if (count($surveyPath) < 2) {
+                        continue;
+                    }
+                    $fromProjection = $this->geometry->projectPointToPath($from, $surveyPath);
+                    $toProjection = $this->geometry->projectPointToPath($to, $surveyPath);
+                    if ($fromProjection['distance_m'] > self::EXISTING_ELEMENT_TOLERANCE_M
+                        || $toProjection['distance_m'] > self::EXISTING_ELEMENT_TOLERANCE_M) {
+                        continue;
+                    }
+                    $subpath = $pathBetweenProjections($surveyPath, $fromProjection, $toProjection);
+                    $directLength = $this->geometry->distanceBetweenPoints($from, $to);
+                    $subpathLength = $this->geometry->polylineLength($subpath);
+                    if ($subpathLength > max(5.0, $directLength * 2.5)) {
+                        continue;
+                    }
+                    $score = $fromProjection['distance_m'] + $toProjection['distance_m'];
+                    if ($best === null || $score < $best['score']) {
+                        $best = ['score' => $score, 'path' => $subpath];
+                    }
+                }
+                // The two ends may lie on different, but connected, black trench
+                // polylines. In that case follow the trench graph between them instead
+                // of drawing a straight bridge across the space between the lines.
+                if ($best === null) {
+                    $fromNode = null;
+                    $toNode = null;
+                    $fromDistance = INF;
+                    $toDistance = INF;
+                    foreach ($trenchNodes as $nodeKey => $nodePoint) {
+                        $candidateFrom = $this->geometry->distanceBetweenPoints($from, $nodePoint);
+                        if ($candidateFrom < $fromDistance) {
+                            $fromDistance = $candidateFrom;
+                            $fromNode = $nodeKey;
+                        }
+                        $candidateTo = $this->geometry->distanceBetweenPoints($to, $nodePoint);
+                        if ($candidateTo < $toDistance) {
+                            $toDistance = $candidateTo;
+                            $toNode = $nodeKey;
+                        }
+                    }
+                    if ($fromNode !== null && $toNode !== null
+                        && $fromDistance <= self::EXISTING_ELEMENT_TOLERANCE_M
+                        && $toDistance <= self::EXISTING_ELEMENT_TOLERANCE_M) {
+                        $networkDistance = [$fromNode => 0.0];
+                        $networkPrevious = [];
+                        $networkQueue = [[$fromNode, 0.0]];
+                        while ($networkQueue) {
+                            usort($networkQueue, fn (array $left, array $right) => $left[1] <=> $right[1]);
+                            [$currentNode, $currentDistance] = array_shift($networkQueue);
+                            if ($currentDistance > ($networkDistance[$currentNode] ?? INF)) {
+                                continue;
+                            }
+                            if ($currentNode === $toNode) {
+                                break;
+                            }
+                            foreach ($trenchAdjacency[$currentNode] ?? [] as [$nextNode, $weight]) {
+                                $candidateDistance = $currentDistance + $weight;
+                                if ($candidateDistance < ($networkDistance[$nextNode] ?? INF)) {
+                                    $networkDistance[$nextNode] = $candidateDistance;
+                                    $networkPrevious[$nextNode] = $currentNode;
+                                    $networkQueue[] = [$nextNode, $candidateDistance];
+                                }
+                            }
+                        }
+                        $directLength = $this->geometry->distanceBetweenPoints($from, $to);
+                        if (isset($networkDistance[$toNode])
+                            && $networkDistance[$toNode] <= max(10.0, $directLength * 4.0)) {
+                            $nodeKeys = [$toNode];
+                            while (isset($networkPrevious[end($nodeKeys)])) {
+                                $nodeKeys[] = $networkPrevious[end($nodeKeys)];
+                            }
+                            $networkPath = array_map(
+                                fn (string $nodeKey) => $trenchNodes[$nodeKey],
+                                array_reverse($nodeKeys),
+                            );
+                            $best = [
+                                'score' => $fromDistance + $toDistance,
+                                'path' => array_merge([$from], $networkPath, [$to]),
+                            ];
+                        }
+                    }
+                }
+                if ($best === null) {
+                    $result[] = $to;
+
+                    continue;
+                }
+                $replacement = $best['path'];
+                $replacement[0] = $from;
+                $replacement[count($replacement) - 1] = $to;
+                $result = array_merge($result, array_slice($replacement, 1));
+            }
+
+            return $this->geometry->compactPath($result);
+        };
+        $orientOwnPathFromTerminal = function (array $path, array $terminal): array {
+            $path = array_values($path);
+            if (count($path) < 2) {
+                return $path;
+            }
+            $firstDistance = $this->geometry->distanceBetweenPoints($terminal, $path[0]);
+            $lastDistance = $this->geometry->distanceBetweenPoints($terminal, end($path));
+            if ($lastDistance < $firstDistance) {
+                $path = array_reverse($path);
+            }
+            if ($this->geometry->distanceBetweenPoints($terminal, $path[0]) > 0.5) {
+                array_unshift($path, $terminal);
+            } else {
+                $path[0] = $terminal;
+            }
+
+            return $this->geometry->compactPath($path);
+        };
+        $extendAcrossNearbySurveyBranch = function (array $ownPath) use ($trenches): array {
+            if ($ownPath === []) {
+                return $ownPath;
+            }
+            $entry = end($ownPath);
+            $best = null;
+            foreach ($trenches as $trench) {
+                if (($trench['_routing_source'] ?? 'survey') !== 'survey') {
+                    continue;
+                }
+                $candidate = array_values($trench['path'] ?? []);
+                if (count($candidate) < 2) {
+                    continue;
+                }
+                $firstDistance = $this->geometry->distanceBetweenPoints($entry, $candidate[0]);
+                $lastDistance = $this->geometry->distanceBetweenPoints($entry, end($candidate));
+                $distance = min($firstDistance, $lastDistance);
+                if ($distance <= 0.5 || $distance > self::EXISTING_ELEMENT_TOLERANCE_M
+                    || ($best !== null && $distance >= $best['distance'])) {
+                    continue;
+                }
+                if ($lastDistance < $firstDistance) {
+                    $candidate = array_reverse($candidate);
+                }
+                $best = ['distance' => $distance, 'path' => $candidate];
+            }
+            if ($best === null) {
+                return $ownPath;
+            }
+
+            return $this->geometry->compactPath(array_merge($ownPath, $best['path']));
         };
 
         foreach ($ducts as &$duct) {
@@ -387,6 +576,169 @@ class SurveyDropRoutingService
                 }
             }
             $terminalCoordinate = [round((float) $terminal['lat'], 7), round((float) $terminal['lng'], 7)];
+
+            // Route over the same graph that is rendered as the black trench. The
+            // coloured duct reconstruction can legitimately be shorter than the dig
+            // (because a label is omitted on shared points), but it must never be used
+            // as geometric authority for drawing the customer route.
+            $startNode = null;
+            $startDistance = INF;
+            foreach ($trenchNodes as $nodeKey => $nodePoint) {
+                if (isset($terminalGraphNodes[$nodeKey])
+                    && ! in_array((int) $terminal['point_no'], $terminalGraphNodes[$nodeKey], true)) {
+                    continue;
+                }
+                $candidateDistance = $this->geometry->distanceBetweenPoints($terminalCoordinate, $nodePoint);
+                if ($candidateDistance < $startDistance) {
+                    $startDistance = $candidateDistance;
+                    $startNode = $nodeKey;
+                }
+            }
+            // This mode is only valid when the house is physically on its surveyed
+            // access trench. A distant nearest node is not evidence of connectivity.
+            if ($startNode !== null && $startDistance <= self::EXISTING_ELEMENT_TOLERANCE_M) {
+                $distanceTo = [$startNode => 0.0];
+                $previousNode = [];
+                $queue = [[$startNode, 0.0]];
+                while ($queue !== []) {
+                    usort($queue, fn (array $left, array $right) => $left[1] <=> $right[1]);
+                    [$currentNode, $currentDistance] = array_shift($queue);
+                    if ($currentDistance > ($distanceTo[$currentNode] ?? INF)) {
+                        continue;
+                    }
+                    foreach ($trenchAdjacency[$currentNode] ?? [] as [$nextNode, $weight]) {
+                        // A house/SLINGA is a leaf, never a transit junction for another
+                        // customer's route. Crossing it creates the visible triangle:
+                        // fork -> other house -> main route.
+                        if (isset($terminalGraphNodes[$nextNode])
+                            && ! in_array((int) $terminal['point_no'], $terminalGraphNodes[$nextNode], true)) {
+                            continue;
+                        }
+                        $nextDistance = $currentDistance + $weight;
+                        if ($nextDistance < ($distanceTo[$nextNode] ?? INF)) {
+                            $distanceTo[$nextNode] = $nextDistance;
+                            $previousNode[$nextNode] = $currentNode;
+                            $queue[] = [$nextNode, $nextDistance];
+                        }
+                    }
+                }
+                $bestTrenchRoute = null;
+                $cabinetCoordinate = [(float) $cabinet['lat'], (float) $cabinet['lng']];
+                foreach ($existingPaths as $existingTrench) {
+                    $existingPath = $existingTrench['path'] ?? [];
+                    $cabinetProjection = $this->geometry->projectPointToPath($cabinetCoordinate, $existingPath);
+                    if ($cabinetProjection['distance_m'] > self::DUCT_ENDPOINT_BIND_M) {
+                        continue;
+                    }
+                    foreach ($distanceTo as $candidateNode => $networkDistance) {
+                        $joinProjection = $this->geometry->projectPointToPath($trenchNodes[$candidateNode], $existingPath);
+                        // Only a real intersection may transfer from black to blue;
+                        // nearby parallel lines are not connected.
+                        if ($joinProjection['distance_m'] > 0.75) {
+                            continue;
+                        }
+                        $corridorPath = $pathBetweenProjections($existingPath, $joinProjection, $cabinetProjection);
+                        // The first physical contact with the main route always wins.
+                        // Distance remaining to the cabinet must never make us ignore
+                        // that contact and continue wandering over the customer trench.
+                        $score = $networkDistance * 1000.0
+                            + $this->geometry->polylineLength($corridorPath);
+                        if ($bestTrenchRoute === null || $score < $bestTrenchRoute['score']) {
+                            $bestTrenchRoute = [
+                                'score' => $score,
+                                'join_node' => $candidateNode,
+                                'join_projection' => [$joinProjection['lat'], $joinProjection['lng']],
+                                'corridor_path' => $corridorPath,
+                            ];
+                        }
+                    }
+                }
+                if ($bestTrenchRoute !== null) {
+                    $nodeKeys = [$bestTrenchRoute['join_node']];
+                    while (isset($previousNode[end($nodeKeys)])) {
+                        $nodeKeys[] = $previousNode[end($nodeKeys)];
+                    }
+                    $blackPath = array_map(
+                        fn (string $nodeKey) => $trenchNodes[$nodeKey],
+                        array_reverse($nodeKeys),
+                    );
+                    $fullPath = array_merge([$terminalCoordinate], $blackPath);
+                    if ($this->geometry->distanceBetweenPoints(end($fullPath), $bestTrenchRoute['join_projection']) > 0.2) {
+                        $fullPath[] = $bestTrenchRoute['join_projection'];
+                    }
+                    $fullPath = array_merge($fullPath, $bestTrenchRoute['corridor_path']);
+                    if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetCoordinate) > 0.5) {
+                        $fullPath[] = $cabinetCoordinate;
+                    }
+                    // Re-expand every graph edge over the recorded trench polyline so
+                    // T1401 -> T1400 -> T1399 cannot become a diagonal shortcut.
+                    $duct['path'] = $conformToSurveyGeometry($fullPath);
+                    $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
+                    $duct['cabinet_reached'] = true;
+                    $duct['routed_via_trench'] = true;
+
+                    continue;
+                }
+            }
+
+            // Preferred, fully evidenced route: keep the customer's own surveyed
+            // geometry until it physically reaches an already saved main corridor,
+            // then copy that corridor's exact geometry to the assigned cabinet.
+            // This is the field topology: black customer branch -> blue 14/10 -> ZO.
+            $orientedOwnPath = $orientOwnPathFromTerminal($duct['path'], $terminalCoordinate);
+            $cabinetCoordinate = [(float) $cabinet['lat'], (float) $cabinet['lng']];
+            $bestMainCorridor = null;
+            foreach ($existingPaths as $existingTrench) {
+                $existingPath = $existingTrench['path'] ?? [];
+                if (count($existingPath) < 2) {
+                    continue;
+                }
+                $cabinetProjection = $this->geometry->projectPointToPath($cabinetCoordinate, $existingPath);
+                if ($cabinetProjection['distance_m'] > self::DUCT_ENDPOINT_BIND_M) {
+                    continue;
+                }
+                // The whole recorded customer branch is authoritative. Joining from
+                // an earlier vertex makes the red line skip the remaining black trench
+                // merely because a parallel main happens to be close to it.
+                $ownIndex = count($orientedOwnPath) - 1;
+                $ownPoint = $orientedOwnPath[$ownIndex];
+                $joinProjection = $this->geometry->projectPointToPath($ownPoint, $existingPath);
+                if ($joinProjection['distance_m'] > self::EXISTING_ELEMENT_TOLERANCE_M) {
+                    continue;
+                }
+                $corridorPath = $pathBetweenProjections($existingPath, $joinProjection, $cabinetProjection);
+                $totalLength = $this->geometry->polylineLength($orientedOwnPath)
+                    + $joinProjection['distance_m']
+                    + $this->geometry->polylineLength($corridorPath)
+                    + $cabinetProjection['distance_m'];
+                // Physical contact is stronger evidence than a marginally shorter
+                // route. This prevents a nearby parallel main from stealing a drop.
+                $score = $joinProjection['distance_m'] * 1000.0 + $totalLength;
+                if ($bestMainCorridor === null || $score < $bestMainCorridor['score']) {
+                    $bestMainCorridor = [
+                        'score' => $score,
+                        'own_index' => $ownIndex,
+                        'join_projection' => [$joinProjection['lat'], $joinProjection['lng']],
+                        'corridor_path' => $corridorPath,
+                    ];
+                }
+            }
+            if ($bestMainCorridor !== null) {
+                $fullPath = array_slice($orientedOwnPath, 0, $bestMainCorridor['own_index'] + 1);
+                if ($this->geometry->distanceBetweenPoints(end($fullPath), $bestMainCorridor['join_projection']) > 0.5) {
+                    $fullPath[] = $bestMainCorridor['join_projection'];
+                }
+                $fullPath = array_merge($fullPath, $bestMainCorridor['corridor_path']);
+                if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetCoordinate) > 0.5) {
+                    $fullPath[] = $cabinetCoordinate;
+                }
+                $duct['path'] = $conformToSurveyGeometry($fullPath);
+                $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
+                $duct['cabinet_reached'] = true;
+                $duct['routed_via_trench'] = true;
+
+                continue;
+            }
             // A cluster of approximate house endpoints can place another house between
             // this terminal and the first real trench observation. Start each customer
             // independently at the nearest NON-terminal trench node; customer points
@@ -394,7 +746,11 @@ class SurveyDropRoutingService
             $joinNode = null;
             $joinDistance = INF;
             foreach ($nodes as $candidateKey => $candidatePoint) {
-                if (isset($terminalGraphNodes[$candidateKey])) {
+                // A zero-length implicit drop can sit exactly on a surveyed trench
+                // vertex (T1682). Its own terminal node is a valid graph entry; only
+                // terminal nodes belonging exclusively to other customers are unsafe.
+                if (isset($terminalGraphNodes[$candidateKey])
+                    && ! in_array((int) $terminal['point_no'], $terminalGraphNodes[$candidateKey], true)) {
                     continue;
                 }
                 $candidateDistance = $this->geometry->distanceBetweenPoints($terminalCoordinate, $candidatePoint);
@@ -436,8 +792,6 @@ class SurveyDropRoutingService
             $targetNode = null;
             $targetDistance = INF;
             $targetScore = INF;
-            $fallbackTargetNode = null;
-            $fallbackTargetDistance = INF;
             foreach ($distance as $reachableNode => $distanceFromTerminal) {
                 if (isset($terminalGraphNodes[$reachableNode])) {
                     continue;
@@ -449,14 +803,37 @@ class SurveyDropRoutingService
                 if ($candidateDistance > self::DUCT_ENDPOINT_BIND_M) {
                     continue;
                 }
-                if ($candidateDistance < $fallbackTargetDistance) {
-                    $fallbackTargetNode = $reachableNode;
-                    $fallbackTargetDistance = $candidateDistance;
+                // A route may leave the graph directly toward the cabinet only when the
+                // surveyed node is effectively the cabinet node. If it is merely nearby,
+                // keep routing over the saved main corridor; otherwise a red customer
+                // line cuts diagonally to ODO instead of following the black main line.
+                $isCabinetTurn = false;
+                $neighborKeys = array_values(array_unique(array_map(
+                    fn (array $edge) => $edge[0],
+                    $adjacency[$reachableNode] ?? [],
+                )));
+                usort($neighborKeys, fn (string $left, string $right) => $this->geometry->distanceBetweenPoints($nodes[$reachableNode], $nodes[$left])
+                    <=> $this->geometry->distanceBetweenPoints($nodes[$reachableNode], $nodes[$right])
+                );
+                $neighborKeys = array_slice($neighborKeys, 0, 8);
+                for ($left = 0; $left < count($neighborKeys) && ! $isCabinetTurn; $left++) {
+                    for ($right = $left + 1; $right < count($neighborKeys); $right++) {
+                        $leftPoint = $nodes[$neighborKeys[$left]];
+                        $rightPoint = $nodes[$neighborKeys[$right]];
+                        $leftCabinetDistance = $this->geometry->distanceBetweenPoints($leftPoint, [$cabinet['lat'], $cabinet['lng']]);
+                        $rightCabinetDistance = $this->geometry->distanceBetweenPoints($rightPoint, [$cabinet['lat'], $cabinet['lng']]);
+                        $throughTurn = $this->geometry->distanceBetweenPoints($leftPoint, $nodes[$reachableNode])
+                            + $this->geometry->distanceBetweenPoints($nodes[$reachableNode], $rightPoint);
+                        $withoutTurn = $this->geometry->distanceBetweenPoints($leftPoint, $rightPoint);
+                        if ($candidateDistance < $leftCabinetDistance
+                            && $candidateDistance < $rightCabinetDistance
+                            && $throughTurn - $withoutTurn >= 3.0) {
+                            $isCabinetTurn = true;
+                            break;
+                        }
+                    }
                 }
-                // Only treat a graph node as an alternative cabinet entrance when the
-                // trench is genuinely beside the cabinet. A larger allowance here would
-                // cut diagonally from an earlier point instead of following the survey.
-                if ($candidateDistance > 10.0) {
+                if ($candidateDistance > self::NODE_MERGE_M && ! $isCabinetTurn) {
                     continue;
                 }
                 $candidateScore = $distanceFromTerminal + $candidateDistance;
@@ -465,10 +842,6 @@ class SurveyDropRoutingService
                     $targetDistance = $candidateDistance;
                     $targetScore = $candidateScore;
                 }
-            }
-            if ($targetNode === null) {
-                $targetNode = $fallbackTargetNode;
-                $targetDistance = $fallbackTargetDistance;
             }
             if ($targetNode === null || $targetDistance > self::DUCT_ENDPOINT_BIND_M) {
                 // The new spur may touch the middle of a saved main route whose own graph
@@ -528,7 +901,7 @@ class SurveyDropRoutingService
                     if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetCoordinate) > 0.5) {
                         $fullPath[] = $cabinetCoordinate;
                     }
-                    $duct['path'] = $this->geometry->compactPath($fullPath);
+                    $duct['path'] = $conformToSurveyGeometry($fullPath);
                     $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
                     $duct['cabinet_reached'] = true;
                     $duct['routed_via_trench'] = true;
@@ -539,6 +912,10 @@ class SurveyDropRoutingService
                 // completed route for the same ZO. With graph-built trenches this is a
                 // last-resort continuation, not the primary topology builder.
                 if (! ($duct['cabinet_reached'] ?? false)) {
+                    $ownPath = $extendAcrossNearbySurveyBranch(
+                        $orientOwnPathFromTerminal($duct['path'], $terminalCoordinate)
+                    );
+                    $entryCoordinate = end($ownPath);
                     $bestPeer = null;
                     foreach ($ducts as $peer) {
                         if (! ($peer['cabinet_reached'] ?? false)
@@ -547,8 +924,8 @@ class SurveyDropRoutingService
                             || count($peer['path'] ?? []) < 2) {
                             continue;
                         }
-                        $projection = $this->geometry->projectPointToPath($terminalCoordinate, $peer['path']);
-                        if ($projection['distance_m'] > self::CUSTOMER_SPUR_TO_TRENCH_M
+                        $projection = $this->geometry->projectPointToPath($entryCoordinate, $peer['path']);
+                        if ($projection['distance_m'] > self::PEER_ROUTE_JOIN_M
                             || ($bestPeer !== null && $projection['distance_m'] >= $bestPeer['distance_m'])) {
                             continue;
                         }
@@ -564,11 +941,12 @@ class SurveyDropRoutingService
                         $sharedPath = $cabinetAtStart
                             ? array_merge([$projectionPoint], array_reverse(array_slice($peerPath, 0, $segmentIndex)))
                             : array_merge([$projectionPoint], array_slice($peerPath, $segmentIndex));
-                        $fullPath = array_merge([$terminalCoordinate], $sharedPath);
+                        $sharedPath = $conformToSurveyGeometry($sharedPath);
+                        $fullPath = array_merge($ownPath, $sharedPath);
                         if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetCoordinate) > 0.5) {
                             $fullPath[] = $cabinetCoordinate;
                         }
-                        $duct['path'] = $this->geometry->compactPath($fullPath);
+                        $duct['path'] = $conformToSurveyGeometry($fullPath);
                         $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
                         $duct['cabinet_reached'] = true;
                         $duct['routed_via_trench'] = true;
@@ -593,7 +971,7 @@ class SurveyDropRoutingService
             if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetPoint) > 0.5) {
                 $fullPath[] = $cabinetPoint;
             }
-            $duct['path'] = $this->geometry->compactPath($fullPath);
+            $duct['path'] = $conformToSurveyGeometry($fullPath);
             $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
             $duct['cabinet_reached'] = true;
             $duct['routed_via_trench'] = true;
@@ -619,6 +997,10 @@ class SurveyDropRoutingService
                 continue;
             }
             $terminalCoordinate = [round((float) $terminal['lat'], 7), round((float) $terminal['lng'], 7)];
+            $ownPath = $extendAcrossNearbySurveyBranch(
+                $orientOwnPathFromTerminal($duct['path'], $terminalCoordinate)
+            );
+            $entryCoordinate = end($ownPath);
             $bestPeer = null;
             foreach ($ducts as $peer) {
                 if (! ($peer['cabinet_reached'] ?? false)
@@ -627,8 +1009,8 @@ class SurveyDropRoutingService
                     || count($peer['path'] ?? []) < 2) {
                     continue;
                 }
-                $projection = $this->geometry->projectPointToPath($terminalCoordinate, $peer['path']);
-                if ($projection['distance_m'] > self::CUSTOMER_SPUR_TO_TRENCH_M
+                $projection = $this->geometry->projectPointToPath($entryCoordinate, $peer['path']);
+                if ($projection['distance_m'] > self::PEER_ROUTE_JOIN_M
                     || ($bestPeer !== null && $projection['distance_m'] >= $bestPeer['distance_m'])) {
                     continue;
                 }
@@ -646,11 +1028,12 @@ class SurveyDropRoutingService
             $sharedPath = $cabinetAtStart
                 ? array_merge([$projectionPoint], array_reverse(array_slice($peerPath, 0, $segmentIndex)))
                 : array_merge([$projectionPoint], array_slice($peerPath, $segmentIndex));
-            $fullPath = array_merge([$terminalCoordinate], $sharedPath);
+            $sharedPath = $conformToSurveyGeometry($sharedPath);
+            $fullPath = array_merge($ownPath, $sharedPath);
             if ($this->geometry->distanceBetweenPoints(end($fullPath), $cabinetCoordinate) > 0.5) {
                 $fullPath[] = $cabinetCoordinate;
             }
-            $duct['path'] = $this->geometry->compactPath($fullPath);
+            $duct['path'] = $conformToSurveyGeometry($fullPath);
             $duct['length_m'] = $this->geometry->polylineLength($duct['path']);
             $duct['cabinet_reached'] = true;
             $duct['routed_via_trench'] = true;

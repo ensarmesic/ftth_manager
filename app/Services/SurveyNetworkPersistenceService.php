@@ -40,18 +40,10 @@ class SurveyNetworkPersistenceService
             if ($chain['_routing_only'] ?? false) {
                 continue;
             }
-            $existing = $this->routeReconciliation->findExistingRouteGeometry($project->id, 'trench', $chain['path'], $freshRouteIds, $elementToleranceM);
-            if ($existing) {
-                $mergedPath = $this->routeReconciliation->mergeTouchingPaths($existing->path ?? [], $chain['path'], $elementToleranceM);
-                $existing->update([
-                    'path' => $mergedPath,
-                    'duct_length_m' => $this->geometry->polylineLength($mergedPath),
-                    'note' => $this->routeReconciliation->appendImportNote($existing->note, 'Geodetski snimak: '.$chain['code']),
-                ]);
-
-                continue;
-            }
-
+            // A trench network is a tree, not one walkable polyline. Persist every
+            // chain between junctions as its own route and group the chains logically.
+            // Merging merely touching chains forces a branch to be encoded as an
+            // out-and-back path, which draws the same black segment twice.
             $trench = NetworkRoute::create([
                 'project_id' => $project->id,
                 'name' => $this->identity->uniqueName(NetworkRoute::class, $project->id, 'Dionica rova '.($index + 1)),
