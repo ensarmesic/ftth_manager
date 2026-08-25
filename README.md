@@ -115,7 +115,7 @@ php artisan view:cache
 # Pokreni sa web serverom (Apache/Nginx)
 ```
 
-Za produkciju postavi `APP_ENV=production`, `APP_DEBUG=false`, ispravan `APP_URL` i konfiguraciju baze. Web server mora posluživati isključivo `public/` direktorij.
+Za produkciju postavi `APP_ENV=production`, `APP_DEBUG=false`, ispravan HTTPS `APP_URL`, `SESSION_SECURE_COOKIE=true` i konfiguraciju baze. Web server mora posluživati isključivo `public/` direktorij.
 
 Produkcijski `.env` treba sadržavati i `APP_VERSION`, `APP_DEPLOYED_AT` te `LOG_CHANNEL=daily`. Laravel scheduler mora biti aktivan svake minute (`php artisan schedule:run`) jer u 02:30 pokreće `ftth:backup-database --keep=14`, a u 03:15 čisti zastarjeli DXF cache. Autentificirani administratorski health-check dostupan je na `/sistem/health`; vraća status baze, verziju, deployment i datum posljednjeg automatskog backupa. Zahtjevi sporiji od `SLOW_REQUEST_MS` zapisuju se u dnevni log.
 
@@ -191,7 +191,7 @@ Deployment, scheduler, backup/restore, health-check i incidentne procedure nalaz
 - ✅ Sigurnosni HTTP headeri i audit zapis izmjena
 - ✅ SQLite baza (ili MySQL/PostgreSQL sa odgovarajućim dozvolama)
 - ✅ Eksplicitne uloge i dozvole: administrator, projektant, teren i pregled
-- ⚠️ Bez 2FA/MFA (preporučuje se ako je dostupno na serveru)
+- ✅ TOTP dvofaktorska autentifikacija za administratorske račune (Postavke → Sigurnost računa)
 
 ## Testiranje
 

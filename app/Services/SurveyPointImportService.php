@@ -69,6 +69,7 @@ class SurveyPointImportService
         private readonly SurveyNetworkPersistenceService $networkPersistence,
         private readonly SurveyMainRouteGraphService $mainRouteGraph,
         private readonly SurveyRouteEntryPointService $routeEntryPoint,
+        private readonly SurveyCustomerRouteReconstructor $customerRouteReconstructor,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -150,15 +151,69 @@ class SurveyPointImportService
             }
         }
 
-        $trenchPoints = array_values(array_filter($points, fn ($p) => $p['kind'] === 'trench'
-            || (in_array($p['kind'], ['sling', 'loop'], true)
-                && preg_match('/\brov\b|rov\+/i', $p['code'] ?? ''))));
+        // A terminal omitted from the rendered trench list must still break the field
+        // walk when the following run records a side branch and returns near an older
+        // node. Otherwise filtering out the terminal invents a shortcut from the trench
+        // before the house directly to the trench after it (1443 -> 1445).
+        $breakTrenchBefore = [];
+        for ($index = 1; $index + 4 < count($points); $index++) {
+            $terminal = $points[$index];
+            $first = $points[$index + 1];
+            $second = $points[$index + 2];
+            $third = $points[$index + 3];
+            $afterGap = $points[$index + 4];
+            if (! in_array($terminal['kind'] ?? null, ['sling', 'loop'], true)
+                || ($terminal['microduct_type'] ?? null) !== '10/8'
+                || ($terminal['zo_tag'] ?? null) === null
+                || collect([$first, $second, $third, $afterGap])->contains(
+                    fn (array $point) => ($point['kind'] ?? null) !== 'trench'
+                        || ($point['zo_tag'] ?? null) !== $terminal['zo_tag']
+                )
+                || (int) $first['point_no'] !== (int) $terminal['point_no'] + 1
+                || (int) $second['point_no'] !== (int) $first['point_no'] + 1
+                || (int) $third['point_no'] !== (int) $second['point_no'] + 1
+                || (int) $afterGap['point_no'] <= (int) $third['point_no'] + 1
+                || $this->geometry->distanceBetweenPoints(
+                    [(float) $second['lat'], (float) $second['lng']],
+                    [(float) $third['lat'], (float) $third['lng']]
+                ) > 0.5) {
+                continue;
+            }
+            $breakTrenchBefore[$index + 1] = true;
+        }
+        $trenchPoints = [];
+        $localTrenchSegment = 0;
+        $pendingSegmentBreak = false;
+        foreach ($points as $index => $point) {
+            $isTrenchPoint = $point['kind'] === 'trench'
+                || (in_array($point['kind'], ['sling', 'loop'], true)
+                    && preg_match('/\brov\b|rov\+/i', $point['code'] ?? ''));
+            if (! $isTrenchPoint) {
+                if ($trenchPoints !== [] && preg_match('/\bnapomena\b/i', (string) ($point['code'] ?? ''))) {
+                    $pendingSegmentBreak = true;
+                }
+
+                continue;
+            }
+            if (isset($breakTrenchBefore[$index]) || $pendingSegmentBreak) {
+                $localTrenchSegment++;
+                $pendingSegmentBreak = false;
+            }
+            $point['_segment_no'] = ((int) ($point['_segment_no'] ?? 0) * 1000) + $localTrenchSegment;
+            $trenchPoints[] = $point;
+        }
         // 'loop' (a reserve coil, no house) still carries the duct through it, same as a
         // plain unmarked trench point — only 'sling' (an explicit house) ends a duct.
         $ductPoints = array_values(array_filter($points, fn ($p) => in_array($p['kind'], ['trench', 'sling', 'loop'], true)));
         $terminalCoordinates = collect($points)
             ->whereIn('kind', ['sling', 'loop'])
             ->map(fn (array $point) => [$point['lat'], $point['lng']])
+            ->values()
+            ->all();
+        $terminalPointNumbers = collect($points)
+            ->whereIn('kind', ['sling', 'loop'])
+            ->pluck('point_no')
+            ->map(fn ($pointNumber) => (int) $pointNumber)
             ->values()
             ->all();
 
@@ -169,6 +224,7 @@ class SurveyPointImportService
             self::TAGGED_DUCT_GAP_M,
             self::TRENCH_GAP_M,
             $terminalCoordinates,
+            $terminalPointNumbers,
         );
         $trenches = [];
         if (count($trenchEdges) > 0) {
@@ -184,6 +240,63 @@ class SurveyPointImportService
                     'points' => count($path),
                     'length_m' => $this->geometry->polylineLength($path),
                     'code' => 'rov',
+                ];
+            }
+
+            $pathSegments = collect($trenchPoints)->mapWithKeys(fn (array $point) => [
+                round((float) $point['lat'], 7).','.round((float) $point['lng'], 7) => (int) $point['_segment_no'],
+            ]);
+            $connectors = [];
+            foreach ($trenches as $leftIndex => $left) {
+                foreach (array_slice($trenches, $leftIndex + 1, null, true) as $rightIndex => $right) {
+                    $leftEndpoints = [$left['path'][0], end($left['path'])];
+                    $rightEndpoints = [$right['path'][0], end($right['path'])];
+                    $best = null;
+                    foreach ($leftEndpoints as $leftPoint) {
+                        foreach ($rightEndpoints as $rightPoint) {
+                            $leftSegment = $pathSegments->get(round($leftPoint[0], 7).','.round($leftPoint[1], 7));
+                            $rightSegment = $pathSegments->get(round($rightPoint[0], 7).','.round($rightPoint[1], 7));
+                            if ($leftSegment === null || $rightSegment === null || $leftSegment === $rightSegment) {
+                                continue;
+                            }
+                            $distance = $this->geometry->distanceBetweenPoints($leftPoint, $rightPoint);
+                            if ($distance > self::TRENCH_GAP_M || $distance <= self::NODE_MERGE_M) {
+                                continue;
+                            }
+                            if ($best === null || $distance < $best['distance']) {
+                                $best = ['distance' => $distance, 'path' => [$leftPoint, $rightPoint]];
+                            }
+                        }
+                    }
+                    if ($best !== null) {
+                        $connectors[] = [
+                            'path' => $best['path'],
+                            'points' => 2,
+                            'length_m' => $best['distance'],
+                            'code' => 'rov-spoj',
+                            '_routing_only' => true,
+                        ];
+                    }
+                }
+            }
+            $trenches = array_merge($trenches, $connectors);
+        }
+
+        $usedTrenchCoordinates = collect($trenches)->flatMap(fn (array $trench) => $trench['path'])
+            ->map(fn (array $point) => round($point[0], 7).','.round($point[1], 7))->flip();
+        foreach ($trenchPoints as $point) {
+            $key = round((float) $point['lat'], 7).','.round((float) $point['lng'], 7);
+            if ($usedTrenchCoordinates->has($key)) {
+                continue;
+            }
+            $nearTerminal = collect($terminalCoordinates)->contains(fn (array $terminal) => $this->geometry->distanceMeters($point['lat'], $point['lng'], $terminal[0], $terminal[1]) <= self::CUSTOMER_SPUR_TO_TRENCH_M
+            );
+            if ($nearTerminal) {
+                $trenches[] = [
+                    'path' => [[$point['lat'], $point['lng']]],
+                    'points' => 1,
+                    'length_m' => 0.0,
+                    'code' => 'rov-kraj',
                 ];
             }
         }
@@ -279,6 +392,33 @@ class SurveyPointImportService
             array_map(fn (array $trench) => $trench + ['_routing_source' => 'survey'], $trenches),
             array_map(fn (array $path) => ['path' => $path, '_routing_source' => 'existing'], $existingTrenchPaths)
         );
+        $cabinetCoordinates = collect();
+        for ($pointIndex = 1; $pointIndex < count($points); $pointIndex++) {
+            $left = $points[$pointIndex - 1];
+            $right = $points[$pointIndex];
+            $cabinet = ($left['kind'] ?? null) === 'cabinet' ? $left : ((($right['kind'] ?? null) === 'cabinet') ? $right : null);
+            $trench = ($left['kind'] ?? null) === 'trench' ? $left : ((($right['kind'] ?? null) === 'trench') ? $right : null);
+            if ($cabinet !== null && $trench !== null
+                && $this->geometry->distanceMeters($cabinet['lat'], $cabinet['lng'], $trench['lat'], $trench['lng']) <= self::NODE_MERGE_M) {
+                $cabinetCoordinates->push([(float) $cabinet['lat'], (float) $cabinet['lng']]);
+            }
+        }
+        foreach ($routingTrenches as &$routingTrench) {
+            if (count($routingTrench['path'] ?? []) < 2) {
+                continue;
+            }
+            foreach ($cabinetCoordinates as $cabinetCoordinate) {
+                $firstDistance = $this->geometry->distanceBetweenPoints($routingTrench['path'][0], $cabinetCoordinate);
+                $lastDistance = $this->geometry->distanceBetweenPoints(end($routingTrench['path']), $cabinetCoordinate);
+                if ($firstDistance <= self::NODE_MERGE_M && $firstDistance > 0.05) {
+                    array_unshift($routingTrench['path'], $cabinetCoordinate);
+                } elseif ($lastDistance <= self::NODE_MERGE_M && $lastDistance > 0.05) {
+                    $routingTrench['path'][] = $cabinetCoordinate;
+                }
+            }
+            $routingTrench['path'] = $this->geometry->compactPath($routingTrench['path']);
+        }
+        unset($routingTrench);
         // A customer first follows its own surveyed spur, then newly surveyed shared
         // trenches from this TXT, then the already saved main network. All three are
         // physical geometry and must participate in one graph.
@@ -313,6 +453,9 @@ class SurveyPointImportService
         }
         unset($duct);
         $cabinetRoutingTrenches = $routingTrenches;
+        $preRoutingPaths = collect($ducts)
+            ->filter(fn (array $duct) => isset($duct['_terminal_point']))
+            ->mapWithKeys(fn (array $duct) => [(int) $duct['_terminal_point'] => $duct['path'] ?? []]);
         $ducts = $this->dropRouting->process(
             $ducts,
             $routingTrenches,
@@ -320,6 +463,51 @@ class SurveyPointImportService
             $points,
             array_merge($points, $existingCabinetPoints),
         );
+        $strictUserPaths = collect($ducts)
+            ->filter(fn (array $duct) => isset($duct['_terminal_point']))
+            ->mapWithKeys(function (array $duct) use ($preRoutingPaths): array {
+                $path = $preRoutingPaths->get((int) $duct['_terminal_point'], $duct['path'] ?? []);
+                $entryIndex = isset($duct['entry']['user_segment_end_index'])
+                    ? max(1, (int) $duct['entry']['user_segment_end_index'])
+                    : count($path) - 1;
+
+                return [(int) $duct['_terminal_point'] => array_slice($path, 0, $entryIndex + 1)];
+            });
+
+        $terminalByNumber = collect($points)->whereIn('kind', ['sling', 'loop'])->keyBy('point_no');
+        $strictCabinets = collect(array_merge($points, $existingCabinetPoints))
+            ->where('kind', 'cabinet')
+            ->map(fn (array $cabinet, int $index) => [
+                'id' => $cabinet['id'] ?? 'survey:'.$index,
+                'name' => (string) ($cabinet['code'] ?? $cabinet['name'] ?? ''),
+                'coordinate' => [(float) $cabinet['lat'], (float) $cabinet['lng']],
+            ])
+            ->values()
+            ->all();
+        foreach ($ducts as &$duct) {
+            if (($duct['microduct_type'] ?? null) !== '10/8' || ! isset($duct['_terminal_point'])) {
+                continue;
+            }
+            $terminal = $terminalByNumber->get((int) $duct['_terminal_point']);
+            if ($terminal === null) {
+                continue;
+            }
+            $duct['strict_reconstruction'] = $this->customerRouteReconstructor->reconstruct(
+                (string) ($terminal['code'] ?? $duct['label'] ?? ''),
+                $strictUserPaths->get((int) $duct['_terminal_point'], $duct['path'] ?? []),
+                $entryRoutes,
+                $strictCabinets,
+                $strictMainGraph,
+            );
+            $duct['cabinet_reached'] = $duct['strict_reconstruction']['status'] === 'complete';
+            if (! $duct['cabinet_reached']) {
+                $duct['routing_warnings'] = array_values(array_unique(array_merge(
+                    $duct['routing_warnings'] ?? [],
+                    $duct['strict_reconstruction']['warnings'] ?? [],
+                )));
+            }
+        }
+        unset($duct);
 
         return ['trenches' => $trenches, 'ducts' => $ducts, 'main_route_graph' => $strictMainGraph];
     }

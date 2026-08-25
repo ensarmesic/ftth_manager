@@ -16,10 +16,14 @@ class SurveyPreviewQualityService
         )->pluck('point_no')->values();
         $terminalDucts = collect($ducts)->filter(fn (array $duct) => ($duct['prepared_sling'] ?? false) || isset($duct['_terminal_point']));
         $unreachableDucts = $terminalDucts->reject(fn (array $duct) => (bool) ($duct['cabinet_reached'] ?? false));
+        $strictUnreachableDucts = $unreachableDucts->filter(
+            fn (array $duct) => ($duct['strict_reconstruction']['status'] ?? null) === 'unresolved'
+        );
         $errors = collect()
             ->when($duplicatePointNumbers->isNotEmpty(), fn (Collection $items) => $items->push('Dupli brojevi tačaka: '.$duplicatePointNumbers->take(12)->join(', ').'.'))
             ->when($unrecognizedCodes->isNotEmpty(), fn (Collection $items) => $items->push($unrecognizedCodes->count().' opisa nije prepoznato.'))
             ->when($customerPointsWithoutCabinet->isNotEmpty(), fn (Collection $items) => $items->push($customerPointsWithoutCabinet->count().' korisničkih 10/8 tačaka nema -ZO oznaku.'))
+            ->when($strictUnreachableDucts->isNotEmpty(), fn (Collection $items) => $items->push($strictUnreachableDucts->count().' korisnickih linija nema dokazanu mreznu putanju do ciljnog ODO-a.'))
             ->values();
         $warnings = collect()
             ->when($unreachableDucts->isNotEmpty(), fn (Collection $items) => $items->push($unreachableDucts->count().' korisničkih linija nema dokazanu putanju kroz rov do ODO-a; možeš je ručno ispraviti prije uvoza.'))

@@ -3,6 +3,10 @@ import { chromium } from 'playwright';
 const baseUrl = process.env.BASE_URL ?? 'http://127.0.0.1:8000';
 const username = process.env.E2E_USERNAME;
 const password = process.env.E2E_PASSWORD;
+if (!username || !password) {
+    process.stderr.write('✗ E2E_USERNAME i E2E_PASSWORD su obavezni za vizuelni audit.\n');
+    process.exit(1);
+}
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
 const auditPages = [
@@ -25,7 +29,12 @@ try {
 
     await page.goto(`${baseUrl}/projekti`, { waitUntil: 'networkidle' });
     const projectOverviewPath = await page.locator('a[href*="/projekti/"][href$="/pregled"]').first().getAttribute('href').catch(() => null);
-    if (projectOverviewPath) auditPages.push(['project-overview', projectOverviewPath.replace(baseUrl, '')]);
+    if (projectOverviewPath) {
+        auditPages.push(['project-overview', projectOverviewPath.replace(baseUrl, '')]);
+        const projectId = projectOverviewPath.match(/\/projekti\/(\d+)\/pregled/)?.[1];
+        const mapAudit = auditPages.find(([name]) => name === 'map');
+        if (projectId && mapAudit) mapAudit[1] = `/mapa?project=${projectId}`;
+    }
 
     for (const [name, path] of auditPages) {
         await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle' });

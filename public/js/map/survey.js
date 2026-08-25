@@ -203,6 +203,7 @@
 
     function drawMapPreview(data) {
         clearMapPreview();
+        const previewDropCasings = [];
         const previewDropLines = [];
         const add = layer => { previewLayers.push(layer); trackLayer(layer, 'preview'); return layer.addTo(map); };
         const addRoute = layer => { previewRouteLayers.push(layer); return add(layer); };
@@ -220,11 +221,19 @@
             // correctly routed ducts stop before their assigned ZO.
             const completePath = duct.full_geometry?.length > 1 ? duct.full_geometry : duct.path;
             if (completePath?.length > 1) {
+                if (duct.route_type === 'drop') {
+                    previewDropCasings.push(addRoute(L.polyline(completePath, {
+                        color: '#f8fafc',
+                        weight: 7,
+                        opacity: .95,
+                        interactive: false,
+                    })));
+                }
                 const completeLine = addRoute(L.polyline(completePath, {
                     color: duct.route_type === 'drop' ? ductColor : '#2563eb',
-                    weight: 2.5,
-                    opacity: .95,
-                    dashArray: '2 5',
+                    weight: duct.route_type === 'drop' ? 2.5 : 2.5,
+                    opacity: 1,
+                    dashArray: duct.route_type === 'drop' ? '4 4' : '2 5',
                     interactive: false,
                 }));
                 if (duct.route_type === 'drop') previewDropLines.push(completeLine);
@@ -243,6 +252,7 @@
                 editableDuctLayers.push(entry);
             }
         });
+        previewDropCasings.forEach(line => line.bringToFront());
         previewDropLines.forEach(line => line.bringToFront());
         (data.quality?.issue_points || []).forEach(point => add(L.circleMarker([point.lat, point.lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip(`Tačka ${point.point_no}: ${escapeHtml(point.code)}`)));
         (data.survey_points || []).forEach(point => {

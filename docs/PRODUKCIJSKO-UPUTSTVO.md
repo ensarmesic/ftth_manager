@@ -1,16 +1,24 @@
 # FTTH Manager — produkcijsko uputstvo
 
-Revizija: 14. august 2026.
+Revizija: 25. august 2026.
 
 ## Deployment checklist
 
 - Napraviti provjerenu kopiju baze i `storage/app/private` podataka.
-- Postaviti `APP_ENV=production`, `APP_DEBUG=false`, tačan `APP_URL`, `APP_VERSION`, `APP_DEPLOYED_AT`, `LOG_CHANNEL=daily` i razuman `SLOW_REQUEST_MS`.
+- Postaviti `APP_ENV=production`, `APP_DEBUG=false`, tačan HTTPS `APP_URL`, `APP_VERSION`, `APP_DEPLOYED_AT`, `LOG_CHANNEL=daily` i razuman `SLOW_REQUEST_MS`.
+- Za sesije postaviti `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true` i `SESSION_SAME_SITE=lax`; aplikaciju izlagati samo preko HTTPS-a.
 - Web server usmjeriti isključivo na `public/`; `.env`, baza, logovi i backup direktorij ne smiju biti javno dostupni.
 - Pokrenuti `composer install --no-dev --optimize-autoloader`, `npm run build` i `php artisan migrate --force`.
 - Pokrenuti `php artisan config:cache`, `php artisan route:cache` i `php artisan view:cache`.
 - Prije puštanja pokrenuti `composer check` te E2E komande iz README dokumenta nad staging okruženjem.
 - Provjeriti prijavu i dozvole za administrator, projektant, teren i pregled uloge.
+- Uključiti TOTP 2FA na svim administratorskim računima i potvrditi prijavu u privatnom prozoru prije zatvaranja postojeće sesije.
+
+## Sigurnost i pristup
+
+Aplikacija postavlja CSP i ostala sigurnosna HTTP zaglavlja. Reverse proxy mora proslijediti ispravan HTTPS protokol kako bi Laravel prepoznao siguran zahtjev i poslao HSTS zaglavlje. Ne dodavati vanjske skripte ili stilove bez pregleda CSP pravila.
+
+TOTP 2FA se uključuje u Postavke → Sigurnost računa skeniranjem QR koda u autentifikatoru. Tajna je šifrirana aplikacijskim `APP_KEY` ključem, zato gubitak ili promjena ključa onemogućava postojeće 2FA postavke i druge šifrirane podatke. `APP_KEY` čuvati u sigurnom spremištu izvan repozitorija. Ako administrator izgubi autentifikator, ovlaštena osoba mora kroz kontrolisanu servisnu proceduru isključiti 2FA u bazi; prije izmjene obavezno napraviti backup i evidentirati intervenciju.
 
 ## Scheduler i backup
 
@@ -21,6 +29,8 @@ Operativni sistem mora svake minute izvršavati `php artisan schedule:run`. Apli
 - 03:15 — uklanjanje DXF cachea starijeg od 30 dana.
 
 Izlaz se zapisuje u `storage/logs/scheduler.log`, a uspješan posao osvježava `storage/app/private/health/scheduler-heartbeat.json`. Neuspjeh se zapisuje u Laravel log. Backup se pravi atomskim SQLite `VACUUM INTO` postupkom, provjerava sa `quick_check` i SHA-256 checksumom. Privatni backup direktorij treba dodatno replicirati izvan aplikacijskog servera.
+
+Nakon deploymenta ručno pokrenuti `php artisan schedule:run`, a zatim provjeriti scheduler log i administratorski health endpoint. Time se potvrđuju dozvole direktorija, PHP putanja i produkcijska konfiguracija prije noćnih poslova.
 
 Najmanje jednom mjesečno izvršiti probni restore na izolovanoj kopiji: otvoriti backup kao novu SQLite bazu, pokrenuti `PRAGMA quick_check`, provjeriti poznati zapis i učitati ključne stranice aplikacije. Nikada ne testirati restore preko aktivne produkcijske baze.
 

@@ -44,6 +44,9 @@
     .ftth-cabinet-title { display: block; font-size: 7px; font-weight: 900; line-height: 1; letter-spacing: 0; opacity: .75; }
     .ftth-cabinet-code { display: block; font-size: 9px; font-weight: 900; line-height: 1.05; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; font-weight: 900; }
+    .ftth-route-drop {
+        filter: drop-shadow(0 0 1px rgba(255,255,255,.98)) drop-shadow(0 0 1px rgba(15,23,42,.45));
+    }
     .ftth-house-icon .ftth-tag { left: 50%; top: 50%; }
     .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }
@@ -147,6 +150,23 @@
     .cad-line-sample.dashed { border-top-style: dashed; }
     .cad-point-sample { width: 10px; height: 10px; border: 2px solid #fff; box-shadow: 0 0 0 1px #0f172a; justify-self: start; }
     .cad-point-sample.circle { border-radius: 999px; }
+    @media (max-width: 767px) {
+        .cad-map-legend {
+            transform: scale(.78);
+            transform-origin: bottom right;
+            opacity: .9;
+        }
+        #map-stats-bar {
+            max-width: calc(100% - 92px);
+            gap: 2px !important;
+        }
+        #map-stats-bar > * {
+            padding: 3px 6px !important;
+            font-size: 9px !important;
+        }
+        .ftth-tag.house { width: 13px; height: 13px; font-size: 7.5px; }
+        .ftth-cabinet-text { display: none; }
+    }
     .cad-status {
         border-top: 1px solid rgba(15, 23, 42, .12);
         background: #0f172a;

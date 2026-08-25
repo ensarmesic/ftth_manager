@@ -72,6 +72,21 @@
                     </div>
                     <div class="settings-actions"><button class="btn-save">Promijeni lozinku</button></div>
                 </form>
+                <div class="settings-panel-body" style="border-top:1px solid #e2e8f0">
+                    <div class="settings-security-banner">
+                        <div><b>Dvofaktorska autentifikacija (2FA)</b><span>Dodatni šestocifreni kod štiti administratorski račun i ako lozinka procuri.</span></div>
+                        <span>{{ auth()->user()->two_factor_confirmed_at ? 'Uključena' : 'Isključena' }}</span>
+                    </div>
+                    @if (auth()->user()->two_factor_confirmed_at)
+                        <form method="POST" action="{{ route('two-factor.destroy') }}" class="settings-fields-grid">
+                            @csrf @method('DELETE')
+                            <label><span>Trenutna lozinka za isključivanje</span><input type="password" name="current_password" autocomplete="current-password" class="field-input" required></label>
+                            <div class="settings-actions"><button class="btn-save" style="background:#b91c1c">Isključi 2FA</button></div>
+                        </form>
+                    @else
+                        <div class="settings-actions"><a href="{{ route('two-factor.setup') }}" class="btn-save">Postavi authenticator</a></div>
+                    @endif
+                </div>
             </article>
 
             <article class="settings-panel" data-settings-section id="settings-gis">

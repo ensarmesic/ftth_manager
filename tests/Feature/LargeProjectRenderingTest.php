@@ -112,4 +112,41 @@ class LargeProjectRenderingTest extends TestCase
         $this->assertSame(300, $backup['summary']['houses']);
         $this->assertSame(121, $backup['summary']['routes']);
     }
+
+    public function test_map_data_api_remains_bounded_with_five_thousand_houses(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create();
+        $cabinet = Cabinet::factory()->create(['project_id' => $project->id]);
+        $now = now();
+
+        foreach (array_chunk(range(1, 5000), 500) as $numbers) {
+            DB::table('houses')->insert(array_map(fn (int $number): array => [
+                'project_id' => $project->id,
+                'cabinet_id' => $cabinet->id,
+                'label' => 'LOAD-'.$number,
+                'address' => null,
+                'latitude' => 44.4 + (($number % 100) * 0.00001),
+                'longitude' => 18.6 + ((intdiv($number, 100) % 100) * 0.00001),
+                'status' => 'planned',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $numbers));
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $startedAt = hrtime(true);
+        $response = $this->actingAs($user)
+            ->getJson(route('api.projects.map-data', $project))
+            ->assertOk();
+        $durationMs = (hrtime(true) - $startedAt) / 1_000_000;
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertCount(5000, $response->json('houses'));
+        $this->assertLessThanOrEqual(30, $queryCount, "Map API je izvršio {$queryCount} SQL upita.");
+        $this->assertLessThan(10_000, $durationMs, 'Map API za 5.000 kuća traje duže od 10 sekundi.');
+        $this->assertLessThan(15_000_000, strlen($response->getContent()), 'Map API payload za 5.000 kuća prelazi 15 MB.');
+    }
 }

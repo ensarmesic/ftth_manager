@@ -57,31 +57,32 @@ class MapController extends Controller
     {
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
-            'plan' => ['required', 'json'],
+            'plan' => ['required', 'json', 'max:10485760'],
         ]);
 
         $plan = json_decode($data['plan'], true);
+        Validator::make(['plan' => $plan], ['plan' => ['required', 'array']])->validate();
         Validator::make($plan ?? [], [
-            'odfs' => ['nullable', 'array'],
+            'odfs' => ['nullable', 'array', 'max:500'],
             'odfs.*.lat' => $this->latitudeRules(true),
             'odfs.*.lng' => $this->longitudeRules(true),
             'odfs.*.name' => ['nullable', 'string', 'max:120'],
             'odfs.*.address' => ['nullable', 'string', 'max:255'],
             'odfs.*.fiber_capacity' => ['nullable', 'integer', 'min:1', 'max:1152'],
             'odfs.*.port_count' => ['nullable', 'integer', 'min:1', 'max:1152'],
-            'cabinets' => ['nullable', 'array'],
+            'cabinets' => ['nullable', 'array', 'max:5000'],
             'cabinets.*.lat' => $this->latitudeRules(true),
             'cabinets.*.lng' => $this->longitudeRules(true),
             'cabinets.*.name' => ['nullable', 'string', 'max:120'],
             'cabinets.*.address' => ['nullable', 'string', 'max:255'],
             'cabinets.*.splitter_count' => ['nullable', 'integer', 'min:1', 'max:3'],
             'cabinets.*.ports_per_splitter' => ['nullable', 'integer', 'min:1', 'max:4'],
-            'houses' => ['nullable', 'array'],
+            'houses' => ['nullable', 'array', 'max:20000'],
             'houses.*.lat' => $this->latitudeRules(true),
             'houses.*.lng' => $this->longitudeRules(true),
             'houses.*.label' => ['nullable', 'string', 'max:120'],
             'houses.*.address' => ['nullable', 'string', 'max:255'],
-            'routes' => ['nullable', 'array'],
+            'routes' => ['nullable', 'array', 'max:10000'],
             'routes.*.route_type' => ['nullable', 'in:trench,backbone,feeder,distribution,drop'],
             'routes.*.odf_id' => ['nullable', 'integer', 'exists:odfs,id'],
             'routes.*.cabinet_id' => ['nullable', 'integer', 'exists:cabinets,id'],
@@ -89,14 +90,14 @@ class MapController extends Controller
             'routes.*.from_id' => ['nullable', 'integer'],
             'routes.*.to_type' => ['nullable', 'in:cabinet'],
             'routes.*.to_id' => ['nullable', 'integer', 'exists:cabinets,id'],
-            'routes.*.path' => ['nullable', 'array'],
+            'routes.*.path' => ['nullable', 'array', 'max:10000'],
             'routes.*.path.*' => ['array', 'size:2'],
             'routes.*.path.*.0' => $this->latitudeRules(true),
             'routes.*.path.*.1' => $this->longitudeRules(true),
             'routes.*.trench_group' => ['nullable', 'string', 'max:80'],
             'routes.*.counts_as_trench' => ['nullable', 'boolean'],
             'routes.*.trench_length_m' => ['nullable', 'integer', 'min:0'],
-            'appendix_items' => ['nullable', 'array'],
+            'appendix_items' => ['nullable', 'array', 'max:10000'],
             'appendix_items.*.type' => ['required', 'in:manhole,boring_fi_130'],
             'appendix_items.*.lat' => $this->latitudeRules(true),
             'appendix_items.*.lng' => $this->longitudeRules(true),
@@ -322,12 +323,23 @@ class MapController extends Controller
     {
         $data = $request->validate([
             'project_id' => ['required', 'exists:projects,id'],
-            'draft' => ['required', 'json'],
+            'draft' => ['required', 'json', 'max:10485760'],
         ]);
+
+        $payload = json_decode($data['draft'], true);
+        Validator::make(['draft' => $payload], [
+            'draft' => ['required', 'array'],
+            'draft.odfs' => ['nullable', 'array', 'max:500'],
+            'draft.cabinets' => ['nullable', 'array', 'max:5000'],
+            'draft.houses' => ['nullable', 'array', 'max:20000'],
+            'draft.routes' => ['nullable', 'array', 'max:10000'],
+            'draft.routes.*.path' => ['nullable', 'array', 'max:10000'],
+            'draft.appendix_items' => ['nullable', 'array', 'max:10000'],
+        ])->validate();
 
         $draft = MapDraft::updateOrCreate(
             ['project_id' => $data['project_id']],
-            ['payload' => json_decode($data['draft'], true)]
+            ['payload' => $payload]
         );
 
         return response()->json([

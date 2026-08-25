@@ -31,8 +31,463 @@ class SurveyDropRoutingService
         $ducts = $this->createImplicitTaggedDrops($ducts, $routingTrenches, $points);
         $ducts = $this->attachDropMetadata($ducts, $points);
         $ducts = $this->routeTaggedDropsThroughTrenches($ducts, $cabinetRoutingTrenches, $bindingPoints);
+        $ducts = $this->applyRecordedReturnBranches($ducts, $points, $bindingPoints);
+        $ducts = $this->preserveCompletedShortSurveyPrefixes(
+            $ducts,
+            $points,
+            $bindingPoints,
+            $cabinetRoutingTrenches,
+        );
 
         return $this->retainTerminalCustomerDrops($ducts, $points);
+    }
+
+    /**
+     * Preserve a short, fully recorded customer access trench before joining the
+     * resolved shared route. This prevents the router from projecting the final
+     * recorded edge diagonally onto a nearby main corridor (1493 -> 1494).
+     */
+    private function preserveCompletedShortSurveyPrefixes(
+        array $ducts,
+        array $points,
+        array $bindingPoints,
+        array $routingTrenches,
+    ): array {
+        $cabinets = collect($bindingPoints)->where('kind', 'cabinet')->values();
+        $pointIndexByNumber = collect($points)->mapWithKeys(
+            fn (array $point, int $index) => [(int) $point['point_no'] => $index]
+        );
+
+        foreach ($ducts as $ductIndex => $duct) {
+            $terminalNumber = isset($duct['_terminal_point']) ? (int) $duct['_terminal_point'] : null;
+            if ($terminalNumber === null
+                || ! ($duct['cabinet_reached'] ?? false)
+                || ($duct['microduct_type'] ?? null) !== '10/8'
+                || ($duct['zo_tag'] ?? null) === null) {
+                continue;
+            }
+            $terminalIndex = $pointIndexByNumber->get($terminalNumber);
+            if ($terminalIndex === null) {
+                continue;
+            }
+
+            $terminal = $points[$terminalIndex];
+            $recorded = [[round((float) $terminal['lat'], 7), round((float) $terminal['lng'], 7)]];
+            $previousNumber = $terminalNumber;
+            $complete = false;
+            for ($index = $terminalIndex + 1; $index < count($points); $index++) {
+                $point = $points[$index];
+                if (in_array($point['kind'] ?? null, ['sling', 'loop', 'cabinet', 'odf'], true)) {
+                    $complete = true;
+                    break;
+                }
+                if (($point['kind'] ?? null) !== 'trench'
+                    || (int) $point['point_no'] !== $previousNumber + 1) {
+                    $recorded = [];
+                    break;
+                }
+                $sameTargetDuct = collect($this->ductIdentity->identitiesAt($point))->contains(
+                    fn (array $identity) => ($identity['type'] ?? null) === '10/8'
+                        && ($identity['tag'] ?? null) === $duct['zo_tag']
+                );
+                if (! $sameTargetDuct) {
+                    $recorded = [];
+                    break;
+                }
+                $recorded[] = [round((float) $point['lat'], 7), round((float) $point['lng'], 7)];
+                $previousNumber = (int) $point['point_no'];
+            }
+            // One to three trench readings followed by another terminal form a complete
+            // short access branch. Longer/shared runs and incomplete gaps stay untouched.
+            if (! $complete || count($recorded) < 2 || count($recorded) > 4) {
+                continue;
+            }
+
+            $endPoint = end($recorded);
+            $cabinet = $cabinets->first(fn (array $point) => $this->identity->cabinetTag($point['code']) === $duct['zo_tag']);
+            if ($cabinet === null) {
+                continue;
+            }
+            $cabinetCoordinate = [(float) $cabinet['lat'], (float) $cabinet['lng']];
+
+            // The explicit house -> first trench reading is authoritative even when
+            // the previously resolved route omitted that reading entirely. Resolve
+            // the recorded black continuation before asking whether the wrong route
+            // happened to pass near this point (T1548 -> T1549).
+            if (count($recorded) === 2) {
+                $surveyTail = $this->shortSpurTailViaRecordedTrench(
+                    $endPoint,
+                    $points,
+                    $terminalIndex,
+                    $duct['zo_tag'],
+                    $routingTrenches,
+                    $cabinetCoordinate,
+                );
+                if ($surveyTail !== null) {
+                    if ($this->geometry->distanceBetweenPoints(end($recorded), $surveyTail[0]) <= 0.5) {
+                        array_shift($surveyTail);
+                    }
+                    $ducts[$ductIndex]['path'] = $this->geometry->compactPath(array_merge($recorded, $surveyTail));
+                    $ducts[$ductIndex]['length_m'] = $this->geometry->polylineLength($ducts[$ductIndex]['path']);
+
+                    continue;
+                }
+            }
+
+            $nearestIndex = null;
+            $nearestDistance = INF;
+            foreach ($duct['path'] as $pathIndex => $pathPoint) {
+                $distance = $this->geometry->distanceBetweenPoints($endPoint, $pathPoint);
+                if ($distance < $nearestDistance) {
+                    $nearestDistance = $distance;
+                    $nearestIndex = $pathIndex;
+                }
+            }
+            if ($nearestIndex === null || $nearestDistance > self::NODE_MERGE_M) {
+                continue;
+            }
+            $cabinetAtStart = $this->geometry->distanceBetweenPoints($duct['path'][0], $cabinetCoordinate)
+                <= $this->geometry->distanceBetweenPoints(end($duct['path']), $cabinetCoordinate);
+            $tail = $cabinetAtStart
+                ? array_reverse(array_slice($duct['path'], 0, $nearestIndex + 1))
+                : array_slice($duct['path'], $nearestIndex);
+            $tail[0] = $endPoint;
+
+            if ($this->geometry->distanceBetweenPoints(end($recorded), $tail[0]) <= 0.5) {
+                array_shift($tail);
+            }
+            $ducts[$ductIndex]['path'] = $this->geometry->compactPath(array_merge($recorded, $tail));
+            $ducts[$ductIndex]['length_m'] = $this->geometry->polylineLength($ducts[$ductIndex]['path']);
+        }
+
+        return $ducts;
+    }
+
+    /**
+     * A one-reading house spur can sit beside two nearby branches. Follow the actual
+     * preceding survey chain until it physically meets an existing main route, instead
+     * of accepting whichever diagonal the global shortest-path search chose first.
+     */
+    private function shortSpurTailViaRecordedTrench(
+        array $endPoint,
+        array $points,
+        int $terminalIndex,
+        string $zoTag,
+        array $routingTrenches,
+        array $cabinetCoordinate,
+    ): ?array {
+        $recordedCandidates = [];
+        for ($index = max(0, $terminalIndex - 32); $index < $terminalIndex; $index++) {
+            $point = $points[$index];
+            if (($point['kind'] ?? null) !== 'trench') {
+                continue;
+            }
+            $sameTargetDuct = collect($this->ductIdentity->identitiesAt($point))->contains(
+                fn (array $identity) => ($identity['type'] ?? null) === '10/8'
+                    && ($identity['tag'] ?? null) === $zoTag
+            );
+            if ($sameTargetDuct) {
+                $recordedCandidates[] = [(float) $point['lat'], (float) $point['lng']];
+            }
+        }
+        if (count($recordedCandidates) < 3) {
+            return null;
+        }
+
+        $existingPaths = collect($routingTrenches)
+            ->filter(fn (array $trench) => ($trench['_routing_source'] ?? null) === 'existing'
+                && count($trench['path'] ?? []) >= 2)
+            ->map(fn (array $trench) => array_values($trench['path']))
+            ->values()
+            ->all();
+        if ($existingPaths === []) {
+            return null;
+        }
+
+        $best = null;
+        foreach ($routingTrenches as $trench) {
+            if (($trench['_routing_source'] ?? null) !== 'survey' || count($trench['path'] ?? []) < 3) {
+                continue;
+            }
+            $surveyPath = array_values($trench['path']);
+            $matchingVertices = collect($surveyPath)->filter(
+                fn (array $vertex) => collect($recordedCandidates)->contains(
+                    fn (array $candidate) => $this->geometry->distanceBetweenPoints($vertex, $candidate) <= 0.5
+                )
+            )->count();
+            if ($matchingVertices < 3) {
+                continue;
+            }
+            $entryProjection = $this->geometry->projectPointToPath($endPoint, $surveyPath);
+            if ($entryProjection['distance_m'] > self::NODE_MERGE_M) {
+                continue;
+            }
+
+            $segmentEndIndex = min(count($surveyPath) - 1, max(1, (int) $entryProjection['segment_index']));
+            $segmentStartIndex = $segmentEndIndex - 1;
+            $projectedEntry = [(float) $entryProjection['lat'], (float) $entryProjection['lng']];
+            foreach ([1, -1] as $direction) {
+                if ($direction === 1) {
+                    $pathIndex = $this->geometry->distanceBetweenPoints(
+                        $projectedEntry,
+                        $surveyPath[$segmentStartIndex],
+                    ) <= 0.5 ? $segmentStartIndex : $segmentEndIndex;
+                } else {
+                    $pathIndex = $this->geometry->distanceBetweenPoints(
+                        $projectedEntry,
+                        $surveyPath[$segmentEndIndex],
+                    ) <= 0.5 ? $segmentEndIndex : $segmentStartIndex;
+                }
+                $surveyCorridor = [];
+                while ($pathIndex >= 0 && $pathIndex < count($surveyPath)) {
+                    $vertex = $surveyPath[$pathIndex];
+                    $isRecorded = $this->geometry->distanceBetweenPoints($vertex, $endPoint) <= 0.5
+                        || collect($recordedCandidates)->contains(
+                            fn (array $candidate) => $this->geometry->distanceBetweenPoints($vertex, $candidate) <= 0.5
+                        );
+                    if (! $isRecorded) {
+                        break;
+                    }
+                    $surveyCorridor[] = $vertex;
+
+                    foreach ($existingPaths as $existingPath) {
+                        $joinProjection = $this->geometry->projectPointToPath($vertex, $existingPath);
+                        $cabinetProjection = $this->geometry->projectPointToPath($cabinetCoordinate, $existingPath);
+                        if ($joinProjection['distance_m'] > 0.75
+                            || $cabinetProjection['distance_m'] > self::DUCT_ENDPOINT_BIND_M) {
+                            continue;
+                        }
+                        $reverse = $joinProjection['segment_index'] > $cabinetProjection['segment_index'];
+                        $from = $reverse ? $cabinetProjection : $joinProjection;
+                        $to = $reverse ? $joinProjection : $cabinetProjection;
+                        $mainCorridor = [[$from['lat'], $from['lng']]];
+                        for ($mainIndex = (int) $from['segment_index']; $mainIndex < (int) $to['segment_index']; $mainIndex++) {
+                            $mainCorridor[] = $existingPath[$mainIndex];
+                        }
+                        $mainCorridor[] = [$to['lat'], $to['lng']];
+                        if ($reverse) {
+                            $mainCorridor = array_reverse($mainCorridor);
+                        }
+                        $candidatePath = $this->geometry->compactPath(array_merge(
+                            [$endPoint],
+                            $surveyCorridor,
+                            $mainCorridor,
+                            [$cabinetCoordinate],
+                        ));
+                        $score = $entryProjection['distance_m'] * 1000.0
+                            + $this->geometry->polylineLength($candidatePath);
+                        if ($best === null || $score < $best['score']) {
+                            $best = ['score' => $score, 'path' => $candidatePath];
+                        }
+                    }
+                    $pathIndex += $direction;
+                }
+            }
+        }
+
+        return $best['path'] ?? null;
+    }
+
+    /**
+     * A later customer branch can be recorded after the main run and finish beside an
+     * earlier main point. In that case its own TXT sequence is authoritative up to the
+     * earlier point, while the already completed same-ZO route supplies the shared tail.
+     * Nothing is changed unless all matching peers provide the same tail geometry.
+     */
+    private function applyRecordedReturnBranches(array $ducts, array $points, array $bindingPoints): array
+    {
+        $cabinets = collect($bindingPoints)->where('kind', 'cabinet')->values();
+        $pointIndexByNumber = collect($points)->mapWithKeys(
+            fn (array $point, int $index) => [(int) $point['point_no'] => $index]
+        );
+
+        foreach ($ducts as $ductIndex => $duct) {
+            $terminalNumber = isset($duct['_terminal_point']) ? (int) $duct['_terminal_point'] : null;
+            if ($terminalNumber === null
+                || ! ($duct['cabinet_reached'] ?? false)
+                || ($duct['microduct_type'] ?? null) !== '10/8'
+                || ($duct['zo_tag'] ?? null) === null) {
+                continue;
+            }
+            $terminalIndex = $pointIndexByNumber->get($terminalNumber);
+            if ($terminalIndex === null) {
+                continue;
+            }
+
+            $terminal = $points[$terminalIndex];
+            $privatePath = [[round((float) $terminal['lat'], 7), round((float) $terminal['lng'], 7)]];
+            $joinPoint = null;
+            $preferOwnTail = false;
+            $previousPointNumber = (int) $terminal['point_no'];
+            for ($index = $terminalIndex + 1; $index < count($points); $index++) {
+                $point = $points[$index];
+                if (in_array($point['kind'] ?? null, ['sling', 'loop', 'cabinet', 'odf'], true)) {
+                    break;
+                }
+                if (($point['kind'] ?? null) !== 'trench') {
+                    continue;
+                }
+                $pointNumber = (int) $point['point_no'];
+                if ($pointNumber > $previousPointNumber + 1 && count($privatePath) >= 3) {
+                    $branchEnd = end($privatePath);
+                    $returnPoint = $privatePath[count($privatePath) - 2];
+                    $routeHasBranchEnd = $this->geometry->projectPointToPath($branchEnd, $duct['path'])['distance_m']
+                        <= self::NODE_MERGE_M;
+                    $routeHasReturnPoint = $this->geometry->projectPointToPath($returnPoint, $duct['path'])['distance_m']
+                        <= self::NODE_MERGE_M;
+
+                    // A missing number is treated as a field pen-up only when the
+                    // resolved route already uses the preceding main point but omitted
+                    // the final surveyed branch point. This restores 1429 -> 1428 and
+                    // leaves every other valid numbered run unchanged.
+                    if (! $routeHasBranchEnd && $routeHasReturnPoint) {
+                        $joinPoint = $returnPoint;
+                        $preferOwnTail = true;
+                    }
+                    break;
+                }
+                $coordinate = [round((float) $point['lat'], 7), round((float) $point['lng'], 7)];
+                if ($this->geometry->distanceBetweenPoints(end($privatePath), $coordinate) > self::CUSTOMER_SPUR_TO_TRENCH_M) {
+                    break;
+                }
+
+                // A survey run can leave the main trench to record a side customer
+                // and then return to the same physical node. Keep the earlier main
+                // prefix and the recorded return point, but do not pull the main route
+                // through the intervening side branch (1585 -> 1586 -> 1592).
+                $selfReturnIndex = null;
+                for ($privateIndex = 1; $privateIndex <= count($privatePath) - 3; $privateIndex++) {
+                    if ($this->geometry->distanceBetweenPoints($privatePath[$privateIndex], $coordinate) <= self::NODE_MERGE_M) {
+                        $selfReturnIndex = $privateIndex;
+                        break;
+                    }
+                }
+                if ($selfReturnIndex !== null) {
+                    $privatePath = array_slice($privatePath, 0, $selfReturnIndex + 1);
+                    $privatePath[] = $coordinate;
+                    $joinPoint = $coordinate;
+                    $preferOwnTail = true;
+                    break;
+                }
+
+                $privatePath[] = $coordinate;
+                $previousPointNumber = $pointNumber;
+
+                $nearestEarlier = null;
+                $nearestEarlierIndex = null;
+                $nearestDistance = INF;
+                for ($earlier = 0; $earlier < $terminalIndex; $earlier++) {
+                    if (($points[$earlier]['kind'] ?? null) !== 'trench') {
+                        continue;
+                    }
+                    $sameTargetDuct = collect($this->ductIdentity->identitiesAt($points[$earlier]))->contains(
+                        fn (array $identity) => ($identity['type'] ?? null) === '10/8'
+                            && ($identity['tag'] ?? null) === $duct['zo_tag']
+                    );
+                    if (! $sameTargetDuct) {
+                        continue;
+                    }
+                    $candidate = [(float) $points[$earlier]['lat'], (float) $points[$earlier]['lng']];
+                    $distance = $this->geometry->distanceBetweenPoints($coordinate, $candidate);
+                    if ($distance <= self::NODE_MERGE_M && $distance < $nearestDistance) {
+                        $nearestEarlier = $candidate;
+                        $nearestEarlierIndex = $earlier;
+                        $nearestDistance = $distance;
+                    }
+                }
+                if ($nearestEarlier !== null && count($privatePath) >= 3) {
+                    // The closest earlier point can belong to the continuing trunk
+                    // immediately after the true branch node. Prefer the preceding
+                    // same-duct trench point when it is still within one survey span;
+                    // this records 1606 -> 1594 instead of snapping onto 1595.
+                    for ($earlier = $nearestEarlierIndex - 1; $earlier >= 0; $earlier--) {
+                        if (($points[$earlier]['kind'] ?? null) !== 'trench') {
+                            continue;
+                        }
+                        $sameTargetDuct = collect($this->ductIdentity->identitiesAt($points[$earlier]))->contains(
+                            fn (array $identity) => ($identity['type'] ?? null) === '10/8'
+                                && ($identity['tag'] ?? null) === $duct['zo_tag']
+                        );
+                        $candidate = [(float) $points[$earlier]['lat'], (float) $points[$earlier]['lng']];
+                        if ($sameTargetDuct
+                            && $this->geometry->distanceBetweenPoints($coordinate, $candidate) <= self::PEER_ROUTE_JOIN_M) {
+                            $nearestEarlier = $candidate;
+                        }
+                        break;
+                    }
+                    $joinPoint = $nearestEarlier;
+                    break;
+                }
+            }
+            if ($joinPoint === null) {
+                continue;
+            }
+            if ($this->geometry->distanceBetweenPoints(end($privatePath), $joinPoint) > 0.2) {
+                $privatePath[] = $joinPoint;
+            }
+
+            $cabinet = $cabinets->first(fn (array $point) => $this->identity->cabinetTag($point['code']) === $duct['zo_tag']);
+            if ($cabinet === null) {
+                continue;
+            }
+            $cabinetCoordinate = [(float) $cabinet['lat'], (float) $cabinet['lng']];
+            $tails = [];
+            $tailFromRoute = function (array $route) use ($joinPoint, $cabinetCoordinate): array {
+                $projection = $this->geometry->projectPointToPath($joinPoint, $route['path']);
+                $projectionPoint = [$projection['lat'], $projection['lng']];
+                $segmentIndex = max(1, min((int) $projection['segment_index'], count($route['path']) - 1));
+                $cabinetAtStart = $this->geometry->distanceBetweenPoints($route['path'][0], $cabinetCoordinate)
+                    <= $this->geometry->distanceBetweenPoints(end($route['path']), $cabinetCoordinate);
+
+                return $this->geometry->compactPath($cabinetAtStart
+                    ? array_merge([$projectionPoint], array_reverse(array_slice($route['path'], 0, $segmentIndex)))
+                    : array_merge([$projectionPoint], array_slice($route['path'], $segmentIndex)));
+            };
+
+            // Prefer this duct's already resolved main-route tail. For a field pen-up
+            // its route already contains 1428 -> ZO; only the recorded out-and-back
+            // 1428 -> 1429 -> 1428 must be restored in front of that tail.
+            $ownProjection = $this->geometry->projectPointToPath($joinPoint, $duct['path']);
+            if ($preferOwnTail && $ownProjection['distance_m'] <= self::NODE_MERGE_M) {
+                $tails['own'] = $tailFromRoute($duct);
+            } else {
+                foreach ($ducts as $peerIndex => $peer) {
+                    if ($peerIndex === $ductIndex
+                        || ! ($peer['cabinet_reached'] ?? false)
+                        || ($peer['microduct_type'] ?? null) !== '10/8'
+                        || ($peer['zo_tag'] ?? null) !== $duct['zo_tag']
+                        || count($peer['path'] ?? []) < 2) {
+                        continue;
+                    }
+                    $projection = $this->geometry->projectPointToPath($joinPoint, $peer['path']);
+                    if ($projection['distance_m'] > self::NODE_MERGE_M) {
+                        continue;
+                    }
+                    $tail = $tailFromRoute($peer);
+                    $tailKey = json_encode(array_map(
+                        fn (array $pathPoint) => [round((float) $pathPoint[0], 6), round((float) $pathPoint[1], 6)],
+                        $tail
+                    ));
+                    $tails[$tailKey] = $tail;
+                }
+            }
+            if (count($tails) !== 1) {
+                continue;
+            }
+
+            $tail = array_values($tails)[0];
+            if ($this->geometry->distanceBetweenPoints(end($privatePath), $tail[0]) <= 0.5) {
+                array_shift($tail);
+            }
+            $path = $this->geometry->compactPath(array_merge($privatePath, $tail));
+            if ($this->geometry->distanceBetweenPoints(end($path), $cabinetCoordinate) > 0.5) {
+                $path[] = $cabinetCoordinate;
+            }
+            $ducts[$ductIndex]['path'] = $this->geometry->compactPath($path);
+            $ducts[$ductIndex]['length_m'] = $this->geometry->polylineLength($ducts[$ductIndex]['path']);
+        }
+
+        return $ducts;
     }
 
     /**

@@ -8,6 +8,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -29,7 +32,7 @@ jobs:
           cache: npm
       - run: composer install --no-interaction --prefer-dist --no-progress
       - name: Install Node dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prepare application for tests
         run: |
           cp .env.example .env
@@ -64,7 +67,7 @@ jobs:
           cache: npm
       - run: composer install --no-interaction --prefer-dist --no-progress
       - name: Install Node dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - name: Prepare application
@@ -108,11 +111,14 @@ jobs:
           curl -v http://127.0.0.1:8000/prijava || echo "Curl failed"
           exit 1
       - run: npm run test:e2e
+      - run: npm run test:e2e:pages
+      - run: npm run test:e2e:map-workflow
       - name: Upload diagnostics
         if: failure()
         uses: actions/upload-artifact@v5
         with:
           name: map-smoke-diagnostics
+          retention-days: 7
           if-no-files-found: ignore
           path: |
             storage/logs/*.log

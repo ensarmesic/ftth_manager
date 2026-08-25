@@ -23,6 +23,7 @@ class SurveyGraphBuilder
         float $taggedDuctGapMeters,
         float $trenchGapMeters,
         array $knownTerminalCoordinates = [],
+        array $knownTerminalPointNumbers = [],
     ): array {
         $count = count($points);
         if ($count < 2) {
@@ -234,6 +235,34 @@ class SurveyGraphBuilder
             if (($points[$i - 1]['_segment_no'] ?? 0) !== ($points[$i]['_segment_no'] ?? 0)) {
                 continue;
             }
+
+            // Missing point numbers plus a sizeable move are an implicit pen-up. There
+            // are no recorded coordinates proving that bridge, so proximity and a
+            // matching duct tag must never invent it (for example 1428 -> 1432).
+            $crossesImplicitPenUp = false;
+            if ((int) ($points[$i]['point_no'] ?? 0) > (int) ($points[$i - 1]['point_no'] ?? 0) + 1) {
+                $penUpDistance = $this->geometry->distanceMeters(
+                    $points[$i - 1]['lat'], $points[$i - 1]['lng'],
+                    $points[$i]['lat'], $points[$i]['lng']
+                );
+                $sharedAcrossBoundary = array_intersect_key(
+                    $this->ductIdentity->identitiesAt($points[$i - 1]),
+                    $this->ductIdentity->identitiesAt($points[$i]),
+                );
+                $sameTaggedCustomerDuct = collect($sharedAcrossBoundary)->contains(
+                    fn (array $identity) => $identity['type'] === '10/8' && $identity['tag'] !== null
+                );
+                $crossesImplicitPenUp = $sameTaggedCustomerDuct
+                    && $penUpDistance > 5.0;
+            }
+            $gapContainsRecordedTerminal = $crossesImplicitPenUp && collect($knownTerminalPointNumbers)->contains(
+                fn (int $pointNumber) => $pointNumber > (int) ($points[$i - 1]['point_no'] ?? 0)
+                    && $pointNumber < (int) ($points[$i]['point_no'] ?? 0)
+            );
+            if ($crossesImplicitPenUp && ! $gapContainsRecordedTerminal) {
+                continue;
+            }
+
             $a = $nodeOf[$i - 1];
             $b = $nodeOf[$i];
             $fromPointIndex = $i - 1;
@@ -308,6 +337,37 @@ class SurveyGraphBuilder
                     // justified after a real recording jump, not within the usual
                     // <= 10 m spacing between field observations.
                     || ($gap > 10.0 && $returnDistance <= 10.0 && $returnDistance + 2.0 < $gap));
+            $pointNumberDiscontinuity = (int) ($points[$i]['point_no'] ?? 0)
+                !== (int) ($points[$i - 1]['point_no'] ?? 0) + 1;
+            if ($returnNode !== null
+                && $pointNumberDiscontinuity
+                && $returnDistance <= $nodeMergeMeters
+                && $returnDistance + 0.25 < $gap) {
+                $shouldReanchor = true;
+            }
+            $finishesLegBeforeImplicitPenUp = false;
+            if ($i + 1 < $count
+                && (int) ($points[$i]['point_no'] ?? 0) === (int) ($points[$i - 1]['point_no'] ?? 0) + 1
+                && (int) ($points[$i + 1]['point_no'] ?? 0) > (int) ($points[$i]['point_no'] ?? 0) + 1) {
+                $nextDistance = $this->geometry->distanceMeters(
+                    $points[$i]['lat'], $points[$i]['lng'],
+                    $points[$i + 1]['lat'], $points[$i + 1]['lng']
+                );
+                $sharedIntoGap = array_intersect_key(
+                    $this->ductIdentity->identitiesAt($points[$i - 1]),
+                    $this->ductIdentity->identitiesAt($points[$i]),
+                    $this->ductIdentity->identitiesAt($points[$i + 1]),
+                );
+                $sameTaggedCustomerDuct = collect($sharedIntoGap)->contains(
+                    fn (array $identity) => $identity['type'] === '10/8' && $identity['tag'] !== null
+                );
+                $finishesLegBeforeImplicitPenUp = $sameTaggedCustomerDuct
+                    && $gap > 10.0
+                    && $nextDistance > 5.0;
+            }
+            if ($finishesLegBeforeImplicitPenUp) {
+                $shouldReanchor = false;
+            }
             if ($shouldReanchor) {
                 $a = $returnNode;
                 $fromPointIndex = $returnPointIndex;
@@ -360,6 +420,49 @@ class SurveyGraphBuilder
             }
 
             $mergeEdge($a, $b, $idents);
+
+            // A near-duplicate pair immediately before a missing point number marks
+            // the end of a recorded side branch. The next reading is the returned
+            // junction beside an older same-duct node; keep the side-branch edge and
+            // add only this short junction link (1447 -> 1449, then 1449 -> 1442).
+            $previousPairAreDuplicate = $i >= 2
+                && (int) ($points[$i]['point_no'] ?? 0) > (int) ($points[$i - 1]['point_no'] ?? 0) + 1
+                && $this->geometry->distanceMeters(
+                    $points[$i - 2]['lat'], $points[$i - 2]['lng'],
+                    $points[$i - 1]['lat'], $points[$i - 1]['lng']
+                ) <= 0.5;
+            if ($previousPairAreDuplicate) {
+                $junctionNode = null;
+                $junctionIdents = [];
+                $junctionDistance = INF;
+                foreach ($returnCandidates as $candidateIndex) {
+                    if ($candidateIndex >= $i - 2
+                        || in_array($points[$candidateIndex]['kind'], ['sling', 'loop'], true)) {
+                        continue;
+                    }
+                    $distanceToJunction = $this->geometry->distanceMeters(
+                        $points[$candidateIndex]['lat'], $points[$candidateIndex]['lng'],
+                        $points[$i]['lat'], $points[$i]['lng']
+                    );
+                    $sharedJunctionIdents = array_intersect_key(
+                        $this->ductIdentity->identitiesAt($points[$candidateIndex]),
+                        $toIdents,
+                    );
+                    $hasSameTaggedCustomerDuct = collect($sharedJunctionIdents)->contains(
+                        fn (array $identity) => $identity['type'] === '10/8' && $identity['tag'] !== null
+                    );
+                    if ($hasSameTaggedCustomerDuct
+                        && $distanceToJunction <= $nodeMergeMeters
+                        && $distanceToJunction < $junctionDistance) {
+                        $junctionNode = $nodeOf[$candidateIndex];
+                        $junctionIdents = $sharedJunctionIdents;
+                        $junctionDistance = $distanceToJunction;
+                    }
+                }
+                if ($junctionNode !== null) {
+                    $mergeEdge($nodeOf[$i], $junctionNode, $junctionIdents);
+                }
+            }
         }
 
         // A duplicate terminal measurement can sit between the terminal and its

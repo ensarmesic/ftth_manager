@@ -265,7 +265,7 @@ async function fetchGisRoute(from, to) {
         signal: AbortSignal.timeout(8000),
     });
     const result = await readJsonResponse(response, 'Interni GIS graf nije pronasao rutu.');
-    if (!response.ok || !result.path?.length) throw new Error(result.message || 'Interni GIS graf nije pronasao rutu.');
+    if (!response.ok || !result.path?.length) throw new Error(result.message || 'Interni GIS graf nije pronašao rutu.');
     return result.path.map(p => [Number(p[1]), Number(p[0])]); // [[lng, lat], ...]
 }
 

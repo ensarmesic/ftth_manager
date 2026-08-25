@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordController;
+use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CabinetController;
 use App\Http\Controllers\DashboardController;
@@ -33,6 +34,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('guest')->group(function (): void {
     Route::get('/prijava', [LoginController::class, 'create'])->name('login');
     Route::post('/prijava', [LoginController::class, 'store'])->name('login.store');
+    Route::get('/prijava/2fa', [TwoFactorController::class, 'challenge'])->name('two-factor.challenge');
+    Route::post('/prijava/2fa', [TwoFactorController::class, 'verifyChallenge'])->middleware('throttle:6,1')->name('two-factor.verify');
 });
 
 Route::middleware('auth')->group(function (): void {
@@ -143,4 +146,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/api/notifications', [DashboardController::class, 'notifications'])->name('api.notifications');
     Route::post('/odjava', [LoginController::class, 'destroy'])->name('logout');
     Route::put('/postavke/lozinka', [PasswordController::class, 'update'])->name('password.update');
+    Route::get('/postavke/2fa', [TwoFactorController::class, 'setup'])->middleware('can:settings.manage')->name('two-factor.setup');
+    Route::post('/postavke/2fa', [TwoFactorController::class, 'confirm'])->middleware('can:settings.manage')->name('two-factor.confirm');
+    Route::delete('/postavke/2fa', [TwoFactorController::class, 'destroy'])->middleware('can:settings.manage')->name('two-factor.destroy');
 });

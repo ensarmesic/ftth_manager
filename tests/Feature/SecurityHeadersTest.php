@@ -13,13 +13,18 @@ class SecurityHeadersTest extends TestCase
 
     public function test_public_pages_receive_baseline_security_headers(): void
     {
-        $this->get('/prijava')
+        $response = $this->get('/prijava')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('X-Frame-Options', 'DENY')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
             ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=()')
             ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin')
-            ->assertHeader('X-Permitted-Cross-Domain-Policies', 'none');
+            ->assertHeader('X-Permitted-Cross-Domain-Policies', 'none')
+            ->assertHeader('Content-Security-Policy');
+
+        $policy = (string) $response->headers->get('Content-Security-Policy');
+        $this->assertStringContainsString("frame-ancestors 'none'", $policy);
+        $this->assertStringContainsString("object-src 'none'", $policy);
     }
 
     public function test_authenticated_html_pages_are_not_browser_cached(): void

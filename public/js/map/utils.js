@@ -340,13 +340,13 @@ function routeTypeLabel(type) {
     return type === 'trench' ? 'Glavni rov' : type === 'backbone' ? 'Backbone' : type === 'feeder' ? 'Primarni' : type === 'drop' ? 'Drop' : 'Sekundarni';
 }
 function routeColor(type) {
-    return type === 'trench' ? '#111827' : type === 'backbone' ? '#1d4ed8' : type === 'feeder' ? '#0e7490' : type === 'drop' ? '#f59e0b' : '#f97316';
+    return type === 'trench' ? '#111827' : type === 'backbone' ? '#1d4ed8' : type === 'feeder' ? '#0e7490' : type === 'drop' ? '#dc2626' : '#f97316';
 }
 function routeWeight(type) {
-    return type === 'trench' ? 4 : type === 'drop' ? 2 : 4;
+    return type === 'trench' ? 4 : type === 'drop' ? 2.25 : 4;
 }
 function routeDashArray(type) {
-    return type === 'trench' ? '10 8' : type === 'drop' ? '4 6' : null;
+    return type === 'trench' ? '10 8' : type === 'drop' ? '4 4' : null;
 }
 function routeLineStyle(type, color = routeColor(type)) {
     if (mapViewMode === 'gis') {
@@ -355,6 +355,7 @@ function routeLineStyle(type, color = routeColor(type)) {
             weight: type === 'trench' ? 6 : type === 'drop' ? 3 : 5,
             opacity: .9,
             dashArray: type === 'trench' ? '12 8' : (type === 'drop' ? '5 7' : null),
+            className: type === 'drop' ? 'ftth-route-drop' : `ftth-route-${type}`,
             lineCap: type === 'trench' ? 'butt' : 'round',
             lineJoin: 'round',
         };
@@ -365,6 +366,7 @@ function routeLineStyle(type, color = routeColor(type)) {
         weight: routeWeight(type),
         opacity: type === 'drop' ? .85 : .95,
         dashArray: routeDashArray(type),
+        className: type === 'drop' ? 'ftth-route-drop' : `ftth-route-${type}`,
         lineCap: type === 'trench' ? 'butt' : 'round',
         lineJoin: 'round',
     };

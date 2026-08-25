@@ -37,7 +37,31 @@ class SurveyNetworkPersistenceService
         $trenchGroup = 'Geodetski rov '.substr($batch, 0, 8);
 
         foreach ($network['trenches'] as $index => $chain) {
-            if ($chain['_routing_only'] ?? false) {
+            if (($chain['_routing_only'] ?? false) || count($chain['path'] ?? []) < 2) {
+                continue;
+            }
+            $existingTrench = $this->routeReconciliation->findExistingRouteGeometry(
+                $project->id,
+                'trench',
+                $chain['path'],
+                $freshRouteIds,
+                $elementToleranceM,
+            );
+            if ($existingTrench !== null) {
+                $mergedPath = $this->routeReconciliation->mergeTouchingPaths(
+                    $existingTrench->path ?? [],
+                    $chain['path'],
+                    $elementToleranceM,
+                );
+                $existingTrench->update([
+                    'path' => $mergedPath,
+                    'duct_length_m' => $this->geometry->polylineLength($mergedPath),
+                    'note' => $this->routeReconciliation->appendImportNote(
+                        $existingTrench->note,
+                        'Geodetski snimak: '.$chain['code'],
+                    ),
+                ]);
+
                 continue;
             }
             // A trench network is a tree, not one walkable polyline. Persist every

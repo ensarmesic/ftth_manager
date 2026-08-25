@@ -1569,6 +1569,181 @@ class SurveyPointImportTest extends TestCase
         $this->assertSame($correctedPath, $savedPath, 'Spremanje mora sačuvati ručno ispravljenu putanju do ODO-a.');
     }
 
+    public function test_missing_numbered_tagged_trench_points_do_not_create_an_unrecorded_bridge(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $makePoint = function (int $number, float $lat, float $lng) use ($service): array {
+            $code = 'Rov + mc 10/8 Crvena x1 -ZO-6';
+
+            return $service->classify($code) + [
+                'point_no' => $number,
+                'x' => 0.0,
+                'y' => 0.0,
+                'z' => 0.0,
+                'lat' => $lat,
+                'lng' => $lng,
+                'code' => $code,
+            ];
+        };
+        $points = [
+            $makePoint(1426, 44.48898356, 18.49536810),
+            $makePoint(1427, 44.48896660, 18.49539260),
+            $makePoint(1428, 44.48894397, 18.49542342),
+            // 1429-1431 are not present in the TXT: this must start a new trench.
+            $makePoint(1432, 44.48885705, 18.49524050),
+            $makePoint(1433, 44.48884414, 18.49525703),
+            $makePoint(1434, 44.48883031, 18.49528263),
+            $makePoint(1435, 44.48881388, 18.49532559),
+            $makePoint(1436, 44.48881192, 18.49533508),
+            $makePoint(1437, 44.48880335, 18.49536194),
+        ];
+
+        $trenches = collect($service->buildNetwork($points)['trenches'])->pluck('path')->values();
+
+        $this->assertCount(2, $trenches);
+        $this->assertSame(array_map(fn (array $point) => [$point['lat'], $point['lng']], array_slice($points, 0, 3)), $trenches[0]);
+        $this->assertSame(array_map(fn (array $point) => [$point['lat'], $point['lng']], array_slice($points, 3)), $trenches[1]);
+    }
+
+    public function test_short_house_spur_uses_every_recorded_black_trench_point_before_joining_main_route(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $makePoint = function (int $number, float $lat, float $lng, string $code) use ($service): array {
+            return $service->classify($code) + [
+                'point_no' => $number,
+                'x' => 0.0,
+                'y' => 0.0,
+                'z' => 0.0,
+                'lat' => $lat,
+                'lng' => $lng,
+                'code' => $code,
+            ];
+        };
+        $trenchCode = 'Rov + mc 10/8 Crvena x1 -ZO-6';
+        $points = [
+            $makePoint(1431, 44.4888663, 18.4952408, $trenchCode),
+            $makePoint(1432, 44.4888571, 18.4952405, $trenchCode),
+            $makePoint(1433, 44.4888441, 18.4952570, $trenchCode),
+            $makePoint(1434, 44.4888303, 18.4952826, $trenchCode),
+            $makePoint(1435, 44.4888139, 18.4953256, $trenchCode),
+            $makePoint(1436, 44.4888119, 18.4953351, $trenchCode),
+            $makePoint(1437, 44.4888034, 18.4953619, $trenchCode),
+            $makePoint(1438, 44.4889901, 18.4949774, $trenchCode),
+            $makePoint(1439, 44.4889769, 18.4949680, 'Kuca 10/8 Crvena x1 -ZO-6'),
+            $makePoint(1440, 44.4888597, 18.4952310, $trenchCode),
+            $makePoint(1441, 44.4887710, 18.4954247, 'Kuca 10/8 Crvena x1 -ZO-6'),
+        ];
+        $cabinet = [44.4890919, 18.4955295];
+        $mainRoute = [[
+            [44.4888034, 18.4953619],
+            [44.4888041, 18.4953574],
+            [44.4888215, 18.4953628],
+            [44.4888733, 18.4953861],
+            [44.4889235, 18.4954065],
+            [44.4889765, 18.4954450],
+            [44.4890384, 18.4954973],
+            $cabinet,
+        ]];
+        $cabinetPoints = [[
+            'kind' => 'cabinet',
+            'code' => 'ZO-6',
+            'lat' => $cabinet[0],
+            'lng' => $cabinet[1],
+        ]];
+
+        $drop = collect($service->buildNetwork($points, $cabinetPoints, $mainRoute)['ducts'])
+            ->firstWhere('_terminal_point', 1439);
+
+        $this->assertNotNull($drop);
+        $this->assertTrue($drop['cabinet_reached'] ?? false);
+        $this->assertSame([
+            [44.4889769, 18.4949680],
+            [44.4888597, 18.4952310],
+            [44.4888571, 18.4952405],
+            [44.4888441, 18.4952570],
+            [44.4888303, 18.4952826],
+            [44.4888139, 18.4953256],
+            [44.4888119, 18.4953351],
+            [44.4888034, 18.4953619],
+        ], array_slice($drop['path'], 0, 8));
+        $this->assertSame($cabinet, end($drop['path']));
+        $this->assertFalse(collect($drop['path'])->contains(fn (array $coordinate) => app(GeometryService::class)
+            ->distanceMeters(44.4888663, 18.4952408, $coordinate[0], $coordinate[1]) <= 0.2),
+            'Ruta T1439 ne smije ici preko nepovezane tacke T1431.');
+    }
+
+    public function test_sling_between_trench_points_returns_to_the_recorded_corridor_without_skipping_it(): void
+    {
+        $service = app(SurveyPointImportService::class);
+        $makePoint = function (int $number, float $lat, float $lng, string $code) use ($service): array {
+            return $service->classify($code) + [
+                'point_no' => $number,
+                'x' => 0.0,
+                'y' => 0.0,
+                'z' => 0.0,
+                'lat' => $lat,
+                'lng' => $lng,
+                'code' => $code,
+            ];
+        };
+        $trenchCode = 'Rov + mc 10/8 Crvena x1 -ZO-3';
+        $points = [
+            $makePoint(1532, 44.48385328, 18.49255594, $trenchCode),
+            $makePoint(1533, 44.48384288, 18.49260291, $trenchCode),
+            $makePoint(1534, 44.48383460, 18.49264068, $trenchCode),
+            $makePoint(1535, 44.48382705, 18.49267608, $trenchCode),
+            $makePoint(1536, 44.48380731, 18.49275509, $trenchCode),
+            $makePoint(1537, 44.48379218, 18.49282818, $trenchCode),
+            $makePoint(1538, 44.48378156, 18.49286322, $trenchCode),
+            $makePoint(1539, 44.48376476, 18.49291862, $trenchCode),
+            $makePoint(1540, 44.48374937, 18.49296603, $trenchCode),
+            $makePoint(1541, 44.48372709, 18.49303431, $trenchCode),
+            $makePoint(1542, 44.48364668, 18.49297670, $trenchCode),
+            $makePoint(1543, 44.48361649, 18.49294944, $trenchCode),
+            $makePoint(1544, 44.48366154, 18.49291892, $trenchCode),
+            $makePoint(1545, 44.48367236, 18.49287834, $trenchCode),
+            $makePoint(1546, 44.48368614, 18.49283215, $trenchCode),
+            $makePoint(1547, 44.48369194, 18.49278943, $trenchCode),
+            $makePoint(1548, 44.48379918, 18.49243238, 'Slinga 10/8 Crvena x1 -ZO-3'),
+            $makePoint(1549, 44.48383047, 18.49246490, $trenchCode),
+        ];
+        $cabinet = [44.4837619, 18.4930430];
+        $mainRoute = [[
+            [44.48372709, 18.49303431],
+            [44.48372880, 18.49303030],
+            [44.48375530, 18.49305300],
+            [44.48375650, 18.49305410],
+            $cabinet,
+        ]];
+        $cabinetPoints = [[
+            'kind' => 'cabinet',
+            'code' => 'ZO-3',
+            'lat' => $cabinet[0],
+            'lng' => $cabinet[1],
+        ]];
+
+        $drop = collect($service->buildNetwork($points, $cabinetPoints, $mainRoute)['ducts'])
+            ->firstWhere('_terminal_point', 1548);
+
+        $this->assertNotNull($drop);
+        $this->assertTrue($drop['cabinet_reached'] ?? false);
+        $this->assertSame([
+            [44.4837992, 18.4924324],
+            [44.4838305, 18.4924649],
+            [44.4838533, 18.4925559],
+            [44.4838429, 18.4926029],
+            [44.4838346, 18.4926407],
+            [44.4838271, 18.4926761],
+            [44.4838073, 18.4927551],
+            [44.4837922, 18.4928282],
+            [44.4837816, 18.4928632],
+            [44.4837648, 18.4929186],
+            [44.4837494, 18.4929660],
+            [44.4837271, 18.4930343],
+        ], array_slice($drop['path'], 0, 12));
+        $this->assertSame($cabinet, end($drop['path']));
+    }
+
     public function test_new_trench_branch_returns_to_an_earlier_fork_instead_of_continuing_from_previous_end(): void
     {
         $service = app(SurveyPointImportService::class);

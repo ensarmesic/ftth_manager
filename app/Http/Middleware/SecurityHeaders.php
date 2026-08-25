@@ -19,6 +19,25 @@ class SecurityHeaders
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=()');
         $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
         $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
+        $contentSecurityPolicy = [
+            "default-src 'self'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+            "object-src 'none'",
+            "script-src 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob: https:",
+            "font-src 'self' data:",
+            "connect-src 'self' https: ws: wss:",
+            "worker-src 'self' blob:",
+            "manifest-src 'self'",
+            "media-src 'self' blob:",
+        ];
+        if (app()->isProduction()) {
+            $contentSecurityPolicy[] = 'upgrade-insecure-requests';
+        }
+        $response->headers->set('Content-Security-Policy', implode('; ', $contentSecurityPolicy));
 
         if ($request->user() && $this->isHtmlResponse($response)) {
             $response->headers->set('Cache-Control', 'no-store, private');

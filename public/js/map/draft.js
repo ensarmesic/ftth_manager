@@ -510,7 +510,7 @@ async function saveSuggestions() {
         });
         const result = await readJsonResponse(response, 'FTTH raspored nije snimljen.');
         if (!response.ok) throw new Error(result.message || 'FTTH raspored nije snimljen.');
-        output.innerHTML = `<b class="text-emerald-700">${result.message} Povezano kuca: ${result.linked_houses}.</b>`;
+        output.innerHTML = `<b class="text-emerald-700">${escapeHtml(result.message)} Povezano kuca: ${Number(result.linked_houses) || 0}.</b>`;
         window.ftthToast?.(`${result.message} Povezano kuća: ${result.linked_houses}. Drop trase nisu automatski kreirane.`, 'success', { duration: 8000 });
         keepSavedSuggestionsOnMap();
     } catch (error) {

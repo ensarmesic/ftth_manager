@@ -168,7 +168,7 @@ async function suggest() {
             }),
         });
         const plan = await readJsonResponse(response, 'Auto ODO preview nije uspio.');
-        if (!response.ok) throw new Error(plan.message || 'Auto ODO preview nije uspio.');
+        if (!response.ok) throw new Error(plan.message || 'Automatski pregled ODO plana nije uspio.');
         currentAutoPlan = plan;
         renderAutoOdoPlan(plan);
     } catch (error) {
@@ -295,7 +295,7 @@ function renderGisPlanPreview(plan) {
         `<div class="rounded bg-amber-50 px-2 py-1 text-amber-800">${escapeHtml(warning)}</div>`
     ).join('');
     const odfsHtml = (plan.odfs || []).map(odf =>
-        `<div class="rounded bg-white px-2 py-1"><b>${odf.name}</b>: ${odf.house_count} kuca · ${odf.splitter_count}/${odf.fiber_capacity || '-'} vlakana · ${odf.utilization_percent || 0}%</div>`
+        `<div class="rounded bg-white px-2 py-1"><b>${escapeHtml(odf.name)}</b>: ${odf.house_count} kuca · ${odf.splitter_count}/${odf.fiber_capacity || '-'} vlakana · ${odf.utilization_percent || 0}%</div>`
     ).join('');
     const routesHtml = (plan.network_segments || []).slice(0, 20).map(segment =>
         `<div class="border-b border-slate-200 py-1"><b>${segment.house_count} korisnika</b> -> ${segment.length_m} m<br><span class="text-slate-400">${escapeHtml((segment.houses || []).slice(0, 8).join(', '))}</span></div>`
@@ -348,7 +348,7 @@ async function saveGisPlan() {
         resetPlannerReview();
         refreshStats();
     } catch (error) {
-        output.innerHTML = `<b class="text-red-700">${error.message}</b>`;
+        output.innerHTML = `<b class="text-red-700">${escapeHtml(error.message)}</b>`;
         window.ftthToast?.(error.message, 'error');
     } finally {
         button.disabled = false;
