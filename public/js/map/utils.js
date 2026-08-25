@@ -425,14 +425,17 @@ function applyRouteLabelLanes(routes) {
 
 // Visually fan overlapping saved ducts into parallel lanes. Database geometry remains on
 // the surveyed trench axis; only Leaflet display/hit layers use these offset points.
-const ROUTE_VISUAL_MAX_SPREAD_METERS = 0.08;
-const ROUTE_VISUAL_GAP_PIXELS = 0.12;
+// Keep neighbouring ducts distinguishable without making the display offset look
+// like a separate surveyed route. At normal working zoom this leaves only a thin
+// sliver between strokes, and the physical display offset never becomes metres wide.
+const ROUTE_VISUAL_MAX_SPREAD_METERS = 0.8;
+const ROUTE_VISUAL_GAP_PIXELS = 5.5;
 const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 8;
 const ROUTE_VISUAL_SHARED_TOLERANCE_METERS = 0.35;
 function routeVisualGapMeters() {
     const latitude = map.getCenter()?.lat ?? 44.45;
     const metersPerPixel = 40075016.686 * Math.cos(latitude * Math.PI / 180) / (256 * (2 ** map.getZoom()));
-    return Math.max(0.003, Math.min(0.04, metersPerPixel * ROUTE_VISUAL_GAP_PIXELS));
+    return Math.max(0.18, Math.min(0.55, metersPerPixel * ROUTE_VISUAL_GAP_PIXELS));
 }
 function routePathsOverlapForDisplay(first, second) {
     if (!first.path?.length || !second.path?.length) return false;
