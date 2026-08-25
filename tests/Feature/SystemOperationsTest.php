@@ -63,6 +63,24 @@ class SystemOperationsTest extends TestCase
         File::deleteDirectory($backupDirectory);
     }
 
+    public function test_database_backup_download_supports_relative_ci_database_path(): void
+    {
+        $relativePath = 'storage/framework/testing/relative-ci-database.sqlite';
+        $absolutePath = base_path($relativePath);
+        File::ensureDirectoryExists(dirname($absolutePath));
+        File::copy(database_path('database.sqlite'), $absolutePath);
+        config()->set('database.connections.sqlite.database', $relativePath);
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('settings.backup'));
+
+        $response->assertOk()->assertDownload();
+        $this->assertSame('application/octet-stream', $response->headers->get('content-type'));
+        $this->assertSame('SQLite format 3', substr((string) File::get($absolutePath), 0, 15));
+
+        File::delete($absolutePath);
+    }
+
     public function test_responses_expose_server_timing_for_diagnostics(): void
     {
         $timing = $this->actingAs(User::factory()->create())

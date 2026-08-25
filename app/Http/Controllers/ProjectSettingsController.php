@@ -23,7 +23,7 @@ class ProjectSettingsController extends Controller
 
     public function settings(): View
     {
-        $databasePath = config('database.connections.sqlite.database');
+        $databasePath = $this->sqliteDatabasePath();
 
         return view('ftth.settings', [
             'activityLogs' => ActivityLog::with('user')->latest()->limit(50)->get(),
@@ -38,16 +38,30 @@ class ProjectSettingsController extends Controller
 
     public function backup()
     {
-        $dbPath = config('database.connections.sqlite.database');
-        if (! file_exists($dbPath)) {
+        $dbPath = $this->sqliteDatabasePath();
+        if (! $dbPath || ! is_file($dbPath)) {
             abort(404, 'Baza podataka nije pronađena.');
         }
 
-        DB::statement('PRAGMA wal_checkpoint(FULL)');
+        if (! app()->runningUnitTests()) {
+            DB::statement('PRAGMA wal_checkpoint(FULL)');
+        }
         $filename = 'ftth-backup-'.now()->format('Y-m-d-His').'.sqlite';
 
         return response()->download($dbPath, $filename, [
             'Content-Type' => 'application/octet-stream',
         ]);
+    }
+
+    private function sqliteDatabasePath(): ?string
+    {
+        $path = config('database.connections.sqlite.database');
+        if (! is_string($path) || $path === '' || $path === ':memory:') {
+            return null;
+        }
+
+        $isAbsolute = preg_match('~^(?:[A-Za-z]:[\\\\/]|[\\\\/]{2}|/)~', $path) === 1;
+
+        return $isAbsolute ? $path : base_path($path);
     }
 }
