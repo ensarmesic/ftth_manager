@@ -1333,7 +1333,38 @@ Auto ODO ili GIS plan je spreman za potvrdu samo kada su svi kriteriji ispunjeni
 | Pregledati raspored vlakana | Fiber šema |
 | Pripremiti dokument kablovske kanalizacije | Izvještaji → Prilog 3 |
 
-## 47. Verzija dokumentacije i održavanje
+## 47. Fiber šema — navigacija, detalji i kontrola izvoza
+
+Fiber šema uvijek radi nad jednim aktivnim projektom. Projekat se mijenja iz
+selektora iznad radnog prostora.
+
+### CAD i Color Code radni prostor
+
+- točkić miša uvećava ili umanjuje šemu prema položaju kursora;
+- povlačenje praznog dijela platna pomjera pogled;
+- `+` i `-` mijenjaju zoom, `0` vraća 100%, a `F` prikazuje cijelu šemu;
+- dugme za puni ekran koristi cijeli monitor;
+- minimapa u donjem desnom uglu pokazuje položaj trenutnog pogleda; klik na
+  minimapu pomjera radni prostor na odabranu zonu;
+- klik na ODO otvara tehnički panel sa ODF vezom, krakom, rasponom vlakana,
+  tubom, splitterima, korisnicima, dužinom optičke putanje i power-budgetom.
+
+### Status nepotpunih podataka
+
+Kontrola označava ODO kao nepotpun kada nedostaje dodjela vlakana, dužina
+optičke putanje, ODF veza ili mrežni krak. Takav zapis treba dopuniti prije
+odobravanja i zaključavanja Fiber šeme.
+
+### Plan ID i provjera izvoza
+
+Svako stanje Fiber plana ima jedinstveni `Plan ID`. Isti ID se šalje uz prikaz,
+CSV, PDF i DXF. Kada se tehnički podaci promijene, mijenja se i Plan ID. Za
+predaju dokumentacije provjerite da svi izvozi imaju isti ID i status revizije.
+
+PDF i DXF naslovni blok sadrže projekat, reviziju, standard, datum, status
+odobrenja i oznaku `NTS`, jer je Fiber prikaz logička šema i nije u razmjeri.
+
+## 48. Verzija dokumentacije i održavanje
 
 Ovo uputstvo prati funkcije prisutne u trenutnoj verziji FTTH Managera. Nakon
 izmjene interfejsa, algoritma, kapaciteta ili formata uvoza potrebno je ažurirati

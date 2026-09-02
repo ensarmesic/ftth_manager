@@ -2,6 +2,8 @@
 @section('title', 'Optičke trase')
 @section('subtitle', 'Dužine mikrocijevi, optičkog kabla i veze ODF/ODO/kuće.')
 @section('content')
+<div class="network-page network-page--route">
+@include('ftth.partials.network-page-intro', ['kind' => 'route'])
 
 <section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
@@ -46,7 +48,7 @@
 
 @include('ftth.partials.table', [
     'rows' => $routes,
-    'columns' => ['name' => 'Trasa', 'project.name' => 'Projekat', 'from_label' => 'Od', 'cabinet.name' => 'Do ODO', 'route_type' => 'Tip', 'installation_type' => 'Polaganje', 'microduct_type' => 'Mikrocijev', 'duct_length_m' => 'Dužina m', 'fiber_count' => 'Niti', 'status' => 'Status'],
+    'columns' => array_filter(['name' => 'Trasa', 'project.name' => $selectedProject ? null : 'Projekat', 'from_label' => 'Od', 'cabinet.name' => 'Do ODO', 'route_type' => 'Tip', 'installation_type' => 'Polaganje', 'microduct_type' => 'Mikrocijev', 'duct_length_m' => 'Dužina m', 'fiber_count' => 'Niti', 'status' => 'Status']),
     'editRoute' => fn($id) => route('routes.update', $id),
     'deleteRoute' => fn($id) => route('routes.delete', $id),
     'editFields' => [
@@ -78,7 +80,7 @@
             <label class="ftth-label">Projekat
                 <select name="project_id" class="ftth-input" required>
                     <option value="">Odaberi projekat</option>
-                    @foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach
+                    @foreach($projects as $project)<option value="{{ $project->id }}" @selected($selectedProject?->id === $project->id)>{{ $project->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Početak trase
@@ -187,4 +189,5 @@
 
 @if($errors->any())<script>document.getElementById('drawer-routes')?.classList.add('open');</script>@endif
 
+</div>
 @endsection

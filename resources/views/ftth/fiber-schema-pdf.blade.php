@@ -11,6 +11,10 @@
     .page-header h1 { font-size: 14pt; font-weight: 900; color: #1d4ed8; }
     .page-header .meta { font-size: 8pt; color: #555; margin-top: 2px; }
     .page-header .stats { margin-top: 6px; display: inline-block; }
+    .title-block { width:100%; margin-top:7px; border-collapse:collapse; }
+    .title-block td { border:1px solid #9fb4ca; padding:3px 5px; font-size:6.7pt; }
+    .title-block small { display:block; color:#64748b; font-size:5.8pt; font-weight:700; }
+    .title-block b { color:#0f2740; }
     .chip { display: inline-block; border: 1px solid #bcd4f0; border-radius: 999px; background: #edf6ff; padding: 1px 7px; color: #005f96; font-size: 7.5pt; font-weight: 800; margin-right: 3px; }
     .section { margin-bottom: 16px; }
     .odf-title { background: #1d4ed8; color: #fff; font-size: 10pt; font-weight: 900; padding: 5px 10px; border-radius: 5px 5px 0 0; }
@@ -71,11 +75,25 @@
         <span class="chip">{{ $allCabinets->count() }} FTTH ormarici</span>
         <span class="chip">{{ $totalHouses }}/{{ $totalCapacity }} kuca</span>
         <span class="chip">{{ $projectUtilization }}% popunjenost</span>
-        @if($usedFiberTo > 0)
-            <span class="chip">Koristeno: F1–F{{ $usedFiberTo }}</span>
-            <span class="chip">Rezerva: F{{ $reserveFrom }}–{{ $reserveTo }} ({{ $reserveTo - $reserveFrom + 1 }} niti)</span>
-        @endif
+        @foreach($fiberPlan['odfs'] as $odfPlan)
+            <span class="chip">{{ $odfPlan['name'] }}: {{ $odfPlan['usedFibers'] }}F dodijeljeno</span>
+            @if($odfPlan['reserveFrom'] <= $odfPlan['reserveTo'])<span class="chip">Rezerva F{{ $odfPlan['reserveFrom'] }}–F{{ $odfPlan['reserveTo'] }}</span>@endif
+        @endforeach
     </div>
+    <table class="title-block">
+        <tr>
+            <td><small>DOKUMENT</small><b>FTTH FIBER PLAN / ODN ŠEMA · {{ $fiberPlan['signature'] }}</b></td>
+            <td><small>REVIZIJA</small><b>{{ $fiberRevision?->label ?? 'Radna verzija' }}</b></td>
+            <td><small>AUTOR VERZIJE</small><b>{{ $fiberRevision?->user?->name ?? 'Sistem' }}</b></td>
+            <td><small>STATUS</small><b>{{ $project->fiber_schema_locked ? 'ODOBRENO / ZAKLJUČANO' : 'RADNA VERZIJA' }}</b></td>
+        </tr>
+        <tr>
+            <td><small>STANDARD / PROFIL</small><b>{{ $fiberPlan['profile']['standard'] }} · {{ $fiberPlan['profile']['label'] }}</b></td>
+            <td><small>COLOR CODE</small><b>{{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE' : 'TIA-598' }}</b></td>
+            <td><small>DATUM IZVOZA</small><b>{{ now()->format('d.m.Y H:i') }}</b></td>
+            <td><small>MJERILO</small><b>LOGIČKA ŠEMA · NTS</b></td>
+        </tr>
+    </table>
 </div>
 <div class="color-legend">
     @php
@@ -264,12 +282,12 @@
     </div>
 @endif
 
-@if($usedFiberTo > 0)
+@foreach($fiberPlan['odfs'] as $odfPlan)
     <div class="reserve-box">
-        <div class="reserve-title">Rezerva vlakana: F{{ $reserveFrom }}–F{{ $reserveTo }}</div>
-        <div class="reserve-meta">{{ $reserveTo - $reserveFrom + 1 }} slobodnih niti &nbsp;·&nbsp; Ukupno koristeno: F1–F{{ $usedFiberTo }} ({{ $usedFiberTo }} niti)</div>
+        <div class="reserve-title">{{ $odfPlan['name'] }} · dodijeljeno {{ $odfPlan['usedFibers'] }} od {{ $odfPlan['capacity'] }} vlakana</div>
+        <div class="reserve-meta">Najviša dodjela: {{ $odfPlan['usedTo'] ? 'F'.$odfPlan['usedTo'] : 'nema' }}@if($odfPlan['reserveFrom'] <= $odfPlan['reserveTo']) &nbsp;·&nbsp; Slobodni kontinuirani raspon: F{{ $odfPlan['reserveFrom'] }}–F{{ $odfPlan['reserveTo'] }}@endif</div>
     </div>
-@endif
+@endforeach
 
 <h2 style="margin-top:14px">Optički power-budget · {{ $fiberPlan['profile']['label'] }} · {{ $fiberPlan['profile']['standard'] }}</h2>
 <p style="font-size:7pt;color:#555">Dozvoljeni ODN: {{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB · Inženjerska margina: {{ $fiberPlan['engineeringMargin'] }} dB · Prikazan je nepovoljniji smjer.</p>

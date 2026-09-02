@@ -20,20 +20,26 @@ class HouseController extends Controller
 
     public function houses(Request $request): View
     {
+        $projectId = Project::query()->whereKey($request->integer('project'))->value('id');
+        $houseScope = fn () => House::query()->when($projectId, fn ($query) => $query->where('project_id', $projectId));
+        $cabinetScope = fn () => Cabinet::query()->when($projectId, fn ($query) => $query->where('project_id', $projectId));
+
         return view('ftth.houses', [
-            'houses' => House::with(['project', 'cabinet'])->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+            'houses' => House::with(['project', 'cabinet'])->when($projectId, fn ($query) => $query->where('project_id', $projectId))->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
                 ->where('label', 'like', '%'.$request->string('q')->trim().'%')->orWhere('address', 'like', '%'.$request->string('q')->trim().'%')
                 ->orWhere('import_batch', 'like', '%'.$request->string('q')->trim().'%')
                 ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
                 ->latest()->paginate(12)->withQueryString(),
             'projects' => Project::orderBy('name')->get(),
-            'cabinets' => Cabinet::with(['project'])->withCount('houses')->orderBy('name')->get(),
+            'cabinets' => Cabinet::with(['project'])->withCount('houses')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
             'houseStats' => [
-                'total' => House::count(),
-                'connected' => House::whereNotNull('cabinet_id')->count(),
-                'unassigned' => House::whereNull('cabinet_id')->count(),
-                'cabinets' => Cabinet::count(),
+                'total' => $houseScope()->count(),
+                'connected' => $houseScope()->whereNotNull('cabinet_id')->count(),
+                'unassigned' => $houseScope()->whereNull('cabinet_id')->count(),
+                'cabinets' => $cabinetScope()->count(),
             ],
+            'selectedProject' => $projectId ? Project::find($projectId) : null,
+            'projectContext' => $this->projectWorkspaceContext($projectId),
         ]);
     }
 

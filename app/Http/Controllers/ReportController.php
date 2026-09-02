@@ -198,65 +198,32 @@ class ReportController extends Controller
             return (int) ceil(((int) $houseCount) / max(1, (int) $cabinet->ports_per_splitter));
         };
 
-        $fiberAllocations = [];
-        $nextFiber = 1;
-        $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
-        $reservePerTube = min((int) ($project->fiber_reserve_per_tube ?? 0), $fibersPerTube - 1);
-        $allocateFibers = function (int $count) use (&$nextFiber, $fibersPerTube, $reservePerTube): array {
-            $position = (($nextFiber - 1) % $fibersPerTube) + 1;
-            $usable = $fibersPerTube - $reservePerTube;
-            if ($position > $usable || $position + $count - 1 > $usable) {
-                $nextFiber += $fibersPerTube - $position + 1;
-            }
-            $allocation = ['from' => $nextFiber, 'to' => $nextFiber + $count - 1, 'count' => $count];
-            $nextFiber += $count;
-
-            return $allocation;
-        };
-        $project->odfs->sortBy(fn ($odf) => (string) $odf->name)->each(function ($odf) use ($project, &$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-            $project->branches
-                ->where('type', 'secondary')
-                ->where('odf_id', $odf->id)
-                ->sortBy(fn ($branch) => sprintf('%06d|%s', (int) ($branch->sort_order ?? 0), (string) $branch->name))
-                ->each(function ($branch) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-                    $branch->cabinets
-                        ->sortBy(fn ($cabinet) => sprintf('%06d|%s', (int) ($cabinet->branch_order ?? 0), (string) $cabinet->name))
-                        ->each(function ($cabinet) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-                            $fiberCount = $neededSplitters($cabinet);
-                            if ($fiberCount > 0) {
-                                $fiberAllocations[$cabinet->id] = $allocateFibers($fiberCount);
-                            }
-                            $cabinet->childCabinets->whereNull('branch_id')
-                                ->sortBy(fn ($child) => sprintf('%06d|%s', (int) ($child->branch_order ?? 0), (string) $child->name))
-                                ->each(function ($child) use (&$fiberAllocations, &$nextFiber, $neededSplitters, $allocateFibers) {
-                                    $childFiberCount = $neededSplitters($child);
-                                    if ($childFiberCount > 0) {
-                                        $fiberAllocations[$child->id] = $allocateFibers($childFiberCount);
-                                    }
-                                });
-                        });
-                });
-        });
-
-        $usedFiberTo = collect($fiberAllocations)->max('to') ?? 0;
-        $odfCapacity = $project->odfs->max('fiber_capacity') ?? 144;
-        $reserveFrom = $usedFiberTo + 1;
-        $reserveTo = max($odfCapacity, $usedFiberTo + 1);
         $fiberPlan = $fiberPlanService->build($project);
+        $fiberRevision = $project->fiberSchemaVersions()->with('user:id,name')->latest()->first();
+        $fiberAllocations = $fiberPlan['allocations'];
+        $usedFiberTo = $fiberPlan['usedTo'];
+        $reserveFrom = $fiberPlan['reserveFrom'];
+        $reserveTo = $fiberPlan['reserveTo'];
 
         $pdf = Pdf::loadView('ftth.fiber-schema-pdf', compact(
             'project', 'allCabinets', 'totalHouses', 'totalCapacity',
             'projectUtilization', 'fiberAllocations', 'neededSplitters',
-            'usedFiberTo', 'reserveFrom', 'reserveTo', 'fiberPlan',
+            'usedFiberTo', 'reserveFrom', 'reserveTo', 'fiberPlan', 'fiberRevision',
         ))->setPaper('a4', 'landscape');
 
         $filename = 'fiber-shema-'.str($project->code ?: $project->name)->slug().'-'.now()->format('Ymd').'.pdf';
 
-        return $pdf->download($filename);
+        $response = $pdf->download($filename);
+        $response->headers->set('X-Fiber-Plan-Signature', $fiberPlan['signature']);
+
+        return $response;
     }
 
-    public function fiberSchema(): View
+    public function fiberSchema(Request $request): View
     {
+        $projectOptions = Project::query()->orderBy('name')->get(['id', 'name', 'code']);
+        $selectedProjectId = Project::query()->whereKey($request->integer('project'))->value('id')
+            ?? $projectOptions->first()?->id;
         $projects = Project::with([
             'houses' => fn ($query) => $query->whereNull('cabinet_id')->orderBy('label'),
             'branches' => fn ($query) => $query->with([
@@ -282,8 +249,8 @@ class ReportController extends Controller
                 ->withCount(['houses'])
                 ->orderBy('name'),
             'routes' => fn ($query) => $query->orderBy('route_type')->orderBy('name'),
-        ])->orderBy('name')->get();
+        ])->when($selectedProjectId, fn ($query) => $query->whereKey($selectedProjectId))->orderBy('name')->get();
 
-        return view('ftth.fiber-schema', ['projects' => $projects]);
+        return view('ftth.fiber-schema', compact('projects', 'projectOptions', 'selectedProjectId'));
     }
 }

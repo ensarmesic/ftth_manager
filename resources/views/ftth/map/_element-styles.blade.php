@@ -36,7 +36,23 @@
     /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
-    .ftth-tag.odf { width: 18px; height: 18px; border: 2px solid #fff; border-radius: 2px; background: #0f5fa8; box-shadow: 0 0 0 1px #0f172a; }
+    .ftth-tag.odf {
+        width: 28px;
+        height: 20px;
+        box-sizing: border-box;
+        border: 2px solid #fff;
+        border-radius: 4px;
+        background: linear-gradient(180deg, #1976c9 0%, #0f5fa8 100%);
+        box-shadow: 0 0 0 1.25px #0f172a, 0 3px 7px rgb(15 23 42 / .28);
+        color: #fff;
+        font-size: 8px;
+        font-weight: 950;
+        line-height: 1;
+        letter-spacing: -.15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-align: center;
+    }
     .ftth-tag.cabinet { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 2px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.cabinet.ftth-cabinet-tag { width: auto; height: auto; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none; display: flex; align-items: center; gap: 4px; transform: translate(-8px, -50%); }
     .ftth-cabinet-symbol { display: flex; align-items: center; justify-content: center; width: 22px; height: 14px; flex: 0 0 auto; border: 2px solid #fff; border-radius: 2px; box-shadow: 0 0 0 1px #0f172a; font: 900 6.5px/1 system-ui, sans-serif; color: #fff; letter-spacing: .3px; }

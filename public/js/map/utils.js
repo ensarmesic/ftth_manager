@@ -102,7 +102,8 @@ function icon(type, text = '', color = null) {
     if (cls === 'house' || cls === 'suggest') {
         return L.divIcon({ className: 'ftth-label ftth-house-icon', html: `<div class="ftth-tag ${cls}"${style}>${escapeHtml(text)}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
     }
-    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${escapeHtml(text)}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
+    const markerText = type === 'odf' ? 'ODF' : text;
+    return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${escapeHtml(markerText)}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
 function houseIconText(house) {
     return house?.is_sling ? 'Š' : 'K';

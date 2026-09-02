@@ -21,7 +21,9 @@ trait RendersFiberSchemaDxf
         ]);
 
         // ── Dodjela vlakana ───────────────────────────────────────────────────
-        $fiberAlloc = $fiberPlanService->build($project)['allocations'];
+        $fiberPlan = $fiberPlanService->build($project);
+        $fiberAlloc = $fiberPlan['allocations'];
+        $revision = $project->fiberSchemaVersions()->with('user:id,name')->latest()->first();
         $fibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
         $dxfColorByName = ['Blue' => 5, 'Orange' => 30, 'Green' => 3, 'Brown' => 32, 'Slate' => 8, 'White' => 7, 'Red' => 1, 'Black' => 250, 'Yellow' => 2, 'Violet' => 6, 'Rose' => 210, 'Aqua' => 4];
         $fiberDxfColors = collect(FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia'))->map(fn (array $color) => $dxfColorByName[$color['english']])->values()->all();
@@ -130,9 +132,9 @@ trait RendersFiberSchemaDxf
             // ODF kutija (dinamička visina)
             array_push($L, ...$this->dxfRect($odfL, $cy - $dynOH / 2, $odfR, $cy + $dynOH / 2, 'FTTH_ODF', 5));
             array_push($L, ...$this->dxfText($odfL + 2, $cy + 5, $odf->name, 'FTTH_ODF', 7, 2.8));
-            array_push($L, ...$this->dxfText($odfL + 2, $cy + 1, 'ODF / PATCH PANEL', 'FTTH_ODF', 5, 1.6));
-            array_push($L, ...$this->dxfText($odfL + 2, $cy - 2.5, ($odf->port_count ?? '?').'P / '.($odf->fiber_capacity ?? '?').'F', 'FTTH_ODF', 5, 1.6));
-            array_push($L, ...$this->dxfText($odfL + 2, $cy - 5.5, 'LC/APC', 'FTTH_ODF', 4, 1.4));
+            array_push($L, ...$this->dxfText($odfL + 2, $cy + 1, 'OPTICAL DISTRIBUTION FRAME', 'FTTH_ODF', 5, 1.6));
+            array_push($L, ...$this->dxfText($odfL + 2, $cy - 2.5, ($odf->port_count ?? '?').' PORTOVA / '.($odf->fiber_capacity ?? '?').'F', 'FTTH_ODF', 5, 1.6));
+            array_push($L, ...$this->dxfText($odfL + 2, $cy - 5.5, 'PATCH PANEL - LC/APC', 'FTTH_ODF', 4, 1.4));
 
             $phaseOneMinY = $cy; // prati najmanji boxBot svih direktnih grana
 
@@ -192,6 +194,19 @@ trait RendersFiberSchemaDxf
             }
         }
 
+        $cabinetXs = collect($cabPos)->pluck('x');
+        $cabinetBottoms = collect($cabPos)->pluck('boxBot');
+        $titleRight = max((float) ($cabinetXs->max() ?? $OX), $OX + $OW / 2) + 25;
+        $titleLeft = $titleRight - 105;
+        $titleBottom = min((float) ($cabinetBottoms->min() ?? $trunkB), $trunkB) - 34;
+        $titleTop = $titleBottom + 22;
+        array_push($L, ...$this->dxfRect($titleLeft, $titleBottom, $titleRight, $titleTop, 'FTTH_LABELS', 7));
+        array_push($L, ...$this->dxfLine($titleLeft, $titleBottom + 7, $titleRight, $titleBottom + 7, 'FTTH_LABELS', 7));
+        array_push($L, ...$this->dxfLine($titleLeft, $titleBottom + 14, $titleRight, $titleBottom + 14, 'FTTH_LABELS', 7));
+        array_push($L, ...$this->dxfText($titleLeft + 2, $titleTop - 4, 'FTTH FIBER PLAN / ODN SHEMA - NTS / PLAN ID '.$fiberPlan['signature'], 'FTTH_LABELS', 7, 1.8));
+        array_push($L, ...$this->dxfText($titleLeft + 2, $titleBottom + 10, 'PROJEKAT: '.($project->code ?: $project->name).' | REV: '.($revision?->label ?? 'RADNA'), 'FTTH_LABELS', 7, 1.35));
+        array_push($L, ...$this->dxfText($titleLeft + 2, $titleBottom + 3, 'STANDARD: '.$fiberPlan['profile']['standard'].' / '.$fiberPlan['profile']['label'].' | '.strtoupper($project->fiber_schema_locked ? 'ODOBRENO' : 'RADNA VERZIJA').' | '.now()->format('d.m.Y'), 'FTTH_LABELS', 7, 1.2));
+
         array_push($L, '0', 'ENDSEC', '0', 'EOF');
 
         $exportCode = str($project->code ?: $project->name)->slug()->value() ?: 'projekat-'.$project->id;
@@ -199,6 +214,7 @@ trait RendersFiberSchemaDxf
         return response(implode("\r\n", $L)."\r\n", 200, [
             'Content-Type' => 'application/dxf',
             'Content-Disposition' => 'attachment; filename="'.$exportCode.'-fiber-schema.dxf"',
+            'X-Fiber-Plan-Signature' => $fiberPlan['signature'],
         ]);
     }
 
@@ -208,9 +224,10 @@ trait RendersFiberSchemaDxf
         $name = $branch->name ?? '';
         $specs = '';
         if ($branch->route) {
-            $specs = 'OPTIKA '.($branch->route->fiber_count ?? '?').'F';
-            if ($branch->route->duct_length_m) {
-                $specs .= ' / '.(int) $branch->route->duct_length_m.'m';
+            $specs = 'KABEL '.($branch->route->fiber_count ?? '?').'F';
+            $length = $branch->route->fiber_length_m ?: $branch->route->duct_length_m;
+            if ($length) {
+                $specs .= ' / '.(int) $length.'m';
             }
         }
 

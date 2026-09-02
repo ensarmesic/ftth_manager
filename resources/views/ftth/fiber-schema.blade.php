@@ -236,6 +236,35 @@
         .cad-color-legend span { font-size:.46rem; }
         .fiber-tool-panel { margin:.35rem; }
     }
+    .cad-fiber-shell { height: clamp(560px, calc(100dvh - 30rem), 880px); cursor: grab; outline: none; touch-action: none; }
+    .cad-fiber-shell.is-dragging { cursor: grabbing; }
+    .cad-fiber-shell:focus-visible { border-color: #2563eb; box-shadow: 0 0 0 3px rgb(37 99 235 / .16); }
+    .cad-fiber-controls { align-items: center; overflow: hidden; gap: 0; border: 1px solid #cbd5e1; border-radius: .55rem; background: rgb(255 255 255 / .97); box-shadow: 0 5px 18px rgb(15 23 42 / .14); }
+    .cad-fiber-controls button { min-width: 2.25rem; min-height: 2.15rem; border: 0; border-right: 1px solid #e2e8f0; border-radius: 0; padding: .35rem .58rem; box-shadow: none; font-size: .72rem; }
+    .cad-fiber-controls button:last-child { border-right: 0; }
+    .cad-fiber-controls .cad-zoom-value { min-width: 3.15rem; color: #0f3d5b; text-align: center; font-size: .65rem; font-weight: 950; font-variant-numeric: tabular-nums; }
+    .cad-fiber-controls .cad-control-label { min-width: auto; }
+    .cad-document-key { position:absolute; top:.55rem; right:.55rem; z-index:3; display:grid; grid-template-columns:auto auto; gap:.18rem .65rem; max-width:22rem; border:1px solid #cbd5e1; border-radius:.55rem; background:rgb(255 255 255 / .96); padding:.48rem .62rem; color:#475569; box-shadow:0 5px 18px rgb(15 23 42 / .1); font-size:.58rem; }
+    .cad-document-key b { color:#0f3d5b; font-size:.6rem; }
+    .cad-document-key .cad-key-title { grid-column:1/-1; margin-bottom:.1rem; color:#0f172a; font-size:.66rem; font-weight:950; }
+    .cad-fiber-minimap { position:absolute; right:.55rem; bottom:.55rem; z-index:3; width:190px; height:112px; overflow:hidden; border:1px solid #94a3b8; border-radius:.5rem; background:rgb(255 255 255 / .96); box-shadow:0 5px 18px rgb(15 23 42 / .14); cursor:crosshair; }
+    .cad-fiber-minimap svg { display:block; width:100%; height:100%; }
+    .cad-minimap-viewport { fill:rgb(37 99 235 / .12); stroke:#2563eb; stroke-width:10; vector-effect:non-scaling-stroke; }
+    .cad-detail-panel { position:absolute; top:.5rem; right:.5rem; bottom:.5rem; z-index:6; width:min(340px,calc(100% - 1rem)); overflow:auto; border:1px solid #b8c9dc; border-radius:.7rem; background:rgb(255 255 255 / .98); padding:.8rem; box-shadow:0 18px 48px rgb(15 23 42 / .22); }
+    .cad-detail-panel.hidden { display:none; }
+    .cad-detail-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; border-bottom:1px solid #e2e8f0; padding-bottom:.65rem; }
+    .cad-detail-head small { display:block; color:#64748b; font-size:.58rem; font-weight:900; letter-spacing:.08em; }
+    .cad-detail-head strong { color:#0f3d5b; font-size:.9rem; }
+    .cad-detail-close { width:1.8rem; height:1.8rem; border:1px solid #cbd5e1; border-radius:.4rem; background:#fff; font-weight:900; }
+    .cad-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:.45rem; margin-top:.7rem; }
+    .cad-detail-grid div { border:1px solid #e2e8f0; border-radius:.45rem; background:#f8fafc; padding:.48rem; }
+    .cad-detail-grid small { display:block; color:#64748b; font-size:.55rem; font-weight:800; }
+    .cad-detail-grid b { display:block; margin-top:.12rem; color:#0f172a; font-size:.7rem; }
+    .cad-detail-status { margin-top:.65rem; border-radius:.45rem; padding:.55rem; background:#ecfdf5; color:#166534; font-size:.65rem; font-weight:900; }
+    .cad-detail-status.warning,.cad-detail-status.estimate { background:#fffbeb; color:#92400e; }
+    .cad-detail-status.error,.cad-detail-status.incomplete { background:#fef2f2; color:#991b1b; }
+    .cad-fiber-help { font-size: .62rem; }
+    .cad-fiber-shell:fullscreen { width: 100vw; height: 100vh; margin: 0; border: 0; border-radius: 0; background-color: #fff; }
     .fiber-commandbar .primary{border-color:#047857;background:linear-gradient(135deg,#059669,#047857);box-shadow:0 5px 14px #04785730}.budget-overview{border-color:#a7f3d0;background:linear-gradient(135deg,#ecfdf5,#f8fafc)}.budget-overview strong{color:#065f46}.budget-card{border-color:#d1fae5}.budget-card.estimate{border-color:#bae6fd;background:linear-gradient(180deg,#fff,#f8fdff)}.budget-card.estimate .budget-status{background:#e0f2fe;color:#075985}.budget-card.ok{border-color:#86efac;box-shadow:0 8px 24px #16a34a18}.budget-card.ok header{background:linear-gradient(90deg,#ecfdf5,#fff)}.budget-details summary{color:#047857}.budget-formula span{border-left-color:#6ee7b7}
     .budget-dashboard{position:relative;overflow:hidden;border-radius:18px!important;background:#f4f8f6!important;padding:0!important}.budget-dashboard>.budget-overview{display:none}.budget-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 190px auto;align-items:center;gap:28px;overflow:hidden;background:radial-gradient(circle at 75% 20%,#10b98138,transparent 25%),linear-gradient(125deg,#031d17 0%,#064e3b 58%,#047857 100%);padding:30px 34px;color:#fff}.budget-hero:after{content:"";position:absolute;inset:0;opacity:.16;background-image:linear-gradient(#6ee7b733 1px,transparent 1px),linear-gradient(90deg,#6ee7b733 1px,transparent 1px);background-size:28px 28px;mask-image:linear-gradient(90deg,transparent,#000)}.budget-hero-copy,.signal-orb,.budget-config-button{position:relative;z-index:1}.budget-eyebrow{display:block;margin-bottom:8px;color:#6ee7b7;font-size:10px;font-weight:950;letter-spacing:.2em}.budget-hero h2{margin:0;font-size:clamp(25px,3vw,42px);font-weight:950;letter-spacing:-.045em;line-height:1}.budget-hero h2 em{color:#6ee7b7;font-style:normal}.budget-hero p{margin:10px 0 15px;color:#a7f3d0;font-size:12px}.budget-hero-state{display:inline-flex;align-items:center;gap:8px;border:1px solid #ffffff30;border-radius:999px;background:#ffffff12;padding:6px 10px;font-size:9px;font-weight:950;letter-spacing:.1em}.budget-hero-state i{width:8px;height:8px;border-radius:50%;background:#fbbf24;box-shadow:0 0 12px #fbbf24}.budget-hero-state.confirmed i{background:#34d399;box-shadow:0 0 14px #34d399}.signal-orb{display:grid;place-content:center;width:158px;height:158px;border:1px solid #6ee7b760;border-radius:50%;background:radial-gradient(circle,#065f46 48%,#064e3b 49%);box-shadow:0 0 0 10px #10b98112,0 0 0 20px #10b98108,inset 0 0 35px #10b98145;text-align:center}.signal-orb span{color:#a7f3d0;font-size:8px;font-weight:900;letter-spacing:.12em}.signal-orb strong{font-size:37px;line-height:1}.signal-orb small{color:#6ee7b7;font-size:11px;font-weight:900}.signal-orb.is-good{box-shadow:0 0 0 10px #10b9811f,0 0 35px #34d39955,inset 0 0 35px #10b98155}.budget-config-button{display:flex;align-items:center;gap:8px;border:1px solid #6ee7b7!important;border-radius:12px!important;background:#ecfdf5!important;padding:12px 16px!important;color:#065f46!important;font-size:11px!important;font-weight:950!important;box-shadow:0 10px 28px #001a1255;white-space:nowrap}.budget-config-button span{font-size:16px}.budget-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;border-bottom:1px solid #d1fae5;background:#d1fae5}.budget-kpis article{background:#fff;padding:17px 20px}.budget-kpis span{display:block;color:#64748b;font-size:8px;font-weight:950;letter-spacing:.13em}.budget-kpis strong{display:block;margin:4px 0 2px;color:#064e3b;font-size:20px;font-weight:950}.budget-kpis small{color:#94a3b8;font-size:9px}.budget-dashboard>.budget-grid{padding:20px}.budget-dashboard .budget-card{border:0;border-radius:15px;box-shadow:0 8px 25px #052e2412;transition:transform .2s,box-shadow .2s}.budget-dashboard .budget-card:hover{transform:translateY(-3px);box-shadow:0 15px 36px #052e2422}.budget-dashboard .budget-card header{border-bottom:1px solid #d1fae5;background:linear-gradient(90deg,#f0fdf4,#fff);padding:13px 16px;color:#064e3b}.budget-dashboard .budget-body{padding:16px}.budget-dashboard .budget-meter{height:16px;border:3px solid #fff;box-shadow:0 0 0 1px #dbe7e2;background:linear-gradient(90deg,#fecaca 0 16%,#a7f3d0 16% 82%,#fecaca 82%)}.budget-dashboard .budget-meta span{border:1px solid #e2eee9;background:#f8fbfa;padding:9px}.budget-dashboard .budget-meta b{margin-top:3px;color:#065f46}.budget-dashboard .budget-formula span{border:1px solid #dbece5;border-left:3px solid #10b981;border-radius:7px;background:#f8fbfa;padding:8px}.schema-view-tab[data-schema-view="power-budget"]{color:#047857}.schema-view-tab[data-schema-view="power-budget"].active{border-color:#059669;background:#ecfdf5;color:#065f46}@media(max-width:800px){.budget-hero{grid-template-columns:1fr;padding:24px}.signal-orb{width:130px;height:130px}.budget-kpis{grid-template-columns:repeat(2,1fr)}.budget-config-button{width:max-content}}@media(max-width:480px){.budget-kpis{grid-template-columns:1fr}.budget-dashboard>.budget-grid{padding:12px}.budget-grid{grid-template-columns:1fr}.budget-meta{grid-template-columns:1fr}}
     .optical-path{display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr auto;align-items:center;margin-bottom:15px;border-radius:10px;background:#062e25;padding:10px;color:#fff}.optical-path span{text-align:center}.optical-path i{display:grid;place-items:center;width:32px;height:32px;margin:auto;border:1px solid #34d39980;border-radius:9px;background:#065f46;color:#6ee7b7;font-size:8px;font-style:normal;font-weight:950}.optical-path b{display:block;margin-top:4px;color:#d1fae5;font-size:8px;white-space:nowrap}.optical-path em{height:2px;background:linear-gradient(90deg,#10b981,#6ee7b7);box-shadow:0 0 7px #34d399}.optical-path em:after{content:"";display:block;float:right;width:5px;height:5px;margin-top:-1.5px;border-radius:50%;background:#a7f3d0;box-shadow:0 0 7px #a7f3d0}@media(max-width:420px){.optical-path b{font-size:7px}.optical-path i{width:27px;height:27px}}
@@ -251,13 +280,19 @@
     .budget-grid.vertical-list-view{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:9px;max-height:690px!important;padding:10px 7px 14px 10px!important}.budget-grid.vertical-list-view .budget-card{border-radius:11px}.budget-grid.vertical-list-view .budget-card header{padding:8px 10px}.budget-grid.vertical-list-view .budget-card-title b{font-size:12px}.budget-grid.vertical-list-view .budget-card-title small{font-size:9px}.budget-grid.vertical-list-view .budget-status{padding:4px 7px;font-size:9px}.budget-grid.vertical-list-view .budget-body{padding:9px}.budget-grid.vertical-list-view .optical-path{margin-bottom:8px;padding:6px}.budget-grid.vertical-list-view .optical-path i{width:25px;height:25px;font-size:7px}.budget-grid.vertical-list-view .optical-path b{font-size:8px}.budget-grid.vertical-list-view .budget-verdict b{font-size:19px}.budget-grid.vertical-list-view .budget-verdict small,.budget-grid.vertical-list-view .budget-scale{font-size:9px}.budget-grid.vertical-list-view .budget-meter{height:11px;margin:7px 0 3px}.budget-grid.vertical-list-view .budget-meta{margin-top:7px}.budget-grid.vertical-list-view .budget-meta span{padding:6px;font-size:9px}.budget-grid.vertical-list-view .budget-meta b{font-size:11px}.budget-grid.vertical-list-view .budget-details{margin-top:7px;padding-top:6px}.budget-grid.vertical-list-view .budget-details summary{font-size:10px}.budget-grid.vertical-list-view .budget-body>p{margin-top:7px!important;padding:6px!important;font-size:9px!important;line-height:1.3}.budget-grid.vertical-list-view .budget-body>.mt-3{margin-top:7px!important;gap:8px!important}.budget-grid.vertical-list-view .budget-body>.mt-3>*{font-size:9px!important}@media(max-width:1800px){.budget-grid.vertical-list-view{grid-template-columns:repeat(5,minmax(0,1fr))!important}}@media(max-width:1450px){.budget-grid.vertical-list-view{grid-template-columns:repeat(4,minmax(0,1fr))!important}}@media(max-width:1100px){.budget-grid.vertical-list-view{grid-template-columns:repeat(3,minmax(0,1fr))!important}}@media(max-width:800px){.budget-grid.vertical-list-view{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:520px){.budget-grid.vertical-list-view{grid-template-columns:1fr!important}}
     /* Keep type readable and reclaim vertical space above the card list. */
     .budget-hero{padding-top:12px;padding-bottom:12px}.budget-hero p{margin-top:5px;margin-bottom:7px}.budget-hero-state{padding-top:4px;padding-bottom:4px}.budget-hero .signal-orb{width:96px;height:96px}.budget-hero .signal-orb strong{font-size:27px}.budget-kpis article{padding-top:7px;padding-bottom:7px}.budget-kpis strong{margin-top:1px;margin-bottom:0}.budget-guide{padding-top:6px;padding-bottom:6px}.budget-viewbar{padding-top:5px;padding-bottom:5px}.budget-grid.vertical-list-view{scroll-padding-bottom:18px}
+    .fiber-project-picker{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 10px;border:1px solid #cdddea;border-radius:13px;background:linear-gradient(120deg,#fff,#f3f9fd);padding:10px 14px;box-shadow:0 7px 20px #0f27390d}.fiber-project-picker-copy{display:grid;gap:2px}.fiber-project-picker-copy b{color:#0c2d46;font-size:13px}.fiber-project-picker-copy span{color:#6b8294;font-size:10px}.fiber-project-picker label{display:flex;align-items:center;gap:8px;color:#4e687b;font-size:10px;font-weight:900}.fiber-project-picker select{min-width:min(360px,45vw);min-height:38px;border:1px solid #b9cfdf;border-radius:9px;background:#fff;padding:0 34px 0 11px;color:#12344d;font-size:12px;font-weight:800;box-shadow:0 3px 10px #0f27390d}
+    .fiber-standard-strip{display:grid;grid-template-columns:minmax(180px,1.2fr) repeat(4,minmax(105px,.65fr));gap:1px;border-bottom:1px solid #cfe0eb;background:#cfe0eb}.fiber-standard-strip>div{display:grid;gap:2px;background:#f7fbfd;padding:10px 13px}.fiber-standard-strip small{color:#71889a;font-size:8px;font-weight:950;letter-spacing:.1em}.fiber-standard-strip b{color:#123a55;font-size:12px}.fiber-standard-strip span{color:#708698;font-size:9px}.fiber-standard-strip .standard-verdict{background:linear-gradient(135deg,#edfdf4,#f8fffb)}.fiber-standard-strip .standard-verdict.has-errors{background:linear-gradient(135deg,#fff1f2,#fff)}.fiber-standard-strip .standard-verdict b{color:#087443}.fiber-standard-strip .standard-verdict.has-errors b{color:#b42318}@media(max-width:800px){.fiber-project-picker{align-items:flex-start;flex-direction:column}.fiber-project-picker label,.fiber-project-picker select{width:100%;max-width:none}.fiber-standard-strip{grid-template-columns:repeat(2,1fr)}.fiber-standard-strip>div:first-child{grid-column:1/-1}}@media(max-width:480px){.fiber-standard-strip{grid-template-columns:1fr}.fiber-standard-strip>div:first-child{grid-column:auto}}
 </style>
 
-<div class="fiber-project-filter" id="fiber-project-filter">
-    @foreach($projects as $p)
-        <button type="button" class="fpf-btn" data-filter="{{ $p->id }}">{{ $p->name }}</button>
-    @endforeach
-</div>
+<form class="fiber-project-picker" method="GET">
+    <div class="fiber-project-picker-copy"><b>Fiber radni prostor</b><span>Odaberi jedan projekat za preciznu šemu i proračun.</span></div>
+    <label>Aktivni projekat
+        <select name="project" onchange="this.form.submit()">
+            @if($projectOptions->isEmpty())<option value="">Nema projekata</option>@endif
+            @foreach($projectOptions as $p)<option value="{{ $p->id }}" @selected((int)$selectedProjectId === $p->id)>{{ $p->name }} · {{ $p->code }}</option>@endforeach
+        </select>
+    </label>
+</form>
 
 <section class="schema-page" id="schema-page">
 @forelse($projects as $project)
@@ -285,7 +320,7 @@
         $unassignedCabs = $allCabinets->filter(fn ($cabinet) => ! isset($fiberAllocations[$cabinet->id]));
         $fiberWarnings = collect($fiberPlan['issues'])->pluck('message')->all();
     @endphp
-    <article class="schema-project {{ $project->fiber_schema_locked ? 'fiber-locked' : '' }}" data-project-id="{{ $project->id }}" data-locked="{{ $project->fiber_schema_locked ? '1' : '0' }}">
+    <article class="schema-project {{ $project->fiber_schema_locked ? 'fiber-locked' : '' }}" data-project-id="{{ $project->id }}" data-plan-signature="{{ $fiberPlan['signature'] }}" data-locked="{{ $project->fiber_schema_locked ? '1' : '0' }}">
         <div class="schema-head">
             <div>
                 <h2 class="text-base font-black text-slate-950">{{ $project->name }}</h2>
@@ -297,6 +332,7 @@
                 <span class="schema-chip">{{ $totalHouses }}/{{ $totalCapacity }}</span>
                 <span class="schema-chip">{{ $projectUtilization }}%</span>
                 <span class="schema-chip fiber-health {{ $fiberPlan['health'] < 60 ? 'error' : ($fiberPlan['health'] < 85 ? 'warn' : '') }}">Health {{ $fiberPlan['health'] }}%</span>
+                <span class="schema-chip" title="Jedinstveni potpis trenutnog Fiber proračuna">Plan ID {{ $fiberPlan['signature'] }}</span>
                 <span class="schema-chip">{{ $project->fiber_schema_locked ? '🔒 Odobrena' : 'Radna verzija' }}</span>
                 @can('project.export')
                 <a href="{{ route('projects.fiber-schema-dxf', $project) }}"
@@ -312,6 +348,18 @@
                 <a href="{{ route('projects.fiber.csv', $project) }}" class="schema-chip">CSV / Excel</a>
                 @endcan
             </div>
+        </div>
+
+        @php
+            $standardErrors = collect($fiberPlan['issues'])->where('level', 'error')->count();
+            $standardWarnings = collect($fiberPlan['issues'])->where('level', 'warning')->count();
+        @endphp
+        <div class="fiber-standard-strip">
+            <div><small>AKTIVNI STANDARD</small><b>{{ $fiberPlan['profile']['standard'] }} · {{ $fiberPlan['profile']['label'] }}</b><span>ODN klasa za optički pristup</span></div>
+            <div><small>DOZVOLJENI OPL</small><b>{{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB</b><span>minimalni / maksimalni gubitak</span></div>
+            <div><small>TALASNE DUŽINE</small><b>{{ $fiberPlan['profile']['downstream_nm'] }} / {{ $fiberPlan['profile']['upstream_nm'] }} nm</b><span>downstream / upstream</span></div>
+            <div><small>DISTANCE KLASA</small><b>{{ $fiberPlan['profile']['distance_category'] }}</b><span>projektna kategorija dosega</span></div>
+            <div class="standard-verdict {{ $standardErrors ? 'has-errors' : '' }}"><small>KONTROLA ŠEME</small><b>{{ $standardErrors ? $standardErrors.' grešaka' : 'Osnovna kontrola uredna' }}</b><span>{{ $standardWarnings }} upozorenja · {{ $fiberPlan['assumptionsConfirmed'] ? 'parametri potvrđeni' : 'procjena' }}</span></div>
         </div>
 
         <div class="fiber-commandbar">
@@ -341,18 +389,31 @@
             $topologyGraph = [
                 'odfs' => $project->odfs->map(fn ($odf) => [
                     'id' => $odf->id, 'name' => $odf->name, 'ports' => $odf->port_count, 'fibers' => $odf->fiber_capacity,
+                    'used_to' => $fiberPlan['odfs'][$odf->id]['usedTo'] ?? 0,
+                    'reserve_from' => $fiberPlan['odfs'][$odf->id]['reserveFrom'] ?? 1,
+                    'reserve_to' => $fiberPlan['odfs'][$odf->id]['reserveTo'] ?? $odf->fiber_capacity,
                 ])->values(),
-                'cabinets' => $allCabinets->map(fn ($cabinet) => [
-                    'id' => $cabinet->id, 'odf_id' => $cabinet->odf_id, 'parent_id' => $cabinet->parent_cabinet_id, 'branch_id' => $cabinet->branch_id, 'branch_order' => $cabinet->branch_order,
-                    'name' => $cabinet->name, 'used' => $cabinet->houses_count, 'capacity' => max($cabinet->capacity, 12), 'splitters' => $neededSplitters($cabinet), 'planned_splitters' => $cabinet->splitter_count,
-                    'fiber_from' => $fiberAllocations[$cabinet->id]['from'] ?? null, 'fiber_to' => $fiberAllocations[$cabinet->id]['to'] ?? null, 'fiber_count' => $fiberAllocations[$cabinet->id]['count'] ?? $neededSplitters($cabinet),
-                    'houses' => $cabinet->houses->map(fn ($house) => ['id' => $house->id, 'label' => $house->label])->values(),
-                ])->values(),
+                'cabinets' => $allCabinets->map(function ($cabinet) use ($fiberPlan, $fiberAllocations, $neededSplitters) {
+                    $connection = $fiberPlan['connections']->firstWhere('cabinet_id', $cabinet->id);
+                    return [
+                        'id' => $cabinet->id, 'odf_id' => $cabinet->odf_id, 'parent_id' => $cabinet->parent_cabinet_id, 'branch_id' => $cabinet->branch_id, 'branch_order' => $cabinet->branch_order,
+                        'name' => $cabinet->name, 'address' => $cabinet->address, 'used' => $cabinet->houses_count, 'capacity' => max($cabinet->capacity, 12), 'splitters' => $neededSplitters($cabinet), 'planned_splitters' => $cabinet->splitter_count,
+                        'fiber_from' => $fiberAllocations[$cabinet->id]['from'] ?? null, 'fiber_to' => $fiberAllocations[$cabinet->id]['to'] ?? null, 'fiber_count' => $fiberAllocations[$cabinet->id]['count'] ?? $neededSplitters($cabinet),
+                        'tube' => $connection['tube'] ?? null, 'route_km' => $connection['route_km'] ?? null, 'splitter_ratio' => $connection['splitter_ratio'] ?? null,
+                        'loss_db' => $connection['loss_db'] ?? null, 'headroom_db' => $connection['headroom_db'] ?? null,
+                        'budget_status' => ($connection && ! $connection['data_complete']) ? 'incomplete' : ($connection['budget_status'] ?? 'incomplete'),
+                        'incomplete_fields' => $connection['incomplete_fields'] ?? ['ODF veza ili dodjela vlakana'],
+                        'houses' => $cabinet->houses->map(fn ($house) => ['id' => $house->id, 'label' => $house->label])->values(),
+                    ];
+                })->values(),
                 'branches' => $project->branches->where('type', '!=', 'rov')->map(fn ($branch) => [
                     'id' => $branch->id, 'route_id' => $branch->route_id, 'odf_id' => $branch->odf_id, 'parent_id' => $branch->parent_branch_id,
                     'from_cabinet_id' => $branch->route?->from_type === 'cabinet' ? $branch->route->from_id : null,
                     'name' => $branch->name, 'code' => $branch->code, 'type' => $branch->type, 'order' => $branch->sort_order,
                     'fibers' => $branch->route?->fiber_count ?? 12,
+                    'length_m' => $branch->route?->fiber_length_m ?: $branch->route?->duct_length_m,
+                    'installation' => $branch->route?->installation_type,
+                    'route_name' => $branch->route?->name,
                 ])->values(),
                 'used_fiber_to' => $usedFiberTo,
                 'reserve_from' => $reserveFrom,
@@ -367,22 +428,23 @@
             ];
         @endphp
         <div data-schema-panel="cad-fiber">
-            <div class="cad-fiber-shell" data-cad-fiber='@json($topologyGraph)'>
-                <div class="cad-fiber-controls"><button data-cad-action="zoom-in">+</button><button data-cad-action="zoom-out">&minus;</button><button data-cad-action="fit">Fit</button></div>
+            <div class="cad-fiber-shell" data-cad-fiber='@json($topologyGraph)' tabindex="0" aria-label="CAD prikaz optičke šeme">
+                @include('ftth.fiber-schema._cad-workspace-chrome')
+                <div class="cad-document-key"><div class="cad-key-title">LEGENDA I PROJEKTNA OSNOVA</div><b>ODF</b><span>Optical Distribution Frame / OLT strana</span><b>ODO</b><span>Optički distributivni ormarić</span><b>F1–F3</b><span>dodijeljeni raspon vlakana</span><b>{{ $fiberPlan['profile']['standard'] }}</b><span>{{ $fiberPlan['profile']['label'] }} · OPL {{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB</span><b>{{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE' : 'TIA‑598' }}</b><span>identifikacija boja · logička šema, nije u razmjeri</span></div>
                 <div class="cad-fiber-stage"></div>
-                <div class="cad-fiber-help">Magistralna optika / raspored iz 144 / ODF u centru / krakovi lijevo-desno</div>
+                <div class="cad-fiber-help">Točkić: zoom prema kursoru · povuci: pomjeranje · dvoklik: uvećaj · F: prikaži sve · 0: 100%</div>
             </div>
         </div>
         <div class="hidden" data-schema-panel="color-code">
-            <div class="cad-fiber-shell" data-cad-fiber='@json($topologyGraph)' data-color-code="true">
-                <div class="cad-fiber-controls"><button data-cad-action="zoom-in">+</button><button data-cad-action="zoom-out">&minus;</button><button data-cad-action="fit">Fit</button></div>
+            <div class="cad-fiber-shell" data-cad-fiber='@json($topologyGraph)' data-color-code="true" tabindex="0" aria-label="Color code prikaz optičke šeme">
+                @include('ftth.fiber-schema._cad-workspace-chrome')
                 <div class="cad-fiber-stage"></div>
                 <div class="cad-color-legend">
                     @foreach(\App\Support\FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia') as $position => $color)
                         <span><i class="fiber-dot" style="background:{{ $color['hex'] }}"></i>{{ $position }} {{ $color['name'] }}</span>
                     @endforeach
                 </div>
-                <div class="cad-fiber-help">COLOR CODE {{ $configuredFiberCapacity }}F · {{ $tubeCount }} tuba × {{ $fibersPerTube }} niti · {{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE profil' : 'TIA‑598 / Telcordia' }}</div>
+                <div class="cad-fiber-help">Točkić: zoom prema kursoru · povuci: pomjeranje · F: prikaži sve · COLOR CODE {{ $configuredFiberCapacity }}F · {{ $tubeCount }} × {{ $fibersPerTube }}</div>
             </div>
         </div>
         <div class="hidden" data-schema-panel="port-plan"><section class="fiber-tool-panel">
@@ -426,7 +488,9 @@
                         ->values();
                 @endphp
                 <div class="fiber-check {{ $duplicateFibers->isEmpty() ? 'ok' : 'error' }}"><b>{{ $duplicateFibers->isEmpty() ? '✓' : '!' }}</b><span>{{ $duplicateFibers->isEmpty() ? 'Nema dvostruko dodijeljenih vlakana.' : 'Konflikt na vlaknima: F'.$duplicateFibers->implode(', F') }}</span></div>
-                <div class="fiber-check {{ $configuredFiberCapacity === $odfCapacity ? 'ok' : 'warn' }}"><b>{{ $configuredFiberCapacity === $odfCapacity ? '✓' : '!' }}</b><span>Model kabla: {{ $configuredFiberCapacity }}F, {{ $tubeCount }} tuba × {{ $fibersPerTube }} niti. ODF je evidentiran kao {{ $odfCapacity }}F. Sljedeća planirana rezerva: F{{ $reserveFrom }}–F{{ $reserveTo }}.</span></div>
+                @foreach($fiberPlan['odfs'] as $odfPlan)
+                    <div class="fiber-check {{ $configuredFiberCapacity === $odfPlan['capacity'] ? 'ok' : 'warn' }}"><b>{{ $configuredFiberCapacity === $odfPlan['capacity'] ? '✓' : '!' }}</b><span>{{ $odfPlan['name'] }}: kabel {{ $configuredFiberCapacity }}F, evidentirani ODF {{ $odfPlan['capacity'] }}F, dodijeljeno {{ $odfPlan['usedFibers'] }}F.@if($odfPlan['reserveFrom'] <= $odfPlan['reserveTo']) Kontinuirana rezerva F{{ $odfPlan['reserveFrom'] }}–F{{ $odfPlan['reserveTo'] }}.@endif</span></div>
+                @endforeach
                 <div class="fiber-check warn"><b>i</b><span>Profil boja: {{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE profil' : 'TIA‑598 / Telcordia' }}. Za izvedbeni plan evidentirati proizvođača i tačnu oznaku kabla iz datasheeta.</span></div>
             </div>
         </section></div>
@@ -749,6 +813,8 @@ document.querySelectorAll('.schema-project').forEach(project => {
     project.querySelectorAll('[data-schema-view]').forEach(button => button.addEventListener('click', () => {
         project.querySelectorAll('[data-schema-view]').forEach(item => item.classList.toggle('active', item === button));
         project.querySelectorAll('[data-schema-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.schemaPanel !== button.dataset.schemaView));
+        const visibleCad=project.querySelector(`[data-schema-panel="${button.dataset.schemaView}"] .cad-fiber-shell`);
+        if(visibleCad?._cadFit) requestAnimationFrame(()=>visibleCad._cadFit());
     }));
 });
 @include('ftth.fiber-schema._cad-renderer')

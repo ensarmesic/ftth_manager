@@ -2,6 +2,8 @@
 @section('title', 'Krakovi mreže')
 @section('subtitle', 'Hijerarhija primarnih, sekundarnih i izvedenih krakova.')
 @section('content')
+<div class="network-page network-page--branch">
+@include('ftth.partials.network-page-intro', ['kind' => 'branch'])
 
 <section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
     <article class="stat-card">
@@ -47,7 +49,7 @@
 <div id="branches-sortable-table">
 @include('ftth.partials.table', [
     'rows'        => $branches,
-    'columns'     => ['name' => 'Krak', 'code' => 'Kod', 'type' => 'Tip', 'odf.name' => 'ODF', 'parentBranch.name' => 'Roditelj', 'route.name' => 'Trasa', 'cabinets_count' => 'ODO'],
+    'columns'     => array_filter(['name' => 'Krak', 'project.name' => $selectedProject ? null : 'Projekat', 'code' => 'Kod', 'type' => 'Tip', 'odf.name' => 'ODF', 'parentBranch.name' => 'Roditelj', 'route.name' => 'Trasa', 'cabinets_count' => 'ODO']),
     'editRoute'   => fn($id) => route('branches.update', $id),
     'deleteRoute' => fn($id) => route('branches.delete', $id),
     'editFields'  => [
@@ -77,7 +79,7 @@
             <label class="ftth-label">Projekat
                 <select name="project_id" class="ftth-input" required>
                     <option value="">Odaberi projekat</option>
-                    @foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach
+                    @foreach($projects as $project)<option value="{{ $project->id }}" @selected($selectedProject?->id === $project->id)>{{ $project->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">ODF
@@ -177,4 +179,5 @@
 #branches-sortable-table tbody tr.drag-over { outline: 2px solid #2684c2; background: #eaf6ff; }
 </style>
 
+</div>
 @endsection

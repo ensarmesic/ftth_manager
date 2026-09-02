@@ -20,32 +20,37 @@ class RouteController extends Controller
 
     public function routes(Request $request): View
     {
+        $projectId = Project::query()->whereKey($request->integer('project'))->value('id');
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet'])->where('route_type', '!=', 'trench')
+            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
             ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
                 ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('microduct_type', 'like', '%'.$request->string('q')->trim().'%')
                 ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
             ->latest()->paginate(12)->withQueryString();
-        $totalDuct = NetworkRoute::where('route_type', 'trench')->sum('duct_length_m');
+        $totalDuct = NetworkRoute::where('route_type', 'trench')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->sum('duct_length_m');
         $effectiveMicroduct = NetworkRoute::query()
             ->where('route_type', '!=', 'trench')
+            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
             ->selectRaw('SUM(duct_length_m * microduct_count) as total')
             ->value('total') ?? 0;
-        $totalFiber = NetworkRoute::where('route_type', '!=', 'trench')->sum('fiber_length_m');
+        $totalFiber = NetworkRoute::where('route_type', '!=', 'trench')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->sum('fiber_length_m');
 
         return view('ftth.routes', [
             'routes' => $routes,
             'projects' => Project::orderBy('name')->get(),
-            'odfs' => Odf::orderBy('name')->get(),
-            'cabinets' => Cabinet::orderBy('name')->get(),
+            'odfs' => Odf::when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
+            'cabinets' => Cabinet::when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
             'routeStats' => [
                 'duct' => $totalDuct,
                 'effective_microduct' => $effectiveMicroduct,
                 'microduct_with_reserve' => ceil($effectiveMicroduct * 1.1),
                 'fiber' => $totalFiber,
                 'fiber_with_reserve' => ceil($totalFiber * 1.1),
-                'planned_cabinets' => Cabinet::count(),
-                'planned_splitters' => Cabinet::sum('splitter_count'),
+                'planned_cabinets' => Cabinet::when($projectId, fn ($query) => $query->where('project_id', $projectId))->count(),
+                'planned_splitters' => Cabinet::when($projectId, fn ($query) => $query->where('project_id', $projectId))->sum('splitter_count'),
             ],
+            'selectedProject' => $projectId ? Project::find($projectId) : null,
+            'projectContext' => $this->projectWorkspaceContext($projectId),
         ]);
     }
 

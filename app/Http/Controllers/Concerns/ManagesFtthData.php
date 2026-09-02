@@ -32,6 +32,40 @@ trait ManagesFtthData
         protected readonly DXFParserService $dxfParser,
     ) {}
 
+    protected function projectWorkspaceContext(?int $projectId): ?array
+    {
+        if (! $projectId) {
+            return null;
+        }
+
+        $project = Project::query()->withCount([
+            'odfs', 'cabinets', 'houses', 'branches',
+            'routes as network_routes_count' => fn ($query) => $query->where('route_type', '!=', 'trench'),
+            'houses as unassigned_houses_count' => fn ($query) => $query->whereNull('cabinet_id'),
+            'cabinets as unlinked_cabinets_count' => fn ($query) => $query->whereNull('odf_id')->whereNull('parent_cabinet_id'),
+        ])->find($projectId);
+
+        if (! $project) {
+            return null;
+        }
+
+        $routeMeters = (int) NetworkRoute::query()->where('project_id', $projectId)
+            ->where('route_type', '!=', 'trench')->sum('duct_length_m');
+        $capacity = (int) Cabinet::query()->where('project_id', $projectId)
+            ->selectRaw('COALESCE(SUM(splitter_count * ports_per_splitter), 0) AS total')->value('total');
+        $usedPorts = (int) House::query()->where('project_id', $projectId)->whereNotNull('cabinet_id')->count();
+        $issues = (int) $project->unassigned_houses_count + (int) $project->unlinked_cabinets_count;
+
+        return [
+            'project' => $project,
+            'route_km' => round($routeMeters / 1000, 2),
+            'capacity' => $capacity,
+            'used_ports' => $usedPorts,
+            'utilization' => $capacity > 0 ? min(100, (int) round($usedPorts / $capacity * 100)) : 0,
+            'issues' => $issues,
+        ];
+    }
+
     // -------------------------------------------------------------------------
     // Position
     // -------------------------------------------------------------------------

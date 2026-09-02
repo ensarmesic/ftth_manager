@@ -18,18 +18,23 @@ class OdfController extends Controller
 
     public function odfs(Request $request): View
     {
+        $projectId = Project::query()->whereKey($request->integer('project'))->value('id');
+        $odfScope = fn () => Odf::query()->when($projectId, fn ($query) => $query->where('project_id', $projectId));
+
         return view('ftth.odfs', [
-            'odfs' => Odf::with('project')->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+            'odfs' => Odf::with('project')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
                 ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('address', 'like', '%'.$request->string('q')->trim().'%')
                 ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
                 ->latest()->paginate(12)->withQueryString(),
             'projects' => Project::orderBy('name')->get(),
             'odfStats' => [
-                'total' => Odf::count(),
-                'ports' => Odf::sum('port_count'),
-                'fibers' => Odf::sum('fiber_capacity'),
-                'projects' => Project::count(),
+                'total' => $odfScope()->count(),
+                'ports' => $odfScope()->sum('port_count'),
+                'fibers' => $odfScope()->sum('fiber_capacity'),
+                'projects' => $projectId ? 1 : Project::count(),
             ],
+            'selectedProject' => $projectId ? Project::find($projectId) : null,
+            'projectContext' => $this->projectWorkspaceContext($projectId),
         ]);
     }
 

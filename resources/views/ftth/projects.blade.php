@@ -52,8 +52,8 @@
     </div>
 </div>
 
-<div class="app-table-card">
-    <div class="overflow-x-auto">
+<div class="app-table-card project-table-card">
+    <div class="project-table-scroll overflow-x-auto">
         <table class="w-full text-left">
             <thead>
                 <tr>
@@ -74,7 +74,7 @@
                     <td>{{ $project->investor ?? '-' }}</td>
                     <td>@include('ftth.partials.badge', ['value' => $project->status])</td>
                     <td>
-                        <div class="flex items-center gap-1.5 flex-wrap">
+                        <div class="project-row-actions flex items-center gap-1.5">
                             {{-- Pregled --}}
                             <a href="{{ route('projects.show', $project->id) }}" class="tbl-btn" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe">
                                 <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M8 9.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path fill-rule="evenodd" d="M1.38 8.28a.87.87 0 000 .44C1.97 10.92 4.788 13.5 8 13.5s6.03-2.58 6.62-4.78a.87.87 0 000-.44C14.03 6.08 11.212 3.5 8 3.5S1.97 6.08 1.38 8.28zM11 8a3 3 0 11-6 0 3 3 0 016 0z" clip-rule="evenodd"/></svg>
@@ -138,7 +138,15 @@
                             </details>
                             @endcan
 
-                            {{-- Export dugmad --}}
+                            {{-- Izvoz i projektne datoteke --}}
+                            @if(auth()->user()->can('project.export') || auth()->user()->can('project.backup'))
+                            <details class="project-export-menu relative inline-block">
+                                <summary class="tbl-btn list-none cursor-pointer" title="Izvoz i projektne datoteke">
+                                    <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/></svg>
+                                    Izvoz
+                                    <svg viewBox="0 0 16 16" fill="currentColor" class="project-export-chevron w-3 h-3"><path d="M4.22 6.22a.75.75 0 011.06 0L8 8.94l2.72-2.72a.75.75 0 111.06 1.06l-3.25 3.25a.75.75 0 01-1.06 0L4.22 7.28a.75.75 0 010-1.06z"/></svg>
+                                </summary>
+                                <div class="project-export-popover">
                             @can('project.export')
                             <a href="#"
                                data-dxf-export="{{ route('projects.dxf', $project->id) }}"
@@ -174,6 +182,10 @@
                                 Print
                             </a>
                             @endcan
+
+                                </div>
+                            </details>
+                            @endif
 
                             {{-- Obriši --}}
                             @can('destructive')

@@ -2,6 +2,8 @@
 @section('title', 'ODF lokacije')
 @section('subtitle', 'Centralne optičke distribucione tačke iz kojih se napaja mreža.')
 @section('content')
+<div class="network-page network-page--odf">
+@include('ftth.partials.network-page-intro', ['kind' => 'odf'])
 
 <section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
@@ -40,7 +42,7 @@
 
 @include('ftth.partials.table', [
     'rows' => $odfs,
-    'columns' => ['name' => 'Naziv', 'project.name' => 'Projekat', 'address' => 'Adresa', 'port_count' => 'Portovi', 'fiber_capacity' => 'Vlakna'],
+    'columns' => array_filter(['name' => 'Naziv', 'project.name' => $selectedProject ? null : 'Projekat', 'address' => 'Adresa', 'port_count' => 'Portovi', 'fiber_capacity' => 'Vlakna']),
     'editRoute' => fn($id) => route('odfs.update', $id),
     'deleteRoute' => fn($id) => route('odfs.delete', $id),
     'editFields' => [
@@ -67,7 +69,7 @@
             <label class="ftth-label">Projekat
                 <select name="project_id" class="ftth-input" required>
                     <option value="">Odaberi projekat</option>
-                    @foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach
+                    @foreach($projects as $project)<option value="{{ $project->id }}" @selected($selectedProject?->id === $project->id)>{{ $project->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Naziv ODF-a<input name="name" value="{{ old('name') }}" class="ftth-input" required></label>
@@ -87,4 +89,5 @@
 </div>
 @if($errors->any())<script>document.getElementById('drawer-odfs')?.classList.add('open');</script>@endif
 
+</div>
 @endsection

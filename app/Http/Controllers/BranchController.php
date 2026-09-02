@@ -17,25 +17,30 @@ class BranchController extends Controller
 
     public function branches(Request $request): View
     {
+        $projectId = Project::query()->whereKey($request->integer('project'))->value('id');
+        $branchScope = fn () => NetworkBranch::query()->when($projectId, fn ($query) => $query->where('project_id', $projectId));
         $branchStats = [
-            'total' => NetworkBranch::whereNotIn('type', ['rov'])->count(),
-            'primary' => NetworkBranch::where('type', 'primary')->count(),
-            'secondary' => NetworkBranch::where('type', 'secondary')->count(),
-            'cabinets' => Cabinet::whereNotNull('branch_id')->count(),
-            'rov' => NetworkBranch::where('type', 'rov')->count(),
+            'total' => $branchScope()->whereNotIn('type', ['rov'])->count(),
+            'primary' => $branchScope()->where('type', 'primary')->count(),
+            'secondary' => $branchScope()->where('type', 'secondary')->count(),
+            'cabinets' => Cabinet::whereNotNull('branch_id')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->count(),
+            'rov' => $branchScope()->where('type', 'rov')->count(),
         ];
 
         return view('ftth.branches', [
             'branches' => NetworkBranch::with(['project', 'odf', 'parentBranch', 'route'])->withCount('cabinets')
+                ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
                 ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
                     ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('code', 'like', '%'.$request->string('q')->trim().'%')
                     ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
                 ->orderBy('project_id')->orderBy('sort_order')->paginate(30)->withQueryString(),
             'projects' => Project::orderBy('name')->get(),
-            'odfs' => Odf::with('project')->orderBy('name')->get(),
-            'parentBranches' => NetworkBranch::with('project')->orderBy('name')->get(),
-            'routes' => NetworkRoute::with('project')->whereIn('route_type', ['backbone', 'feeder', 'distribution'])->orderBy('name')->get(),
+            'odfs' => Odf::with('project')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
+            'parentBranches' => NetworkBranch::with('project')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
+            'routes' => NetworkRoute::with('project')->whereIn('route_type', ['backbone', 'feeder', 'distribution'])->when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
             'branchStats' => $branchStats,
+            'selectedProject' => $projectId ? Project::find($projectId) : null,
+            'projectContext' => $this->projectWorkspaceContext($projectId),
         ]);
     }
 

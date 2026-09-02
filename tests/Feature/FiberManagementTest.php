@@ -351,6 +351,10 @@ class FiberManagementTest extends TestCase
         $this->assertSame(1, $plan['allocations'][$secondCabinet->id]['from']);
         $this->assertSame(1, $plan['odfs'][$firstOdf->id]['usedTo']);
         $this->assertSame(1, $plan['odfs'][$secondOdf->id]['usedTo']);
+        $this->assertSame(2, $plan['odfs'][$firstOdf->id]['reserveFrom']);
+        $this->assertSame(1, $plan['odfs'][$firstOdf->id]['reserveTo']);
+        $this->assertSame(2, $plan['odfs'][$secondOdf->id]['reserveFrom']);
+        $this->assertSame(1, $plan['odfs'][$secondOdf->id]['reserveTo']);
         $this->assertSame(2, $plan['capacity']);
         $this->assertSame(2, $plan['usedFibers']);
         $this->assertFalse(collect($plan['issues'])->contains(

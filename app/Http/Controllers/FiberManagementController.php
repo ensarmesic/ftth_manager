@@ -180,7 +180,7 @@ class FiberManagementController extends Controller
         }
         $lines = collect($rows)->map(fn (array $row): string => collect($row)->map($this->csvCell(...))->implode(';'));
 
-        return response("\xEF\xBB\xBF".$lines->implode("\r\n"), 200, ['Content-Type' => 'text/csv; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="fiber-plan-'.str($project->code ?: $project->name)->slug().'.csv"']);
+        return response("\xEF\xBB\xBF".$lines->implode("\r\n"), 200, ['Content-Type' => 'text/csv; charset=UTF-8', 'Content-Disposition' => 'attachment; filename="fiber-plan-'.str($project->code ?: $project->name)->slug().'.csv"', 'X-Fiber-Plan-Signature' => $plan['signature']]);
     }
 
     public function fieldSheet(Project $project, Cabinet $cabinet, FiberPlanService $service): View

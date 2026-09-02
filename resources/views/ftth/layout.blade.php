@@ -36,6 +36,7 @@
     if (! auth()->user()->can('settings.manage')) {
         $sidebarItems = array_values(array_filter($sidebarItems, fn ($item) => $item[0] !== 'settings.index'));
     }
+    $projectScopedRoutes = ['odfs.index', 'cabinets.index', 'houses.index', 'routes.index', 'branches.index'];
     $sidebarIcons = [
         'squares' => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4zM10 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1V4zM2 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zM10 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1v-6z"/></svg>',
         'folder'  => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>',
@@ -75,7 +76,7 @@
                 @if($route === 'odfs.index')<span class="nav-section-label">Mrežna evidencija</span>@endif
                 @if($route === 'reports.index')<span class="nav-section-label">Analitika i kontrola</span>@endif
                 @if($route === 'settings.index')<span class="nav-section-label">Sistem</span>@endif
-                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route) }}">
+                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}">
                     <span class="shrink-0 opacity-70">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                     {{ $label }}
                 </a>
@@ -99,7 +100,7 @@
                 <button type="button" data-header-action="mobile-menu" class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Meni">
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
                 </button>
-                <a href="{{ route('dashboard') }}" class="flex shrink-0 items-center" aria-label="FTTH Manager — početna">
+                <a href="{{ route('dashboard') }}" class="topbar-brand flex shrink-0 items-center" aria-label="FTTH Manager — početna">
                     <img src="{{ asset('images/logo.png') }}" alt="Media Sky Telekomunikacije" class="h-auto w-24 object-contain sm:w-28">
                 </a>
                 <div class="hidden min-w-0 items-center gap-2 sm:flex">
@@ -179,7 +180,7 @@
     </div>
     <nav class="grid gap-px p-2 text-[13px]">
         @foreach ($sidebarItems as [$route, $label, $iconKey])
-            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route) }}">
+            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}">
                 <span class="shrink-0 opacity-75">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                 {{ $label }}
             </a>

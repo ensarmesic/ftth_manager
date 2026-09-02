@@ -2,6 +2,8 @@
 @section('title', 'Kuće')
 @section('subtitle', 'Evidencija kuća i priključnih tačaka povezanih na projekat i ODO ormarić.')
 @section('content')
+<div class="network-page network-page--house">
+@include('ftth.partials.network-page-intro', ['kind' => 'house'])
 
 <section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
@@ -40,7 +42,7 @@
 
 @include('ftth.partials.table', [
     'rows' => $houses,
-    'columns' => ['label' => 'Kuća', 'project.name' => 'Projekat', 'cabinet.name' => 'ODO', 'address' => 'Adresa', 'status' => 'Status'],
+    'columns' => array_filter(['label' => 'Kuća', 'project.name' => $selectedProject ? null : 'Projekat', 'cabinet.name' => 'ODO', 'address' => 'Adresa', 'status' => 'Status']),
     'editRoute' => fn($id) => route('houses.update', $id),
     'deleteRoute' => fn($id) => route('houses.delete', $id),
     'editFields' => [
@@ -66,7 +68,7 @@
             <label class="ftth-label">Projekat
                 <select name="project_id" class="ftth-input" required>
                     <option value="">Odaberi projekat</option>
-                    @foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach
+                    @foreach($projects as $project)<option value="{{ $project->id }}" @selected($selectedProject?->id === $project->id)>{{ $project->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">ODO ormarić
@@ -94,4 +96,5 @@
 </div>
 @if($errors->any())<script>document.getElementById('drawer-houses')?.classList.add('open');</script>@endif
 
+</div>
 @endsection

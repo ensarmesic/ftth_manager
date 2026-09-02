@@ -2,6 +2,8 @@
 @section('title', 'ODO ormarići')
 @section('subtitle', 'Distribucione tačke koje se planiraju na sekundarnim krakovima.')
 @section('content')
+<div class="network-page network-page--cabinet">
+@include('ftth.partials.network-page-intro', ['kind' => 'cabinet'])
 
 <section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="stat-card">
@@ -42,7 +44,7 @@
     <div class="overflow-x-auto">
         <table class="w-full text-left">
             <thead>
-                <tr><th>Ormarić</th><th>Projekat</th><th>Krak</th><th>Napajanje</th><th>Kapacitet</th><th>Popunjenost</th><th>Status</th><th>Akcije</th></tr>
+                <tr><th>Ormarić</th>@unless($selectedProject)<th>Projekat</th>@endunless<th>Krak</th><th>Napajanje</th><th>Kapacitet</th><th>Popunjenost</th><th>Status</th><th>Akcije</th></tr>
             </thead>
             <tbody>
                 @forelse($cabinets as $cabinet)
@@ -53,7 +55,7 @@
                                 <div class="text-xs text-slate-400 font-normal mt-0.5">{{ $cabinet->childCabinets->count() }} izvedenih</div>
                             @endif
                         </td>
-                        <td>{{ $cabinet->project->name }}</td>
+                        @unless($selectedProject)<td>{{ $cabinet->project->name }}</td>@endunless
                         <td>
                             <div>{{ $cabinet->branch?->name ?? '—' }}</div>
                             @if($cabinet->branch_order)<small class="text-slate-400">#{{ $cabinet->branch_order }}</small>@endif
@@ -112,7 +114,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8">@include('ftth.partials.empty-state', ['title' => 'Nema ormarića', 'message' => 'Dodaj prvi ODO ormarić kroz formu ili automatski planer.'])</td></tr>
+                    <tr><td colspan="{{ $selectedProject ? 7 : 8 }}">@include('ftth.partials.empty-state', ['title' => 'Nema ormarića', 'message' => 'Dodaj prvi ODO ormarić kroz formu ili automatski planer.'])</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -135,7 +137,7 @@
             <label class="ftth-label">Projekat
                 <select name="project_id" class="ftth-input" required>
                     <option value="">Odaberi projekat</option>
-                    @foreach($projects as $project)<option value="{{ $project->id }}">{{ $project->name }}</option>@endforeach
+                    @foreach($projects as $project)<option value="{{ $project->id }}" @selected($selectedProject?->id === $project->id)>{{ $project->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">ODF lokacija
@@ -179,4 +181,5 @@
 </div>
 @if($errors->any())<script>document.getElementById('drawer-cabinets')?.classList.add('open');</script>@endif
 
+</div>
 @endsection

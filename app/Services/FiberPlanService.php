@@ -9,13 +9,13 @@ use Illuminate\Support\Collection;
 class FiberPlanService
 {
     private const PON_PROFILES = [
-        'gpon_b_plus' => ['label' => 'GPON B+', 'standard' => 'ITU-T G.984.2', 'min' => 13.0, 'max' => 28.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310],
-        'gpon_c_plus' => ['label' => 'GPON C+', 'standard' => 'ITU-T G.984.2', 'min' => 17.0, 'max' => 32.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310],
-        'gpon_d' => ['label' => 'GPON D', 'standard' => 'ITU-T G.984.2', 'min' => 20.0, 'max' => 35.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310],
-        'xgs_n1' => ['label' => 'XGS-PON N1', 'standard' => 'ITU-T G.9807.1', 'min' => 14.0, 'max' => 29.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270],
-        'xgs_n2' => ['label' => 'XGS-PON N2', 'standard' => 'ITU-T G.9807.1', 'min' => 16.0, 'max' => 31.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270],
-        'xgs_e1' => ['label' => 'XGS-PON E1', 'standard' => 'ITU-T G.9807.1', 'min' => 18.0, 'max' => 33.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270],
-        'xgs_e2' => ['label' => 'XGS-PON E2', 'standard' => 'ITU-T G.9807.1', 'min' => 20.0, 'max' => 35.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270],
+        'gpon_b_plus' => ['label' => 'GPON B+', 'standard' => 'ITU-T G.984.2', 'min' => 13.0, 'max' => 28.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310, 'distance_category' => '20 km'],
+        'gpon_c_plus' => ['label' => 'GPON C+', 'standard' => 'ITU-T G.984.2', 'min' => 17.0, 'max' => 32.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310, 'distance_category' => '20 km'],
+        'gpon_d' => ['label' => 'GPON D', 'standard' => 'ITU-T G.984.2', 'min' => 20.0, 'max' => 35.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310, 'distance_category' => '20 km'],
+        'xgs_n1' => ['label' => 'XGS-PON N1', 'standard' => 'ITU-T G.9807.1', 'min' => 14.0, 'max' => 29.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270, 'distance_category' => 'DD20'],
+        'xgs_n2' => ['label' => 'XGS-PON N2', 'standard' => 'ITU-T G.9807.1', 'min' => 16.0, 'max' => 31.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270, 'distance_category' => 'DD20'],
+        'xgs_e1' => ['label' => 'XGS-PON E1', 'standard' => 'ITU-T G.9807.1', 'min' => 18.0, 'max' => 33.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270, 'distance_category' => 'DD20'],
+        'xgs_e2' => ['label' => 'XGS-PON E2', 'standard' => 'ITU-T G.9807.1', 'min' => 20.0, 'max' => 35.0, 'downstream_nm' => 1577, 'upstream_nm' => 1270, 'distance_category' => 'DD20'],
     ];
 
     public function build(Project $project): array
@@ -101,6 +101,8 @@ class FiberPlanService
                 'usedTo' => (int) ($ranges->max('to') ?: 0),
                 'usedFibers' => $claimed->unique()->count(),
                 'duplicates' => $claimed->duplicates()->unique()->values()->all(),
+                'reserveFrom' => (int) ($ranges->max('to') ?: 0) + 1,
+                'reserveTo' => max(1, (int) $odf->fiber_capacity),
             ]];
         });
         $capacity = max(1, (int) $odfPlans->sum('capacity'));
@@ -109,11 +111,27 @@ class FiberPlanService
         $profile = self::PON_PROFILES[$project->pon_profile ?? 'gpon_b_plus'] ?? self::PON_PROFILES['gpon_b_plus'];
         $budgetLimit = $profile['max'];
         $engineeringMargin = (float) ($project->engineering_margin_db ?? 3);
-        $connections = $cabinets->map(function ($cabinet) use ($allocations, $contexts, $branchIndex, $fibersPerTube, $project, $budgetLimit, $profile, $engineeringMargin): array {
+        $routeLengthFor = function ($cabinet) use ($branchIndex, $cabinetIndex): float {
+            $meters = 0.0;
+            $branch = $cabinet->branch_id ? $branchIndex->get($cabinet->branch_id) : null;
+            $visited = [];
+            while ($branch && ! isset($visited[$branch->id])) {
+                $visited[$branch->id] = true;
+                $meters += (float) ($branch->route?->fiber_length_m ?: $branch->route?->duct_length_m ?: 0);
+                if ($branch->route?->from_type !== 'cabinet' || ! $branch->route?->from_id) {
+                    break;
+                }
+                $sourceCabinet = $cabinetIndex->get($branch->route->from_id);
+                $branch = $sourceCabinet?->branch_id ? $branchIndex->get($sourceCabinet->branch_id) : null;
+            }
+
+            return $meters / 1000;
+        };
+        $connections = $cabinets->map(function ($cabinet) use ($allocations, $contexts, $branchIndex, $fibersPerTube, $project, $budgetLimit, $profile, $engineeringMargin, $routeLengthFor): array {
             $range = $allocations[$cabinet->id] ?? null;
             $context = $contexts[$cabinet->id];
             $branch = $branchIndex->get($context['branch_id']);
-            $routeLengthKm = ((float) ($branch?->route?->fiber_length_m ?: $branch?->route?->duct_length_m)) / 1000;
+            $routeLengthKm = $routeLengthFor($cabinet);
             $splitterRatio = max(2, (int) $cabinet->ports_per_splitter);
             $feederSplitterRatio = max(1, (int) ($project->feeder_splitter_ratio ?? 1));
             $accessSplitterLoss = $this->splitterLoss($splitterRatio);
@@ -137,6 +155,12 @@ class FiberPlanService
             $loss = round(max($downstreamLoss, $upstreamLoss), 2);
             $designLoss = round($loss + $engineeringMargin, 2);
             $headroom = round($budgetLimit - $designLoss, 2);
+            $incompleteFields = collect([
+                ! $range ? 'dodjela vlakana' : null,
+                $routeLengthKm <= 0 ? 'dužina optičke putanje' : null,
+                ! $context['odf_id'] ? 'ODF veza' : null,
+                ! $context['branch_id'] ? 'mrežni krak' : null,
+            ])->filter()->values()->all();
             $belowMinimum = $loss < $profile['min'];
             $receiverLevelInvalid = $receiverMargin !== null && $receiverMargin < 0;
             $receiverMarginLow = $receiverMargin !== null && ! $receiverLevelInvalid && $receiverMargin < $engineeringMargin;
@@ -158,6 +182,7 @@ class FiberPlanService
                 'downstream_rx_dbm' => $downstreamRx, 'upstream_rx_dbm' => $upstreamRx,
                 'downstream_receiver_margin_db' => $downstreamReceiverMargin, 'upstream_receiver_margin_db' => $upstreamReceiverMargin,
                 'receiver_margin_db' => $receiverMargin, 'receiver_level_invalid' => $receiverLevelInvalid, 'receiver_margin_low' => $receiverMarginLow,
+                'data_complete' => $incompleteFields === [], 'incomplete_fields' => $incompleteFields,
             ];
         })->values();
 
@@ -193,13 +218,26 @@ class FiberPlanService
             ->merge($connections->where('below_minimum', false)->filter(fn ($item) => $item['design_loss_db'] > $budgetLimit)->map(fn ($item) => ['level' => 'error', 'message' => $item['cabinet'].' prelazi projektni budžet sa rezervom za '.abs($item['headroom_db']).' dB.']))
             ->merge($connections->where('receiver_level_invalid', true)->map(fn ($item) => ['level' => 'error', 'message' => $item['cabinet'].' ima prijemni nivo ispod osjetljivosti prijemnika.']))
             ->merge($connections->where('receiver_margin_low', true)->map(fn ($item) => ['level' => 'warning', 'message' => $item['cabinet'].' nema punu inženjersku rezervu prema osjetljivosti prijemnika.']))
+            ->merge($connections->where('data_complete', false)->map(fn ($item) => ['level' => 'warning', 'message' => $item['cabinet'].' nema kompletne projektne podatke: '.implode(', ', $item['incomplete_fields']).'.']))
+            ->merge($connections->filter(fn ($item) => $item['route_km'] > 20)->map(fn ($item) => ['level' => 'error', 'message' => $item['cabinet'].' ima optičku putanju '.$item['route_km'].' km, iznad '.$profile['distance_category'].' klase aktivnog profila.']))
             ->merge($connections->filter(fn ($item) => $item['headroom_db'] >= 0 && $item['headroom_db'] < 1)->map(fn ($item) => ['level' => 'warning', 'message' => $item['cabinet'].' ima manje od 1 dB rezerve nakon inženjerske margine.']))
             ->values();
 
-        return compact('allocations', 'connections', 'issues', 'fibersPerTube', 'reservePerTube', 'capacity', 'usedFibers', 'usedTo', 'budgetLimit', 'profile', 'engineeringMargin') + [
+        $signature = strtoupper(substr(hash('sha256', json_encode([
+            'project' => $project->id,
+            'allocations' => collect($allocations)->sortKeys()->all(),
+            'connections' => $connections->map(fn (array $connection): array => collect($connection)
+                ->only(['cabinet_id', 'route_km', 'loss_db', 'design_loss_db', 'headroom_db', 'budget_status'])
+                ->all())->all(),
+            'profile' => $project->pon_profile ?? 'gpon_b_plus',
+            'layout' => $project->fiber_layout ?? '6x24',
+            'color' => $project->fiber_color_standard ?? 'telcordia',
+        ], JSON_PRESERVE_ZERO_FRACTION | JSON_UNESCAPED_UNICODE)), 0, 16));
+
+        return compact('allocations', 'connections', 'issues', 'fibersPerTube', 'reservePerTube', 'capacity', 'usedFibers', 'usedTo', 'budgetLimit', 'profile', 'engineeringMargin', 'signature') + [
             'odfs' => $odfPlans->all(),
             'assumptionsConfirmed' => $confirmed,
-            'reserveFrom' => $usedTo + 1, 'reserveTo' => $capacity, 'health' => max(0, 100 - $issues->where('level', 'error')->count() * 20 - $issues->where('level', 'warning')->count() * 7),
+            'reserveFrom' => $usedTo + 1, 'reserveTo' => (int) ($odfPlans->max('capacity') ?: 0), 'health' => max(0, 100 - $issues->where('level', 'error')->count() * 20 - $issues->where('level', 'warning')->count() * 7),
         ];
     }
 

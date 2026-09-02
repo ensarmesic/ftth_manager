@@ -23,7 +23,9 @@ class CabinetController extends Controller
 
     public function cabinets(Request $request): View
     {
+        $projectId = Project::query()->whereKey($request->integer('project'))->value('id');
         $cabinetUsage = Cabinet::query()
+            ->when($projectId, fn ($query) => $query->where('cabinets.project_id', $projectId))
             ->leftJoin('houses', 'houses.cabinet_id', '=', 'cabinets.id')
             ->groupBy('cabinets.id', 'cabinets.splitter_count', 'cabinets.ports_per_splitter')
             ->selectRaw('cabinets.splitter_count * cabinets.ports_per_splitter AS capacity')
@@ -44,15 +46,18 @@ class CabinetController extends Controller
 
         return view('ftth.cabinets', [
             'cabinets' => Cabinet::with(['project', 'odf', 'branch', 'parentCabinet', 'childCabinets'])->withCount(['houses'])
+                ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
                 ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
                     ->where('name', 'like', '%'.$request->string('q')->trim().'%')->orWhere('address', 'like', '%'.$request->string('q')->trim().'%')
                     ->orWhereHas('project', fn ($project) => $project->where('name', 'like', '%'.$request->string('q')->trim().'%'))))
                 ->latest()->paginate(12)->withQueryString(),
-            'parentCabinets' => Cabinet::with('project')->orderBy('name')->get(),
-            'branches' => NetworkBranch::with('project')->where('type', 'secondary')->orderBy('sort_order')->orderBy('name')->get(),
+            'parentCabinets' => Cabinet::with('project')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
+            'branches' => NetworkBranch::with('project')->where('type', 'secondary')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('sort_order')->orderBy('name')->get(),
             'projects' => Project::orderBy('name')->get(),
-            'odfs' => Odf::with('project')->orderBy('name')->get(),
+            'odfs' => Odf::with('project')->when($projectId, fn ($query) => $query->where('project_id', $projectId))->orderBy('name')->get(),
             'cabinetStats' => $cabinetStats,
+            'selectedProject' => $projectId ? Project::find($projectId) : null,
+            'projectContext' => $this->projectWorkspaceContext($projectId),
         ]);
     }
 
