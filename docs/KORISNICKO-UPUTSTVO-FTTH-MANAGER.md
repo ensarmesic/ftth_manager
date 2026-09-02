@@ -458,8 +458,130 @@ Druga opcija je destruktivna. Prije nje obavezno napravite JSON backup.
 Aplikacija automatski pravi snapshot prije potvrđenog TXT uvoza, ali se ne treba
 oslanjati samo na jednu vrstu zaštite.
 
-Potpuni standard za snimanje i TXT format nalazi se u
-[uputstvu za geodetski TXT](UPUTSTVO-ZA-GEODETSKI-TXT-FTTH.txt).
+### 19.1. Obavezni format TXT fajla
+
+Fajl mora biti obični tekst sa nastavkom `.txt`, preporučeno kodiran kao UTF-8,
+i ne smije biti veći od 10 MB. Svaka izmjerena tačka ide u zaseban red:
+
+```text
+BROJ X Y Z OPIS
+```
+
+Primjer ispravnog reda:
+
+```text
+1381 6539966.224 4927451.913 373.359 Rov + mc 10/8 Crvena x1 -ZO-7
+```
+
+Polja imaju sljedeće značenje:
+
+| Polje | Pravilo |
+|---|---|
+| `BROJ` | Jedinstven cijeli broj tačke, od 1 do 5 cifara |
+| `X` | Sedmocifrena Gauss–Krüger easting koordinata sa prefiksom zone 5, 6 ili 7 |
+| `Y` | Sedmocifrena Gauss–Krüger northing koordinata |
+| `Z` | Nadmorska visina u metrima |
+| `OPIS` | Vrsta objekta, mikrocijev, boja, broj cijevi i ciljni ZO kada je primjenjivo |
+
+Za decimalni separator koristi se tačka, ne zarez. Polja mogu biti razdvojena
+jednim ili više razmaka ili TAB znakom. Ne dodavati redne kolone, zareze,
+tačka-zareze ni dodatne brojeve ispred polja `BROJ`. Naslovni red nije potreban.
+
+Koordinate moraju biti MGI / Bessel 1841, Gauss–Krüger zona 5, 6 ili 7, u
+metrima. WGS84 vrijednosti poput `44.x 18.x`, zamijenjeni X/Y ili X bez prefiksa
+zone nisu ispravan ulaz. Prije kompletnog snimanja treba provjeriti poznatu
+kontrolnu tačku na mapi.
+
+### 19.2. Standardne oznake u polju OPIS
+
+Koristite stabilne oznake iz sljedećih primjera:
+
+```text
+100 6539000.000 4926000.000 250.000 ODF Rainci Gornji
+110 6539010.000 4926010.000 251.000 ZO-7
+120 6539020.000 4926020.000 252.000 Rov
+130 6539030.000 4926030.000 253.000 Rov + 3x fi 14 Zelena, Plava, Zuta
+140 6539040.000 4926040.000 254.000 Rov + mc 10/8 Crvena x2 -ZO-7
+150 6539050.000 4926050.000 255.000 Kuca 10/8 Crvena x1 -ZO-7
+160 6539060.000 4926060.000 256.000 Slinga 10/8 Crvena x1 -ZO-7
+170 6539070.000 4926070.000 257.000 Saht
+180 6539080.000 4926080.000 258.000 Spojnica 10/8 Crvena -ZO-7
+190 6539090.000 4926090.000 259.000 Busenje
+200 6539100.000 4926100.000 260.000 Stub
+```
+
+Pravila oznaka:
+
+- ODF može imati proizvoljan, ali uvijek isti naziv u svim fajlovima projekta;
+- ormar se piše `ZO-N`, npr. `ZO-1`, `ZO-2` ili `ZO-7`;
+- svaka korisnička mikrocijev je `10/8 Crvena` i mora imati cilj `-ZO-N`;
+- `x1`, `x2`, `x3` označava stvarni broj crvenih cijevi na toj dionici;
+- stvarna kuća se piše `Kuca`, a stvarna završna slinga `Slinga`;
+- glavne mikrocijevi mogu biti `14/10` ili `fi 14`; podržane boje su Zelena,
+  Plava, Crvena, Zuta, Bijela, Narandzasta, Ljubicasta, Siva i MD;
+- kada se jedna cijev odvoji, broj cijevi na sljedećoj dionici mora se smanjiti;
+- tačka ZO-a mora biti na stvarnoj koordinati ormara, a trasa mora stvarno doći
+  do te koordinate.
+
+### 19.3. Redoslijed tačaka, grananje i kontinuitet
+
+Tačke jedne dionice upisuju se redoslijedom kojim je trasa snimana. Obavezno
+snimite početak i kraj rova, svaku promjenu pravca, grananje, spajanje i promjenu
+broja ili vrste cijevi.
+
+Na mjestu grananja:
+
+1. završite prvi krak na njegovoj stvarnoj krajnjoj tački;
+2. novi krak započnite iz stvarne tačke grananja;
+3. koristite novi `BROJ`, ali isti izmjereni X/Y fizičkog čvora;
+4. nakon odvajanja upišite novi stvarni broj cijevi;
+5. ne koristite drugu privatnu kućnu granu kao prečicu do ZO-a.
+
+Tačke glavnog rova preporučeno je snimati svakih 2–10 m. Razmak uzastopnih
+tačaka iste glavne dionice ne smije prelaziti 20 m. Veliki prelazak na drugi
+krak pravite tek nakon završetka prethodnog kraka. Prazan red između grupa
+tačaka aplikacija tretira kao namjerni prekid geodetskog hoda.
+
+### 19.4. Minimalni kompletan primjer
+
+```text
+1 6539000.000 4926000.000 250.000 ZO-1
+2 6539005.000 4926005.000 250.200 Rov + mc 10/8 Crvena x2 -ZO-1
+3 6539010.000 4926010.000 250.400 Rov + mc 10/8 Crvena x2 -ZO-1
+4 6539015.000 4926015.000 250.600 Rov + mc 10/8 Crvena x1 -ZO-1
+5 6539020.000 4926020.000 250.800 Kuca 10/8 Crvena x1 -ZO-1
+6 6539015.000 4926015.000 250.600 Rov + mc 10/8 Crvena x1 -ZO-1
+7 6539025.000 4926025.000 251.000 Slinga 10/8 Crvena x1 -ZO-1
+```
+
+Tačka 6 ima novi broj, ali isti X/Y kao tačka grananja 4. Tako aplikacija zna da
+drugi krak počinje na stvarnom zajedničkom čvoru. Primjer je samo obrazac;
+BROJ, X, Y, Z i ZO uvijek zamijenite stvarno izmjerenim podacima.
+
+### 19.5. Preview i kontrola prije uvoza
+
+Nakon izbora fajla pregled prikazuje broj tačaka, dionice rova, mikrocijevi,
+ODF/ZO objekte, kuće/slinge i topološke greške. Uz rutu je prikazan izvor dokaza:
+strogi mrežni graf ili put kroz snimljeni rov. Klik na oznaku uz mikrocijev
+zumira njenu trasu na mapi. Dostupni su filter problema, poređenje sa već
+sačuvanim stanjem te kontrolni PDF i CSV izvještaj.
+
+Prije potvrde provjerite:
+
+- [ ] fajl ima nastavak `.txt`, UTF-8 sadržaj i manje od 10 MB;
+- [ ] svaki red je `BROJ X Y Z OPIS`, a svi brojevi tačaka su jedinstveni;
+- [ ] koordinate su Gauss–Krüger, decimalni separator je tačka;
+- [ ] svi ODF i ZO nazivi su dosljedni;
+- [ ] svaka `Kuca` i `Slinga` ima `10/8 Crvena x1` i tačan `-ZO-N`;
+- [ ] zajedničke tačke grananja imaju stvarni isti X/Y;
+- [ ] broj cijevi se smanjuje poslije odvajanja;
+- [ ] nema neočekivanih prekida, dugih segmenata ni rute kroz drugu kuću;
+- [ ] sve korisničke rute imaju status `do ZO`;
+- [ ] položaj poznatih kontrolnih tačaka je vizuelno potvrđen na mapi.
+
+Status **Kontrola prošla** znači da aplikacija nije pronašla blokirajuću
+topološku grešku. To nije geodetski certifikat tačnosti; odgovorni geodeta i
+projektant i dalje potvrđuju položaj, visine, opise i stvarno stanje mreže.
 
 ## 20. Terensko GPS snimanje iz aplikacije
 

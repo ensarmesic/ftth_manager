@@ -2,19 +2,29 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cabinet;
+use App\Models\House;
+use App\Models\NetworkRoute;
+use App\Models\Odf;
 use App\Models\Project;
 use App\Models\SurveyPoint;
 use App\Services\ProjectSnapshotService;
 use App\Services\SurveyImportMaintenanceService;
 use App\Services\SurveyPointImportService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\Response;
 
 class SurveyPointController extends Controller
 {
+    private const PREVIEW_CACHE_MINUTES = 15;
+
     public function __construct(
         private readonly SurveyPointImportService $importer,
         private readonly SurveyImportMaintenanceService $maintenance,
@@ -28,7 +38,7 @@ class SurveyPointController extends Controller
         ]);
 
         try {
-            return response()->json($this->importer->preview(
+            return response()->json($this->previewPayload(
                 $project,
                 $data['points_file']->get(),
                 $data['points_file']->getClientOriginalName(),
@@ -36,6 +46,37 @@ class SurveyPointController extends Controller
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
+    }
+
+    public function previewReport(Request $request, Project $project, string $format): Response
+    {
+        abort_unless(in_array($format, ['csv', 'pdf'], true), 404);
+        $data = $request->validate([
+            'points_file' => ['required', 'file', 'max:'.config('uploads.survey_txt_kb'), 'mimes:txt'],
+        ]);
+
+        try {
+            $preview = $this->previewPayload(
+                $project,
+                $data['points_file']->get(),
+                $data['points_file']->getClientOriginalName(),
+            );
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        $baseName = 'kontrola-geodetskog-uvoza-'.str($project->code ?: $project->name)->slug().'-'.now()->format('Ymd-His');
+        if ($format === 'csv') {
+            return response($this->validationReportCsv($preview), 200, [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$baseName.'.csv"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
+        return Pdf::loadView('ftth.survey-preview-report', compact('project', 'preview'))
+            ->setPaper('a4', 'landscape')
+            ->download($baseName.'.pdf');
     }
 
     public function import(Request $request, Project $project): JsonResponse
@@ -167,5 +208,139 @@ class SurveyPointController extends Controller
         abort_unless($point->project_id === $project->id && filled($point->photo_path), 404);
 
         return Storage::disk('local')->response($point->photo_path);
+    }
+
+    /**
+     * Cache an immutable preview against both the file hash and the current project
+     * network state. Any route/equipment/import change therefore creates a new key.
+     */
+    private function previewPayload(Project $project, string $contents, string $filename): array
+    {
+        $startedAt = microtime(true);
+        $batch = sha1($contents);
+        $duplicateDetectedEarly = SurveyPoint::where('project_id', $project->id)
+            ->where('import_batch', $batch)
+            ->exists();
+        $cacheKey = 'survey-preview:v3:'.hash('sha256', implode('|', [
+            $project->id,
+            $batch,
+            $this->projectNetworkFingerprint($project),
+        ]));
+
+        $preview = Cache::get($cacheKey);
+        $cacheHit = is_array($preview);
+        if (! $cacheHit) {
+            $preview = $this->importer->preview($project, $contents, $filename);
+            $preview['saved_comparison'] = $this->savedComparison($project, $batch, $preview);
+            Cache::put($cacheKey, $preview, now()->addMinutes(self::PREVIEW_CACHE_MINUTES));
+        }
+
+        // These values are cheap and authoritative at request time; never trust an old
+        // filename or duplicate flag merely because the route calculation was cached.
+        $preview['filename'] = $filename;
+        $preview['already_imported'] = $duplicateDetectedEarly;
+        $elapsedMs = round((microtime(true) - $startedAt) * 1000);
+        $executionBudgetSeconds = 30;
+        $preview['preview_meta'] = [
+            'cache_hit' => $cacheHit,
+            'processing_ms' => $elapsedMs,
+            'execution_budget_seconds' => $executionBudgetSeconds,
+            'budget_used_percent' => min(100, round($elapsedMs / ($executionBudgetSeconds * 10), 1)),
+            'duplicate_detected_early' => $duplicateDetectedEarly,
+            'file_fingerprint' => substr($batch, 0, 12),
+            'cache_ttl_minutes' => self::PREVIEW_CACHE_MINUTES,
+        ];
+
+        return $preview;
+    }
+
+    private function projectNetworkFingerprint(Project $project): string
+    {
+        $state = ['project' => [$project->updated_at?->toISOString()]];
+        foreach (['survey_points', 'routes', 'cabinets', 'odfs', 'houses'] as $table) {
+            $row = DB::table($table)
+                ->where('project_id', $project->id)
+                ->selectRaw('COUNT(*) as total, MAX(updated_at) as latest')
+                ->first();
+            $state[$table] = [(int) ($row->total ?? 0), $row->latest ?? null];
+        }
+
+        return hash('sha256', json_encode($state, JSON_THROW_ON_ERROR));
+    }
+
+    private function savedComparison(Project $project, string $batch, array $preview): array
+    {
+        $routeQuery = NetworkRoute::where('project_id', $project->id)->where('import_batch', $batch);
+        $saved = [
+            'points' => SurveyPoint::where('project_id', $project->id)->where('import_batch', $batch)->count(),
+            'trenches' => (clone $routeQuery)->where('route_type', 'trench')->count(),
+            'ducts' => (clone $routeQuery)->where('route_type', '!=', 'trench')->count(),
+            'cabinets' => Cabinet::where('project_id', $project->id)->where('import_batch', $batch)->count(),
+            'odfs' => Odf::where('project_id', $project->id)->where('import_batch', $batch)->count(),
+            'houses' => House::where('project_id', $project->id)->where('import_batch', $batch)->count(),
+        ];
+        $planned = [
+            'points' => (int) ($preview['total_points'] ?? 0),
+            'trenches' => count($preview['trench_runs'] ?? []),
+            'ducts' => count($preview['ducts'] ?? []),
+            'cabinets' => count($preview['cabinets'] ?? []),
+            'odfs' => count($preview['odfs'] ?? []),
+            'houses' => (int) ($preview['houses'] ?? 0),
+        ];
+
+        return [
+            'is_saved' => $saved['points'] > 0,
+            'saved' => $saved,
+            'preview' => $planned,
+            'delta' => collect($planned)->map(fn (int $value, string $key) => $value - $saved[$key])->all(),
+        ];
+    }
+
+    private function validationReportCsv(array $preview): string
+    {
+        $stream = fopen('php://temp', 'w+');
+        fwrite($stream, "\xEF\xBB\xBF");
+        fputcsv($stream, ['Tip', 'Stavka', 'Oznaka', 'Duzina (m)', 'Status', 'Ciljni ZO', 'Dokaz trase', 'Napomena'], ';');
+        fputcsv($stream, ['SAZETAK', 'Fajl', $preview['filename'] ?? '', '', $preview['quality']['status'] ?? '', '', '', ''], ';');
+        fputcsv($stream, ['SAZETAK', 'Tacke', $preview['total_points'] ?? 0, '', '', '', '', ''], ';');
+
+        foreach ($preview['trench_runs'] ?? [] as $index => $run) {
+            fputcsv($stream, [
+                'ROV', $index + 1, $this->safeCsvCell($run['code'] ?? ''),
+                $run['length_m'] ?? 0, 'snimljen', '', 'koordinatni graf',
+                ($run['points'] ?? 0).' tacaka',
+            ], ';');
+        }
+        foreach ($preview['ducts'] ?? [] as $index => $duct) {
+            fputcsv($stream, [
+                'MIKROCIJEV', $index + 1, $this->safeCsvCell($duct['label'] ?? ''),
+                $duct['length_m'] ?? 0, $duct['routing_status'] ?? '',
+                $this->safeCsvCell($duct['target_zo'] ?? $duct['matched_cabinet_name'] ?? ''),
+                $this->evidenceLabel($duct['validation_source'] ?? null),
+                implode(' | ', $duct['warnings'] ?? []),
+            ], ';');
+        }
+
+        rewind($stream);
+        $csv = stream_get_contents($stream);
+        fclose($stream);
+
+        return $csv;
+    }
+
+    private function safeCsvCell(mixed $value): string
+    {
+        $value = (string) $value;
+
+        return preg_match('/^[=+\-@]/', ltrim($value)) ? "'".$value : $value;
+    }
+
+    private function evidenceLabel(?string $source): string
+    {
+        return match ($source) {
+            'strict_network_graph' => 'strogi mrezni graf',
+            'surveyed_trench_route' => 'snimljeni rov',
+            default => $source ? str_replace('_', ' ', $source) : 'nije dokazano',
+        };
     }
 }

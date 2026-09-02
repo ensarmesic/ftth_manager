@@ -26,13 +26,14 @@ class DocumentationTest extends TestCase
             ->assertSee('Auto ODO i GIS planiranje');
     }
 
-    public function test_geodetic_standard_is_available_inside_the_application(): void
+    public function test_geodetic_txt_standard_is_consolidated_into_the_application_manual(): void
     {
         $this->actingAs(User::factory()->create())
             ->get(route('documentation', ['document' => 'geodetski-txt']))
             ->assertOk()
-            ->assertSee('FTTH - DETALJNO UPUTSTVO ZA GEODETSKI TXT')
-            ->assertSee('PODESAVANJE INSTRUMENTA I KOORDINATNI SISTEM');
+            ->assertSee('FTTH Manager — kompletno korisničko uputstvo')
+            ->assertSee('Obavezni format TXT fajla')
+            ->assertSee('BROJ X Y Z OPIS');
     }
 
     public function test_unknown_page_uses_the_branded_not_found_screen(): void

@@ -14,6 +14,7 @@ use App\Services\GeoTransformService;
 use App\Services\SurveyPointImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -412,6 +413,49 @@ class SurveyPointImportTest extends TestCase
             ->assertJsonCount(1, 'trench_runs')
             ->assertJsonCount(1, 'odfs');
 
+        $this->assertSame(0, SurveyPoint::count());
+        $this->assertSame(0, NetworkRoute::count());
+    }
+
+    public function test_preview_is_cached_per_file_and_invalidated_by_project_network_changes(): void
+    {
+        Cache::clear();
+        $project = Project::factory()->create();
+
+        $this->postJson(route('projects.survey-points.preview', $project), [
+            'points_file' => UploadedFile::fake()->createWithContent('snimak.txt', $this->sampleContents()),
+        ])->assertOk()
+            ->assertJsonPath('preview_meta.cache_hit', false)
+            ->assertJsonPath('preview_meta.duplicate_detected_early', false)
+            ->assertJsonStructure(['saved_comparison' => ['is_saved', 'saved', 'preview', 'delta']]);
+
+        $this->postJson(route('projects.survey-points.preview', $project), [
+            'points_file' => UploadedFile::fake()->createWithContent('isti-sadrzaj.txt', $this->sampleContents()),
+        ])->assertOk()
+            ->assertJsonPath('filename', 'isti-sadrzaj.txt')
+            ->assertJsonPath('preview_meta.cache_hit', true);
+
+        NetworkRoute::factory()->for($project)->create();
+        $this->postJson(route('projects.survey-points.preview', $project), [
+            'points_file' => UploadedFile::fake()->createWithContent('snimak.txt', $this->sampleContents()),
+        ])->assertOk()
+            ->assertJsonPath('preview_meta.cache_hit', false);
+    }
+
+    public function test_preview_validation_reports_download_as_csv_and_pdf_without_writing(): void
+    {
+        Cache::clear();
+        $project = Project::factory()->create(['name' => 'Kontrolni projekat']);
+
+        $csv = $this->post(route('projects.survey-points.preview-report', [$project, 'csv']), [
+            'points_file' => UploadedFile::fake()->createWithContent('snimak.txt', $this->sampleContents()),
+        ])->assertOk()->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+        $this->assertStringContainsString('MIKROCIJEV', $csv->getContent());
+
+        $pdf = $this->post(route('projects.survey-points.preview-report', [$project, 'pdf']), [
+            'points_file' => UploadedFile::fake()->createWithContent('snimak.txt', $this->sampleContents()),
+        ])->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
         $this->assertSame(0, SurveyPoint::count());
         $this->assertSame(0, NetworkRoute::count());
     }
@@ -1850,5 +1894,37 @@ class SurveyPointImportTest extends TestCase
         $trenches = $service->buildNetwork($points)['trenches'];
 
         $this->assertTrue(collect($trenches)->contains(fn (array $trench) => end($trench['path']) === [$points[2]['lat'], $points[2]['lng']]));
+    }
+
+    public function test_real_292_point_customer_file_routes_every_terminal_to_its_explicit_zo(): void
+    {
+        $project = Project::factory()->create();
+        $service = app(SurveyPointImportService::class);
+        $service->confirm(
+            $project,
+            file_get_contents(base_path('tests/Fixtures/survey/test1-user-routing-base.txt')),
+            'test1.txt',
+        );
+
+        $preview = $service->preview(
+            $project,
+            file_get_contents(base_path('tests/Fixtures/survey/test2-user-292.txt')),
+            'test2.txt',
+        );
+        $drops = collect($preview['ducts'])->filter(fn (array $duct): bool => isset($duct['terminal_point']));
+
+        $this->assertSame(292, $preview['total_points']);
+        $this->assertCount(49, $drops);
+        $this->assertSame(49, $drops->where('routing_status', 'complete')->count());
+        $this->assertSame(0, $drops->where('routing_status', 'unreachable')->count());
+        $this->assertSame(49, $drops->whereIn('validation_source', ['strict_network_graph', 'surveyed_trench_route'])->count());
+        $this->assertSame('ready', $preview['quality']['status']);
+
+        foreach ([1684, 1688, 1689] as $terminalPoint) {
+            $drop = $drops->firstWhere('terminal_point', $terminalPoint);
+            $this->assertNotNull($drop);
+            $this->assertSame('ZO-2', $drop['target_zo']);
+            $this->assertSame('ZO-2', $drop['matched_cabinet_name']);
+        }
     }
 }

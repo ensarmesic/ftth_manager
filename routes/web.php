@@ -98,6 +98,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projekti/{project}/drop-trase/audit', [DropRouteMaintenanceController::class, 'audit'])->name('projects.drop-routes.audit');
     Route::post('/projekti/{project}/drop-trase/popravi', [DropRouteMaintenanceController::class, 'repair'])->middleware('can:project.edit')->name('projects.drop-routes.repair');
     Route::post('/projekti/{project}/tacke/preview', [SurveyPointController::class, 'preview'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.survey-points.preview');
+    Route::post('/projekti/{project}/tacke/preview-izvjestaj/{format}', [SurveyPointController::class, 'previewReport'])->middleware(['can:project.edit', 'throttle:heavy'])->where('format', 'csv|pdf')->name('projects.survey-points.preview-report');
     Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.survey-points.import');
     Route::get('/projekti/{project}/tacke/importi', [SurveyPointController::class, 'imports'])->name('projects.survey-points.imports');
     Route::delete('/projekti/{project}/tacke/importi/{batch}', [SurveyPointController::class, 'destroyImport'])->middleware('can:destructive')->where('batch', '[a-f0-9]{40}')->name('projects.survey-points.imports.destroy');

@@ -30,6 +30,7 @@ class SurveyDropRoutingService
     ): array {
         $ducts = $this->createImplicitTaggedDrops($ducts, $routingTrenches, $points);
         $ducts = $this->attachDropMetadata($ducts, $points);
+        $ducts = $this->alignExplicitTerminalTargets($ducts, $points);
         $ducts = $this->routeTaggedDropsThroughTrenches($ducts, $cabinetRoutingTrenches, $bindingPoints);
         $ducts = $this->applyRecordedReturnBranches($ducts, $points, $bindingPoints);
         $ducts = $this->preserveCompletedShortSurveyPrefixes(
@@ -40,6 +41,33 @@ class SurveyDropRoutingService
         );
 
         return $this->retainTerminalCustomerDrops($ducts, $points);
+    }
+
+    /**
+     * The explicit ZO written at the customer point is authoritative. A late, isolated
+     * house reading can otherwise inherit the identity of the preceding recorded branch
+     * and be routed to the wrong cabinet (for example T1684 marked ZO-2 becoming ZO-1).
+     */
+    private function alignExplicitTerminalTargets(array $ducts, array $points): array
+    {
+        $terminals = collect($points)->whereIn('kind', ['sling', 'loop'])->keyBy('point_no');
+
+        foreach ($ducts as &$duct) {
+            if (($duct['microduct_type'] ?? null) !== '10/8' || ! isset($duct['_terminal_point'])) {
+                continue;
+            }
+            $terminal = $terminals->get((int) $duct['_terminal_point']);
+            if ($terminal === null
+                || ! ($terminal['target_zo_explicit'] ?? false)
+                || ($terminal['zo_tag'] ?? null) === null) {
+                continue;
+            }
+
+            $duct['zo_tag'] = (string) $terminal['zo_tag'];
+        }
+        unset($duct);
+
+        return $ducts;
     }
 
     /**

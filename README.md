@@ -134,15 +134,9 @@ E2E komande zahtijevaju `E2E_USERNAME`, `E2E_PASSWORD` i pokrenutu aplikaciju. V
 
 ## Korištenje
 
-Kompletno uputstvo za rad sa svim dijelovima aplikacije nalazi se u
+Kompletno uputstvo za rad sa svim dijelovima aplikacije, uključujući geodetski
+TXT format, produkciju, sigurnosne kopije i oporavak, nalazi se u
 [korisničkom uputstvu za FTTH Manager](docs/KORISNICKO-UPUTSTVO-FTTH-MANAGER.md).
-
-Detaljan standard za terensko snimanje koordinata, oznake elemenata, pripremu
-TXT fajla i kontrolu uvoza nalazi se u
-[uputstvu za geodetski TXT](docs/UPUTSTVO-ZA-GEODETSKI-TXT-FTTH.txt).
-
-Deployment, scheduler, backup/restore, health-check i incidentne procedure nalaze se u
-[produkcijskom uputstvu](docs/PRODUKCIJSKO-UPUTSTVO.md).
 
 ### Glavne stranice
 

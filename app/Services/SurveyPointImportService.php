@@ -492,13 +492,27 @@ class SurveyPointImportService
             if ($terminal === null) {
                 continue;
             }
-            $duct['strict_reconstruction'] = $this->customerRouteReconstructor->reconstruct(
-                (string) ($terminal['code'] ?? $duct['label'] ?? ''),
-                $strictUserPaths->get((int) $duct['_terminal_point'], $duct['path'] ?? []),
-                $entryRoutes,
+            $strictUserPath = $strictUserPaths->get((int) $duct['_terminal_point'], []);
+            $strictReconstruction = $this->validatedRoutedDropReconstruction(
+                $duct,
+                $terminal,
                 $strictCabinets,
-                $strictMainGraph,
+                $strictUserPath,
+                $terminalByNumber->all(),
             );
+            if ($strictReconstruction === null) {
+                $strictReconstruction = $this->customerRouteReconstructor->reconstruct(
+                    (string) ($terminal['code'] ?? $duct['label'] ?? ''),
+                    $strictUserPath,
+                    $entryRoutes,
+                    $strictCabinets,
+                    $strictMainGraph,
+                );
+            } else {
+                $duct['routing_warnings'] = [];
+            }
+            $duct['strict_reconstruction'] = $strictReconstruction;
+            $duct['target_zo'] = $strictReconstruction['target_zo'] ?? null;
             $duct['cabinet_reached'] = $duct['strict_reconstruction']['status'] === 'complete';
             if (! $duct['cabinet_reached']) {
                 $duct['routing_warnings'] = array_values(array_unique(array_merge(
@@ -510,6 +524,81 @@ class SurveyPointImportService
         unset($duct);
 
         return ['trenches' => $trenches, 'ducts' => $ducts, 'main_route_graph' => $strictMainGraph];
+    }
+
+    /**
+     * Accept the route already proven by SurveyDropRoutingService when the stricter
+     * aggregate graph loses a valid transition at a split. Both endpoints must match
+     * the explicit terminal and its named cabinet, and the route must have been built
+     * through surveyed trench geometry; proximity-only legacy bindings never qualify.
+     */
+    private function validatedRoutedDropReconstruction(
+        array $duct,
+        array $terminal,
+        array $cabinets,
+        array $ownGeometry,
+        array $terminals,
+    ): ?array {
+        if (! ($duct['cabinet_reached'] ?? false)
+            || ! ($duct['routed_via_trench'] ?? false)
+            || ! ($terminal['target_zo_explicit'] ?? false)
+            || ($terminal['zo_tag'] ?? null) === null
+            || count($duct['path'] ?? []) < 2) {
+            return null;
+        }
+
+        $targetTag = (string) $terminal['zo_tag'];
+        $cabinet = collect($cabinets)->first(
+            fn (array $candidate): bool => $this->identity->cabinetTag((string) $candidate['name']) === $targetTag
+        );
+        if ($cabinet === null) {
+            return null;
+        }
+
+        $path = array_values($duct['path']);
+        $terminalCoordinate = [(float) $terminal['lat'], (float) $terminal['lng']];
+        $cabinetCoordinate = [(float) $cabinet['coordinate'][0], (float) $cabinet['coordinate'][1]];
+        $startToTerminal = $this->geometry->distanceBetweenPoints($path[0], $terminalCoordinate);
+        $endToTerminal = $this->geometry->distanceBetweenPoints(end($path), $terminalCoordinate);
+        if ($endToTerminal < $startToTerminal) {
+            $path = array_reverse($path);
+        }
+        if ($this->geometry->distanceBetweenPoints($path[0], $terminalCoordinate) > self::NODE_MERGE_M
+            || $this->geometry->distanceBetweenPoints(end($path), $cabinetCoordinate) > self::NODE_MERGE_M) {
+            return null;
+        }
+        foreach ($terminals as $otherTerminal) {
+            if ((int) ($otherTerminal['point_no'] ?? 0) === (int) ($terminal['point_no'] ?? 0)) {
+                continue;
+            }
+            // Reject an actual traversal through another customer node. Nearby houses
+            // on the same roadside corridor are normal and must not invalidate a route.
+            if ($this->geometry->distanceToRoute(
+                (float) $otherTerminal['lat'],
+                (float) $otherTerminal['lng'],
+                $path,
+            ) <= 0.2) {
+                return null;
+            }
+        }
+
+        return [
+            'status' => 'complete',
+            'error_code' => null,
+            'message' => null,
+            'raw_description' => (string) ($terminal['code'] ?? ''),
+            'target_zo' => 'ZO-'.$targetTag,
+            'target_zo_found' => true,
+            'target_cabinet_id' => $cabinet['id'],
+            'target_zo_coordinate' => $cabinetCoordinate,
+            'entry' => $duct['entry'] ?? null,
+            'own_geometry' => $ownGeometry,
+            'shared_main_geometry' => $path,
+            'shared_route_edges' => [],
+            'full_geometry' => $path,
+            'warnings' => [],
+            'validation_source' => 'surveyed_trench_route',
+        ];
     }
 
     // -------------------------------------------------------------------------
@@ -629,6 +718,8 @@ class SurveyPointImportService
                     'routing_status' => (($duct['prepared_sling'] ?? false) || isset($duct['_terminal_point']))
                         ? ($cabinetReached ? 'complete' : 'unreachable')
                         : 'not_applicable',
+                    'validation_source' => $duct['strict_reconstruction']['validation_source']
+                        ?? (isset($duct['strict_reconstruction']) && $cabinetReached ? 'strict_network_graph' : null),
                     'entry_point' => $duct['entry']['entry_point'] ?? null,
                     'entry_match_type' => $duct['entry']['match_type'] ?? null,
                     'entry_main_route_id' => $duct['entry']['main_route_id'] ?? null,
@@ -666,14 +757,14 @@ class SurveyPointImportService
      */
     public function confirm(Project $project, string $contents, string $filename = '', array $cabinetOverrides = [], array $routeCorrections = []): array
     {
-        $points = $this->parse($contents);
-        if (count($points) < 1) {
-            throw new InvalidArgumentException('Fajl ne sadrzi nijednu prepoznatljivu tacku.');
-        }
-
         $batch = sha1($contents);
         if (SurveyPoint::where('project_id', $project->id)->where('import_batch', $batch)->exists()) {
             throw new InvalidArgumentException('Ovaj fajl je vec uvezen u ovaj projekat.');
+        }
+
+        $points = $this->parse($contents);
+        if (count($points) < 1) {
+            throw new InvalidArgumentException('Fajl ne sadrzi nijednu prepoznatljivu tacku.');
         }
 
         $created = ['points' => 0, 'trenches' => 0, 'ducts' => 0, 'cabinets' => 0, 'odfs' => 0, 'manholes' => 0, 'borings' => 0, 'splices' => 0, 'loops' => 0, 'houses' => 0];

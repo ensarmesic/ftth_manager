@@ -248,7 +248,6 @@ const ftthMenuItems = [
     ['Trase', @json(route('routes.index'))], ['Krakovi', @json(route('branches.index'))], ['Izvještaji', @json(route('reports.index'))],
     ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
     @can('settings.manage')['Postavke', @json(route('settings.index'))],@endcan ['Korisničko uputstvo', @json(route('documentation'))],
-    ['Geodetski TXT standard', @json(route('documentation', ['document' => 'geodetski-txt']))],
 ];
 window.ftthToast = function(message, type = 'info', options = {}) {
     const region = document.getElementById('ftth-toast-region');

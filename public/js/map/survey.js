@@ -19,6 +19,13 @@
     const deleteImportBtn = document.getElementById('survey-delete-import-btn');
     const statusBox = document.getElementById('survey-status');
     const summaryBox = document.getElementById('survey-summary');
+    const diagnosticsTools = document.getElementById('survey-diagnostics-tools');
+    const previewMeta = document.getElementById('survey-preview-meta');
+    const routeFilter = document.getElementById('survey-route-filter');
+    const compareBtn = document.getElementById('survey-compare-btn');
+    const savedComparison = document.getElementById('survey-saved-comparison');
+    const reportCsvBtn = document.getElementById('survey-report-csv');
+    const reportPdfBtn = document.getElementById('survey-report-pdf');
     const coordinateEditor = document.getElementById('survey-coordinate-editor');
     const editToggleBtn = document.getElementById('survey-edit-toggle');
     const editResetBtn = document.getElementById('survey-edit-reset');
@@ -39,6 +46,7 @@
     let previewRouteLayers = [];
     let editablePointMarkers = [];
     let editableDuctLayers = [];
+    let routeFocusRecords = new Map();
     let ductEditRecords = new Map();
     let activeDuctEdit = null;
     let activeDuctHandles = [];
@@ -64,6 +72,7 @@
         previewRouteLayers = [];
         editablePointMarkers = [];
         editableDuctLayers = [];
+        routeFocusRecords = new Map();
         ductEditRecords = new Map();
         activeDuctEdit = null;
         activeDuctHandles = [];
@@ -213,13 +222,16 @@
         (data.ducts || []).forEach((duct, ductIndex) => {
             const error = duct.routing_status === 'unreachable';
             const ductColor = ductPreviewColor(duct);
+            const completePath = duct.full_geometry?.length > 1 ? duct.full_geometry : duct.path;
             // An unresolved route has no proven geometry. Drawing its provisional path
             // as a red line falsely presents a nearest-route guess as surveyed cable.
-            if (error) return;
+            if (error) {
+                if (completePath?.length) routeFocusRecords.set(ductIndex, { path: completePath, line: null, color: ductColor });
+                return;
+            }
             // Always draw the authoritative end-to-end geometry. Drawing only the
             // own/shared fragments omitted the final shared segment and visually made
             // correctly routed ducts stop before their assigned ZO.
-            const completePath = duct.full_geometry?.length > 1 ? duct.full_geometry : duct.path;
             if (completePath?.length > 1) {
                 if (duct.route_type === 'drop') {
                     previewDropCasings.push(addRoute(L.polyline(completePath, {
@@ -237,6 +249,7 @@
                     interactive: false,
                 }));
                 if (duct.route_type === 'drop') previewDropLines.push(completeLine);
+                routeFocusRecords.set(ductIndex, { path: completePath, line: completeLine, color: duct.route_type === 'drop' ? ductColor : '#2563eb' });
             }
             if (duct.entry_point) add(L.circleMarker(duct.entry_point, { radius: 6, color: '#fff', weight: 2, fillColor: '#f59e0b', fillOpacity: 1 }).bindTooltip('Ulaz u zajednički rov'));
             if (duct.target_zo_coordinate) add(L.circleMarker(duct.target_zo_coordinate, { radius: 7, color: '#fff', weight: 2, fillColor: duct.target_zo_found ? '#7c3aed' : '#dc2626', fillOpacity: 1 }).bindTooltip(escapeHtml(duct.target_zo || 'Ciljni ZO')));
@@ -285,6 +298,24 @@
         if (coordinateEditor) coordinateEditor.style.display = 'block';
         setCoordinateEditActive(false);
         if (previewLayers.length && data.bounds?.lat && data.bounds?.lng) map.fitBounds([[data.bounds.lat[0], data.bounds.lng[0]], [data.bounds.lat[1], data.bounds.lng[1]]], { padding: [35, 35], maxZoom: 20 });
+    }
+
+    function focusSurveyRoute(index) {
+        const record = routeFocusRecords.get(Number(index));
+        if (!record?.path?.length) {
+            setStatus('Za ovu stavku nema koordinatne geometrije za fokus.', true);
+            return;
+        }
+        const bounds = L.latLngBounds(record.path);
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [55, 55], maxZoom: 20 });
+        if (record.line) {
+            record.line.setStyle({ color: '#f59e0b', weight: 7, opacity: 1 });
+            record.line.bringToFront();
+            window.setTimeout(() => {
+                if (!map.hasLayer(record.line)) return;
+                record.line.setStyle({ color: record.color, weight: 2.5, opacity: 1 });
+            }, 1600);
+        }
     }
 
     function projectId() {
@@ -377,22 +408,37 @@
         return element.innerHTML;
     }
 
-    function ductRowHtml(duct) {
+    function routeEvidenceLabel(source) {
+        return ({
+            strict_network_graph: 'strogi graf',
+            surveyed_trench_route: 'snimljeni rov',
+        })[source] || 'bez dokaza';
+    }
+
+    function ductRowHtml(duct, index) {
         const type = duct.route_type ? ` <span style="color:#94a3b8">(${duct.route_type})</span>` : '';
         const routing = duct.routing_status === 'unreachable'
             ? ' <b style="color:#b91c1c">— NEMA PUTA DO ZO</b>'
             : (duct.routing_status === 'complete' ? ' <span style="color:#047857">✓ do ZO</span>' : '');
+        const problem = duct.routing_status === 'unreachable'
+            || duct.match_confidence === 'ambiguous'
+            || (duct.warnings || []).length > 0;
+        const focus = `<button type="button" class="survey-route-focus" data-route-index="${index}" title="Prikaži ovu trasu na mapi" aria-label="Prikaži trasu na mapi" style="border:0;background:transparent;color:#2563eb;padding:0 3px 0 0;font-weight:900;cursor:pointer">&#8853;</button>`;
+        const evidence = duct.routing_status === 'complete'
+            ? ` <span title="Izvor dokaza trase" style="display:inline-block;border-radius:8px;background:#ecfdf5;color:#047857;padding:0 5px;font-size:8px;font-weight:800">${routeEvidenceLabel(duct.validation_source)}</span>`
+            : '';
+        const rowStart = `<li class="survey-route-row" data-route-state="${problem ? 'problem' : (duct.routing_status === 'complete' ? 'complete' : 'other')}">${focus}`;
         if (duct.match_confidence !== 'ambiguous') {
             const cabinet = duct.matched_cabinet_name ? ` &rarr; ${escapeHtml(duct.matched_cabinet_name)}` : '';
 
-            return `<li>${escapeHtml(duct.label)} / ${duct.length_m} m${type}${cabinet}${routing}</li>`;
+            return `${rowStart}${escapeHtml(duct.label)} / ${duct.length_m} m${type}${cabinet}${routing}${evidence}</li>`;
         }
 
         const options = ['<option value="">(bez ormara)</option>']
             .concat((duct.candidates || []).map(c => `<option value="${c.id}"${c.id === duct.matched_cabinet_id ? ' selected' : ''}>${escapeHtml(c.name)} (${c.distance_m} m)</option>`))
             .join('');
 
-        return `<li>${escapeHtml(duct.label)} / ${duct.length_m} m${type}${routing} - nejasan ormar:
+        return `${rowStart}${escapeHtml(duct.label)} / ${duct.length_m} m${type}${routing}${evidence} - nejasan ormar:
             <select class="survey-duct-override" data-duct-key="${escapeHtml(duct.key)}">${options}</select></li>`;
     }
 
@@ -406,6 +452,82 @@
         return `<div style="border:1px solid ${color}22;border-radius:7px;background:${background};padding:7px 8px"><b style="display:block;font-size:15px;color:${color}">${value}</b><span style="font-size:9px;font-weight:800;text-transform:uppercase;color:${color}">${label}</span></div>`;
     }
 
+    function applyRouteFilter() {
+        const selected = routeFilter?.value || 'all';
+        const wantedState = selected === 'problems' ? 'problem' : selected;
+        summaryBox.querySelectorAll('.survey-route-row').forEach(row => {
+            row.style.display = selected === 'all' || row.dataset.routeState === wantedState ? '' : 'none';
+        });
+    }
+
+    function updatePreviewDiagnostics(data) {
+        if (!diagnosticsTools) return;
+        diagnosticsTools.style.display = 'block';
+        const meta = data.preview_meta || {};
+        const elapsed = Number(meta.processing_ms || 0);
+        const elapsedLabel = elapsed >= 1000 ? `${(elapsed / 1000).toFixed(1)} s` : `${elapsed} ms`;
+        const budget = Math.max(0, Math.min(100, Number(meta.budget_used_percent || 0)));
+        const cacheLabel = meta.cache_hit ? 'ubrzani rezultat iz memorije' : 'nova analiza';
+        if (previewMeta) previewMeta.innerHTML = `
+            <div style="display:flex;justify-content:space-between;gap:6px"><span>Analiza: <b>${elapsedLabel}</b> (${cacheLabel})</span><span>limit ${Number(meta.execution_budget_seconds || 30)} s</span></div>
+            <div title="Iskorištenje vremenskog limita" style="height:3px;margin-top:4px;border-radius:3px;background:#e2e8f0;overflow:hidden"><span style="display:block;width:${budget}%;height:100%;background:${budget > 75 ? '#dc2626' : budget > 50 ? '#f59e0b' : '#10b981'}"></span></div>
+            <div style="margin-top:3px">Otisak: <b>${escapeHtml(meta.file_fingerprint || '-')}</b>${meta.duplicate_detected_early ? ' · duplikat prepoznat prije analize' : ''}</div>`;
+
+        const comparison = data.saved_comparison || {};
+        const planned = comparison.preview || {};
+        const saved = comparison.saved || {};
+        if (savedComparison) savedComparison.innerHTML = `
+            <b style="color:${comparison.is_saved ? '#047857' : '#475569'}">${comparison.is_saved ? 'Ovaj fajl je već sačuvan u projektu.' : 'Ovaj fajl još nije sačuvan u projektu.'}</b>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:3px;margin-top:5px">
+                <span></span><b>Pregled</b><b>Sačuvano</b>
+                <span>Tačke</span><span>${Number(planned.points || 0)}</span><span>${Number(saved.points || 0)}</span>
+                <span>Dionice rova</span><span>${Number(planned.trenches || 0)}</span><span>${Number(saved.trenches || 0)}</span>
+                <span>Mikrocijevi</span><span>${Number(planned.ducts || 0)}</span><span>${Number(saved.ducts || 0)}</span>
+                <span>ZO / ODF / kuće</span><span>${Number(planned.cabinets || 0)} / ${Number(planned.odfs || 0)} / ${Number(planned.houses || 0)}</span><span>${Number(saved.cabinets || 0)} / ${Number(saved.odfs || 0)} / ${Number(saved.houses || 0)}</span>
+            </div>`;
+        if (routeFilter) routeFilter.value = 'all';
+    }
+
+    async function downloadPreviewReport(format) {
+        if (!selectedFile || !projectId()) return;
+        const button = format === 'pdf' ? reportPdfBtn : reportCsvBtn;
+        const originalText = button?.textContent;
+        if (button) { button.disabled = true; button.textContent = '...'; }
+        try {
+            const body = new FormData();
+            body.append('points_file', selectedFile);
+            const response = await fetch(`/projekti/${projectId()}/tacke/preview-izvjestaj/${format}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    Accept: format === 'pdf' ? 'application/pdf' : 'text/csv',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body,
+            });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.message || 'Izvještaj nije moguće napraviti.');
+            }
+            const blob = await response.blob();
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+                || `kontrola-geodetskog-uvoza.${format}`;
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+            setStatus(`${format.toUpperCase()} kontrolni izvještaj je preuzet.`);
+        } catch (error) {
+            setStatus(error.message, true);
+        } finally {
+            if (button) { button.disabled = false; button.textContent = originalText; }
+        }
+    }
+
     async function previewFile(file) {
         if (!projectId()) {
             setStatus('Prvo odaberi projekat (filter gore desno).', true);
@@ -415,6 +537,8 @@
         selectedFile = null;
         confirmBtn.disabled = true;
         summaryBox.innerHTML = '';
+        if (diagnosticsTools) diagnosticsTools.style.display = 'none';
+        if (savedComparison) savedComparison.style.display = 'none';
         setStatus('Analiziram fajl...');
         try {
             const data = await requestJson(`/projekti/${projectId()}/tacke/preview`, file);
@@ -431,7 +555,7 @@
                     : '';
                 return `<li>${run.points} tac. / ${Math.round(Number(run.length_m || 0) * 10) / 10} m ${duct} <span style="color:#94a3b8">${escapeHtml(run.code)}</span></li>`;
             }).join('');
-            const ducts = (data.ducts || []).map(ductRowHtml).join('');
+            const ducts = (data.ducts || []).map((duct, index) => ductRowHtml(duct, index)).join('');
             const mainDucts = (data.ducts || []).filter(duct => duct.route_type !== 'drop').length;
             const dropDucts = (data.ducts || []).filter(duct => duct.route_type === 'drop').length;
             const houseAndSlingCount = `${Number(data.by_kind?.sling || 0)} / ${Number(data.prepared_slings || 0)}`;
@@ -468,6 +592,11 @@
                 ${ambiguousNote}
                 <p style="margin:6px 0 0">ZO ormara: <b>${(data.cabinets || []).length}</b> / ODF: <b>${(data.odfs || []).length}</b> / sahtova: <b>${data.manholes}</b> / ŠLINGA: <b>${data.prepared_slings || 0}</b></p>
                 ${qualityPanel}${unrecognized}${warning}`;
+            updatePreviewDiagnostics(data);
+            summaryBox.querySelectorAll('.survey-route-focus').forEach(button => {
+                button.addEventListener('click', () => focusSurveyRoute(button.dataset.routeIndex));
+            });
+            applyRouteFilter();
             confirmBtn.disabled = !!data.already_imported || data.quality?.status === 'blocked';
             setStatus(
                 data.already_imported ? 'Fajl je vec uvezen - uvoz blokiran.' : data.quality?.status === 'blocked' ? 'Ispravi označene probleme u TXT fajlu prije uvoza.' : 'Pregled spreman. Klikni "Uvezi u projekat" za potvrdu.',
@@ -489,6 +618,13 @@
         setStatus('Sve ručne korekcije su vraćene na originalne TXT koordinate.');
     });
     editExportBtn?.addEventListener('click', exportCoordinateCorrections);
+    routeFilter?.addEventListener('change', applyRouteFilter);
+    compareBtn?.addEventListener('click', () => {
+        if (!savedComparison) return;
+        savedComparison.style.display = savedComparison.style.display === 'none' ? 'block' : 'none';
+    });
+    reportCsvBtn?.addEventListener('click', () => downloadPreviewReport('csv'));
+    reportPdfBtn?.addEventListener('click', () => downloadPreviewReport('pdf'));
 
     chooseBtn?.addEventListener('click', () => fileInput?.click());
     fileInput?.addEventListener('change', () => {

@@ -13,6 +13,20 @@
         <input id="survey-file-input" type="file" accept=".txt" style="display:none">
         <div id="survey-status" style="display:none;margin-top:8px;border-radius:6px;border:1px solid #bbf7d0;background:#f0fdf4;padding:7px 10px;font-size:11px;font-weight:600;color:#166534"></div>
         <div id="survey-summary" style="margin-top:8px;font-size:11px;color:#334155;line-height:1.45"></div>
+        <div id="survey-diagnostics-tools" style="display:none;margin-top:8px;padding:8px;border:1px solid #dbeafe;border-radius:8px;background:#f8fafc">
+            <div id="survey-preview-meta" style="font-size:9.5px;color:#64748b;line-height:1.35"></div>
+            <div style="display:grid;grid-template-columns:minmax(0,1.2fr) repeat(3,minmax(0,1fr));gap:5px;margin-top:7px">
+                <select id="survey-route-filter" aria-label="Filtriraj mikrocijevi" style="min-width:0;border:1px solid #cbd5e1;border-radius:6px;padding:6px 4px;background:#fff;color:#334155;font:700 9.5px/1.2 inherit">
+                    <option value="all">Sve rute</option>
+                    <option value="problems">Samo problemi</option>
+                    <option value="complete">Ispravne rute</option>
+                </select>
+                <button id="survey-compare-btn" type="button" style="border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#334155;padding:6px 3px;font-size:9.5px;font-weight:750;cursor:pointer">Sa&#269;uvano</button>
+                <button id="survey-report-csv" type="button" style="border:1px solid #a7f3d0;border-radius:6px;background:#ecfdf5;color:#047857;padding:6px 3px;font-size:9.5px;font-weight:750;cursor:pointer">CSV</button>
+                <button id="survey-report-pdf" type="button" style="border:1px solid #fecaca;border-radius:6px;background:#fef2f2;color:#b91c1c;padding:6px 3px;font-size:9.5px;font-weight:750;cursor:pointer">PDF</button>
+            </div>
+            <div id="survey-saved-comparison" style="display:none;margin-top:7px;padding-top:7px;border-top:1px solid #e2e8f0;font-size:10px;color:#475569;line-height:1.4"></div>
+        </div>
         <div id="survey-coordinate-editor" style="display:none;margin-top:9px;padding:8px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">
             <div style="font-size:10px;font-weight:800;color:#1e40af;margin-bottom:6px">RUČNA KOREKCIJA KOORDINATA</div>
             <button id="survey-edit-toggle" type="button" style="width:100%;border-radius:7px;background:#7c3aed;color:#fff;padding:8px;font-size:11px;font-weight:800;border:none;cursor:pointer">Uredi tačke i cijevi</button>

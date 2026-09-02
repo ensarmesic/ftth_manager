@@ -11,7 +11,6 @@ class DocumentationController extends Controller
     {
         $documents = [
             'aplikacija' => ['title' => 'Korisničko uputstvo', 'subtitle' => 'Kompletna operativna dokumentacija FTTH Manager aplikacije.', 'file' => 'KORISNICKO-UPUTSTVO-FTTH-MANAGER.md'],
-            'geodetski-txt' => ['title' => 'Geodetski TXT standard', 'subtitle' => 'Terensko snimanje, oznake, format i kontrola TXT uvoza.', 'file' => 'UPUTSTVO-ZA-GEODETSKI-TXT-FTTH.txt'],
         ];
         $key = array_key_exists((string) $document, $documents) ? (string) $document : 'aplikacija';
         $selected = $documents[$key];
