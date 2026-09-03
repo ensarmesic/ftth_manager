@@ -228,10 +228,14 @@
             </div>
         </div>
         <div class="cad-status grid gap-2 px-3 py-2 md:grid-cols-[1fr_auto_auto_auto]">
-            <div id="cad-command">Command: PAN</div>
+            <div class="cad-command-line">
+                <div id="cad-command">Command: PAN</div>
+                <label><span>&gt;</span><input id="cad-command-input" type="text" autocomplete="off" spellcheck="false" placeholder="Komanda: LINE, PAN, DIST…" aria-label="CAD komandna linija" list="cad-command-list"></label>
+                <datalist id="cad-command-list"><option value="LINE"><option value="PAN"><option value="SELECT"><option value="ERASE"><option value="DIST"><option value="ORTHO"><option value="UNDO"><option value="REDO"><option value="ZOOM EXTENTS"><option value="ODF"><option value="FTTH"><option value="HOUSE"><option value="BRANCH"></datalist>
+            </div>
             <div id="cad-metrics" class="cad-chip rounded px-2 py-1">Points: 0 | Distance: 0m | Snap: - | ORTHO: OFF</div>
             <div id="cad-coordinates" class="cad-chip rounded px-2 py-1">LAT -, LNG -</div>
-            <div class="cad-chip rounded px-2 py-1">SPACE pan | ESC prekid | ENTER završi | CTRL+Z undo | O ORTHO</div>
+            <div class="cad-chip rounded px-2 py-1">/ komanda | SPACE pan | ESC prekid | ENTER završi | CTRL+Z undo</div>
         </div>
     </div>
 

@@ -258,6 +258,40 @@
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    .cad-command-line {
+        display: grid;
+        min-width: 260px;
+        grid-template-columns: minmax(110px, 1fr) minmax(190px, .75fr);
+        align-items: center;
+        gap: 8px;
+    }
+    .cad-command-line label {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 5px;
+        color: #38bdf8;
+    }
+    #cad-command-input {
+        width: 100%;
+        min-width: 0;
+        border: 1px solid rgba(56,189,248,.35);
+        border-radius: 3px;
+        outline: none;
+        background: rgba(2,12,27,.82);
+        color: #e0f2fe;
+        padding: 3px 7px;
+        font: 700 11px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        text-transform: uppercase;
+    }
+    #cad-command-input:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56,189,248,.13);
+    }
+    #cad-command-input::placeholder { color: #56708c; text-transform: none; }
+    @media (max-width: 900px) {
+        .cad-command-line { grid-template-columns: 1fr; }
+    }
     #map-workspace.gis-view .route-label span,
     #map-workspace.gis-view .ftth-cabinet-text {
         background: rgba(15,23,42,.78);

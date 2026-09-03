@@ -1,9 +1,16 @@
 // Global CAD keyboard shortcuts. Kept separate from map boot so commands can
 // evolve without turning init.js back into a controller for every tool.
 function initMapKeyboardInteractions() {
+    initCadCommandLine();
     document.addEventListener('keydown', event => {
         const target = event.target;
         const tag = target?.tagName?.toLowerCase();
+
+        if (event.key === '/' && !['input', 'select', 'textarea'].includes(tag) && !target?.isContentEditable) {
+            event.preventDefault();
+            document.getElementById('cad-command-input')?.focus();
+            return;
+        }
 
         if (event.code === 'Space' && !event.repeat && !['input', 'select', 'textarea', 'button', 'a'].includes(tag) && !target?.isContentEditable) {
             event.preventDefault();
@@ -91,5 +98,77 @@ function initMapKeyboardInteractions() {
         document.getElementById('map-container')?.classList.remove('cad-temporary-pan');
         cadDynamicInput?.classList.remove('is-visible');
         if (mode === 'select') map.dragging.disable();
+    });
+}
+
+function initCadCommandLine() {
+    const input = document.getElementById('cad-command-input');
+    if (!input) return;
+    const history = [];
+    let historyIndex = 0;
+    const activate = tool => document.getElementById(`mode-${tool}`)?.click();
+    const execute = rawCommand => {
+        const command = String(rawCommand || '').trim().toUpperCase().replace(/\s+/g, ' ');
+        if (!command) return;
+        history.push(command);
+        historyIndex = history.length;
+        const modes = {
+            L: 'draw', LINE: 'draw', PL: 'draw', POLYLINE: 'draw',
+            P: 'pan', PAN: 'pan',
+            SE: 'select', SELECT: 'select',
+            E: 'select', ERASE: 'select', DELETE: 'select',
+            DI: 'ruler', DIST: 'ruler', MEASURE: 'ruler',
+            ODF: 'odf', FTTH: 'cabinet', CABINET: 'cabinet',
+            H: 'house', HOUSE: 'house',
+            KB: 'trace-branch', BRANCH: 'trace-branch',
+        };
+        if (modes[command]) {
+            activate(modes[command]);
+            if (['E', 'ERASE', 'DELETE'].includes(command)) document.getElementById('cad-command').textContent = 'ERASE: označi elemente pravougaonikom, zatim Obriši selektovano.';
+            return;
+        }
+        if (['O', 'ORTHO'].includes(command)) {
+            orthoEnabled = !orthoEnabled;
+            updateCommandBar();
+            document.getElementById('cad-command').textContent = `ORTHO: ${orthoEnabled ? 'ON' : 'OFF'}`;
+            return;
+        }
+        if (['U', 'UNDO'].includes(command)) {
+            if (routeEdit) undoRouteEdit();
+            else if (mode === 'draw' && undoStack.length) undoLast();
+            else mapHistory.undo();
+            return;
+        }
+        if (['RE', 'REDO'].includes(command)) {
+            if (routeEdit) redoRouteEdit(); else mapHistory.redo();
+            return;
+        }
+        if (['ZE', 'ZOOM EXTENTS'].includes(command)) {
+            if (bounds.length) map.fitBounds(bounds, { padding: [45, 45], maxZoom: 20 });
+            document.getElementById('cad-command').textContent = 'ZOOM EXTENTS: prikazana cijela mreža.';
+            return;
+        }
+        document.getElementById('cad-command').textContent = `Nepoznata komanda: ${command}`;
+    };
+    input.addEventListener('keydown', event => {
+        event.stopPropagation();
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const command = input.value;
+            input.value = '';
+            execute(command);
+            input.blur();
+        } else if (event.key === 'Escape') {
+            input.value = '';
+            input.blur();
+        } else if (event.key === 'ArrowUp' && history.length) {
+            event.preventDefault();
+            historyIndex = Math.max(0, historyIndex - 1);
+            input.value = history[historyIndex] || '';
+        } else if (event.key === 'ArrowDown' && history.length) {
+            event.preventDefault();
+            historyIndex = Math.min(history.length, historyIndex + 1);
+            input.value = history[historyIndex] || '';
+        }
     });
 }
