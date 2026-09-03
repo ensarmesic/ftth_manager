@@ -65,6 +65,24 @@
         border: 1px solid #38bdf8;
         background: transparent;
     }
+    #cad-dynamic-input {
+        position: absolute;
+        left: 22px;
+        top: 15px;
+        display: none;
+        min-width: max-content;
+        padding: 4px 7px;
+        border: 1px solid rgba(56,189,248,.85);
+        border-radius: 3px;
+        background: rgba(3,15,30,.94);
+        color: #dff6ff;
+        box-shadow: 0 5px 14px rgba(0,0,0,.38);
+        font: normal 700 10px/1.25 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: .01em;
+        white-space: nowrap;
+    }
+    #cad-dynamic-input.is-visible { display: block; }
+    #cad-dynamic-input strong { color: #38bdf8; font-weight: 850; }
     #map-container.cad-crosshair-active .leaflet-container,
     #map-container.cad-crosshair-active .leaflet-grab { cursor: none !important; }
     /* ── Map element styles (unchanged) ─────────────────────────── */

@@ -127,15 +127,40 @@ initProjectCheckControls();
 
 // ── MAP EVENT HANDLERS ─────────────────────────────────────────────────────────
 const cadCrosshair = document.getElementById('cad-crosshair');
+const cadDynamicInput = document.getElementById('cad-dynamic-input');
+function cadSegmentAngle(from, to) {
+    const latitudeScale = Math.cos(((from.lat + to.lat) / 2) * Math.PI / 180);
+    const east = (to.lng - from.lng) * latitudeScale;
+    const north = to.lat - from.lat;
+    return (Math.atan2(east, north) * 180 / Math.PI + 360) % 360;
+}
+function updateCadDynamicInput(latlng, snap = null) {
+    if (!cadDynamicInput) return;
+    let html = '';
+    if (mode === 'draw' && activeBranch.length) {
+        const from = activeBranch[activeBranch.length - 1];
+        const segmentMeters = map.distance(from, latlng);
+        const committedMeters = activeBranch.reduce((sum, point, index) => index ? sum + map.distance(activeBranch[index - 1], point) : 0, 0);
+        html = `<strong>${segmentMeters.toFixed(1)} m</strong> · Σ ${(committedMeters + segmentMeters).toFixed(1)} m · ∠ ${cadSegmentAngle(from, latlng).toFixed(1)}°`;
+    } else if (mode === 'ruler' && rulerStart) {
+        html = `<strong>${map.distance(rulerStart, latlng).toFixed(1)} m</strong> · ∠ ${cadSegmentAngle(rulerStart, latlng).toFixed(1)}°`;
+    } else if (mode === 'trace-branch' && traceBranchStart) {
+        html = snap ? `<strong>SNAP</strong> ${escapeHtml(snap.label || 'trasa')}` : 'Odaberi kraj na povezanoj trasi';
+    }
+    cadDynamicInput.innerHTML = html;
+    cadDynamicInput.classList.toggle('is-visible', Boolean(html));
+}
 map.on('mousemove', event => {
     if (!cadCrosshair) return;
     const point = map.latLngToContainerPoint(event.latlng);
     cadCrosshair.style.setProperty('--cad-x', `${point.x}px`);
     cadCrosshair.style.setProperty('--cad-y', `${point.y}px`);
+    updateCadDynamicInput(event.latlng, ['draw', 'trace-branch'].includes(mode) ? getSnapTarget(event.latlng) : null);
 });
 map.on('mouseout', () => {
     cadCrosshair?.style.setProperty('--cad-x', '-100px');
     cadCrosshair?.style.setProperty('--cad-y', '-100px');
+    cadDynamicInput?.classList.remove('is-visible');
 });
 map.on('mousemove', e => {
     document.getElementById('cad-coordinates').textContent = `LAT ${e.latlng.lat.toFixed(7)}, LNG ${e.latlng.lng.toFixed(7)}`;
