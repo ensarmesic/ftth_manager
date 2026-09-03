@@ -248,6 +248,9 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
         rb.style.top    = y + 'px';
         rb.style.width  = w + 'px';
         rb.style.height = h + 'px';
+        const crossing = b.x < a.x;
+        rb.classList.toggle('is-crossing', crossing);
+        rb.dataset.selectionMode = crossing ? 'CROSSING' : 'WINDOW';
         rb.style.display = 'block';
     }
 
@@ -426,6 +429,24 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
         const p1 = map.containerPointToLatLng(L.point(a.x, a.y));
         const p2 = map.containerPointToLatLng(L.point(b.x, b.y));
         const bounds = L.latLngBounds(p1, p2);
+        const crossing = b.x < a.x;
+        const rect = { left: Math.min(a.x, b.x), right: Math.max(a.x, b.x), top: Math.min(a.y, b.y), bottom: Math.max(a.y, b.y) };
+
+        const pointInRect = point => point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+        const segmentsIntersect = (a1, a2, b1, b2) => {
+            const cross = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+            const c1 = cross(a1, a2, b1), c2 = cross(a1, a2, b2), c3 = cross(b1, b2, a1), c4 = cross(b1, b2, a2);
+            return ((c1 <= 0 && c2 >= 0) || (c1 >= 0 && c2 <= 0)) && ((c3 <= 0 && c4 >= 0) || (c3 >= 0 && c4 <= 0));
+        };
+        const lineCrossesRect = points => {
+            const screen = points.map(point => map.latLngToContainerPoint(point));
+            if (screen.some(pointInRect)) return true;
+            const corners = [
+                L.point(rect.left, rect.top), L.point(rect.right, rect.top),
+                L.point(rect.right, rect.bottom), L.point(rect.left, rect.bottom),
+            ];
+            return screen.some((point, index) => index > 0 && corners.some((corner, edge) => segmentsIntersect(screen[index - 1], point, corner, corners[(edge + 1) % corners.length])));
+        };
 
         clearSelection();
 
@@ -440,7 +461,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
                 const lls = entry.triggerLayer.getLatLngs?.();
                 if (lls) {
                     const flat = lls.flat ? lls.flat(2) : lls;
-                    hit = flat.some(ll => bounds.contains(ll));
+                    hit = crossing ? lineCrossesRect(flat) : flat.every(ll => bounds.contains(ll));
                 }
             }
             if (hit) {
@@ -454,7 +475,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
         // DXF background layeri — intersect
         const dxfItems = window.ftthDxfLayer?.getSelectableItems() ?? [];
         dxfItems.forEach(item => {
-            if (!item.bounds || !bounds.intersects(item.bounds)) return;
+            if (!item.bounds || (crossing ? !bounds.intersects(item.bounds) : !(bounds.contains(item.bounds.getSouthWest()) && bounds.contains(item.bounds.getNorthEast())))) return;
             const entry = {
                 isDxf: true,
                 dxfId: item.dxfId,
@@ -473,7 +494,7 @@ function registerSavedContext(layer, title, url, positionUrl = null, clickAction
             const hCount = selectedHouseIds().length;
             const hint = hCount > 0 ? ` (${hCount} kuća → "Dodijeli ODO")` : '';
             document.getElementById('cad-command').textContent =
-                `SELEKT: ${currentSelection.length} element(a) selektovano${hint}. Klikni akciju ili ESC.`;
+                `SELEKT ${crossing ? 'CROSSING' : 'WINDOW'}: ${currentSelection.length} element(a) selektovano${hint}. Klikni akciju ili ESC.`;
         } else {
             document.getElementById('cad-command').textContent = 'SELEKT: drag da označiš elemente.';
         }

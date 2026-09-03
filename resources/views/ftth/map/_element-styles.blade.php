@@ -104,6 +104,56 @@
         background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
         content: '';
     }
+    #select-rubber-band {
+        position: absolute;
+        z-index: 2000;
+        display: none;
+        box-sizing: border-box;
+        pointer-events: none;
+        border: 1px solid #60a5fa;
+        background: rgba(37,99,235,.13);
+    }
+    #select-rubber-band.is-crossing {
+        border-color: #4ade80;
+        border-style: dashed;
+        background: rgba(22,163,74,.13);
+    }
+    #select-rubber-band::after {
+        position: absolute;
+        left: 4px;
+        top: 4px;
+        padding: 2px 4px;
+        border-radius: 2px;
+        background: rgba(2,12,27,.88);
+        color: #93c5fd;
+        content: attr(data-selection-mode);
+        font: 800 8px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: .08em;
+    }
+    #select-rubber-band.is-crossing::after { color: #86efac; }
+    .cad-ucs {
+        position: absolute;
+        z-index: 1490;
+        left: 68px;
+        bottom: 12px;
+        width: 48px;
+        height: 48px;
+        pointer-events: none;
+        color: #dff6ff;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,.8));
+        font: 800 9px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .cad-ucs i,
+    .cad-ucs b { position: absolute; left: 8px; bottom: 9px; display: block; background: #e0f2fe; }
+    .cad-ucs i { width: 1px; height: 30px; }
+    .cad-ucs b { width: 30px; height: 1px; }
+    .cad-ucs i::after,
+    .cad-ucs b::after { position: absolute; content: ''; width: 6px; height: 6px; border-color: #e0f2fe; }
+    .cad-ucs i::after { left: -3px; top: 0; border-left: 1px solid; border-top: 1px solid; transform: rotate(45deg); }
+    .cad-ucs b::after { right: 0; top: -3px; border-right: 1px solid; border-top: 1px solid; transform: rotate(45deg); }
+    .cad-ucs span { position: absolute; left: 5px; top: 0; }
+    .cad-ucs em { position: absolute; right: 3px; bottom: 6px; font-style: normal; }
+    .cad-ucs small { position: absolute; left: 14px; bottom: -2px; color: #38bdf8; font-size: 7px; }
     /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }

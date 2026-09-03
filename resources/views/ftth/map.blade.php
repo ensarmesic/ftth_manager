@@ -132,6 +132,7 @@
         <div id="map-container" class="min-h-0 flex-1 w-full relative">
             <div id="network-map" class="w-full h-full"></div>
             <div id="cad-crosshair" aria-hidden="true"><i></i><b></b><span></span><em id="cad-dynamic-input"></em></div>
+            <div class="cad-ucs" aria-hidden="true"><i></i><b></b><span>N</span><em>E</em><small>WCS</small></div>
             <nav class="map-vertical-tools" aria-label="Brzi alati mape">
                 <button type="button" data-map-tool="select" title="Selektuj elemente" aria-label="Selektuj elemente">
                     <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 2.7v13.8c0 .7.84 1.04 1.33.55l3.1-3.1 2.15 3.55a1 1 0 001.72-1.03l-2.14-3.57h4.38c.7 0 1.05-.85.55-1.34L5.34 2.16A.78.78 0 004 2.7z"/></svg>
@@ -155,7 +156,7 @@
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h12M8 3h4l1 3H7l1-3zM6 6l1 11h6l1-11M9 9v5M11 9v5"/></svg>
                 </button>
             </nav>
-            <div id="select-rubber-band" style="display:none;position:absolute;border:2px solid #3b82f6;background:rgba(59,130,246,0.08);pointer-events:none;z-index:2000;box-sizing:border-box;"></div>
+            <div id="select-rubber-band" data-selection-mode="WINDOW"></div>
             <div id="cabinet-assign-panel" style="display:none;position:absolute;bottom:54px;left:50%;transform:translateX(-50%);z-index:2002;background:#1e293b;border:1px solid #7c3aed;border-radius:10px;padding:10px 12px;min-width:260px;max-width:340px;box-shadow:0 8px 28px rgba(0,0,0,.4);">
                 <div style="font:700 11px/1 system-ui,sans-serif;color:#ddd6fe;margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;">Dodijeli ODO</div>
                 <div id="cabinet-assign-list" style="max-height:210px;overflow-y:auto;display:grid;gap:3px;"></div>
