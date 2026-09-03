@@ -85,6 +85,12 @@
     #cad-dynamic-input strong { color: #38bdf8; font-weight: 850; }
     #map-container.cad-crosshair-active .leaflet-container,
     #map-container.cad-crosshair-active .leaflet-grab { cursor: none !important; }
+    #map-container.cad-temporary-pan .leaflet-container,
+    #map-container.cad-temporary-pan .leaflet-grab,
+    #map-container.cad-temporary-pan .leaflet-dragging .leaflet-grab { cursor: grabbing !important; }
+    #map-container.cad-temporary-pan #cad-crosshair i,
+    #map-container.cad-temporary-pan #cad-crosshair b,
+    #map-container.cad-temporary-pan #cad-crosshair span { display: none; }
     /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }

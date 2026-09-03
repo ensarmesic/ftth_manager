@@ -9,6 +9,7 @@ window.ftthNetworkMap = map;
 // stale pixel dimensions and every click/snap/pixel calc drifts off the real map.
 new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('network-map'));
 let mode = 'pan';
+let temporaryPanActive = false;
 let mapViewMode = 'cad';
 let activeBranch = [];
 let activeBranchSnapTargets = [];

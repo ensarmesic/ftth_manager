@@ -231,7 +231,7 @@
             <div id="cad-command">Command: PAN</div>
             <div id="cad-metrics" class="cad-chip rounded px-2 py-1">Points: 0 | Distance: 0m | Snap: - | ORTHO: OFF</div>
             <div id="cad-coordinates" class="cad-chip rounded px-2 py-1">LAT -, LNG -</div>
-            <div class="cad-chip rounded px-2 py-1">ESC prekid | ENTER zavrsi | CTRL+Z undo | O ORTHO | R OSM ulice</div>
+            <div class="cad-chip rounded px-2 py-1">SPACE pan | ESC prekid | ENTER završi | CTRL+Z undo | O ORTHO</div>
         </div>
     </div>
 

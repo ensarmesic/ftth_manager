@@ -136,6 +136,11 @@ function cadSegmentAngle(from, to) {
 }
 function updateCadDynamicInput(latlng, snap = null) {
     if (!cadDynamicInput) return;
+    if (temporaryPanActive) {
+        cadDynamicInput.innerHTML = '<strong>PAN</strong> · pusti SPACE za nastavak';
+        cadDynamicInput.classList.add('is-visible');
+        return;
+    }
     let html = '';
     if (mode === 'draw' && activeBranch.length) {
         const from = activeBranch[activeBranch.length - 1];
@@ -209,6 +214,7 @@ map.on('dblclick', e => {
 initMapKeyboardInteractions();
 
 map.on('click', e => {
+    if (temporaryPanActive) return;
     const lat = e.latlng.lat.toFixed(7), lng = e.latlng.lng.toFixed(7);
     if (mode === 'draw') { addDrawPoint(e.latlng); return; }
     if (mode === 'trace-branch') { handleTraceBranchClick(e.latlng); return; }

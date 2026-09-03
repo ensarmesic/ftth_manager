@@ -5,6 +5,18 @@ function initMapKeyboardInteractions() {
         const target = event.target;
         const tag = target?.tagName?.toLowerCase();
 
+        if (event.code === 'Space' && !event.repeat && !['input', 'select', 'textarea', 'button', 'a'].includes(tag) && !target?.isContentEditable) {
+            event.preventDefault();
+            temporaryPanActive = true;
+            map.dragging.enable();
+            document.getElementById('map-container')?.classList.add('cad-temporary-pan');
+            if (cadDynamicInput) {
+                cadDynamicInput.innerHTML = '<strong>PAN</strong> · pusti SPACE za nastavak';
+                cadDynamicInput.classList.add('is-visible');
+            }
+            return;
+        }
+
         if (event.key === 'Escape') {
             event.preventDefault();
             if (routeEdit) cancelRouteEdit();
@@ -62,5 +74,22 @@ function initMapKeyboardInteractions() {
             if (checkbox) checkbox.checked = gisRoutingEnabled;
             updateCommandBar();
         }
+    });
+
+    document.addEventListener('keyup', event => {
+        if (event.code !== 'Space' || !temporaryPanActive) return;
+        event.preventDefault();
+        temporaryPanActive = false;
+        document.getElementById('map-container')?.classList.remove('cad-temporary-pan');
+        cadDynamicInput?.classList.remove('is-visible');
+        if (mode === 'select') map.dragging.disable();
+    });
+
+    window.addEventListener('blur', () => {
+        if (!temporaryPanActive) return;
+        temporaryPanActive = false;
+        document.getElementById('map-container')?.classList.remove('cad-temporary-pan');
+        cadDynamicInput?.classList.remove('is-visible');
+        if (mode === 'select') map.dragging.disable();
     });
 }
