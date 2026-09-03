@@ -131,6 +131,7 @@
 
         <div id="map-container" class="min-h-0 flex-1 w-full relative">
             <div id="network-map" class="w-full h-full"></div>
+            <div id="cad-crosshair" aria-hidden="true"><i></i><b></b><span></span></div>
             <nav class="map-vertical-tools" aria-label="Brzi alati mape">
                 <button type="button" data-map-tool="select" title="Selektuj elemente" aria-label="Selektuj elemente">
                     <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 2.7v13.8c0 .7.84 1.04 1.33.55l3.1-3.1 2.15 3.55a1 1 0 001.72-1.03l-2.14-3.57h4.38c.7 0 1.05-.85.55-1.34L5.34 2.16A.78.78 0 004 2.7z"/></svg>

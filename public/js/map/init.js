@@ -126,6 +126,17 @@ initHouseConnectionControls();
 initProjectCheckControls();
 
 // ── MAP EVENT HANDLERS ─────────────────────────────────────────────────────────
+const cadCrosshair = document.getElementById('cad-crosshair');
+map.on('mousemove', event => {
+    if (!cadCrosshair) return;
+    const point = map.latLngToContainerPoint(event.latlng);
+    cadCrosshair.style.setProperty('--cad-x', `${point.x}px`);
+    cadCrosshair.style.setProperty('--cad-y', `${point.y}px`);
+});
+map.on('mouseout', () => {
+    cadCrosshair?.style.setProperty('--cad-x', '-100px');
+    cadCrosshair?.style.setProperty('--cad-y', '-100px');
+});
 map.on('mousemove', e => {
     document.getElementById('cad-coordinates').textContent = `LAT ${e.latlng.lat.toFixed(7)}, LNG ${e.latlng.lng.toFixed(7)}`;
     if (mode === 'split') {

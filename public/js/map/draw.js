@@ -6,6 +6,9 @@ function setMode(next) {
         cancelActiveDrawing();
     }
     mode = next;
+    const mapContainer = document.getElementById('map-container');
+    mapContainer?.classList.toggle('cad-crosshair-active', next !== 'pan');
+    mapContainer?.setAttribute('data-cad-mode', next);
     if (next !== 'connect') connectOdf = null;
     if (next !== 'connect-houses') resetHouseConnect();
     if (next !== 'join') resetJoinRoutes();

@@ -6,10 +6,10 @@
     }
     .snap-wrap { position: relative; width: 0; height: 0; pointer-events: none; }
     .snap-ring {
-        width: 34px; height: 34px; border-radius: 50%;
-        border: 2.5px solid var(--sc); position: absolute;
+        width: 18px; height: 18px; border-radius: 2px;
+        border: 2px solid var(--sc); position: absolute;
         top: 0; left: 0; transform: translate(-50%,-50%);
-        animation: snap-pulse .7s ease-in-out infinite;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.88), 0 0 8px rgba(0,0,0,.35);
     }
     .snap-dot {
         width: 7px; height: 7px; border-radius: 50%;
@@ -33,6 +33,40 @@
     }
     .leaflet-snap-active { cursor: crosshair !important; }
     .leaflet-snap-active .leaflet-grab { cursor: crosshair !important; }
+    #cad-crosshair {
+        --cad-x: -100px;
+        --cad-y: -100px;
+        position: absolute;
+        z-index: 1490;
+        left: var(--cad-x);
+        top: var(--cad-y);
+        display: none;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+        filter: drop-shadow(0 1px 1px rgba(0,0,0,.75));
+    }
+    #map-container.cad-crosshair-active #cad-crosshair { display: block; }
+    #cad-crosshair i,
+    #cad-crosshair b {
+        position: absolute;
+        display: block;
+        background: rgba(239,246,255,.92);
+        content: '';
+    }
+    #cad-crosshair i { left: -18px; top: 0; width: 36px; height: 1px; }
+    #cad-crosshair b { left: 0; top: -18px; width: 1px; height: 36px; }
+    #cad-crosshair span {
+        position: absolute;
+        left: -3px;
+        top: -3px;
+        width: 7px;
+        height: 7px;
+        border: 1px solid #38bdf8;
+        background: transparent;
+    }
+    #map-container.cad-crosshair-active .leaflet-container,
+    #map-container.cad-crosshair-active .leaflet-grab { cursor: none !important; }
     /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
@@ -192,6 +226,13 @@
     .cad-chip {
         border: 1px solid rgba(148, 163, 184, .35);
         background: rgba(15, 23, 42, .8);
+    }
+    #cad-command {
+        overflow: hidden;
+        color: #e0f2fe;
+        font-weight: 750;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     #map-workspace.gis-view .route-label span,
     #map-workspace.gis-view .ftth-cabinet-text {
