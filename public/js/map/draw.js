@@ -399,6 +399,7 @@ function layerPixelDistance(a, b) {
     return map.latLngToLayerPoint(a).distanceTo(map.latLngToLayerPoint(b));
 }
 function getSnapTarget(latlng) {
+    if (!snapEnabled) return null;
     const primaryCandidates = [
         ...data.odfs.map(item => ({ latlng: odfMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type: 'odf', id: item.id })),
         ...data.cabinets.map(item => ({ latlng: cabinetMarkerById[item.id]?.getLatLng() || L.latLng(item.lat, item.lng), label: item.name, type: 'cabinet', id: item.id })),

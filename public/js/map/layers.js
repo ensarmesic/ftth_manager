@@ -54,7 +54,8 @@ function updateCommandBar(snap = '-', previewPoint = null) {
         segment = Math.round(map.distance(activeBranch[activeBranch.length - 1], previewPoint));
         total += segment;
     }
-    metrics.textContent = `Points: ${activeBranch.length} | Total: ${total}m | Segment: ${segment}m | Snap: ${snap || '-'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'} | OSM: ${osmRoutingEnabled ? (osmRoutingLoading ? '...' : 'ON') : 'OFF'} | GIS: ${gisRoutingEnabled ? 'ON' : 'OFF'}`;
+    metrics.textContent = `Points: ${activeBranch.length} | Total: ${total}m | Segment: ${segment}m | Snap: ${snapEnabled ? (snap || '-') : 'OFF'} | ORTHO: ${orthoEnabled ? 'ON' : 'OFF'} | OSM: ${osmRoutingEnabled ? (osmRoutingLoading ? '...' : 'ON') : 'OFF'} | GIS: ${gisRoutingEnabled ? 'ON' : 'OFF'}`;
+    if (typeof syncCadStatusToggles === 'function') syncCadStatusToggles();
 }
 function pushUndo(action) {
     undoStack.push(action);

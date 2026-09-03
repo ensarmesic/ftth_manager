@@ -235,7 +235,11 @@
             </div>
             <div id="cad-metrics" class="cad-chip rounded px-2 py-1">Points: 0 | Distance: 0m | Snap: - | ORTHO: OFF</div>
             <div id="cad-coordinates" class="cad-chip rounded px-2 py-1">LAT -, LNG -</div>
-            <div class="cad-chip rounded px-2 py-1">/ komanda | SPACE pan | ESC prekid | ENTER završi | CTRL+Z undo</div>
+            <div class="cad-toggle-strip">
+                <button type="button" data-cad-toggle="snap" title="F3"><span>OSNAP</span><b>ON</b></button>
+                <button type="button" data-cad-toggle="grid" title="F7"><span>GRID</span><b>OFF</b></button>
+                <button type="button" data-cad-toggle="ortho" title="F8"><span>ORTHO</span><b>OFF</b></button>
+            </div>
         </div>
     </div>
 

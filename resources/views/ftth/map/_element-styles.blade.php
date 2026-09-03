@@ -91,6 +91,19 @@
     #map-container.cad-temporary-pan #cad-crosshair i,
     #map-container.cad-temporary-pan #cad-crosshair b,
     #map-container.cad-temporary-pan #cad-crosshair span { display: none; }
+    #map-container.cad-grid-visible::after {
+        position: absolute;
+        z-index: 800;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+            linear-gradient(rgba(56,189,248,.12) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(56,189,248,.12) 1px, transparent 1px),
+            linear-gradient(rgba(56,189,248,.22) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(56,189,248,.22) 1px, transparent 1px);
+        background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+        content: '';
+    }
     /* ── Map element styles (unchanged) ─────────────────────────── */
     .ftth-label { border: 0; background: transparent; }
     .ftth-tag { position: absolute; left: 1px; top: 1px; transform: translate(-50%, -50%); color: #fff; font: 800 9px/1 system-ui, sans-serif; display: grid; place-items: center; }
@@ -289,6 +302,22 @@
         box-shadow: 0 0 0 2px rgba(56,189,248,.13);
     }
     #cad-command-input::placeholder { color: #56708c; text-transform: none; }
+    .cad-toggle-strip { display: flex; align-items: stretch; gap: 3px; }
+    .cad-toggle-strip button {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid rgba(112,151,194,.2);
+        border-radius: 3px;
+        background: rgba(12,31,53,.72);
+        color: #7188a1;
+        padding: 3px 6px;
+        font: 750 9px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        cursor: pointer;
+    }
+    .cad-toggle-strip button b { color: #526a83; font-size: 8px; }
+    .cad-toggle-strip button.is-on { border-color: rgba(56,189,248,.62); background: rgba(7,89,133,.48); color: #dff6ff; }
+    .cad-toggle-strip button.is-on b { color: #38bdf8; }
     @media (max-width: 900px) {
         .cad-command-line { grid-template-columns: 1fr; }
     }

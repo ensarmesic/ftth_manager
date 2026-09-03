@@ -6,6 +6,27 @@ function initMapKeyboardInteractions() {
         const target = event.target;
         const tag = target?.tagName?.toLowerCase();
 
+        if (event.key === 'F2') {
+            event.preventDefault();
+            document.getElementById('cad-command-input')?.focus();
+            return;
+        }
+        if (event.key === 'F3') {
+            event.preventDefault();
+            toggleCadSnap();
+            return;
+        }
+        if (event.key === 'F7') {
+            event.preventDefault();
+            toggleCadGrid();
+            return;
+        }
+        if (event.key === 'F8') {
+            event.preventDefault();
+            toggleCadOrtho();
+            return;
+        }
+
         if (event.key === '/' && !['input', 'select', 'textarea'].includes(tag) && !target?.isContentEditable) {
             event.preventDefault();
             document.getElementById('cad-command-input')?.focus();
@@ -65,7 +86,7 @@ function initMapKeyboardInteractions() {
             return;
         }
         if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'o') {
-            event.preventDefault(); orthoEnabled = !orthoEnabled; updateCommandBar();
+            event.preventDefault(); toggleCadOrtho();
         }
         if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'r') {
             event.preventDefault();
@@ -101,6 +122,40 @@ function initMapKeyboardInteractions() {
     });
 }
 
+function syncCadStatusToggles() {
+    const states = { snap: snapEnabled, grid: gridEnabled, ortho: orthoEnabled };
+    Object.entries(states).forEach(([name, enabled]) => {
+        const button = document.querySelector(`[data-cad-toggle="${name}"]`);
+        if (!button) return;
+        button.classList.toggle('is-on', enabled);
+        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        const state = button.querySelector('b');
+        if (state) state.textContent = enabled ? 'ON' : 'OFF';
+    });
+    document.getElementById('map-container')?.classList.toggle('cad-grid-visible', gridEnabled);
+}
+
+function toggleCadSnap() {
+    snapEnabled = !snapEnabled;
+    if (!snapEnabled) hideSnapIndicator();
+    syncCadStatusToggles();
+    updateCommandBar();
+    document.getElementById('cad-command').textContent = `OSNAP: ${snapEnabled ? 'ON' : 'OFF'}`;
+}
+
+function toggleCadGrid() {
+    gridEnabled = !gridEnabled;
+    syncCadStatusToggles();
+    document.getElementById('cad-command').textContent = `GRID: ${gridEnabled ? 'ON' : 'OFF'}`;
+}
+
+function toggleCadOrtho() {
+    orthoEnabled = !orthoEnabled;
+    syncCadStatusToggles();
+    updateCommandBar();
+    document.getElementById('cad-command').textContent = `ORTHO: ${orthoEnabled ? 'ON' : 'OFF'}`;
+}
+
 function initCadCommandLine() {
     const input = document.getElementById('cad-command-input');
     if (!input) return;
@@ -127,12 +182,9 @@ function initCadCommandLine() {
             if (['E', 'ERASE', 'DELETE'].includes(command)) document.getElementById('cad-command').textContent = 'ERASE: označi elemente pravougaonikom, zatim Obriši selektovano.';
             return;
         }
-        if (['O', 'ORTHO'].includes(command)) {
-            orthoEnabled = !orthoEnabled;
-            updateCommandBar();
-            document.getElementById('cad-command').textContent = `ORTHO: ${orthoEnabled ? 'ON' : 'OFF'}`;
-            return;
-        }
+        if (['O', 'ORTHO'].includes(command)) { toggleCadOrtho(); return; }
+        if (['OS', 'OSNAP'].includes(command)) { toggleCadSnap(); return; }
+        if (['G', 'GRID'].includes(command)) { toggleCadGrid(); return; }
         if (['U', 'UNDO'].includes(command)) {
             if (routeEdit) undoRouteEdit();
             else if (mode === 'draw' && undoStack.length) undoLast();
@@ -171,4 +223,11 @@ function initCadCommandLine() {
             input.value = history[historyIndex] || '';
         }
     });
+    document.querySelectorAll('[data-cad-toggle]').forEach(button => button.addEventListener('click', () => {
+        const toggle = button.dataset.cadToggle;
+        if (toggle === 'snap') toggleCadSnap();
+        if (toggle === 'grid') toggleCadGrid();
+        if (toggle === 'ortho') toggleCadOrtho();
+    }));
+    syncCadStatusToggles();
 }
