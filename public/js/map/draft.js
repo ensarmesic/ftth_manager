@@ -106,6 +106,10 @@ function initDraftPersistenceControls() {
         const status = document.getElementById('bulk-plan-status');
         if (activeBranch.length > 1) finishBranch();
         refreshPlanSummary();
+        // Permanent save and draft autosave must never race. A late autosave can
+        // otherwise recreate stale elements after storePlan deletes the draft.
+        clearTimeout(autosaveTimer);
+        autosaveTimer = null;
         const payload = planPayload();
         const issues = collectDraftPreflightIssues(payload);
         renderDraftPreflight(issues);
@@ -118,7 +122,7 @@ function initDraftPersistenceControls() {
         renderDraftPreflight([]);
         status.classList.remove('text-amber-700');
         try {
-            await saveDraft();
+            await waitForDraftSaveIdle();
             status.textContent = 'Snimam plan...';
             const response = await fetch(form.action, {
                 method: 'POST',
@@ -127,10 +131,16 @@ function initDraftPersistenceControls() {
             });
             const result = await readJsonResponse(response, 'Plan nije snimljen. Provjeri podatke.');
             delete draftsByProject[form.elements.project_id.value];
+            autosaveReady = false;
+            clearTimeout(autosaveTimer);
+            autosaveTimer = null;
             status.textContent = `${result.message} Osvježavam trajno spremljenu mapu...`;
             window.location.reload();
         } catch (error) {
             status.textContent = error.message;
+            saveDraft({ quiet: true }).catch(draftError => {
+                status.textContent = recoverableRequestError(draftError, () => saveDraft({ quiet: true }));
+            });
         }
     });
 }
@@ -369,6 +379,7 @@ function restoreDraft(payload) {
             housePoints[savedHouseCount + houseIndex] = next;
             houseMarkerByKey[pointKey(next.lat, next.lng)] = marker;
             refreshStats();
+            refreshPlanSummary();
         });
         marker.on('click', () => selectDraftElement('house', { marker, houseIndex, meta: draftHouseMeta[houseIndex] }));
         registerHouseContext(marker);
@@ -440,6 +451,12 @@ function scheduleDraftAutosave() {
     autosaveTimer = setTimeout(() => saveDraft({ quiet: true }).catch(error => {
         status.textContent = recoverableRequestError(error, () => saveDraft({ quiet: true }));
     }), 700);
+}
+
+async function waitForDraftSaveIdle() {
+    while (mapDraftSaveInFlight) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+    }
 }
 
 async function saveDraft({ quiet = false } = {}) {

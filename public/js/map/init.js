@@ -197,6 +197,7 @@ map.on('click', e => {
             housePoints[index] = next;
             houseMarkerByKey[pointKey(next.lat, next.lng)] = marker;
             refreshStats();
+            refreshPlanSummary();
         });
         registerHouseContext(marker);
         marker.on('click', () => selectDraftElement('house', { marker, houseIndex: draftIndex, meta: houseMeta }));

@@ -58,10 +58,14 @@ function registerDraftContext(marker, title) {
 function removeDraftHouse(marker) {
     const index = houseMarkers.indexOf(marker);
     if (index < 0) return;
+    const draftIndex = index - savedHouseCount;
+    if (draftIndex < 0) return;
     map.removeLayer(marker);
     houseMarkers.splice(index, 1);
-    housePoints.splice(savedHouseCount + index, 1);
+    housePoints.splice(index, 1);
+    draftHouseMeta.splice(draftIndex, 1);
     refreshStats();
+    refreshPlanSummary();
 }
 function registerHouseContext(marker) {
     const openMenu = event => {
@@ -89,6 +93,7 @@ function removeBranchAt(index) {
     });
     renderBranchList();
     refreshStats();
+    refreshPlanSummary();
 }
 function registerBranchContext(line) {
     const openMenu = event => {

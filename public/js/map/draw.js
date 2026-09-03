@@ -368,6 +368,7 @@ function finishBranch() {
     if (previewBranchLine) map.removeLayer(previewBranchLine);
     hideSnapIndicator();
     activeBranch = []; activeBranchSnapTargets = []; activeBranchMarkers = []; activeBranchLine = null; previewBranchLine = null; refreshStats();
+    if (branches.length) refreshPlanSummary();
     if (finishQuickBranch) {
         quickBranchWorkflow = false;
         document.getElementById('route-start-source').value = '';
@@ -389,6 +390,7 @@ function undoBranch() {
     renderBranchList();
     refreshStats();
     syncRoutePathInput();
+    refreshPlanSummary();
 }
 function layerPixelDistance(a, b) {
     return map.latLngToLayerPoint(a).distanceTo(map.latLngToLayerPoint(b));
