@@ -56,7 +56,7 @@ try {
     await page.fill('input[name="username"]', username);
     await page.fill('input[name="password"]', password);
     await Promise.all([
-        page.waitForURL(`${baseUrl}/**`, { timeout: 15000 }),
+        page.waitForURL((url) => !url.pathname.startsWith("/prijava"), { timeout: 15000 }),
         page.click('button[type="submit"]'),
     ]);
     await page.evaluate(() => localStorage.setItem('ftthOnboardingComplete', '1'));

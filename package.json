@@ -10,6 +10,7 @@
         "check:js": "node scripts/check-js.mjs",
         "test:e2e": "node e2e/map-smoke.mjs",
         "test:e2e:pages": "node e2e/pages-smoke.mjs",
+        "test:e2e:roles": "node e2e/roles-smoke.mjs",
         "test:e2e:map-workflow": "node e2e/map-workflow.mjs",
         "test:e2e:visual": "node e2e/visual-audit.mjs",
         "test:e2e:fiber": "node e2e/fiber-schema-workflow.mjs"

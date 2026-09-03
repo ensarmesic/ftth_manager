@@ -10,7 +10,7 @@ page.on('console',message=>{if(message.type()==='error'&&!message.text().include
 page.on('response',response=>{if(response.url().startsWith(baseUrl)&&response.status()>=400)failed.push(`${response.status()} ${response.url()}`);});
 try{
     await page.goto(`${baseUrl}/prijava`,{waitUntil:'networkidle'});await page.fill('input[name="username"]',username);await page.fill('input[name="password"]',password);
-    await Promise.all([page.waitForURL(`${baseUrl}/**`),page.click('button[type="submit"]')]);
+    await Promise.all([page.waitForURL(url=>!url.pathname.startsWith('/prijava')),page.click('button[type="submit"]')]);
     await page.evaluate(()=>localStorage.setItem('ftthOnboardingComplete','1'));
     await page.goto(`${baseUrl}/fiber-sema`,{waitUntil:'networkidle'});
     await page.waitForSelector('.schema-project',{state:'visible'});

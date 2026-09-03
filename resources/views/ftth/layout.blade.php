@@ -76,7 +76,7 @@
                 @if($route === 'odfs.index')<span class="nav-section-label">Mrežna evidencija</span>@endif
                 @if($route === 'reports.index')<span class="nav-section-label">Analitika i kontrola</span>@endif
                 @if($route === 'settings.index')<span class="nav-section-label">Sistem</span>@endif
-                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}">
+                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}" @if(request()->routeIs($route)) aria-current="page" @endif>
                     <span class="shrink-0 opacity-70">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                     {{ $label }}
                 </a>
@@ -180,7 +180,7 @@
     </div>
     <nav class="grid gap-px p-2 text-[13px]">
         @foreach ($sidebarItems as [$route, $label, $iconKey])
-            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}">
+            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}" @if(request()->routeIs($route)) aria-current="page" @endif>
                 <span class="shrink-0 opacity-75">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                 {{ $label }}
             </a>
@@ -469,7 +469,7 @@ document.querySelectorAll('.app-table-card').forEach((card, index) => {
     if (!table || bodyRows.length < 2 || card.querySelector('[data-table-search]')) return;
     const toolbar = document.createElement('div');
     toolbar.className = 'table-local-tools';
-    toolbar.innerHTML = `<label><span class="sr-only">Pretraži listu</span><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg><input type="search" data-table-search="${index}" placeholder="Pretraži listu… (Enter za sve stranice)"></label><span data-table-count>${bodyRows.length} prikazano</span>`;
+    toolbar.innerHTML = `<label><span class="sr-only">Pretraži listu</span><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg><input type="search" data-table-search="${index}" placeholder="Pretraži listu… (Enter za sve stranice)"></label><span class="table-local-meta"><span data-table-count aria-live="polite">${bodyRows.length} prikazano</span><small>Povuci tabelu lijevo ili desno za sve kolone</small></span>`;
     card.insertBefore(toolbar, card.firstChild);
     const searchInput = toolbar.querySelector('input');
     const storageKey = `ftthTableSearch:${location.pathname}:${index}`;

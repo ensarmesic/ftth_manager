@@ -41,6 +41,7 @@
             </a>
         @endforeach
     </nav>
+    <p class="network-flow-hint" aria-hidden="true">Povuci lijevo ili desno za ostale dijelove mreže</p>
 </section>
 @if($projectContext)
 @php($contextProject = $projectContext['project'])

@@ -315,6 +315,8 @@
         box-shadow: none;
     }
     #map-workspace .map-toolbar {
+        flex: 0 0 auto;
+        align-content: flex-start;
         gap: 4px;
         padding: 7px 9px;
         background: linear-gradient(180deg,#152438,#0f1c2d);
@@ -406,6 +408,20 @@
         #map-workspace .map-shell { min-height: 860px; }
         #map-workspace > aside { overflow: visible !important; max-height: none !important; }
     }
+    @media (min-width: 768px) and (max-width: 1279px) {
+        #map-workspace .map-toolbar {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-color: #526b84 #101d2e;
+            scrollbar-width: thin;
+        }
+        #map-workspace .map-toolbar > .ml-auto {
+            flex: 0 0 auto;
+            flex-wrap: nowrap;
+            width: max-content;
+            margin-left: 0 !important;
+        }
+    }
     .mobile-map-tools-toggle { display: none; }
     @media (max-width: 767px) {
         #map-workspace .map-topbar { align-items: flex-start; }
@@ -429,6 +445,16 @@
         #map-workspace .map-toolbar.mobile-open { display: flex; max-height: 52vh; overflow-y: auto; align-content: flex-start; }
         #map-workspace .map-toolbar.mobile-open .tc { min-height: 34px; padding: 7px 10px; font-size: 11px; }
         #map-workspace .map-toolbar.mobile-open .tc-sep { display: none; }
+        #map-workspace #map-search-overlay {
+            right: 10px;
+            left: 54px !important;
+            width: auto !important;
+        }
+        #map-workspace #map-stats-bar {
+            top: 52px !important;
+            right: 10px !important;
+            left: 64px;
+        }
         #map-workspace .map-shell:has(.map-toolbar.mobile-open) { min-height: 1120px; }
         #map-workspace .cad-status { font-size: 10px; }
         #survey-panel,
