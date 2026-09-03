@@ -252,6 +252,41 @@ class MapController extends Controller
 
                 $routeName = $route['name'] ?? $this->nextRouteNameForProject($projectId, $routeType);
 
+                // A stale browser draft can still contain a route immediately after
+                // that same saved route was edited. Treat its stable project/type/name
+                // identity as an update; otherwise every click on "Sačuvaj na mapi"
+                // creates Name-2, Name-3... when only one vertex changed.
+                $existingNamedRoute = NetworkRoute::query()
+                    ->where('project_id', $projectId)
+                    ->where('route_type', $routeType)
+                    ->where('name', $routeName)
+                    ->first();
+                if ($existingNamedRoute) {
+                    $existingNamedRoute->update([
+                        'odf_id' => $routeOdfId,
+                        'cabinet_id' => $routeCabinetId,
+                        'from_type' => $fromType,
+                        'from_id' => $fromId,
+                        'to_type' => $route['to_type'] ?? ($routeToId ? 'cabinet' : null),
+                        'to_id' => $routeToId,
+                        'installation_type' => $route['installation_type'] ?? 'underground',
+                        'trench_group' => $route['trench_group'] ?? null,
+                        'counts_as_trench' => $routeType === 'trench',
+                        'trench_length_m' => null,
+                        'duct_length_m' => $route['duct_length_m'] ?? 0,
+                        'fiber_length_m' => $routeType === 'trench' ? 0 : ($route['fiber_length_m'] ?? 0),
+                        'fiber_count' => $routeType === 'trench' ? null : ($route['fiber_count'] ?? 12),
+                        'microduct_count' => $routeType === 'trench' ? 0 : ($route['microduct_count'] ?? 1),
+                        'microduct_type' => $routeType === 'trench' ? null : ($route['microduct_type'] ?? '14/10'),
+                        'path' => $route['path'] ?? null,
+                    ]);
+                    if ($routeSig) {
+                        $existingRouteSignatures[$routeSig] = true;
+                    }
+
+                    continue;
+                }
+
                 $createdRoute = NetworkRoute::create([
                     'project_id' => $projectId,
                     'odf_id' => $routeOdfId,

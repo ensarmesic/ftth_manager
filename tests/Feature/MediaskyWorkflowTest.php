@@ -1241,4 +1241,27 @@ class MediaskyWorkflowTest extends TestCase
         $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($reversedPlan)])->assertOk();
         $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->where('route_type', 'distribution')->count());
     }
+
+    public function test_resaving_a_moved_route_updates_same_named_route_instead_of_creating_suffix(): void
+    {
+        $project = Project::create(['name' => 'Pomjeranje trase', 'code' => 'MOVE-SAVE', 'location' => 'Test', 'status' => 'planning']);
+        $original = ['routes' => [[
+            'name' => 'Primarni krak 2',
+            'route_type' => 'feeder',
+            'duct_length_m' => 100,
+            'path' => [[44.45, 18.65], [44.451, 18.651], [44.452, 18.652]],
+        ]]];
+        $moved = $original;
+        $moved['routes'][0]['path'][1] = [44.4512, 18.6513];
+        $moved['routes'][0]['duct_length_m'] = 105;
+
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($original)])->assertOk();
+        $routeId = NetworkRoute::where('project_id', $project->id)->sole()->id;
+        $this->postJson(route('map.plan.store'), ['project_id' => $project->id, 'plan' => json_encode($moved)])->assertOk();
+
+        $this->assertSame(1, NetworkRoute::where('project_id', $project->id)->count());
+        $this->assertSame($routeId, NetworkRoute::where('project_id', $project->id)->sole()->id);
+        $this->assertSame($moved['routes'][0]['path'], NetworkRoute::findOrFail($routeId)->path);
+        $this->assertDatabaseMissing('routes', ['project_id' => $project->id, 'name' => 'Primarni krak 2-2']);
+    }
 }
