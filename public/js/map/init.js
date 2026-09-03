@@ -150,7 +150,7 @@ function updateCadDynamicInput(latlng, snap = null) {
     } else if (mode === 'ruler' && rulerStart) {
         html = `<strong>${map.distance(rulerStart, latlng).toFixed(1)} m</strong> · ∠ ${cadSegmentAngle(rulerStart, latlng).toFixed(1)}°`;
     } else if (mode === 'trace-branch' && traceBranchStart) {
-        html = snap ? `<strong>SNAP</strong> ${escapeHtml(snap.label || 'trasa')}` : 'Odaberi kraj na povezanoj trasi';
+        html = snap ? `<strong>${snapTypeCode(snap)}</strong> ${escapeHtml(String(snap.label || 'trasa').replace(/^[A-Z]+ · /, ''))}` : 'Odaberi kraj na povezanoj trasi';
     }
     cadDynamicInput.innerHTML = html;
     cadDynamicInput.classList.toggle('is-visible', Boolean(html));

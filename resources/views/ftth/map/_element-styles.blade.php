@@ -11,6 +11,20 @@
         top: 0; left: 0; transform: translate(-50%,-50%);
         box-shadow: 0 0 0 1px rgba(255,255,255,.88), 0 0 8px rgba(0,0,0,.35);
     }
+    .snap-midpoint .snap-ring {
+        width: 20px;
+        height: 18px;
+        border: 0;
+        border-radius: 0;
+        background: var(--sc);
+        clip-path: polygon(50% 0, 100% 100%, 0 100%, 50% 0, 50% 18%, 17% 88%, 83% 88%, 50% 18%);
+        box-shadow: none;
+    }
+    .snap-node .snap-ring { border-radius: 50%; }
+    .snap-nearest .snap-ring { width: 15px; height: 15px; transform: translate(-50%,-50%) rotate(45deg); }
+    .snap-odf .snap-ring,
+    .snap-cabinet .snap-ring,
+    .snap-house .snap-ring { border-radius: 50%; }
     .snap-dot {
         width: 7px; height: 7px; border-radius: 50%;
         background: var(--sc); position: absolute;
@@ -31,6 +45,7 @@
         border: 4px solid transparent;
         border-top-color: #0f172a;
     }
+    .snap-lbl b { color: var(--sc); font-weight: 900; }
     .leaflet-snap-active { cursor: crosshair !important; }
     .leaflet-snap-active .leaflet-grab { cursor: crosshair !important; }
     #cad-crosshair {

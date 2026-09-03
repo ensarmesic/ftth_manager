@@ -415,7 +415,8 @@ function getSnapTarget(latlng) {
     });
     if (best && best.distance <= snapPixelTolerance) return best;
 
-    let bestSec = null;
+    let bestPrecision = null;
+    let bestNear = null;
     const visibleSavedRoutes = data.routes
         .filter(route => route.path?.length && routeLayerById[route.id] && map.hasLayer(routeLayerById[route.id]))
         .map(route => route.path.map(point => L.latLng(point[0], point[1])));
@@ -423,16 +424,27 @@ function getSnapTarget(latlng) {
     [...visibleSavedRoutes, ...visibleDraftRoutes].forEach(route => {
         route.forEach((vertex, index) => {
             const d = layerPixelDistance(latlng, vertex);
-            const label = index === 0 ? 'Početak trase' : (index === route.length - 1 ? 'Kraj trase' : 'Čvor trase');
-            if (!bestSec || d < bestSec.distance) bestSec = { latlng: vertex, label, type: 'vertex', distance: d };
+            const endpoint = index === 0 || index === route.length - 1;
+            const candidate = { latlng: vertex, label: endpoint ? 'END · Kraj trase' : 'NODE · Čvor trase', type: endpoint ? 'endpoint' : 'node', distance: d };
+            if (!bestPrecision || d < bestPrecision.distance) bestPrecision = candidate;
         });
         for (let i = 0; i < route.length - 1; i++) {
+            const midpoint = L.latLng((route[i].lat + route[i + 1].lat) / 2, (route[i].lng + route[i + 1].lng) / 2);
+            const midpointDistance = layerPixelDistance(latlng, midpoint);
+            if (!bestPrecision || midpointDistance < bestPrecision.distance) {
+                bestPrecision = { latlng: midpoint, label: 'MID · Sredina segmenta', type: 'midpoint', distance: midpointDistance };
+            }
             const proj = projectOnSegment(latlng, route[i], route[i + 1]);
             const d = layerPixelDistance(latlng, proj);
-            if (!bestSec || d < bestSec.distance) bestSec = { latlng: proj, label: 'Na trasi', type: 'segment', distance: d };
+            if (!bestNear || d < bestNear.distance) bestNear = { latlng: proj, label: 'NEAR · Na trasi', type: 'nearest', distance: d };
         }
     });
-    return bestSec && bestSec.distance <= snapPixelTolerance ? bestSec : null;
+    if (bestPrecision && bestPrecision.distance <= Math.min(14, snapPixelTolerance)) return bestPrecision;
+    return bestNear && bestNear.distance <= snapPixelTolerance ? bestNear : null;
+}
+function snapTypeCode(target) {
+    if (!target) return '';
+    return ({ endpoint: 'END', midpoint: 'MID', node: 'NODE', nearest: 'NEAR', odf: 'ODF', cabinet: 'FTTH', house: 'HOUSE' })[target.type] || 'SNAP';
 }
 // getSnapTarget() only reports a bare point/label — it never says WHICH route a
 // 'segment'/'vertex' match came from. When two routes run close and parallel
@@ -461,10 +473,10 @@ function showSnapIndicator(target) {
     const color = (target.type === 'odf' || target.type === 'cabinet') ? '#22c55e'
                 : target.type === 'house' ? '#8b5cf6'
                 : '#f59e0b';
-    const html = `<div class="snap-wrap" style="--sc:${color}">` +
+    const html = `<div class="snap-wrap snap-${escapeHtml(target.type || 'point')}" style="--sc:${color}">` +
         `<div class="snap-ring"></div>` +
         `<div class="snap-dot"></div>` +
-        `<div class="snap-lbl">${target.label}</div>` +
+        `<div class="snap-lbl"><b>${snapTypeCode(target)}</b> ${escapeHtml(String(target.label || '').replace(/^[A-Z]+ · /, ''))}</div>` +
         `</div>`;
     const icon = L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
     if (!snapIndicator) {
