@@ -343,6 +343,11 @@ function traceGraphProjection(point, sources) {
     });
     return best;
 }
+function traceSegmentFraction(point, a, b) {
+    const pa = map.latLngToLayerPoint(a), pb = map.latLngToLayerPoint(b), pp = map.latLngToLayerPoint(point);
+    const ab = pb.subtract(pa), ap = pp.subtract(pa), denominator = ab.x * ab.x + ab.y * ab.y;
+    return denominator ? Math.max(0, Math.min(1, (ap.x * ab.x + ap.y * ab.y) / denominator)) : 0;
+}
 function buildTraceGraph(fromPoint, toPoint, fromHint = null, toHint = null) {
     const sources = traceGraphSources();
     // If the caller already knows exactly which route the point snapped to
@@ -365,12 +370,32 @@ function buildTraceGraph(fromPoint, toPoint, fromHint = null, toHint = null) {
     sources.forEach(source => {
         const path = source.path.map(p => L.latLng(p[0], p[1]));
         for (let i = 1; i < path.length; i++) {
+            // A branch commonly ends in the middle of another route rather than
+            // on one of its stored vertices. Split that carrier segment at every
+            // nearby route vertex so the graph contains the real T-junction.
+            const junctions = [];
+            sources.forEach(otherSource => {
+                if (otherSource.key === source.key) return;
+                [otherSource.path[0], otherSource.path[otherSource.path.length - 1]].forEach(rawPoint => {
+                    const routePoint = L.latLng(rawPoint[0], rawPoint[1]);
+                    const projected = projectOnSegment(routePoint, path[i - 1], path[i]);
+                    if (map.distance(routePoint, projected) <= 3) {
+                        junctions.push({ point: projected, t: traceSegmentFraction(projected, path[i - 1], path[i]) });
+                    }
+                });
+            });
             const segmentPoints = [
                 { point: path[i - 1], t: 0 },
                 { point: path[i], t: 1 },
+                ...junctions,
                 ...(insertsBySource[source.key] || [])
                     .filter(insert => insert.segmentIndex === i)
-                    .map(insert => ({ point: insert.point, t: 0.5, sourcePoint: insert.sourcePoint, sourceKey: insert.sourceKey })),
+                    .map(insert => ({
+                        point: insert.point,
+                        t: traceSegmentFraction(insert.point, path[i - 1], path[i]),
+                        sourcePoint: insert.sourcePoint,
+                        sourceKey: insert.sourceKey,
+                    })),
             ].sort((a, b) => a.t - b.t);
             for (let j = 1; j < segmentPoints.length; j++) addTraceGraphVertexEdge(graph, segmentPoints[j - 1].point, segmentPoints[j].point);
             segmentPoints.filter(item => item.sourcePoint).forEach(item => addNetworkEdge(graph, item.sourcePoint, item.point));

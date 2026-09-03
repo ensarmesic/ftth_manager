@@ -144,7 +144,12 @@ map.on('mousemove', e => {
         showSnapIndicator(snap);
         const point = snap?.latlng || e.latlng;
         const { point: endPoint, hint: endHint } = resolveTraceEndPoint(e.latlng, point, snap, traceBranchStartSnap);
-        const path = shortestTracePath(traceBranchStart, endPoint, traceBranchStartSnap, endHint) || networkPathBetween(traceBranchStart, endPoint);
+        const path = shortestTracePath(traceBranchStart, endPoint, traceBranchStartSnap, endHint);
+        if (!path) {
+            if (traceBranchPreviewLine) { map.removeLayer(traceBranchPreviewLine); traceBranchPreviewLine = null; }
+            document.getElementById('cad-command').textContent = 'KRAK PO LINIJI: između tačaka nema povezane trase.';
+            return;
+        }
         if (traceBranchPreviewLine) traceBranchPreviewLine.setLatLngs(path);
         else traceBranchPreviewLine = L.polyline(path, { color: '#f59e0b', weight: 3, opacity: .8, dashArray: '4 7' }).addTo(map);
         return;

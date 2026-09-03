@@ -567,7 +567,7 @@ function handleTraceBranchClick(latlng) {
     if (traceBranchPreviewLine) { map.removeLayer(traceBranchPreviewLine); traceBranchPreviewLine = null; }
 
     const { point: endPoint, hint: endHint } = resolveTraceEndPoint(latlng, point, snap, startSnap);
-    const path = shortestTracePath(startPoint, endPoint, startSnap, endHint) || networkPathBetween(startPoint, endPoint);
+    const path = shortestTracePath(startPoint, endPoint, startSnap, endHint);
     if (!path || path.length < 2) {
         document.getElementById('cad-command').textContent = 'KRAK PO LINIJI: nije pronađena linija u blizini obe tačke.';
         return;
