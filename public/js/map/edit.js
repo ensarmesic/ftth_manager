@@ -1,9 +1,10 @@
 // ── ROUTE EDIT MODE ───────────────────────────────────────────────────────────
 function routeEditVertexIcon() {
     return L.divIcon({
-        className: 'ftth-label',
-        html: '<div style="width:9px;height:9px;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 1px #0f172a"></div>',
-        iconAnchor: [5, 5],
+        className: 'route-edit-handle',
+        html: '<div style="width:14px;height:14px;border-radius:3px;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 2px #0f172a,0 3px 8px rgba(15,23,42,.45)"></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
     });
 }
 function routeEditMidpointIcon() {
@@ -11,6 +12,14 @@ function routeEditMidpointIcon() {
         className: 'ftth-label',
         html: '<div style="width:7px;height:7px;background:rgba(37,99,235,0.35);border:1.5px solid #2563eb;border-radius:1px;transform:rotate(45deg);box-shadow:0 0 0 1px rgba(255,255,255,0.6)"></div>',
         iconAnchor: [4, 4],
+    });
+}
+function routeEditMoveIcon() {
+    return L.divIcon({
+        className: 'route-edit-move-handle',
+        html: '<div title="Pomjeri cijelu trasu" style="display:flex;align-items:center;gap:5px;border:2px solid #fff;border-radius:999px;background:#0f766e;padding:5px 8px;box-shadow:0 0 0 2px #0f172a,0 5px 14px rgba(15,23,42,.45);color:#fff;font:800 10px/1 system-ui;white-space:nowrap"><span style="font-size:15px">✥</span>POMJERI</div>',
+        iconSize: [82, 30],
+        iconAnchor: [41, 15],
     });
 }
 
@@ -35,7 +44,7 @@ function startRouteEdit(route, line) {
     // true surveyed/database geometry so a visual lane can never be persisted as a shift.
     const points = snapRouteEditPointsToAssignedCabinet(route, route.path.map(point => L.latLng(point[0], point[1])));
     line.setLatLngs(points);
-    routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [], midpointMarkers: [] };
+    routeEdit = { route, line, originalPoints: points.map(point => L.latLng(point.lat, point.lng)), points, markers: [], midpointMarkers: [], moveMarker: null };
     line.setStyle({ color: '#2563eb', weight: 4, opacity: 1, dashArray: '2 4' });
     document.getElementById('route-edit-actions').classList.remove('hidden');
     document.getElementById('route-edit-actions').classList.add('flex');
@@ -198,7 +207,45 @@ function renderRouteEditVertices() {
         return marker;
     });
     renderRouteEditMidpoints();
+    renderRouteEditMoveHandle();
     updateRouteEditStatus();
+}
+function renderRouteEditMoveHandle() {
+    if (!routeEdit?.points.length) return;
+    if (routeEdit.moveMarker) map.removeLayer(routeEdit.moveMarker);
+    const center = routeEdit.points.reduce(
+        (sum, point) => L.latLng(sum.lat + point.lat / routeEdit.points.length, sum.lng + point.lng / routeEdit.points.length),
+        L.latLng(0, 0),
+    );
+    const marker = L.marker(center, { draggable: true, icon: routeEditMoveIcon(), zIndexOffset: 1100 }).addTo(map);
+    marker.on('dragstart', () => {
+        marker._routeStart = marker.getLatLng();
+        marker._routePoints = routeEdit.points.map(point => L.latLng(point.lat, point.lng));
+        document.getElementById('cad-command').textContent = 'EDIT ROUTE: pomjeranje cijele trase.';
+    });
+    marker.on('drag', event => {
+        if (!routeEdit || !marker._routeStart || !marker._routePoints) return;
+        const current = event.target.getLatLng();
+        const deltaLat = current.lat - marker._routeStart.lat;
+        const deltaLng = current.lng - marker._routeStart.lng;
+        routeEdit.points = marker._routePoints.map(point => L.latLng(point.lat + deltaLat, point.lng + deltaLng));
+        routeEdit.markers.forEach((handle, index) => handle.setLatLng(routeEdit.points[index]));
+        routeEdit.line.setLatLngs(routeEdit.points);
+        updateRouteEditStatus();
+    });
+    marker.on('dragend', () => {
+        if (!routeEdit || !marker._routePoints) return;
+        const before = marker._routePoints.map(point => L.latLng(point.lat, point.lng));
+        const after = routeEdit.points.map(point => L.latLng(point.lat, point.lng));
+        const moved = before.some((point, index) => map.distance(point, after[index]) >= 0.1);
+        renderRouteEditVertices();
+        if (!moved) return;
+        pushRouteEditUndo({
+            undo: () => { if (!routeEdit) return; routeEdit.points = before.map(point => L.latLng(point.lat, point.lng)); updateRouteEditLine(); renderRouteEditVertices(); },
+            redo: () => { if (!routeEdit) return; routeEdit.points = after.map(point => L.latLng(point.lat, point.lng)); updateRouteEditLine(); renderRouteEditVertices(); },
+        });
+    });
+    routeEdit.moveMarker = marker;
 }
 function renderRouteEditMidpoints() {
     if (!routeEdit) return;
@@ -297,6 +344,7 @@ function cancelRouteEdit() {
     routeEdit.line.setStyle(routeLineStyle(routeEdit.route.type, routeLineColor(routeEdit.route)));
     routeEdit.markers.forEach(marker => map.removeLayer(marker));
     (routeEdit.midpointMarkers || []).forEach(m => map.removeLayer(m));
+    if (routeEdit.moveMarker) map.removeLayer(routeEdit.moveMarker);
     routeEdit = null;
     routeEditUndoStack.length = 0;
     routeEditRedoStack.length = 0;
@@ -342,6 +390,7 @@ async function saveRouteEdit() {
     applyRouteVisualLanes(data.routes);
     edited.markers.forEach(marker => map.removeLayer(marker));
     (edited.midpointMarkers || []).forEach(m => map.removeLayer(m));
+    if (edited.moveMarker) map.removeLayer(edited.moveMarker);
     routeEdit = null;
     document.getElementById('route-edit-actions').classList.add('hidden');
     document.getElementById('route-edit-actions').classList.remove('flex');

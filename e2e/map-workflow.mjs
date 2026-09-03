@@ -347,6 +347,21 @@ try {
             ?.textContent.includes("sačuvani"),
     );
 
+    await page.click("#edit-route-geometry");
+    const moveHandle = page.locator(".route-edit-move-handle");
+    await moveHandle.waitFor({ state: "visible", timeout: 10000 });
+    const moveBox = await moveHandle.boundingBox();
+    if (!moveBox) throw new Error("Ručka za pomjeranje cijele trase nije vidljiva.");
+    await page.mouse.move(moveBox.x + moveBox.width / 2, moveBox.y + moveBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(moveBox.x + moveBox.width / 2 + 20, moveBox.y + moveBox.height / 2 + 10, { steps: 6 });
+    await page.mouse.up();
+    const routeWasMoved = await page.evaluate(() => routeEdit?.points.some((point, index) =>
+        map.distance(point, routeEdit.originalPoints[index]) > 0.1,
+    ));
+    if (!routeWasMoved) throw new Error("Povlačenje ručke nije pomjerilo geometriju trase.");
+    await page.click("#cancel-route-edit");
+
     await page.evaluate(() => {
         document.querySelector("#suggest-cabinets").closest("details").open =
             true;
