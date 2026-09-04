@@ -316,8 +316,10 @@
     }
     #map-workspace .map-toolbar {
         flex: 0 0 auto;
+        flex-wrap: wrap;
         align-content: flex-start;
         gap: 4px;
+        overflow: visible;
         padding: 7px 9px;
         background: linear-gradient(180deg,#152438,#0f1c2d);
         border-bottom: 1px solid #07111e;
@@ -325,15 +327,23 @@
     }
     #map-workspace .map-toolbar .tc {
         min-height: 27px;
-        padding: 5px 8px;
+        padding: 4px 7px;
         border: 1px solid #34465b;
         border-radius: 7px;
         background: #1c2b3e;
         color: #d7e3ef;
         box-shadow: none;
-        font-size: 10.5px;
+        font-size: 10px;
         font-weight: 700;
         letter-spacing: 0;
+    }
+    #map-workspace .map-toolbar > .ml-auto {
+        display: flex;
+        flex: 1 1 430px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
+        width: auto;
     }
     #map-workspace .map-toolbar .tc:hover {
         background: #26394f;
@@ -410,17 +420,18 @@
     }
     @media (min-width: 768px) and (max-width: 1279px) {
         #map-workspace .map-toolbar {
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            scrollbar-color: #526b84 #101d2e;
-            scrollbar-width: thin;
+            flex-wrap: wrap;
+            overflow: visible;
         }
         #map-workspace .map-toolbar > .ml-auto {
-            flex: 0 0 auto;
-            flex-wrap: nowrap;
-            width: max-content;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            width: 100%;
             margin-left: 0 !important;
         }
+        #map-workspace .toolbar-group-label,
+        #map-workspace .map-toolbar > .tc-sep { display: none; }
     }
     .mobile-map-tools-toggle { display: none; }
     @media (max-width: 767px) {
@@ -442,8 +453,10 @@
         }
         .mobile-map-tools-toggle span:last-child { color: #7dd3fc; font-weight: 700; }
         #map-workspace .map-toolbar { display: none; }
-        #map-workspace .map-toolbar.mobile-open { display: flex; max-height: 52vh; overflow-y: auto; align-content: flex-start; }
-        #map-workspace .map-toolbar.mobile-open .tc { min-height: 34px; padding: 7px 10px; font-size: 11px; }
+        #map-workspace .map-toolbar.mobile-open { display: flex; max-height: none; overflow: visible; align-content: flex-start; }
+        #map-workspace .map-toolbar.mobile-open > .ml-auto { flex: 1 1 100%; justify-content: flex-start; width: 100%; margin-left: 0 !important; }
+        #map-workspace .map-toolbar.mobile-open .tc { min-height: 31px; padding: 6px 8px; font-size: 10px; }
+        #map-workspace .map-toolbar.mobile-open .toolbar-group-label { display: none; }
         #map-workspace .map-toolbar.mobile-open .tc-sep { display: none; }
         #map-workspace #map-search-overlay {
             right: 10px;
