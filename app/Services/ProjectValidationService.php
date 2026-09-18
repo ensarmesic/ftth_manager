@@ -17,6 +17,7 @@ class ProjectValidationService
     public function validateProject(Project $project): array
     {
         $items = [];
+        $distanceLimit = $project->houseDistanceLimit();
         $project->loadMissing(['odfs.cabinets', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
         $branchRoutes = $this->branchRoutes($project);
 
@@ -56,18 +57,23 @@ class ProjectValidationService
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
                 $distance = $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $house->cabinet->latitude, (float) $house->cabinet->longitude);
-                if ($distance > 120) {
-                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od ODO.", 'house', $house->id, 'Razmotri novi ODO ili drugacije grupisanje.');
+                if ($distance > $distanceLimit) {
+                    $distanceLabel = number_format($distance, 1, ',', '.');
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od ODO.", 'house', $house->id, "Udaljenost do dodijeljenog ODO {$house->cabinet->name}: {$distanceLabel} m (prag {$distanceLimit} m). Pomjeri taj ODO blize ili promijeni dodjelu kuce.");
                 }
             }
             if ($branchRoutes->isNotEmpty() && $house->latitude && $house->longitude) {
                 $nearest = $this->nearestBranch((float) $house->latitude, (float) $house->longitude, $branchRoutes);
-                if ($nearest && $nearest['distance_m'] > 60) {
-                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, 'Pomjeri kucu ili dodaj krak blize objektu.');
+                if ($nearest && $nearest['distance_m'] > $distanceLimit) {
+                    $branchDistanceLabel = number_format($nearest['distance_m'], 1, ',', '.');
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, "Udaljenost do najblizeg kraka: {$branchDistanceLabel} m (prag {$distanceLimit} m). Dodaj krak blize objektu ili provjeri polozaj kuce.");
                 }
                 if ($house->cabinet && $nearest) {
                     $cabinetNearest = $this->nearestBranch((float) $house->cabinet->latitude, (float) $house->cabinet->longitude, $branchRoutes);
-                    if ($cabinetNearest && $cabinetNearest['route']->id !== $nearest['route']->id) {
+                    $hasExplicitBranchMismatch = $house->branch_id
+                        && $house->cabinet->branch_id
+                        && (int) $house->branch_id !== (int) $house->cabinet->branch_id;
+                    if ($cabinetNearest && $hasExplicitBranchMismatch) {
                         $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili rucno ispravi vezu.');
                     }
                 }
@@ -128,7 +134,7 @@ class ProjectValidationService
             if ($route->route_type === 'drop' && ($route->to_type !== 'house' || ! $route->to_id)) {
                 $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.');
             }
-            if (in_array($route->route_type, ['backbone', 'distribution'], true) && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) {
+            if ($route->route_type === 'backbone' && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.');
             }
             $occupancy = $this->routeOccupancy($route, $housesPerCabinet);

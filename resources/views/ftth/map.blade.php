@@ -121,10 +121,12 @@
                     <option value="{{ $project->id }}" {{ $activeProjectId == $project->id ? 'selected' : '' }}>{{ $project->name }}</option>
                     @endforeach
                 </select>
-                <button type="button" id="btn-map-print" class="tc tc-ghost" title="Štampaj/izvoz mape">
+                @can('project.export')
+                <button type="button" id="btn-map-print" class="tc tc-ghost" title="Odaberi dio mape za PDF">
                     <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
-                    Print
+                    PDF područje
                 </button>
+                @endcan
             </div>
         </div>
         <p class="shrink-0 border-b border-slate-800 bg-slate-900 px-4 py-1 text-[10px] text-slate-500">Desni klik: obriši / premjesti · ESC prekid · ENTER završi · CTRL+Z undo · O ortho · G GIS graf · Selekcija: K kopiraj, P pomjeri, V rotiraj, Z zrcali, S skaliraj, N niz</p>
@@ -498,7 +500,7 @@
                 <div class="grid grid-cols-4 gap-2">
                     <div class="sb-kicker">Min<input id="planner-min" type="number" min="1" max="12" value="8" class="sb-inp mt-1"></div>
                     <div class="sb-kicker">Max<input id="planner-max" type="number" min="1" max="12" value="12" class="sb-inp mt-1"></div>
-                    <div class="sb-kicker">Max m<input id="planner-max-drop" type="number" min="20" value="90" class="sb-inp mt-1"></div>
+                    <div class="sb-kicker">Max m<input id="planner-max-drop" type="number" min="20" max="1000000" step="1" value="{{ $projects->firstWhere('id', $activeProjectId)?->houseDistanceLimit() ?? 90 }}" class="sb-inp mt-1" title="Maksimalna udaljenost kuće od ODO-a za planiranje i upozorenja" @disabled(!auth()->user()->can('project.edit'))></div>
                     <div class="flex items-end"><button type="button" id="clear-suggestions" class="sb-btn sb-btn-outline">Ocisti</button></div>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -625,6 +627,7 @@
 <script src="{{ asset('js/map/toolbar.js') }}?v={{ filemtime(public_path('js/map/toolbar.js')) }}"></script>
 <script src="{{ asset('js/map/interactions.js') }}?v={{ filemtime(public_path('js/map/interactions.js')) }}"></script>
 <script src="{{ asset('js/map/exports.js') }}?v={{ filemtime(public_path('js/map/exports.js')) }}"></script>
+<script src="{{ asset('js/map/area-print.js') }}?v={{ filemtime(public_path('js/map/area-print.js')) }}"></script>
 <script src="{{ asset('js/map/controls.js') }}?v={{ filemtime(public_path('js/map/controls.js')) }}"></script>
 <script src="{{ asset('js/map/hydrate.js') }}?v={{ filemtime(public_path('js/map/hydrate.js')) }}"></script>
 <script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>

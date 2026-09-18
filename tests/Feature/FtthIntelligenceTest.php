@@ -15,6 +15,23 @@ class FtthIntelligenceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_confirming_plan_preserves_its_custom_distance_limit(): void
+    {
+        foreach ([180, 200] as $limit) {
+            $project = $this->projectWithHouses(6);
+            $project->update(['code' => 'PR-'.$limit]);
+            $plan = $this->postJson(route('projects.odo-plan.preview', $project), [
+                'max_house_to_odo_m' => $limit,
+            ])->assertOk()->json();
+
+            $this->postJson(route('projects.odo-plan.confirm', $project), ['plan' => $plan])->assertCreated();
+
+            $this->assertSame($limit, $project->fresh()->houseDistanceLimit());
+            $this->get(route('map.dashboard', ['project' => $project->id]))->assertOk()
+                ->assertSee('value="'.$limit.'"', false);
+        }
+    }
+
     public function test_preview_plan_does_not_save_anything(): void
     {
         $project = $this->projectWithHouses(6);
@@ -149,6 +166,74 @@ class FtthIntelligenceTest extends TestCase
         $this->assertStringContainsString('nema povezan ODF', $messages);
         $this->assertStringContainsString('nema kompletne podatke o mikrocijevi', $messages);
         $this->assertStringNotContainsString('nema kabal', $messages);
+    }
+
+    public function test_project_validation_respects_matching_explicit_branch_links(): void
+    {
+        $project = Project::create(['name' => 'Krakovi', 'code' => 'KRAK', 'location' => 'Test', 'status' => 'planning']);
+        $firstRoute = NetworkRoute::create([
+            'project_id' => $project->id, 'name' => 'Krak 1', 'route_type' => 'distribution',
+            'installation_type' => 'underground', 'duct_length_m' => 100, 'fiber_length_m' => 100,
+            'microduct_count' => 1, 'status' => 'planned',
+            'path' => [[44.4500, 18.6500], [44.4500, 18.6510]],
+        ]);
+        $secondRoute = NetworkRoute::create([
+            'project_id' => $project->id, 'name' => 'Krak 2', 'route_type' => 'distribution',
+            'installation_type' => 'underground', 'duct_length_m' => 100, 'fiber_length_m' => 100,
+            'microduct_count' => 1, 'status' => 'planned',
+            'path' => [[44.4500, 18.6500], [44.4510, 18.6500]],
+        ]);
+        $branch = NetworkBranch::create([
+            'project_id' => $project->id, 'route_id' => $firstRoute->id,
+            'name' => 'Sekundarni krak 1', 'code' => 'SK-1', 'type' => 'secondary',
+        ]);
+        NetworkBranch::create([
+            'project_id' => $project->id, 'route_id' => $secondRoute->id,
+            'name' => 'Sekundarni krak 2', 'code' => 'SK-2', 'type' => 'secondary',
+        ]);
+        $cabinet = Cabinet::create([
+            'project_id' => $project->id, 'branch_id' => $branch->id, 'name' => 'ODO-1',
+            'address' => 'Test', 'splitter_count' => 1, 'ports_per_splitter' => 4,
+            'latitude' => 44.4500, 'longitude' => 18.6501,
+        ]);
+        House::create([
+            'project_id' => $project->id, 'cabinet_id' => $cabinet->id, 'branch_id' => $branch->id,
+            'label' => 'K-1', 'address' => 'Test', 'latitude' => 44.4501, 'longitude' => 18.6500,
+            'status' => 'planned',
+        ]);
+
+        $messages = collect($this->getJson(route('projects.validation', $project))->assertOk()->json('items'))->pluck('message');
+
+        $this->assertStringNotContainsString('povezana na ODO drugog kraka', $messages->join("\n"));
+    }
+
+    public function test_project_validation_does_not_infer_branch_mismatch_when_house_branch_is_missing(): void
+    {
+        $project = Project::create(['name' => 'ODO veza', 'code' => 'ODO', 'location' => 'Test', 'status' => 'planning']);
+        $route = NetworkRoute::create([
+            'project_id' => $project->id, 'name' => 'Krak', 'route_type' => 'distribution',
+            'installation_type' => 'underground', 'duct_length_m' => 100, 'fiber_length_m' => 100,
+            'microduct_count' => 1, 'status' => 'planned',
+            'path' => [[44.4500, 18.6500], [44.4510, 18.6500]],
+        ]);
+        $branch = NetworkBranch::create([
+            'project_id' => $project->id, 'route_id' => $route->id,
+            'name' => 'Sekundarni krak', 'code' => 'SK-1', 'type' => 'secondary',
+        ]);
+        $cabinet = Cabinet::create([
+            'project_id' => $project->id, 'branch_id' => $branch->id, 'name' => 'FTTH 1-7',
+            'address' => 'Test', 'splitter_count' => 1, 'ports_per_splitter' => 4,
+            'latitude' => 44.4501, 'longitude' => 18.6500,
+        ]);
+        House::create([
+            'project_id' => $project->id, 'cabinet_id' => $cabinet->id,
+            'label' => 'K-001', 'address' => 'Test', 'latitude' => 44.4502, 'longitude' => 18.6500,
+            'status' => 'planned',
+        ]);
+
+        $messages = collect($this->getJson(route('projects.validation', $project))->assertOk()->json('items'))->pluck('message')->join("\n");
+
+        $this->assertStringNotContainsString('povezana na ODO drugog kraka', $messages);
     }
 
     public function test_project_validation_finds_invalid_drop_endpoints_duplicate_points_and_length(): void

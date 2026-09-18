@@ -145,6 +145,7 @@ async function saveSavedPosition(marker, url) {
 
     if (!response.ok) throw new Error(await response.text() || 'Pomjeranje nije sačuvano.');
     marker.dragging?.disable();
+    refreshProjectCheckAfterPositionChange();
     document.getElementById('cad-command').textContent = 'Nova pozicija je sačuvana.';
 }
 function registerSavedContext(layer, title, url, positionUrl = null, clickAction = null, customActions = [], onDelete = null) {

@@ -164,9 +164,42 @@ function initProjectVersionHistory() {
 function initProjectCheckControls() {
     const showError = error => { document.getElementById('project-check-summary').textContent = error.message; };
     document.getElementById('run-project-check').addEventListener('click', () => runProjectCheck().catch(showError));
+    document.getElementById('planner-max-drop').addEventListener('change', () => {
+        savePlannerDistanceLimit().then(() => refreshProjectCheckAfterPositionChange()).catch(error => {
+            showError(error);
+            window.ftthToast?.(error.message, 'error');
+        });
+    });
 }
 
+let distanceLimitSave = Promise.resolve();
+function savePlannerDistanceLimit() {
+    const projectId = document.getElementById('active-project-id').value;
+    const input = document.getElementById('planner-max-drop');
+    if (!projectId || input.disabled) return distanceLimitSave;
+    if (!input.reportValidity()) return Promise.reject(new Error('Unesi ispravnu maksimalnu udaljenost.'));
+    const limit = Number(input.value);
+    distanceLimitSave = distanceLimitSave.catch(() => {}).then(async () => {
+        const response = await fetch(appConfig.projectDistanceLimitBaseUrl.replace('__ID__', projectId), {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ max_house_to_odo_m: limit }),
+        });
+        await readJsonResponse(response, 'Maksimalna udaljenost nije sačuvana. Pokušaj ponovo.');
+    });
+    return distanceLimitSave;
+}
+
+let projectCheckHasRun = false;
+let projectCheckRequest = 0;
 async function runProjectCheck() {
+    projectCheckHasRun = true;
+    const requestId = ++projectCheckRequest;
+    await distanceLimitSave;
     const projectId = document.getElementById('active-project-id').value;
     const panel = document.getElementById('project-check-panel');
     const summary = document.getElementById('project-check-summary');
@@ -179,9 +212,11 @@ async function runProjectCheck() {
     summary.textContent = 'Provjeravam projekat...';
     panel.innerHTML = '';
     const response = await fetch(appConfig.projectValidationBaseUrl.replace('__ID__', projectId), {
+        cache: 'no-store',
         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     });
     const result = await readJsonResponse(response, 'Provjera projekta nije uspjela.');
+    if (requestId !== projectCheckRequest) return;
     const items = result.items || [];
     const problems = items.filter(item => item.level !== 'ok');
     const counts = {
@@ -196,6 +231,14 @@ async function runProjectCheck() {
     highlightValidationItems(items);
     panel.querySelectorAll('[data-check-index]').forEach(button => {
         button.addEventListener('click', () => focusValidationItem(items[Number(button.dataset.checkIndex)]));
+    });
+}
+
+function refreshProjectCheckAfterPositionChange() {
+    if (!projectCheckHasRun) return;
+    clearValidationHighlights();
+    runProjectCheck().catch(() => {
+        document.getElementById('project-check-summary').textContent = 'Pozicija je sačuvana, ali provjera nije osvježena. Pokreni provjeru ponovo.';
     });
 }
 

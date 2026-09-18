@@ -23,6 +23,7 @@ class FtthIntelligenceService
 
     public function previewOdoPlan(Project $project, array $parameters = []): array
     {
+        $parameters['max_house_to_odo_m'] ??= $parameters['max_distance_m'] ?? $project->houseDistanceLimit();
         $params = $this->planningParameters($parameters);
         $housesWithCoordinates = $project->houses()
             ->whereNull('cabinet_id')
@@ -109,6 +110,14 @@ class FtthIntelligenceService
         $seenHouseIds = [];
 
         DB::transaction(function () use ($project, $plan, $createDropRoutes, &$created, &$linkedHouses, &$createdRoutes, &$seenHouseIds): void {
+            if (isset($plan['parameters']['max_house_to_odo_m'])) {
+                $distanceLimit = filter_var($plan['parameters']['max_house_to_odo_m'], FILTER_VALIDATE_INT);
+                if ($distanceLimit === false || $distanceLimit < 20 || $distanceLimit > 1000000) {
+                    throw new InvalidArgumentException('Maksimalna udaljenost kuce od ODO-a nije ispravna.');
+                }
+                $project->max_house_to_odo_m = $distanceLimit;
+                $project->save();
+            }
             foreach ($plan['cabinets'] as $cabinetPlan) {
                 $houses = collect($cabinetPlan['houses'] ?? []);
                 if ($houses->isEmpty()) {

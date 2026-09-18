@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Cabinet;
 use App\Models\House;
+use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
@@ -13,6 +14,99 @@ use Tests\TestCase;
 class NetworkEditingTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_branch_distance_warning_uses_the_auto_odo_limit(): void
+    {
+        $project = Project::factory()->create();
+        $cabinet = Cabinet::factory()->for($project)->create([
+            'latitude' => 44.4137922, 'longitude' => 18.455821,
+        ]);
+        $house = House::factory()->for($project)->create([
+            'label' => 'K-054', 'cabinet_id' => $cabinet->id,
+            'latitude' => 44.4135845, 'longitude' => 18.4567816,
+        ]);
+        $route = NetworkRoute::factory()->for($project)->create([
+            'route_type' => 'distribution',
+            'path' => [[44.4137922, 18.454821], [44.4137922, 18.455821]],
+        ]);
+        NetworkBranch::create([
+            'project_id' => $project->id, 'route_id' => $route->id,
+            'name' => 'Krak', 'code' => 'SK-1', 'type' => 'secondary',
+        ]);
+        foreach ([200 => false, 180 => false, 60 => true] as $limit => $shouldWarn) {
+            $this->patchJson(route('projects.distance-limit.update', $project), [
+                'max_house_to_odo_m' => $limit,
+            ])->assertOk();
+            $items = collect($this->getJson(route('projects.validation', $project))->assertOk()->json('items'));
+            $this->assertSame($shouldWarn, $items->contains('message', "{$house->label} je predaleko od kraka."));
+            $this->assertSame($shouldWarn, $items->contains('message', "{$house->label} je predaleko od ODO."));
+        }
+    }
+
+    public function test_distance_warning_uses_saved_project_limit(): void
+    {
+        $project = Project::factory()->create();
+        $otherProject = Project::factory()->create();
+        $cabinet = Cabinet::factory()->for($project)->create([
+            'latitude' => 44.4500, 'longitude' => 18.6500,
+        ]);
+        $house = House::factory()->for($project)->create([
+            'cabinet_id' => $cabinet->id,
+            'latitude' => 44.4515, 'longitude' => 18.6500,
+        ]);
+        $warning = "{$house->label} je predaleko od ODO.";
+        foreach ([200 => false, 150 => true, 300 => false] as $limit => $expectedWarning) {
+            $this->patchJson(route('projects.distance-limit.update', $project), [
+                'max_house_to_odo_m' => $limit,
+            ])->assertOk()->assertJsonPath('max_house_to_odo_m', $limit);
+            $items = collect($this->getJson(route('projects.validation', $project))->assertOk()->json('items'));
+            $this->assertSame($expectedWarning, $items->contains('message', $warning));
+            if ($expectedWarning) {
+                $this->assertStringContainsString('prag 150 m', $items->firstWhere('message', $warning)['recommendation']);
+            }
+            $this->assertSame($limit, $project->fresh()->houseDistanceLimit());
+        }
+        $this->assertSame(90, $otherProject->fresh()->houseDistanceLimit());
+        $this->get(route('map.dashboard', ['project' => $project->id]))->assertOk()
+            ->assertSee('value="300"', false);
+        $this->get(route('projects.show', $project))->assertOk()->assertDontSee($warning);
+        House::factory()->for($project)->create([
+            'cabinet_id' => null, 'latitude' => 44.4516, 'longitude' => 18.6500,
+        ]);
+        $this->postJson(route('projects.odo-plan.preview', $project))->assertOk()
+            ->assertJsonPath('parameters.max_house_to_odo_m', 300);
+        $this->patchJson(route('projects.distance-limit.update', $project), [
+            'max_house_to_odo_m' => 0,
+        ])->assertUnprocessable();
+        $this->assertSame(300, $project->fresh()->houseDistanceLimit());
+    }
+
+    public function test_distance_warning_tracks_saved_cabinet_and_house_positions(): void
+    {
+        $project = Project::factory()->create();
+        $cabinet = Cabinet::factory()->for($project)->create([
+            'latitude' => 44.4500, 'longitude' => 18.6500,
+        ]);
+        $house = House::factory()->for($project)->create([
+            'cabinet_id' => $cabinet->id,
+            'latitude' => 44.4530, 'longitude' => 18.6500,
+        ]);
+        $warning = "{$house->label} je predaleko od ODO.";
+        $messages = fn () => collect($this->getJson(route('projects.validation', $project))
+            ->assertOk()->json('items'))->pluck('message')->all();
+
+        $this->assertContains($warning, $messages());
+        $this->patchJson(route('cabinets.position.update', $cabinet), [
+            'latitude' => 44.4528, 'longitude' => 18.6500,
+        ])->assertOk();
+        $this->assertNotContains($warning, $messages());
+        $this->get(route('projects.show', $project))->assertOk()->assertDontSee($warning);
+
+        $this->patchJson(route('houses.position.update', $house), [
+            'latitude' => 44.4560, 'longitude' => 18.6500,
+        ])->assertOk();
+        $this->assertContains($warning, $messages());
+    }
 
     public function test_network_elements_can_be_repositioned_with_valid_coordinates(): void
     {

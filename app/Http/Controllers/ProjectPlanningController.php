@@ -13,6 +13,17 @@ class ProjectPlanningController extends Controller
 {
     use ManagesFtthData;
 
+    public function updateDistanceLimit(Request $request, Project $project)
+    {
+        $data = $request->validate([
+            'max_house_to_odo_m' => ['required', 'integer', 'min:20', 'max:1000000'],
+        ]);
+        $project->max_house_to_odo_m = $data['max_house_to_odo_m'];
+        $project->save();
+
+        return response()->json(['max_house_to_odo_m' => $project->houseDistanceLimit()]);
+    }
+
     public function previewOdo(Request $request, Project $project)
     {
         try {

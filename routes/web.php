@@ -89,6 +89,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/gis-plan/confirm', [ProjectPlanningController::class, 'confirmGis'])->middleware('can:project.edit')->name('projects.gis-plan.confirm');
     Route::post('/projekti/{project}/odo-plan/confirm', [ProjectPlanningController::class, 'confirmOdo'])->middleware('can:project.edit')->name('projects.odo-plan.confirm');
     Route::get('/projekti/{project}/validacija', [ProjectPlanningController::class, 'validateProject'])->name('projects.validation');
+    Route::patch('/projekti/{project}/odo-udaljenost', [ProjectPlanningController::class, 'updateDistanceLimit'])->middleware('can:project.edit')->name('projects.distance-limit.update');
     Route::get('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'index'])->name('projects.snapshots.index');
     Route::post('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'store'])->middleware('can:project.backup')->name('projects.snapshots.store');
     Route::post('/projekti/{project}/snapshoti/{snapshot}/vrati', [ProjectSnapshotController::class, 'restore'])->middleware('can:destructive')->name('projects.snapshots.restore');

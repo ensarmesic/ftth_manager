@@ -542,7 +542,7 @@ document.getElementById('map-project-filter')?.addEventListener('change', functi
 });
 
 // ── PRINT ──────────────────────────────────────────────────────────────────────
-document.getElementById('btn-map-print')?.addEventListener('click', () => window.print());
+initMapAreaPrint();
 
 const focusedCabinetId = Number(new URLSearchParams(location.search).get('cabinet') || 0);
 if (focusedCabinetId && cabinetMarkerById[focusedCabinetId]) {

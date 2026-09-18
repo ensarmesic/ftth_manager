@@ -462,6 +462,10 @@
 @push('scripts')
 <script>
 (function () {
+    // A browser Back navigation can restore warnings from before map edits.
+    window.addEventListener('pageshow', event => {
+        if (event.persisted) window.location.reload();
+    });
     let validationLevel = 'all';
     let validationLimit = 12;
     function renderValidationItems() {

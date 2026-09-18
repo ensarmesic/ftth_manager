@@ -149,6 +149,7 @@ async function suggest() {
     const url = window.ftthMapConfig.endpoints.autoOdoPreviewBaseUrl.replace('__ID__', projectId);
     output.innerHTML = 'Racunam Auto ODO po krakovima...';
     try {
+        await savePlannerDistanceLimit();
         if (housePoints.length > savedHouseCount || branches.length || draftOdfs.length) {
             output.innerHTML = 'Prvo snimam nacrt sa mape, zatim racunam Auto ODO...';
             await persistDraftPlanForAutoOdo();
