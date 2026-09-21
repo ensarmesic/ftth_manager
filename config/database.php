@@ -5,6 +5,11 @@ use Pdo\Mysql;
 
 return [
 
+    'backup_directory' => env('FTTH_BACKUP_DIRECTORY', storage_path('app/private/backups')),
+    'backup_disk' => env('FTTH_BACKUP_DISK'),
+    'backup_remote_directory' => env('FTTH_BACKUP_REMOTE_DIRECTORY', 'ftth-backups'),
+    'backup_encryption_key' => env('FTTH_BACKUP_ENCRYPTION_KEY'),
+
     /*
     |--------------------------------------------------------------------------
     | Default Database Connection Name

@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordController;
+use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CabinetController;
@@ -11,13 +14,18 @@ use App\Http\Controllers\DropRouteMaintenanceController;
 use App\Http\Controllers\FiberManagementController;
 use App\Http\Controllers\FiberSchemaExportController;
 use App\Http\Controllers\GisController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HouseController;
+use App\Http\Controllers\LookupController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapLayerController;
+use App\Http\Controllers\MaterialEstimateVersionController;
 use App\Http\Controllers\MissingDropRouteController;
 use App\Http\Controllers\OdfController;
+use App\Http\Controllers\ProjectBackgroundTaskController;
 use App\Http\Controllers\ProjectBackupController;
+use App\Http\Controllers\ProjectCommentController;
 use App\Http\Controllers\ProjectExportController;
 use App\Http\Controllers\ProjectGeoJsonController;
 use App\Http\Controllers\ProjectManagementController;
@@ -26,14 +34,22 @@ use App\Http\Controllers\ProjectPlanningController;
 use App\Http\Controllers\ProjectPrintController;
 use App\Http\Controllers\ProjectSettingsController;
 use App\Http\Controllers\ProjectSnapshotController;
+use App\Http\Controllers\ProjectWorkflowController;
+use App\Http\Controllers\ProjectWorkItemController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RouteController;
 use App\Http\Controllers\SurveyPointController;
+use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\UserSessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/prijava', [LoginController::class, 'create'])->name('login');
     Route::post('/prijava', [LoginController::class, 'store'])->name('login.store');
+    Route::get('/zaboravljena-lozinka', [ForgotPasswordController::class, 'create'])->name('password.request');
+    Route::post('/zaboravljena-lozinka', [ForgotPasswordController::class, 'store'])->middleware('throttle:6,1')->name('password.email');
+    Route::get('/nova-lozinka/{token}', [ResetPasswordController::class, 'create'])->name('password.reset');
+    Route::post('/nova-lozinka', [ResetPasswordController::class, 'store'])->middleware('throttle:6,1')->name('password.store');
     Route::get('/prijava/2fa', [TwoFactorController::class, 'challenge'])->name('two-factor.challenge');
     Route::post('/prijava/2fa', [TwoFactorController::class, 'verifyChallenge'])->middleware('throttle:6,1')->name('two-factor.verify');
 });
@@ -76,6 +92,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/provjera-projekta', [ProjectSettingsController::class, 'projectCheck'])->name('project-check.index');
     Route::get('/postavke', [ProjectSettingsController::class, 'settings'])->middleware('can:settings.manage')->name('settings.index');
     Route::get('/postavke/backup', [ProjectSettingsController::class, 'backup'])->middleware('can:settings.manage')->name('settings.backup');
+    Route::post('/postavke/korisnici', [UserManagementController::class, 'store'])->middleware('can:settings.manage')->name('settings.users.store');
+    Route::put('/postavke/korisnici/{user}', [UserManagementController::class, 'update'])->middleware('can:settings.manage')->name('settings.users.update');
+    Route::delete('/postavke/sesije/{session}', [UserSessionController::class, 'destroy'])->middleware('can:settings.manage')->name('settings.sessions.destroy');
+    Route::delete('/postavke/korisnici/{user}/sesije', [UserSessionController::class, 'destroyOthers'])->middleware('can:settings.manage')->name('settings.users.sessions.destroy');
+    Route::get('/postavke/audit.csv', [ActivityLogController::class, 'export'])->middleware('can:settings.manage')->name('settings.audit.export');
     Route::post('/postavke/gis/import', [GisController::class, 'import'])->middleware(['can:settings.manage', 'throttle:heavy'])->name('gis.import');
     Route::get('/postavke/gis/{project}/slojevi', [GisController::class, 'layers'])->middleware('can:settings.manage')->name('gis.layers');
     Route::delete('/postavke/gis/{project}/slojevi/{type}', [GisController::class, 'destroyLayer'])->middleware('can:destructive')->name('gis.layers.destroy');
@@ -90,11 +111,20 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/odo-plan/confirm', [ProjectPlanningController::class, 'confirmOdo'])->middleware('can:project.edit')->name('projects.odo-plan.confirm');
     Route::get('/projekti/{project}/validacija', [ProjectPlanningController::class, 'validateProject'])->name('projects.validation');
     Route::patch('/projekti/{project}/odo-udaljenost', [ProjectPlanningController::class, 'updateDistanceLimit'])->middleware('can:project.edit')->name('projects.distance-limit.update');
+    Route::patch('/projekti/{project}/workflow', [ProjectWorkflowController::class, 'update'])->middleware('can:project.edit')->name('projects.workflow.update');
+    Route::post('/projekti/{project}/zadaci', [ProjectWorkItemController::class, 'store'])->middleware('can:project.edit')->name('projects.work-items.store');
+    Route::patch('/projekti/{project}/zadaci/{workItem}', [ProjectWorkItemController::class, 'update'])->middleware('can:project.edit')->name('projects.work-items.update');
+    Route::post('/projekti/{project}/komentari', [ProjectCommentController::class, 'store'])->middleware('can:project.edit')->name('projects.comments.store');
+    Route::get('/projekti/{project}/komentari/{comment}/prilog', [ProjectCommentController::class, 'download'])->name('projects.comments.download');
     Route::get('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'index'])->name('projects.snapshots.index');
     Route::post('/projekti/{project}/snapshoti', [ProjectSnapshotController::class, 'store'])->middleware('can:project.backup')->name('projects.snapshots.store');
     Route::post('/projekti/{project}/snapshoti/{snapshot}/vrati', [ProjectSnapshotController::class, 'restore'])->middleware('can:destructive')->name('projects.snapshots.restore');
     Route::get('/projekti/{project}/snapshoti/{snapshot}/download', [ProjectSnapshotController::class, 'download'])->middleware('can:project.backup')->name('projects.snapshots.download');
     Route::post('/projekti/{project}/materijali/izracunaj', ProjectMaterialController::class)->middleware('can:project.edit')->name('materials.calculate');
+    Route::post('/projekti/{project}/materijali/revizije', [MaterialEstimateVersionController::class, 'store'])->middleware('can:project.edit')->name('materials.versions.store');
+    Route::post('/projekti/{project}/background-zadaci', [ProjectBackgroundTaskController::class, 'store'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.background-tasks.store');
+    Route::get('/projekti/{project}/background-zadaci/{task}', [ProjectBackgroundTaskController::class, 'show'])->name('projects.background-tasks.show');
+    Route::get('/projekti/{project}/background-zadaci/{task}/download', [ProjectBackgroundTaskController::class, 'download'])->middleware('can:project.export')->name('projects.background-tasks.download');
     Route::post('/projekti/{project}/drop-trase/popuni', MissingDropRouteController::class)->middleware('can:project.edit')->name('projects.drop-routes.fill');
     Route::get('/projekti/{project}/drop-trase/audit', [DropRouteMaintenanceController::class, 'audit'])->name('projects.drop-routes.audit');
     Route::post('/projekti/{project}/drop-trase/popravi', [DropRouteMaintenanceController::class, 'repair'])->middleware('can:project.edit')->name('projects.drop-routes.repair');
@@ -146,6 +176,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/mapa/dxf-layer', [MapLayerController::class, 'upload'])->middleware(['can:project.edit', 'throttle:heavy'])->name('map.dxf-layer.upload');
 
     Route::get('/api/notifications', [DashboardController::class, 'notifications'])->name('api.notifications');
+    Route::get('/api/pretraga', GlobalSearchController::class)->middleware('throttle:60,1')->name('api.search');
+    Route::get('/api/lookup', LookupController::class)->middleware('throttle:60,1')->name('api.lookup');
     Route::post('/odjava', [LoginController::class, 'destroy'])->name('logout');
     Route::put('/postavke/lozinka', [PasswordController::class, 'update'])->name('password.update');
     Route::get('/postavke/2fa', [TwoFactorController::class, 'setup'])->middleware('can:settings.manage')->name('two-factor.setup');

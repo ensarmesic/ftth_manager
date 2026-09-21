@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,8 +36,10 @@ class LoginController extends Controller
             ]);
         }
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        $activeAccount = User::query()->where('username', $credentials['username'])->where('is_active', true)->exists();
+        if (! $activeAccount || ! Auth::attempt($credentials, $request->boolean('remember'))) {
             RateLimiter::hit($throttleKey, 60);
+            ActivityLog::create(['user_id' => null, 'method' => 'AUTH', 'route_name' => 'login.failed', 'path' => '/prijava', 'status_code' => 401, 'metadata' => ['event' => 'login_failed', 'username' => $credentials['username']], 'ip_address' => $request->ip()]);
 
             throw ValidationException::withMessages([
                 'username' => 'Uneseni podaci za prijavu nisu ispravni.',
@@ -46,6 +50,8 @@ class LoginController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        $user?->forceFill(['last_login_at' => now()])->save();
+        ActivityLog::create(['user_id' => $user?->id, 'method' => 'AUTH', 'route_name' => 'login.success', 'path' => '/prijava', 'status_code' => 200, 'metadata' => ['event' => 'login_success'], 'ip_address' => $request->ip()]);
         if ($user?->two_factor_confirmed_at && $user->two_factor_secret) {
             $request->session()->put([
                 'two_factor_user_id' => $user->id,
@@ -61,6 +67,7 @@ class LoginController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
+        ActivityLog::create(['user_id' => $request->user()?->id, 'method' => 'AUTH', 'route_name' => 'logout', 'path' => '/odjava', 'status_code' => 200, 'metadata' => ['event' => 'logout'], 'ip_address' => $request->ip()]);
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Models\Project;
+use App\Models\User;
+use App\Services\AsBuiltComparisonService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -33,7 +35,7 @@ class ProjectManagementController extends Controller
         ]);
     }
 
-    public function show(Project $project): View
+    public function show(Project $project, AsBuiltComparisonService $asBuiltComparison): View
     {
         $project->load([
             'odfs.cabinets.houses',
@@ -42,6 +44,12 @@ class ProjectManagementController extends Controller
             'routes',
             'branches' => fn ($query) => $query->withCount('cabinets')->orderBy('sort_order'),
             'materials',
+            'stageHistories' => fn ($query) => $query->with('user:id,name')->latest(),
+            'workflowChangedBy:id,name',
+            'workItems' => fn ($query) => $query->with('assignee:id,name')->orderByRaw("CASE status WHEN 'open' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'blocked' THEN 3 ELSE 4 END")->orderBy('due_date'),
+            'comments' => fn ($query) => $query->with('user:id,name')->latest()->limit(50),
+            'materialEstimateVersions' => fn ($query) => $query->with('user:id,name')->latest()->limit(10),
+            'backgroundTasks' => fn ($query) => $query->latest()->limit(10),
         ]);
 
         $validationItems = collect($this->projectValidation->validateProject($project));
@@ -54,7 +62,10 @@ class ProjectManagementController extends Controller
             'used' => $odf->cabinets->filter(fn ($cabinet) => $cabinet->parent_cabinet_id === null)->sum('splitter_count'),
         ]);
 
-        return view('ftth.projects.show', compact('project', 'validationItems', 'materials', 'cableRoutes', 'trenchRoutes', 'odfCapacity'));
+        $users = User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        $asBuilt = $asBuiltComparison->build($project);
+
+        return view('ftth.projects.show', compact('project', 'users', 'asBuilt', 'validationItems', 'materials', 'cableRoutes', 'trenchRoutes', 'odfCapacity'));
     }
 
     public function store(Request $request)

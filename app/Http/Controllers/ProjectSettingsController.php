@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ActivityLog;
 use App\Models\Project;
+use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -21,13 +22,19 @@ class ProjectSettingsController extends Controller
         return view('ftth.project-check', ['projects' => $projects]);
     }
 
-    public function settings(): View
+    public function settings(Request $request, ActivityLogController $activityLogs): View
     {
         $databasePath = $this->sqliteDatabasePath();
 
         return view('ftth.settings', [
-            'activityLogs' => ActivityLog::with('user')->latest()->limit(50)->get(),
+            'activityLogs' => $activityLogs->filtered($request)->with(['user:id,name', 'project:id,name'])->latest()->paginate(25)->withQueryString(),
             'projects' => Project::query()->orderBy('name')->get(['id', 'name']),
+            'users' => User::query()->orderByDesc('is_active')->orderBy('name')->get(),
+            'sessions' => DB::table(config('session.table', 'sessions'))
+                ->leftJoin('users', 'sessions.user_id', '=', 'users.id')
+                ->select('sessions.id', 'sessions.user_id', 'sessions.ip_address', 'sessions.user_agent', 'sessions.last_activity', 'users.name as user_name')
+                ->latest('sessions.last_activity')->get(),
+            'currentSessionId' => $request->session()->getId(),
             'databaseInfo' => [
                 'exists' => is_string($databasePath) && is_file($databasePath),
                 'size' => is_string($databasePath) && is_file($databasePath) ? filesize($databasePath) : null,

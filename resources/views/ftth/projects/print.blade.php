@@ -90,7 +90,7 @@
 <main>
 
     <div class="toolbar">
-        <button class="btn" onclick="window.print()">Štampaj / Spremi PDF</button>
+        <button class="btn" data-print-page>Štampaj / Spremi PDF</button>
         <a class="btn secondary" href="{{ route('map.dashboard', ['project' => $project->id]) }}">Mapa projekta</a>
         <a class="btn secondary" href="{{ route('projects.geojson', $project) }}">GeoJSON</a>
         <a class="btn secondary" href="{{ route('projects.dxf', $project) }}">DXF</a>
@@ -359,5 +359,6 @@
     </div>
 
 </main>
+<script src="{{ asset('js/print.js') }}"></script>
 </body>
 </html>

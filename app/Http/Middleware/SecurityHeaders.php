@@ -11,6 +11,7 @@ class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        $nonce = Vite::useCspNonce();
         /** @var Response $response */
         $response = $next($request);
 
@@ -31,7 +32,7 @@ class SecurityHeaders
             "form-action 'self'",
             "frame-ancestors 'none'",
             "object-src 'none'",
-            "script-src 'self' 'unsafe-inline'".$viteSource,
+            "script-src 'self' 'nonce-{$nonce}'".$viteSource,
             "style-src 'self' 'unsafe-inline'".$viteSource,
             "img-src 'self' data: blob: https:",
             "font-src 'self' data:".$viteSource,

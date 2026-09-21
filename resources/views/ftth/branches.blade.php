@@ -116,9 +116,9 @@
         </form>
     </div>
 </div>
-@if($errors->any())<script>document.getElementById('drawer-branches')?.classList.add('open');</script>@endif
+@if($errors->any())<script nonce="{{ Vite::cspNonce() }}">document.getElementById('drawer-branches')?.classList.add('open');</script>@endif
 
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
 (function () {
     const wrap = document.getElementById('branches-sortable-table');
     if (!wrap) return;

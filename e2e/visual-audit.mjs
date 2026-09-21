@@ -16,6 +16,10 @@ const auditPages = [
     ['splitters', '/splitteri'], ['fiber-schema', '/fiber-sema'], ['project-check', '/provjera-projekta'],
     ['settings', '/postavke'], ['documentation', '/uputstvo'],
 ];
+if (process.env.VISUAL_AUDIT_LIMIT) {
+    const allowed = new Set(process.env.VISUAL_AUDIT_LIMIT.split(',').map(value => value.trim()));
+    auditPages.splice(0, auditPages.length, ...auditPages.filter(([name]) => allowed.has(name)));
+}
 
 async function auditCurrentPage(name, path, viewportLabel) {
     const pageErrors = [];

@@ -113,6 +113,12 @@ jobs:
       - run: npm run test:e2e
       - run: npm run test:e2e:pages
       - run: npm run test:e2e:map-workflow
+      - run: npm run test:e2e:roles
+      - run: npm run test:e2e:fiber
+      - name: Limited visual regression audit
+        run: npm run test:e2e:visual
+        env:
+          VISUAL_AUDIT_LIMIT: dashboard,map
       - name: Upload diagnostics
         if: failure()
         uses: actions/upload-artifact@v5

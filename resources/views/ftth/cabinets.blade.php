@@ -179,7 +179,7 @@
         </form>
     </div>
 </div>
-@if($errors->any())<script>document.getElementById('drawer-cabinets')?.classList.add('open');</script>@endif
+@if($errors->any())<script nonce="{{ Vite::cspNonce() }}">document.getElementById('drawer-cabinets')?.classList.add('open');</script>@endif
 
 </div>
 @endsection

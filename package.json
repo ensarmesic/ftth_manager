@@ -8,6 +8,10 @@
         "dev": "vite",
         "vendor:sync": "node scripts/sync-map-vendor.mjs",
         "check:js": "node scripts/check-js.mjs",
+        "lint": "eslint resources/js scripts e2e public/sw.js",
+        "format:check": "prettier --check resources/js public/sw.js eslint.config.js tests/js",
+        "format": "prettier --write resources/js public/sw.js eslint.config.js tests/js",
+        "test:js": "node --test tests/js/*.test.mjs",
         "test:e2e": "node e2e/map-smoke.mjs",
         "test:e2e:pages": "node e2e/pages-smoke.mjs",
         "test:e2e:roles": "node e2e/roles-smoke.mjs",
@@ -16,10 +20,14 @@
         "test:e2e:fiber": "node e2e/fiber-schema-workflow.mjs"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
         "@tailwindcss/vite": "^4.0.0",
         "concurrently": "^9.0.1",
+        "eslint": "^10.11.0",
+        "globals": "^17.12.0",
         "laravel-vite-plugin": "^3.1",
         "playwright": "^1.61.1",
+        "prettier": "^3.9.8",
         "tailwindcss": "^4.0.0",
         "vite": "^8.0.0"
     },

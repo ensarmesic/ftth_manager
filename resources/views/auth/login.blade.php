@@ -38,6 +38,12 @@
                     Zapamti prijavu
                 </label>
 
+                <div class="text-right"><a href="{{ route('password.request') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">Zaboravljena lozinka?</a></div>
+
+                @if (session('status'))
+                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
+                @endif
+
                 @if ($errors->any())
                     <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->first() }}</div>
                 @endif

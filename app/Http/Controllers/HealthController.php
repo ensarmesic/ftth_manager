@@ -27,6 +27,8 @@ class HealthController extends Controller
         $heartbeatFile = storage_path('app/private/health/scheduler-heartbeat.json');
         $schedulerHeartbeat = File::isFile($heartbeatFile) ? json_decode(File::get($heartbeatFile), true) : null;
         $schedulerAgeHours = File::isFile($heartbeatFile) ? round((time() - File::lastModified($heartbeatFile)) / 3600, 1) : null;
+        $failureFile = storage_path('app/private/health/scheduler-failure.json');
+        $schedulerFailure = File::isFile($failureFile) ? json_decode(File::get($failureFile), true) : null;
 
         return response()->json([
             'status' => 'ok',
@@ -41,10 +43,11 @@ class HealthController extends Controller
                 'checksum_valid' => $backupChecksumValid,
             ],
             'scheduler' => [
-                'status' => $schedulerAgeHours === null ? 'unknown' : ($schedulerAgeHours > 26 ? 'stale' : 'ok'),
+                'status' => $schedulerFailure ? 'failed' : ($schedulerAgeHours === null ? 'unknown' : ($schedulerAgeHours > 26 ? 'stale' : 'ok')),
                 'last_task' => $schedulerHeartbeat['task'] ?? null,
                 'last_completed_at' => $schedulerHeartbeat['completed_at'] ?? null,
                 'age_hours' => $schedulerAgeHours,
+                'failure' => $schedulerFailure,
             ],
             'deployed_at' => config('app.deployed_at'),
             'checked_at' => now()->toIso8601String(),

@@ -42,10 +42,23 @@ class MapController extends Controller
         ]);
     }
 
-    public function data(Project $project, MapDataService $mapDataService): JsonResponse
+    public function data(Request $request, Project $project, MapDataService $mapDataService): JsonResponse
     {
-        return response()->json($mapDataService->build($project->id)['data'])
-            ->header('Cache-Control', 'private, no-store');
+        $startedAt = hrtime(true);
+        $bbox = null;
+        if ($request->filled('bbox')) {
+            $parts = array_map('floatval', explode(',', $request->string('bbox')->toString()));
+            abort_unless(count($parts) === 4 && $parts[0] < $parts[2] && $parts[1] < $parts[3], 422, 'bbox mora biti south,west,north,east.');
+            $bbox = $parts;
+        }
+        $data = $mapDataService->build($project->id, $bbox)['data'];
+        $response = response()->json($data);
+        $elements = collect($data)->sum(fn ($items) => is_countable($items) ? count($items) : 0);
+
+        return $response->header('Cache-Control', 'private, no-store')
+            ->header('X-Map-Elements', (string) $elements)
+            ->header('X-Map-Payload-Bytes', (string) strlen((string) $response->getContent()))
+            ->header('X-Map-Build-Ms', (string) round((hrtime(true) - $startedAt) / 1_000_000, 1));
     }
 
     private function emptyMapData(): array

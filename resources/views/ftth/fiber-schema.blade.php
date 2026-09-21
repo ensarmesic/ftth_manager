@@ -1,4 +1,4 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 
 @section('title', 'FTTH Topologija')
 @section('subtitle', 'Tehnicka fiber sema: ODF, magistralni kabl, FTTH ormarici, splitteri i kuce.')
@@ -287,7 +287,7 @@
 <form class="fiber-project-picker" method="GET">
     <div class="fiber-project-picker-copy"><b>Fiber radni prostor</b><span>Odaberi jedan projekat za preciznu šemu i proračun.</span></div>
     <label>Aktivni projekat
-        <select name="project" onchange="this.form.submit()">
+        <select name="project" data-auto-submit>
             @if($projectOptions->isEmpty())<option value="">Nema projekata</option>@endif
             @foreach($projectOptions as $p)<option value="{{ $p->id }}" @selected((int)$selectedProjectId === $p->id)>{{ $p->name }} · {{ $p->code }}</option>@endforeach
         </select>
@@ -802,7 +802,7 @@
 </section>
 
 @include('ftth.fiber-schema._modals')
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
 document.querySelectorAll('.budget-dashboard').forEach(dashboard => {
     dashboard.querySelector('[data-budget-fullscreen]')?.addEventListener('click', async () => {
         if (document.fullscreenElement) await document.exitFullscreen();

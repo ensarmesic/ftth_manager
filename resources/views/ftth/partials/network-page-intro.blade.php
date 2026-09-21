@@ -18,7 +18,7 @@
         @if(request('q'))<input type="hidden" name="q" value="{{ request('q') }}">@endif
         <label for="network-project-{{ $kind }}">Prikaz projekta</label>
         <div>
-            <select id="network-project-{{ $kind }}" name="project" onchange="this.form.submit()">
+            <select id="network-project-{{ $kind }}" name="project" data-auto-submit>
                 <option value="">Svi projekti</option>
                 @foreach($projects as $project)
                     <option value="{{ $project->id }}" @selected($selectedProject?->id === $project->id)>{{ $project->name }} · {{ $project->code }}</option>

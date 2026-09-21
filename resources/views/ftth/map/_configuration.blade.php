@@ -1,4 +1,4 @@
-<script>
+﻿<script nonce="{{ Vite::cspNonce() }}">
 window.MapEditor = window.MapEditor || {};
 if (window.MapEditor.initialized) {
     throw new Error('MapEditor already initialized.');

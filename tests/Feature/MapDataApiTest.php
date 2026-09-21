@@ -38,6 +38,9 @@ class MapDataApiTest extends TestCase
             ->assertJsonPath('odfs.0.project_id', $project->id)
             ->assertJsonPath('cabinets.0.project_id', $project->id)
             ->assertJsonPath('houses.0.project_id', $project->id)
+            ->assertHeader('X-Map-Elements')
+            ->assertHeader('X-Map-Payload-Bytes')
+            ->assertHeader('X-Map-Build-Ms')
             ->assertJsonStructure(['drafts', 'odfs', 'cabinets', 'houses', 'routes', 'gis_segments', 'gis_restricted_areas', 'appendix_items']);
     }
 
@@ -47,5 +50,14 @@ class MapDataApiTest extends TestCase
         auth()->logout();
 
         $this->getJson(route('api.projects.map-data', $project))->assertUnauthorized();
+    }
+
+    public function test_map_data_can_be_limited_to_viewport_bbox(): void
+    {
+        $project = Project::factory()->create();
+        House::factory()->create(['project_id' => $project->id, 'latitude' => 44.45, 'longitude' => 18.65]);
+        House::factory()->create(['project_id' => $project->id, 'latitude' => 45.50, 'longitude' => 19.70]);
+        $this->actingAs(User::factory()->viewer()->create())->getJson(route('api.projects.map-data', [$project, 'bbox' => '44.0,18.0,45.0,19.0']))
+            ->assertOk()->assertJsonCount(1, 'houses');
     }
 }

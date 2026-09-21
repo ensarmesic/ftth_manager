@@ -169,7 +169,7 @@
 
 <div class="toolbar">
     <a href="{{ route('reports.index') }}">Nazad na izvjestaje</a>
-    <button type="button" onclick="window.print()">Print dokument</button>
+    <button type="button" data-print-page>Print dokument</button>
 </div>
 
 <main class="page">
@@ -216,5 +216,6 @@
         Napomena: Dokument je generisan iz unesenih FTTH podataka projekta. Stavke koje nisu posebno unesene prikazane su kao 0,00.
     </p>
 </main>
+<script src="{{ asset('js/print.js') }}"></script>
 </body>
 </html>

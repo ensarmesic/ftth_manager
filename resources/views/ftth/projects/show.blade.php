@@ -1,4 +1,4 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', $project->name)
 @section('subtitle', $project->code . ' · ' . ($project->location ?? ''))
 @section('content')
@@ -182,6 +182,61 @@
     </div>
     </div>
 </div>
+
+@php
+    $workflowLabels = ['draft'=>'Nacrt','review'=>'Kontrola','approved'=>'Odobreno','built'=>'Izvedeno','as_built'=>'As-built'];
+    $workflowNext = ['draft'=>['review'], 'review'=>['draft','approved'], 'approved'=>['review','built'], 'built'=>['approved','as_built'], 'as_built'=>['built']];
+    $currentWorkflow = $project->workflow_stage ?: 'draft';
+@endphp
+<section class="project-card mb-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100">
+        <div><h2>Projektni workflow</h2><p class="mt-1 text-xs text-slate-500">Trenutna faza: <b>{{ $workflowLabels[$currentWorkflow] }}</b>@if($project->workflowChangedBy) · {{ $project->workflowChangedBy->name }} · {{ $project->workflow_changed_at?->format('d.m.Y H:i') }}@endif</p></div>
+        @can('project.edit')
+        <form method="POST" action="{{ route('projects.workflow.update', $project) }}" class="flex flex-wrap items-end gap-2">@csrf @method('PATCH')
+            <label class="grid gap-1 text-xs font-bold text-slate-600"><span>Sljedeća faza</span><select name="stage" class="rounded-lg border border-slate-300 px-3 py-2">@foreach($workflowNext[$currentWorkflow] as $stage)<option value="{{ $stage }}">{{ $workflowLabels[$stage] }}</option>@endforeach</select></label>
+            <label class="grid gap-1 text-xs font-bold text-slate-600"><span>Napomena</span><input name="note" maxlength="500" class="rounded-lg border border-slate-300 px-3 py-2" placeholder="Razlog ili zapis kontrole"></label>
+            <button class="tbl-btn h-9 bg-sky-700 text-white">Promijeni fazu</button>
+        </form>
+        @endcan
+    </div>
+    @if($project->stageHistories->isNotEmpty())<div class="flex flex-wrap gap-2 px-5 py-3">@foreach($project->stageHistories->take(8) as $change)<span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{{ $workflowLabels[$change->from_stage] }} → <b>{{ $workflowLabels[$change->to_stage] }}</b> · {{ $change->user?->name ?? 'Sistem' }} · {{ $change->created_at->format('d.m.Y') }}@if($change->note) · {{ $change->note }}@endif</span>@endforeach</div>@endif
+</section>
+
+<div class="mb-5 grid gap-4 xl:grid-cols-2">
+    <section class="project-card">
+        <div class="border-b border-slate-100"><h2>Radni zadaci</h2><p class="mt-1 text-xs text-slate-500">Operativne obaveze, rokovi i odgovorne osobe.</p></div>
+        @can('project.edit')<form method="POST" action="{{ route('projects.work-items.store', $project) }}" class="grid gap-2 border-b border-slate-100 p-4 sm:grid-cols-2">@csrf
+            <input name="title" required maxlength="255" placeholder="Novi zadatak" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <select name="assigned_to" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">Bez zaduženja</option>@foreach($users as $member)<option value="{{ $member->id }}">{{ $member->name }}</option>@endforeach</select>
+            <select name="priority" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="normal">Normalan</option><option value="high">Visok</option><option value="urgent">Hitan</option><option value="low">Nizak</option></select>
+            <input type="date" name="due_date" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><input type="hidden" name="status" value="open">
+            <textarea name="description" maxlength="3000" placeholder="Opis zadatka" class="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2"></textarea>
+            <button class="tbl-btn w-max bg-sky-700 text-white">Dodaj zadatak</button>
+        </form>@endcan
+        <div class="divide-y divide-slate-100">@forelse($project->workItems as $task)<article class="flex flex-wrap items-center justify-between gap-3 p-4"><div><b class="text-sm text-slate-800">{{ $task->title }}</b><p class="text-xs text-slate-500">{{ $task->assignee?->name ?? 'Nije zaduženo' }} · {{ $task->priority }}@if($task->due_date) · rok {{ $task->due_date->format('d.m.Y') }}@endif</p></div>@can('project.edit')<form method="POST" action="{{ route('projects.work-items.update', [$project, $task]) }}" class="flex gap-2">@csrf @method('PATCH')<input type="hidden" name="title" value="{{ $task->title }}"><input type="hidden" name="description" value="{{ $task->description }}"><input type="hidden" name="assigned_to" value="{{ $task->assigned_to }}"><input type="hidden" name="priority" value="{{ $task->priority }}"><input type="hidden" name="due_date" value="{{ $task->due_date?->toDateString() }}"><select name="status" class="rounded-lg border border-slate-300 px-2 py-1 text-xs" data-auto-submit>@foreach(['open'=>'Otvoren','in_progress'=>'U radu','blocked'=>'Blokiran','done'=>'Završen'] as $value=>$label)<option value="{{ $value }}" @selected($task->status===$value)>{{ $label }}</option>@endforeach</select></form>@endcan</article>@empty<p class="p-5 text-sm text-slate-500">Nema radnih zadataka.</p>@endforelse</div>
+    </section>
+    <section class="project-card">
+        <div class="border-b border-slate-100"><h2>Komentari i prilozi</h2><p class="mt-1 text-xs text-slate-500">Projektne bilješke i terenska dokumentacija.</p></div>
+        @can('project.edit')<form method="POST" action="{{ route('projects.comments.store', $project) }}" enctype="multipart/form-data" class="grid gap-2 border-b border-slate-100 p-4">@csrf<input type="hidden" name="subject_type" value="project"><textarea name="body" required maxlength="5000" placeholder="Napiši komentar…" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea><div class="flex flex-wrap items-center gap-2"><input type="file" name="attachment" accept=".jpg,.jpeg,.png,.webp,.pdf,.txt,.csv" class="text-xs"><button class="tbl-btn bg-sky-700 text-white">Dodaj komentar</button></div></form>@endcan
+        <div class="max-h-96 divide-y divide-slate-100 overflow-auto">@forelse($project->comments as $comment)<article class="p-4"><div class="flex justify-between gap-3"><b class="text-sm text-slate-800">{{ $comment->user?->name ?? 'Sistem' }}</b><small class="text-slate-400">{{ $comment->created_at->format('d.m.Y H:i') }}</small></div><p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ $comment->body }}</p>@if($comment->attachment_path)<a class="mt-2 inline-block text-xs font-bold text-sky-700" href="{{ route('projects.comments.download', [$project, $comment]) }}">Preuzmi: {{ $comment->attachment_name }}</a>@endif</article>@empty<p class="p-5 text-sm text-slate-500">Nema komentara.</p>@endforelse</div>
+    </section>
+</div>
+
+<section class="project-card mb-5">
+    <div class="border-b border-slate-100"><h2>Planirano i izvedeno stanje</h2><p class="mt-1 text-xs text-slate-500">Napredak se računa iz statusa mrežnih elemenata.</p></div>
+    <div class="grid gap-4 p-5 md:grid-cols-3">@foreach([['Trase',$asBuilt['routes']['built'],$asBuilt['routes']['planned'],$asBuilt['routes']['percent'],'kom'],['Dužina trase',$asBuilt['route_length_m']['built'],$asBuilt['route_length_m']['planned'],$asBuilt['route_length_m']['percent'],'m'],['Priključci',$asBuilt['houses']['built'],$asBuilt['houses']['planned'],$asBuilt['houses']['percent'],'kom']] as [$label,$built,$planned,$percent,$unit])<div class="rounded-xl border border-slate-200 bg-slate-50 p-4"><div class="flex justify-between text-xs font-bold text-slate-600"><span>{{ $label }}</span><span>{{ $percent }}%</span></div><div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200"><i class="block h-full rounded-full bg-emerald-500" style="width:{{ $percent }}%"></i></div><p class="mt-2 text-sm text-slate-600"><b class="text-slate-900">{{ number_format($built, 0, ',', '.') }}</b> / {{ number_format($planned, 0, ',', '.') }} {{ $unit }}</p></div>@endforeach</div>
+</section>
+
+<section class="project-card mb-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100"><div><h2>Revizije troškovnika</h2><p class="mt-1 text-xs text-slate-500">Zamrznute verzije količina i cijena materijala.</p></div>@can('project.edit')<form method="POST" action="{{ route('materials.versions.store', $project) }}" class="flex gap-2">@csrf<input name="label" required maxlength="120" value="Revizija {{ now()->format('d.m.Y') }}" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><button class="tbl-btn bg-sky-700 text-white">Sačuvaj reviziju</button></form>@endcan</div>
+    <div class="divide-y divide-slate-100">@forelse($project->materialEstimateVersions as $version)<div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm"><span><b>{{ $version->label }}</b><small class="ml-2 text-slate-500">{{ $version->user?->name }} · {{ $version->created_at->format('d.m.Y H:i') }}</small></span><span class="text-slate-600">Plan: <b>{{ number_format((float)$version->planned_total, 2, ',', '.') }}</b> · Utrošeno: <b>{{ number_format((float)$version->used_total, 2, ',', '.') }}</b></span></div>@empty<p class="p-5 text-sm text-slate-500">Još nema sačuvanih revizija.</p>@endforelse</div>
+</section>
+
+<section class="project-card mb-5">
+    <div class="border-b border-slate-100"><h2>Background obrada</h2><p class="mt-1 text-xs text-slate-500">Veliki izvozi i proračuni rade kroz queue bez blokiranja browsera.</p></div>
+    @can('project.edit')<div class="flex flex-wrap gap-2 border-b border-slate-100 p-4">@foreach(['dxf'=>'Pripremi DXF','print_pdf'=>'Pripremi PDF','auto_plan'=>'Izračunaj auto-plan'] as $type=>$label)<form method="POST" action="{{ route('projects.background-tasks.store',$project) }}">@csrf<input type="hidden" name="type" value="{{ $type }}"><button class="tbl-btn bg-sky-700 text-white">{{ $label }}</button></form>@endforeach<form method="POST" action="{{ route('projects.background-tasks.store',$project) }}" enctype="multipart/form-data" class="flex gap-2">@csrf<input type="hidden" name="type" value="survey_import"><input type="file" name="points_file" required accept=".txt,.csv" class="text-xs"><button class="tbl-btn bg-sky-700 text-white">Import u pozadini</button></form></div>@endcan
+    <div class="divide-y divide-slate-100">@forelse($project->backgroundTasks as $task)<div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm"><span><b>{{ str_replace('_',' ',strtoupper($task->type)) }}</b><small class="ml-2 text-slate-500">{{ $task->created_at->format('d.m.Y H:i') }} · {{ $task->status }}</small>@if($task->error)<small class="block text-red-600">{{ $task->error }}</small>@endif</span>@if($task->status==='completed'&&$task->result_path)<a class="text-xs font-bold text-sky-700" href="{{ route('projects.background-tasks.download',[$project,$task]) }}">Preuzmi rezultat</a>@endif</div>@empty<p class="p-5 text-sm text-slate-500">Nema background zadataka.</p>@endforelse</div>
+</section>
 
 {{-- KPI STRIP --}}
 <div class="project-kpis mb-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
@@ -460,7 +515,7 @@
 </div>
 
 @push('scripts')
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
 (function () {
     // A browser Back navigation can restore warnings from before map edits.
     window.addEventListener('pageshow', event => {

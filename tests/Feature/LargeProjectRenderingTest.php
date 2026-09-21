@@ -80,7 +80,9 @@ class LargeProjectRenderingTest extends TestCase
         $overviewQueries = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        $this->assertLessThanOrEqual(30, $overviewQueries, "Pregled velikog projekta je izvršio {$overviewQueries} SQL upita.");
+        // Workflow, zadaci, komentari i revizije dodaju četiri ograničena upita;
+        // limit i dalje štiti od N+1 rasta bez kažnjavanja novih sekcija.
+        $this->assertLessThanOrEqual(35, $overviewQueries, "Pregled velikog projekta je izvršio {$overviewQueries} SQL upita.");
         $this->assertLessThan(5000, $overviewDurationMs, 'Pregled velikog projekta traje duže od 5 sekundi.');
         $this->get(route('projects.print', $project))->assertOk()->assertSee('Spremnost projekta');
 

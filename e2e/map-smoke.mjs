@@ -49,8 +49,6 @@ try {
             );
         }
 
-        const loginUrl = `${baseUrl}/prijava`;
-
         // Čekaj da se svi script-ovi i meta tagovi učitaju
         await page.waitForLoadState("networkidle");
 

@@ -37,7 +37,7 @@
     <form method="POST" action="{{ route('projects.restore') }}" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2">
         @csrf
         <label class="tbl-btn cursor-pointer" style="background:#f0fdf4;color:#14532d;border-color:#bbf7d0" title="Odaberi FTTH Manager JSON backup">
-            <input type="file" name="backup" accept="application/json,.json" class="hidden" required onchange="this.form.requestSubmit()">
+            <input type="file" name="backup" accept="application/json,.json" class="hidden" required data-auto-submit>
             Vrati backup
         </label>
         @error('backup', 'restoreBackup')<span class="text-xs font-semibold text-red-600">{{ $message }}</span>@enderror
@@ -253,9 +253,9 @@
     </div>
 </div>
 @endcan
-@if($errors->any())<script>document.getElementById('drawer-projects')?.classList.add('open');</script>@endif
+@if($errors->any())<script nonce="{{ Vite::cspNonce() }}">document.getElementById('drawer-projects')?.classList.add('open');</script>@endif
 
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
 // DXF export s background layerima iz IndexedDB
 (function () {
     const DB = 'ftth_dxf_v1', ST = 'layers', VER = 1;

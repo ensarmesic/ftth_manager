@@ -1,4 +1,4 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 
 @section('title', 'Mapa mreže')
 @section('subtitle', 'Satelitski projektantski prikaz za ODF, ODO ormariće, kuće i trase.')
@@ -631,7 +631,7 @@
 <script src="{{ asset('js/map/controls.js') }}?v={{ filemtime(public_path('js/map/controls.js')) }}"></script>
 <script src="{{ asset('js/map/hydrate.js') }}?v={{ filemtime(public_path('js/map/hydrate.js')) }}"></script>
 <script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
     (() => {
         const dock = document.querySelector('.map-vertical-tools');
         if (!dock) return;

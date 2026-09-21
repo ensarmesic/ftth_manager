@@ -23,15 +23,15 @@ class MapDataService
         ];
     }
 
-    public function build(?int $projectId): array
+    public function build(?int $projectId, ?array $bbox = null): array
     {
         $scope = filled($projectId);
         $allOdfs = Odf::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))->get();
-        $odfs = $allOdfs->filter(fn (Odf $odf) => $odf->latitude !== null && $odf->longitude !== null)->values();
+        $odfs = $allOdfs->filter(fn (Odf $odf) => $odf->latitude !== null && $odf->longitude !== null && $this->pointInBbox((float) $odf->latitude, (float) $odf->longitude, $bbox))->values();
 
         $allCabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])->withCount('houses')
             ->when($scope, fn ($query) => $query->where('project_id', $projectId))->get();
-        $cabinets = $allCabinets->filter(fn (Cabinet $cabinet) => $cabinet->latitude !== null && $cabinet->longitude !== null)->values();
+        $cabinets = $allCabinets->filter(fn (Cabinet $cabinet) => $cabinet->latitude !== null && $cabinet->longitude !== null && $this->pointInBbox((float) $cabinet->latitude, (float) $cabinet->longitude, $bbox))->values();
 
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet', 'fromCabinet'])
             ->when($scope, fn ($query) => $query->where('project_id', $projectId))
@@ -39,17 +39,32 @@ class MapDataService
                 ->whereHas('odf', fn ($odf) => $odf->whereNotNull('latitude')->whereNotNull('longitude'))
                 ->whereHas('cabinet', fn ($cabinet) => $cabinet->whereNotNull('latitude')->whereNotNull('longitude'))))
             ->get();
+        if ($bbox) {
+            $routes = $routes->filter(fn (NetworkRoute $route) => $this->pathIntersectsBbox($route->path ?: [], $bbox))->values();
+        }
 
         $housesPerCabinet = House::whereNotNull('cabinet_id')->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->selectRaw('cabinet_id, count(*) as cnt')->groupBy('cabinet_id')->pluck('cnt', 'cabinet_id')->all();
         $houses = House::with(['project', 'cabinet'])->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->whereNotNull('latitude')->whereNotNull('longitude')->get();
+        if ($bbox) {
+            $houses = $houses->filter(fn (House $house) => $this->pointInBbox((float) $house->latitude, (float) $house->longitude, $bbox))->values();
+        }
         $appendixItems = ProjectAppendixItem::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->whereNotNull('latitude')->whereNotNull('longitude')->get();
+        if ($bbox) {
+            $appendixItems = $appendixItems->filter(fn (ProjectAppendixItem $item) => $this->pointInBbox((float) $item->latitude, (float) $item->longitude, $bbox))->values();
+        }
         $gisSegments = GisSegment::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->where('is_allowed', true)->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])->get();
+        if ($bbox) {
+            $gisSegments = $gisSegments->filter(fn (GisSegment $segment) => $this->pathIntersectsBbox($segment->path ?: [], $bbox))->values();
+        }
         $restrictedAreas = GisRestrictedArea::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->where('area_type', 'restricted')->get();
+        if ($bbox) {
+            $restrictedAreas = $restrictedAreas->filter(fn (GisRestrictedArea $area) => $this->pathIntersectsBbox($area->polygon ?: [], $bbox))->values();
+        }
 
         return [
             'odfs_for_select' => $allOdfs->sortBy('name')->values(),
@@ -122,5 +137,36 @@ class MapDataService
                 ]),
             ],
         ];
+    }
+
+    private function pointInBbox(float $lat, float $lng, ?array $bbox): bool
+    {
+        return ! $bbox || ($lat >= $bbox[0] && $lat <= $bbox[2] && $lng >= $bbox[1] && $lng <= $bbox[3]);
+    }
+
+    private function pathIntersectsBbox(array $path, array $bbox): bool
+    {
+        $found = [];
+        $walk = function (array $node) use (&$walk, &$found): void {
+            if (count($node) >= 2 && is_numeric($node[0] ?? null) && is_numeric($node[1] ?? null)) {
+                $found[] = $node;
+
+                return;
+            }
+            foreach ($node as $child) {
+                if (is_array($child)) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($path);
+        $points = collect($found);
+        if ($points->isEmpty()) {
+            return false;
+        }
+        $lats = $points->map(fn ($point) => (float) $point[0]);
+        $lngs = $points->map(fn ($point) => (float) $point[1]);
+
+        return $lats->max() >= $bbox[0] && $lats->min() <= $bbox[2] && $lngs->max() >= $bbox[1] && $lngs->min() <= $bbox[3];
     }
 }

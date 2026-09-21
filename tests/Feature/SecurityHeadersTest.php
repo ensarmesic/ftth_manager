@@ -27,6 +27,9 @@ class SecurityHeadersTest extends TestCase
         $policy = (string) $response->headers->get('Content-Security-Policy');
         $this->assertStringContainsString("frame-ancestors 'none'", $policy);
         $this->assertStringContainsString("object-src 'none'", $policy);
+        preg_match('/script-src ([^;]+)/', $policy, $scriptDirective);
+        $this->assertStringNotContainsString("'unsafe-inline'", $scriptDirective[1]);
+        $this->assertMatchesRegularExpression("/'nonce-[A-Za-z0-9+\/=]+' /", $scriptDirective[1].' ');
     }
 
     public function test_authenticated_html_pages_are_not_browser_cached(): void

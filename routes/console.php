@@ -12,13 +12,31 @@ $markScheduledSuccess = function (string $task) use ($schedulerHeartbeat): void 
     File::ensureDirectoryExists(dirname($schedulerHeartbeat));
     File::put($schedulerHeartbeat, json_encode(['task' => $task, 'completed_at' => now()->toIso8601String()], JSON_PRETTY_PRINT));
 };
-$logScheduledFailure = fn (string $task) => Log::error('Neuspješan zakazani FTTH zadatak', ['task' => $task]);
+$failureMarker = storage_path('app/private/health/scheduler-failure.json');
+$logScheduledFailure = function (string $task) use ($failureMarker): void {
+    Log::error('Neuspješan zakazani FTTH zadatak', ['task' => $task]);
+    File::ensureDirectoryExists(dirname($failureMarker));
+    File::put($failureMarker, json_encode(['task' => $task, 'failed_at' => now()->toIso8601String()], JSON_PRETTY_PRINT));
+};
+$clearScheduledFailure = fn () => File::delete($failureMarker);
 
 Schedule::command('ftth:backup-database --keep=14')
     ->dailyAt('02:30')->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/scheduler.log'))
-    ->onSuccess(fn () => $markScheduledSuccess('database-backup'))
+    ->onSuccess(function () use ($markScheduledSuccess, $clearScheduledFailure): void {
+        $markScheduledSuccess('database-backup');
+        $clearScheduledFailure();
+    })
     ->onFailure(fn () => $logScheduledFailure('database-backup'));
+
+Schedule::command('ftth:verify-backup')
+    ->dailyAt('02:45')->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/scheduler.log'))
+    ->onSuccess(function () use ($markScheduledSuccess, $clearScheduledFailure): void {
+        $markScheduledSuccess('backup-verification');
+        $clearScheduledFailure();
+    })
+    ->onFailure(fn () => $logScheduledFailure('backup-verification'));
 
 Schedule::command('ftth:audit-integrity')
     ->dailyAt('03:00')->withoutOverlapping()

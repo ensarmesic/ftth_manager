@@ -1,9 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="bs">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#00659e">
+    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <title>FTTH Manager</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('css/ftth-app.css') }}?v={{ filemtime(public_path('css/ftth-app.css')) }}">
@@ -192,7 +194,7 @@
         <div class="flex gap-2">
             <div class="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3">
                 <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-slate-400 shrink-0"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-                <input id="global-search-input" class="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" placeholder="Pretraži meni...">
+                <input id="global-search-input" class="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" placeholder="Projekat, adresa, ODF, ODO, kuća ili trasa...">
             </div>
             <button type="button" data-header-action="close-search" class="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold hover:bg-slate-200">Zatvori</button>
         </div>
@@ -241,7 +243,7 @@
     </section>
 </div>
 <div id="ftth-toast-region" class="ftth-toast-region" role="status" aria-live="polite" aria-atomic="false"></div>
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
 const ftthMenuItems = [
     ['Pregled', @json(route('dashboard'))], ['Projekti', @json(route('projects.index'))], ['Mapa', @json(route('map.dashboard'))],
     ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarići', @json(route('cabinets.index'))], ['Kuće', @json(route('houses.index'))],
@@ -337,11 +339,22 @@ function toggleHeaderMenu(id) {
     menu.classList.toggle('hidden', !opening);
     document.getElementById(id === 'notification-menu' ? 'btn-notifications' : 'btn-profile')?.setAttribute('aria-expanded', String(opening));
 }
+let globalSearchRequest = 0;
 function renderGlobalSearch(value = '') {
     const results = ftthMenuItems.filter(([label]) => label.toLowerCase().includes(value.toLowerCase()));
     document.getElementById('global-search-results').innerHTML = results.map(([label, url]) =>
         `<a class="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" href="${url}">${label}</a>`
     ).join('');
+    if (value.trim().length < 2) return;
+    const request = ++globalSearchRequest;
+    fetch(@json(route('api.search')) + '?q=' + encodeURIComponent(value), {headers:{Accept:'application/json'}})
+        .then(response => response.ok ? response.json() : Promise.reject())
+        .then(data => {
+            if (request !== globalSearchRequest) return;
+            const escape = text => { const node = document.createElement('div'); node.textContent = text || ''; return node.innerHTML; };
+            const remote = (data.items || []).map(item => `<a class="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-slate-50" href="${escape(item.url)}"><span><b class="block text-slate-800">${escape(item.label)}</b><small class="text-slate-500">${escape(item.subtitle)}</small></span><em class="not-italic text-[10px] font-bold uppercase text-sky-700">${escape(item.type)}</em></a>`).join('');
+            document.getElementById('global-search-results').innerHTML = remote || '<p class="px-3 py-4 text-sm text-slate-500">Nema rezultata.</p>';
+        }).catch(() => {});
 }
 document.querySelector('[data-header-action="search"]')?.addEventListener('click', () => {
     const modal = document.getElementById('global-search');
@@ -349,13 +362,16 @@ document.querySelector('[data-header-action="search"]')?.addEventListener('click
     renderGlobalSearch(); document.getElementById('global-search-input').focus();
 });
 document.querySelector('[data-header-action="close-search"]')?.addEventListener('click', () => document.getElementById('global-search').classList.add('hidden'));
-document.getElementById('global-search-input')?.addEventListener('input', e => renderGlobalSearch(e.target.value));
+let globalSearchTimer;
+document.getElementById('global-search-input')?.addEventListener('input', e => { clearTimeout(globalSearchTimer); globalSearchTimer = setTimeout(() => renderGlobalSearch(e.target.value), 180); });
 document.querySelector('[data-header-action="fullscreen"]')?.addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
 document.getElementById('btn-notifications')?.addEventListener('click', e => { e.stopPropagation(); toggleHeaderMenu('notification-menu'); });
 document.getElementById('btn-profile')?.addEventListener('click', e => { e.stopPropagation(); toggleHeaderMenu('profile-menu'); });
 document.getElementById('notification-menu')?.addEventListener('click', e => e.stopPropagation());
 document.getElementById('profile-menu')?.addEventListener('click', e => e.stopPropagation());
 document.addEventListener('click', () => closeHeaderMenus());
+document.querySelectorAll('[data-auto-submit]').forEach(element => element.addEventListener('change', () => element.form?.requestSubmit()));
+document.querySelectorAll('[data-print-page]').forEach(element => element.addEventListener('click', () => window.print()));
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
         closeHeaderMenus();

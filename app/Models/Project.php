@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
@@ -15,11 +16,11 @@ class Project extends Model
         return (int) ($this->max_house_to_odo_m ?? 90);
     }
 
-    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'start_date', 'deadline', 'description', 'fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_schema_locked', 'fiber_schema_locked_at', 'fiber_schema_locked_by', 'fiber_budget_limit_db', 'fiber_schema_layout', 'pon_profile', 'feeder_splitter_ratio', 'fiber_attenuation_1310_db_km', 'fiber_attenuation_1490_db_km', 'fiber_attenuation_1577_db_km', 'connector_loss_db', 'connector_count', 'splice_allowance_db', 'planned_splice_count', 'engineering_margin_db', 'additional_passive_loss_db', 'power_budget_confirmed', 'olt_tx_power_dbm', 'onu_tx_power_dbm', 'onu_rx_sensitivity_dbm', 'olt_rx_sensitivity_dbm'];
+    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'start_date', 'deadline', 'description', 'workflow_stage', 'workflow_changed_at', 'workflow_changed_by', 'fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_schema_locked', 'fiber_schema_locked_at', 'fiber_schema_locked_by', 'fiber_budget_limit_db', 'fiber_schema_layout', 'pon_profile', 'feeder_splitter_ratio', 'fiber_attenuation_1310_db_km', 'fiber_attenuation_1490_db_km', 'fiber_attenuation_1577_db_km', 'connector_loss_db', 'connector_count', 'splice_allowance_db', 'planned_splice_count', 'engineering_margin_db', 'additional_passive_loss_db', 'power_budget_confirmed', 'olt_tx_power_dbm', 'onu_tx_power_dbm', 'onu_rx_sensitivity_dbm', 'olt_rx_sensitivity_dbm'];
 
     protected function casts(): array
     {
-        return ['fiber_schema_locked' => 'boolean', 'fiber_schema_locked_at' => 'datetime', 'fiber_budget_limit_db' => 'float', 'fiber_schema_layout' => 'array', 'fiber_attenuation_1310_db_km' => 'float', 'fiber_attenuation_1490_db_km' => 'float', 'fiber_attenuation_1577_db_km' => 'float', 'connector_loss_db' => 'float', 'splice_allowance_db' => 'float', 'engineering_margin_db' => 'float', 'additional_passive_loss_db' => 'float', 'power_budget_confirmed' => 'boolean', 'olt_tx_power_dbm' => 'float', 'onu_tx_power_dbm' => 'float', 'onu_rx_sensitivity_dbm' => 'float', 'olt_rx_sensitivity_dbm' => 'float'];
+        return ['workflow_changed_at' => 'datetime', 'fiber_schema_locked' => 'boolean', 'fiber_schema_locked_at' => 'datetime', 'fiber_budget_limit_db' => 'float', 'fiber_schema_layout' => 'array', 'fiber_attenuation_1310_db_km' => 'float', 'fiber_attenuation_1490_db_km' => 'float', 'fiber_attenuation_1577_db_km' => 'float', 'connector_loss_db' => 'float', 'splice_allowance_db' => 'float', 'engineering_margin_db' => 'float', 'additional_passive_loss_db' => 'float', 'power_budget_confirmed' => 'boolean', 'olt_tx_power_dbm' => 'float', 'onu_tx_power_dbm' => 'float', 'onu_rx_sensitivity_dbm' => 'float', 'olt_rx_sensitivity_dbm' => 'float'];
     }
 
     public function odfs(): HasMany
@@ -85,5 +86,35 @@ class Project extends Model
     public function fiberSchemaVersions(): HasMany
     {
         return $this->hasMany(FiberSchemaVersion::class);
+    }
+
+    public function stageHistories(): HasMany
+    {
+        return $this->hasMany(ProjectStageHistory::class);
+    }
+
+    public function workflowChangedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'workflow_changed_by');
+    }
+
+    public function workItems(): HasMany
+    {
+        return $this->hasMany(ProjectWorkItem::class);
+    }
+
+    public function comments(): HasMany
+    {
+        return $this->hasMany(ProjectComment::class);
+    }
+
+    public function materialEstimateVersions(): HasMany
+    {
+        return $this->hasMany(MaterialEstimateVersion::class);
+    }
+
+    public function backgroundTasks(): HasMany
+    {
+        return $this->hasMany(ProjectBackgroundTask::class);
     }
 }

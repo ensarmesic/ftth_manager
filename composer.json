@@ -51,8 +51,11 @@
             "@php artisan test"
         ],
         "check": [
-            "./vendor/bin/pint --test",
+            "@php vendor/bin/pint --test",
             "npm run check:js",
+            "npm run lint",
+            "npm run format:check",
+            "npm run test:js",
             "@composer test"
         ],
         "post-autoload-dump": [

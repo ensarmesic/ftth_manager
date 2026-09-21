@@ -119,6 +119,8 @@ Za produkciju postavi `APP_ENV=production`, `APP_DEBUG=false`, ispravan HTTPS `A
 
 Produkcijski `.env` treba sadržavati i `APP_VERSION`, `APP_DEPLOYED_AT` te `LOG_CHANNEL=daily`. Laravel scheduler mora biti aktivan svake minute (`php artisan schedule:run`) jer u 02:30 pokreće `ftth:backup-database --keep=14`, a u 03:15 čisti zastarjeli DXF cache. Autentificirani administratorski health-check dostupan je na `/sistem/health`; vraća status baze, verziju, deployment i datum posljednjeg automatskog backupa. Zahtjevi sporiji od `SLOW_REQUEST_MS` zapisuju se u dnevni log.
 
+Za slanje linkova za oporavak lozinke u produkciji postavi stvarni mail transport (`MAIL_MAILER=smtp`) i odgovarajuće `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` i `MAIL_FROM_ADDRESS` vrijednosti. Zadani `log` mailer zapisuje link samo u aplikacijski log i namijenjen je lokalnom razvoju.
+
 Prije deploymenta pokreni:
 
 ```bash

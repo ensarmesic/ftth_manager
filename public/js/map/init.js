@@ -549,3 +549,12 @@ if (focusedCabinetId && cabinetMarkerById[focusedCabinetId]) {
     const marker = cabinetMarkerById[focusedCabinetId];
     requestAnimationFrame(() => { map.setView(marker.getLatLng(), Math.max(map.getZoom(), 19)); marker.openPopup(); });
 }
+const coordinateParams = new URLSearchParams(location.search);
+const focusedLat = Number(coordinateParams.get('lat'));
+const focusedLng = Number(coordinateParams.get('lng'));
+if (Number.isFinite(focusedLat) && Number.isFinite(focusedLng) && coordinateParams.has('lat') && coordinateParams.has('lng')) {
+    requestAnimationFrame(() => {
+        map.setView([focusedLat, focusedLng], Math.min(22, Math.max(1, Number(coordinateParams.get('zoom')) || 20)));
+        L.circleMarker([focusedLat, focusedLng], {radius: 8, color: '#fff', weight: 3, fillColor: '#dc2626', fillOpacity: 1}).addTo(map).bindTooltip(`${focusedLat.toFixed(6)}, ${focusedLng.toFixed(6)}`, {permanent: false}).openTooltip();
+    });
+}

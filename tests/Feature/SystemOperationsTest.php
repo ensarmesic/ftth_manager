@@ -59,6 +59,8 @@ class SystemOperationsTest extends TestCase
         $this->assertSame('ftth-test-database', $restored->query('SELECT value FROM restore_probe')->fetchColumn());
         $restored = null;
 
+        $this->artisan('ftth:verify-backup', ['path' => $copy])->assertSuccessful();
+
         File::delete($source);
         File::deleteDirectory($backupDirectory);
     }
@@ -94,8 +96,46 @@ class SystemOperationsTest extends TestCase
     {
         $this->artisan('schedule:list')
             ->expectsOutputToContain('ftth:backup-database --keep=14')
+            ->expectsOutputToContain('ftth:verify-backup')
             ->expectsOutputToContain('ftth:audit-integrity')
             ->expectsOutputToContain('ftth:prune-dxf-cache --days=30')
             ->assertSuccessful();
+    }
+
+    public function test_database_backup_can_upload_an_encrypted_remote_copy(): void
+    {
+        if (! function_exists('sodium_crypto_secretstream_xchacha20poly1305_init_push')) {
+            $this->markTestSkipped('Sodium nije dostupan.');
+        }
+        $source = storage_path('framework/testing/encrypted-backup-source.sqlite');
+        $localDirectory = storage_path('framework/testing/encrypted-local');
+        $remoteDirectory = storage_path('framework/testing/encrypted-remote');
+        File::delete($source);
+        File::deleteDirectory($localDirectory);
+        File::deleteDirectory($remoteDirectory);
+        $database = new PDO('sqlite:'.$source);
+        $database->exec('CREATE TABLE secret_probe (value TEXT)');
+        $database->exec("INSERT INTO secret_probe VALUES ('not-visible-remotely')");
+        $database = null;
+        config()->set('database.default', 'sqlite');
+        config()->set('database.connections.sqlite.database', $source);
+        config()->set('database.backup_directory', $localDirectory);
+        config()->set('database.backup_disk', 'backup-test');
+        config()->set('database.backup_remote_directory', 'copies');
+        config()->set('database.backup_encryption_key', str_repeat('k', 32));
+        config()->set('filesystems.disks.backup-test', ['driver' => 'local', 'root' => $remoteDirectory, 'throw' => true]);
+
+        $this->artisan('ftth:backup-database --keep=1')->assertSuccessful();
+
+        $encrypted = collect(File::glob($remoteDirectory.'/copies/*.enc'))->first();
+        $this->assertNotNull($encrypted);
+        $contents = File::get($encrypted);
+        $this->assertStringStartsWith('FTTHENC1', $contents);
+        $this->assertStringNotContainsString('not-visible-remotely', $contents);
+        $this->assertFileExists($encrypted.'.sha256');
+
+        File::delete($source);
+        File::deleteDirectory($localDirectory);
+        File::deleteDirectory($remoteDirectory);
     }
 }

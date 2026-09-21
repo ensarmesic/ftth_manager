@@ -1,4 +1,4 @@
-@extends('ftth.layout')
+﻿@extends('ftth.layout')
 @section('title', 'Postavke')
 @section('subtitle', 'Upravljanje prikazom, sigurnošću, GIS podacima i održavanjem sistema.')
 @section('content')
@@ -23,6 +23,8 @@
             @foreach ([
                 ['display', 'Prikaz aplikacije', 'Izgled i ponašanje'],
                 ['security', 'Sigurnost računa', 'Promjena lozinke'],
+                ['users', 'Korisnici', 'Računi i uloge'],
+                ['sessions', 'Aktivne sesije', 'Prijavljeni uređaji'],
                 ['gis', 'GIS slojevi', 'Uvoz prostornih podataka'],
                 ['maintenance', 'Sistem i backup', 'Status i sigurnosna kopija'],
                 ['audit', 'Audit promjena', 'Evidencija aktivnosti'],
@@ -89,6 +91,62 @@
                 </div>
             </article>
 
+            <article class="settings-panel" data-settings-section id="settings-users">
+                <x-settings-heading title="Korisnici" description="Kreiraj račune, dodijeli uloge i upravljaj pristupom aplikaciji." icon="users" />
+                <div class="settings-panel-body">
+                    @if($errors->has('user'))<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ $errors->first('user') }}</div>@endif
+                    <details class="rounded-xl border border-slate-200 bg-slate-50 p-4" {{ $errors->hasAny(['name', 'username', 'email', 'role', 'password']) ? 'open' : '' }}>
+                        <summary class="cursor-pointer font-bold text-slate-800">Dodaj novog korisnika</summary>
+                        <form method="POST" action="{{ route('settings.users.store') }}" class="mt-4 grid gap-4">
+                            @csrf
+                            <div class="settings-fields-grid">
+                                <label><span>Ime i prezime</span><input name="name" value="{{ old('name') }}" class="field-input" required maxlength="120"></label>
+                                <label><span>Korisničko ime</span><input name="username" value="{{ old('username') }}" class="field-input" required maxlength="80" autocomplete="off"></label>
+                                <label><span>Email</span><input type="email" name="email" value="{{ old('email') }}" class="field-input" required></label>
+                                <label><span>Uloga</span><select name="role" class="field-input">@foreach(['administrator' => 'Administrator', 'designer' => 'Projektant', 'field' => 'Teren', 'viewer' => 'Pregled'] as $value => $label)<option value="{{ $value }}" @selected(old('role') === $value)>{{ $label }}</option>@endforeach</select></label>
+                                <label><span>Početna lozinka</span><input type="password" name="password" class="field-input" required autocomplete="new-password"></label>
+                                <label><span>Ponovi lozinku</span><input type="password" name="password_confirmation" class="field-input" required autocomplete="new-password"></label>
+                            </div>
+                            @if($errors->any() && !$errors->has('user'))<div class="text-sm font-semibold text-red-700">{{ $errors->first() }}</div>@endif
+                            <div class="settings-actions"><button class="btn-save">Kreiraj korisnika</button><small>Najmanje 12 znakova, velika i mala slova te broj.</small></div>
+                        </form>
+                    </details>
+                    <div class="mt-5 grid gap-3">
+                        @foreach($users as $managedUser)
+                            <details class="rounded-xl border border-slate-200 bg-white p-4">
+                                <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
+                                    <span><b class="block text-slate-900">{{ $managedUser->name }}</b><small class="text-slate-500">{{ '@'.$managedUser->username }} · {{ $managedUser->email }}</small></span>
+                                    <span class="rounded-full px-2.5 py-1 text-xs font-bold {{ $managedUser->is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' }}">{{ $managedUser->is_active ? 'Aktivan' : 'Neaktivan' }}</span>
+                                </summary>
+                                <form method="POST" action="{{ route('settings.users.update', $managedUser) }}" class="mt-4 grid gap-4 border-t border-slate-100 pt-4">
+                                    @csrf @method('PUT')
+                                    <div class="settings-fields-grid">
+                                        <label><span>Ime i prezime</span><input name="name" value="{{ $managedUser->name }}" class="field-input" required maxlength="120"></label>
+                                        <label><span>Korisničko ime</span><input name="username" value="{{ $managedUser->username }}" class="field-input" required maxlength="80"></label>
+                                        <label><span>Email</span><input type="email" name="email" value="{{ $managedUser->email }}" class="field-input" required></label>
+                                        <label><span>Uloga</span><select name="role" class="field-input">@foreach(['administrator' => 'Administrator', 'designer' => 'Projektant', 'field' => 'Teren', 'viewer' => 'Pregled'] as $value => $label)<option value="{{ $value }}" @selected($managedUser->role === $value)>{{ $label }}</option>@endforeach</select></label>
+                                        <label><span>Nova lozinka (opcionalno)</span><input type="password" name="password" class="field-input" autocomplete="new-password"></label>
+                                        <label><span>Ponovi novu lozinku</span><input type="password" name="password_confirmation" class="field-input" autocomplete="new-password"></label>
+                                    </div>
+                                    <label class="settings-check"><input type="hidden" name="is_active" value="0"><input type="checkbox" name="is_active" value="1" @checked($managedUser->is_active) @disabled(auth()->user()->is($managedUser))><span><b>Aktivan račun</b><small>Deaktivacija odmah prekida postojeće sesije.</small></span></label>
+                                    @if(auth()->user()->is($managedUser))<input type="hidden" name="is_active" value="1">@endif
+                                    <div class="settings-actions"><button class="btn-save">Sačuvaj korisnika</button><small>Zadnja prijava: {{ $managedUser->last_login_at?->format('d.m.Y. H:i') ?? 'nije zabilježena' }}</small></div>
+                                </form>
+                            </details>
+                        @endforeach
+                    </div>
+                </div>
+            </article>
+
+            <article class="settings-panel" data-settings-section id="settings-sessions">
+                <x-settings-heading title="Aktivne sesije" description="Pregledaj prijavljene uređaje i prekini pristup koji više nije potreban." icon="security" />
+                <div class="settings-audit-wrap"><table class="settings-audit-table"><thead><tr><th>Korisnik</th><th>IP adresa</th><th>Uređaj</th><th>Zadnja aktivnost</th><th></th></tr></thead><tbody>
+                    @forelse($sessions as $loginSession)
+                        <tr><td><b>{{ $loginSession->user_name ?? 'Nepoznat korisnik' }}</b>@if($loginSession->id === $currentSessionId) <span class="text-emerald-700">· trenutna</span>@endif</td><td>{{ $loginSession->ip_address ?: '—' }}</td><td title="{{ $loginSession->user_agent }}">{{ \Illuminate\Support\Str::limit($loginSession->user_agent ?: 'Nepoznat uređaj', 65) }}</td><td>{{ \Carbon\Carbon::createFromTimestamp($loginSession->last_activity)->diffForHumans() }}</td><td>@if($loginSession->id !== $currentSessionId)<form method="POST" action="{{ route('settings.sessions.destroy', $loginSession->id) }}">@csrf @method('DELETE')<button class="text-xs font-bold text-red-700">Prekini</button></form>@endif</td></tr>
+                    @empty<tr><td colspan="5" class="settings-empty">Nema aktivnih sesija.</td></tr>@endforelse
+                </tbody></table></div>
+            </article>
+
             <article class="settings-panel" data-settings-section id="settings-gis">
                 <x-settings-heading title="GIS slojevi" description="Uvezi cestovne koridore i ograničenja koja vode automatsko trasiranje." icon="gis" />
                 <form method="POST" action="{{ route('gis.import') }}" enctype="multipart/form-data" class="settings-panel-body">
@@ -124,17 +182,28 @@
             </div>
 
             <article class="settings-panel" data-settings-section id="settings-audit">
-                <x-settings-heading title="Audit promjena" description="Posljednjih 50 uspješnih izmjena u aplikaciji." icon="audit" />
-                <div class="settings-audit-wrap"><table class="settings-audit-table"><thead><tr><th>Vrijeme</th><th>Korisnik</th><th>Akcija</th><th>Ruta</th><th>Status</th></tr></thead><tbody>
-                    @forelse($activityLogs as $log)<tr><td>{{ $log->created_at->format('d.m.Y H:i:s') }}</td><td><b>{{ $log->user?->name ?? 'Sistem' }}</b></td><td><span class="settings-method">{{ $log->method }}</span></td><td>{{ $log->route_name ?? $log->path }}</td><td><span class="settings-status-dot"></span>{{ $log->status_code }}</td></tr>@empty<tr><td colspan="5" class="settings-empty">Još nema zabilježenih promjena.</td></tr>@endforelse
+                <x-settings-heading title="Audit promjena" description="Pretraživa evidencija uspješnih izmjena u aplikaciji." icon="audit" />
+                <form method="GET" action="{{ route('settings.index') }}" class="settings-panel-body">
+                    <div class="settings-fields-grid">
+                        <label><span>Korisnik</span><select name="audit_user" class="field-input"><option value="">Svi korisnici</option>@foreach($users as $auditUser)<option value="{{ $auditUser->id }}" @selected(request('audit_user') == $auditUser->id)>{{ $auditUser->name }}</option>@endforeach</select></label>
+                        <label><span>Projekat</span><select name="audit_project" class="field-input"><option value="">Svi projekti</option>@foreach($projects as $project)<option value="{{ $project->id }}" @selected(request('audit_project') == $project->id)>{{ $project->name }}</option>@endforeach</select></label>
+                        <label><span>Metoda</span><select name="audit_method" class="field-input"><option value="">Sve metode</option>@foreach(['POST','PUT','PATCH','DELETE'] as $method)<option @selected(request('audit_method') === $method)>{{ $method }}</option>@endforeach</select></label>
+                        <label><span>Od datuma</span><input type="date" name="audit_from" value="{{ request('audit_from') }}" class="field-input"></label>
+                        <label><span>Do datuma</span><input type="date" name="audit_to" value="{{ request('audit_to') }}" class="field-input"></label>
+                    </div>
+                    <div class="settings-actions"><button class="btn-save">Primijeni filtere</button><a href="{{ route('settings.index') }}#settings-audit" class="text-sm font-bold text-slate-600">Očisti</a><a href="{{ route('settings.audit.export', request()->only(['audit_user','audit_project','audit_method','audit_from','audit_to'])) }}" class="text-sm font-bold text-sky-700">Izvezi CSV</a></div>
+                </form>
+                <div class="settings-audit-wrap"><table class="settings-audit-table"><thead><tr><th>Vrijeme</th><th>Korisnik</th><th>Akcija</th><th>Projekat / objekat</th><th>Ruta</th><th>Status</th></tr></thead><tbody>
+                    @forelse($activityLogs as $log)<tr><td>{{ $log->created_at->format('d.m.Y H:i:s') }}</td><td><b>{{ $log->user?->name ?? 'Sistem' }}</b></td><td><span class="settings-method">{{ $log->method }}</span></td><td>{{ $log->project?->name ?? '—' }}@if($log->subject_type)<small class="block">{{ $log->subject_type }} #{{ $log->subject_id }}</small>@endif</td><td>{{ $log->route_name ?? $log->path }}</td><td><span class="settings-status-dot"></span>{{ $log->status_code }}</td></tr>@empty<tr><td colspan="6" class="settings-empty">Nema zapisa za odabrane filtere.</td></tr>@endforelse
                 </tbody></table></div>
+                <div class="settings-panel-body">{{ $activityLogs->links() }}</div>
             </article>
         </div>
     </div>
 </section>
 
 @push('scripts')
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
 (function () {
     const form = document.getElementById('settings-display');
     const fields = ['compactTables', 'smallMarkers', 'notifications', 'showOccupancyColors'];

@@ -10,6 +10,8 @@ use App\Models\Project;
 use App\Models\ProjectSnapshot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -53,19 +55,24 @@ class DashboardController extends Controller
             ];
         });
 
+        $stats = [
+            'projects' => $projects->count(),
+            'odfs' => (int) $projects->sum('odfs_count'),
+            'cabinets' => (int) $projects->sum('cabinets_count'),
+            'houses' => $totalHouses,
+            'route_km' => $routeLength / 1000,
+            'total_ports' => $capacity,
+            'used_ports' => $usedPorts,
+            'free_ports' => max($capacity - $usedPorts, 0),
+            'connected_percent' => $totalHouses > 0 ? (int) round($connectedHouses / $totalHouses * 100) : 0,
+            'capacity_percent' => $capacity > 0 ? min((int) round($usedPorts / $capacity * 100), 100) : 0,
+        ];
+        if (! app()->runningUnitTests()) {
+            $stats = Cache::remember('dashboard:aggregates:v1', now()->addSeconds(30), fn () => $stats);
+        }
+
         return view('ftth.dashboard', [
-            'stats' => [
-                'projects' => $projects->count(),
-                'odfs' => (int) $projects->sum('odfs_count'),
-                'cabinets' => (int) $projects->sum('cabinets_count'),
-                'houses' => $totalHouses,
-                'route_km' => $routeLength / 1000,
-                'total_ports' => $capacity,
-                'used_ports' => $usedPorts,
-                'free_ports' => max($capacity - $usedPorts, 0),
-                'connected_percent' => $totalHouses > 0 ? (int) round($connectedHouses / $totalHouses * 100) : 0,
-                'capacity_percent' => $capacity > 0 ? min((int) round($usedPorts / $capacity * 100), 100) : 0,
-            ],
+            'stats' => $stats,
             'projectCards' => $projectCards,
             'attentionProjects' => $projectCards->where('issues', '>', 0)->sortByDesc('issues')->take(5),
             'recentActivity' => ActivityLog::query()->with('user')->latest()->limit(8)->get(),
@@ -97,6 +104,11 @@ class DashboardController extends Controller
         }
         if ($incompleteRoutes) {
             $items[] = "$incompleteRoutes trasa nema kompletne tehnicke podatke.";
+        }
+        $failureMarker = storage_path('app/private/health/scheduler-failure.json');
+        if ($request->user()?->isAdministrator() && File::isFile($failureMarker)) {
+            $failure = json_decode(File::get($failureMarker), true);
+            $items[] = 'Zakazani zadatak nije uspio: '.($failure['task'] ?? 'nepoznat zadatak').'. Provjeri sistemski log.';
         }
 
         return response()->json(['count' => count($items), 'items' => $items]);
