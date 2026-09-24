@@ -10,7 +10,7 @@ class House extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'cabinet_id', 'branch_id', 'label', 'address', 'latitude', 'longitude', 'status', 'import_batch'];
+    protected $fillable = ['project_id', 'large_planner_zone_id', 'cabinet_id', 'branch_id', 'label', 'address', 'latitude', 'longitude', 'status', 'import_batch'];
 
     public function project(): BelongsTo
     {
@@ -25,5 +25,10 @@ class House extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(NetworkBranch::class, 'branch_id');
+    }
+
+    public function largePlannerZone(): BelongsTo
+    {
+        return $this->belongsTo(LargePlannerZone::class);
     }
 }

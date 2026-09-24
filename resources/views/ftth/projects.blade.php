@@ -100,6 +100,13 @@
                                             @endforeach
                                         </select>
                                     </label>
+                                    <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Način planiranja
+                                        <select name="planning_mode" class="ftth-input text-[13px] font-normal normal-case tracking-normal">
+                                            <option value="standard" @selected(($project->planning_mode ?? 'standard') === 'standard')>Standardni projekat</option>
+                                            <option value="large_auto" @selected($project->planning_mode === 'large_auto')>Veliki projekat · automatsko planiranje</option>
+                                        </select>
+                                        <span class="text-[10px] font-normal normal-case leading-4 tracking-normal text-slate-500">Standardni režim zadržava postojeći način rada. Veliki projekat će koristiti zasebne alate planera.</span>
+                                    </label>
                                     <div class="grid grid-cols-2 gap-2">
                                         <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Početak<input type="date" name="start_date" value="{{ $project->start_date }}" class="ftth-input font-normal normal-case tracking-normal"></label>
                                         <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rok<input type="date" name="deadline" value="{{ $project->deadline }}" class="ftth-input font-normal normal-case tracking-normal"></label>
@@ -242,6 +249,13 @@
                     <option value="paused">Pauziran</option>
                     <option value="completed">Završen</option>
                 </select>
+            </label>
+            <label class="ftth-label">Način planiranja
+                <select name="planning_mode" class="ftth-input">
+                    <option value="standard" @selected(old('planning_mode', 'standard') === 'standard')>Standardni projekat</option>
+                    <option value="large_auto" @selected(old('planning_mode') === 'large_auto')>Veliki projekat · automatsko planiranje</option>
+                </select>
+                <span class="mt-1 block text-xs font-normal leading-5 text-slate-500">Standardni režim koristi postojeći tok. Veliki projekat uključuje zaseban workspace za planiranje velikog broja kuća.</span>
             </label>
             <div class="grid gap-3 sm:grid-cols-2">
                 <label class="ftth-label">Početak<input type="date" name="start_date" value="{{ old('start_date') }}" class="ftth-input"></label>

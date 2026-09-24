@@ -7,12 +7,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GisSegment extends Model
 {
+    public const PLANNING_CORRIDOR_TYPES = ['main', 'primary', 'secondary'];
+
     protected $fillable = [
         'project_id',
         'name',
         'source',
         'segment_type',
         'is_allowed',
+        'planning_corridor_type',
         'length_m',
         'path',
         'properties',

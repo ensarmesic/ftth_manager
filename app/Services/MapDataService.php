@@ -6,6 +6,8 @@ use App\Models\Cabinet;
 use App\Models\GisRestrictedArea;
 use App\Models\GisSegment;
 use App\Models\House;
+use App\Models\LargePlannerConstraint;
+use App\Models\LargePlannerZone;
 use App\Models\MapDraft;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
@@ -65,6 +67,13 @@ class MapDataService
         if ($bbox) {
             $restrictedAreas = $restrictedAreas->filter(fn (GisRestrictedArea $area) => $this->pathIntersectsBbox($area->polygon ?: [], $bbox))->values();
         }
+        $largePlannerConstraints = LargePlannerConstraint::query()
+            ->when($scope, fn ($query) => $query->where('project_id', $projectId))
+            ->get();
+        $largePlannerZones = LargePlannerZone::query()
+            ->when($scope, fn ($query) => $query->where('project_id', $projectId))
+            ->withCount('houses')
+            ->get();
 
         return [
             'odfs_for_select' => $allOdfs->sortBy('name')->values(),
@@ -95,6 +104,7 @@ class MapDataService
                     'id' => $house->id, 'project_id' => $house->project_id, 'label' => $house->label, 'project' => $house->project->name,
                     'cabinet' => $house->cabinet->name ?? 'Nije dodijeljeno', 'cabinet_id' => $house->cabinet_id,
                     'address' => $house->address, 'status' => $house->status,
+                    'large_planner_zone_id' => $house->large_planner_zone_id,
                     'is_sling' => (bool) preg_match('/\b[sš]linga?\b/iu', (string) $house->address),
                     'lat' => (float) $house->latitude, 'lng' => (float) $house->longitude,
                 ]),
@@ -118,11 +128,20 @@ class MapDataService
                 'gis_segments' => $gisSegments->map(fn (GisSegment $segment) => [
                     'id' => $segment->id, 'project_id' => $segment->project_id, 'project' => $segment->project->name,
                     'name' => $segment->name, 'source' => $segment->source, 'segment_type' => $segment->segment_type,
+                    'planning_corridor_type' => $segment->planning_corridor_type,
                     'length_m' => $segment->length_m, 'path' => $segment->path,
                 ]),
                 'gis_restricted_areas' => $restrictedAreas->map(fn (GisRestrictedArea $area) => [
                     'id' => $area->id, 'project_id' => $area->project_id, 'project' => $area->project->name,
                     'name' => $area->name, 'source' => $area->source, 'area_type' => $area->area_type, 'polygon' => $area->polygon,
+                ]),
+                'large_planner_constraints' => $largePlannerConstraints->map(fn (LargePlannerConstraint $constraint) => [
+                    'id' => $constraint->id, 'project_id' => $constraint->project_id, 'type' => $constraint->type,
+                    'name' => $constraint->name, 'geometry' => $constraint->geometry,
+                ]),
+                'large_planner_zones' => $largePlannerZones->map(fn (LargePlannerZone $zone) => [
+                    'id' => $zone->id, 'project_id' => $zone->project_id, 'name' => $zone->name,
+                    'status' => $zone->status, 'geometry' => $zone->geometry, 'houses_count' => $zone->houses_count,
                 ]),
                 'appendix_items' => $appendixItems->map(fn (ProjectAppendixItem $item) => [
                     'id' => $item->id, 'project_id' => $item->project_id, 'project' => $item->project->name, 'type' => $item->type,

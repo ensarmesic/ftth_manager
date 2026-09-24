@@ -32,8 +32,13 @@ class MapController extends Controller
         // in the first response so its lines render without a second request.
         $context = $projectId > 0 ? $mapDataService->build($projectId) : null;
 
+        $projects = Project::orderBy('name')->get();
+        $activeProject = $projects->firstWhere('id', $projectId);
+        $activeProject?->load('largePlannerSetting');
+
         return view('ftth.map', [
-            'projects' => Project::orderBy('name')->get(),
+            'projects' => $projects,
+            'activeProject' => $activeProject,
             'activeProjectId' => $projectId ?: null,
             'odfsForSelect' => $context['odfs_for_select'] ?? [],
             'cabinetsForSelect' => $context['cabinets_for_select'] ?? [],
@@ -63,7 +68,7 @@ class MapController extends Controller
 
     private function emptyMapData(): array
     {
-        return array_fill_keys(['drafts', 'odfs', 'cabinets', 'houses', 'routes', 'gis_segments', 'gis_restricted_areas', 'appendix_items'], []);
+        return array_fill_keys(['drafts', 'odfs', 'cabinets', 'houses', 'routes', 'gis_segments', 'gis_restricted_areas', 'large_planner_constraints', 'large_planner_zones', 'appendix_items'], []);
     }
 
     public function storePlan(Request $request)

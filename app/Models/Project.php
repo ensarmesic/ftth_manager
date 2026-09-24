@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Project extends Model
 {
@@ -16,7 +17,7 @@ class Project extends Model
         return (int) ($this->max_house_to_odo_m ?? 90);
     }
 
-    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'start_date', 'deadline', 'description', 'workflow_stage', 'workflow_changed_at', 'workflow_changed_by', 'fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_schema_locked', 'fiber_schema_locked_at', 'fiber_schema_locked_by', 'fiber_budget_limit_db', 'fiber_schema_layout', 'pon_profile', 'feeder_splitter_ratio', 'fiber_attenuation_1310_db_km', 'fiber_attenuation_1490_db_km', 'fiber_attenuation_1577_db_km', 'connector_loss_db', 'connector_count', 'splice_allowance_db', 'planned_splice_count', 'engineering_margin_db', 'additional_passive_loss_db', 'power_budget_confirmed', 'olt_tx_power_dbm', 'onu_tx_power_dbm', 'onu_rx_sensitivity_dbm', 'olt_rx_sensitivity_dbm'];
+    protected $fillable = ['name', 'code', 'location', 'investor', 'status', 'planning_mode', 'start_date', 'deadline', 'description', 'workflow_stage', 'workflow_changed_at', 'workflow_changed_by', 'fiber_layout', 'fiber_color_standard', 'fiber_reserve_per_tube', 'fiber_schema_locked', 'fiber_schema_locked_at', 'fiber_schema_locked_by', 'fiber_budget_limit_db', 'fiber_schema_layout', 'pon_profile', 'feeder_splitter_ratio', 'fiber_attenuation_1310_db_km', 'fiber_attenuation_1490_db_km', 'fiber_attenuation_1577_db_km', 'connector_loss_db', 'connector_count', 'splice_allowance_db', 'planned_splice_count', 'engineering_margin_db', 'additional_passive_loss_db', 'power_budget_confirmed', 'olt_tx_power_dbm', 'onu_tx_power_dbm', 'onu_rx_sensitivity_dbm', 'olt_rx_sensitivity_dbm'];
 
     protected function casts(): array
     {
@@ -116,5 +117,25 @@ class Project extends Model
     public function backgroundTasks(): HasMany
     {
         return $this->hasMany(ProjectBackgroundTask::class);
+    }
+
+    public function largePlannerSetting(): HasOne
+    {
+        return $this->hasOne(LargePlannerSetting::class);
+    }
+
+    public function largePlannerConstraints(): HasMany
+    {
+        return $this->hasMany(LargePlannerConstraint::class);
+    }
+
+    public function largePlannerInputSnapshots(): HasMany
+    {
+        return $this->hasMany(LargePlannerInputSnapshot::class);
+    }
+
+    public function largePlannerZones(): HasMany
+    {
+        return $this->hasMany(LargePlannerZone::class);
     }
 }

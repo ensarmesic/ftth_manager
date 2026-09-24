@@ -8,4 +8,5 @@ return [
     'gis_geojson_kb' => 20 * 1024,
     'route_dxf_kb' => 10 * 1024,
     'map_cad_kb' => 100 * 1024,
+    'large_planner_houses_csv_kb' => 5 * 1024,
 ];

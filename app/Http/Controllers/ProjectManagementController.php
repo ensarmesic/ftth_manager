@@ -123,6 +123,7 @@ class ProjectManagementController extends Controller
             'location' => ['required', 'max:255'],
             'investor' => ['nullable', 'max:255'],
             'status' => ['required', 'in:planning,active,paused,completed'],
+            'planning_mode' => ['sometimes', 'in:standard,large_auto'],
             'start_date' => ['nullable', 'date'],
             'deadline' => ['nullable', 'date'],
             'description' => ['nullable', 'max:2000'],

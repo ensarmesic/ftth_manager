@@ -249,6 +249,10 @@
     <!-- RIGHT SIDEBAR -->
     <aside class="grid min-h-0 content-start gap-2 xl:max-h-full xl:overflow-y-auto xl:pb-2">
 
+        @if($activeProject?->planning_mode === 'large_auto')
+            @include('ftth.map._large-planner-workspace', ['project' => $activeProject])
+        @endif
+
         <!-- Novi projekat -->
         <details class="sidebar-card" @if(!$activeProjectId) open @endif>
             <summary class="sidebar-hd">
@@ -631,6 +635,9 @@
 <script src="{{ asset('js/map/controls.js') }}?v={{ filemtime(public_path('js/map/controls.js')) }}"></script>
 <script src="{{ asset('js/map/hydrate.js') }}?v={{ filemtime(public_path('js/map/hydrate.js')) }}"></script>
 <script src="{{ asset('js/map/init.js') }}?v={{ filemtime(public_path('js/map/init.js')) }}"></script>
+@if($activeProject?->planning_mode === 'large_auto')
+<script src="{{ asset('js/map/large-planner.js') }}?v={{ filemtime(public_path('js/map/large-planner.js')) }}"></script>
+@endif
 <script nonce="{{ Vite::cspNonce() }}">
     (() => {
         const dock = document.querySelector('.map-vertical-tools');
