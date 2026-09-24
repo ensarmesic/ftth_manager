@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Project;
+use App\Models\ProjectBackgroundTask;
 use App\Models\ProjectSnapshot;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -103,6 +104,15 @@ class ProjectSnapshotService
                     $insert($table, $payload[$table] ?? []);
                 }
             });
+            ProjectBackgroundTask::query()
+                ->where('project_id', $project->id)
+                ->where('snapshot_id', $snapshot->id)
+                ->update([
+                    'confirmed_at' => null,
+                    'confirmed_by' => null,
+                    'snapshot_id' => null,
+                    'confirmation_summary' => null,
+                ]);
         } finally {
             Schema::enableForeignKeyConstraints();
         }

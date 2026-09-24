@@ -9,11 +9,14 @@ class LargePlannerInputValidationService
 {
     private const CONNECTION_TOLERANCE_M = 2.0;
 
+    private const BATCH_SIZE = 500;
+
     public function __construct(private readonly GeometryService $geometry) {}
 
     public function validate(Project $project): array
     {
-        $project->loadMissing(['houses', 'largePlannerSetting']);
+        $project->loadMissing('largePlannerSetting');
+        $housesCount = $project->houses()->count();
         $corridors = GisSegment::query()
             ->where('project_id', $project->id)
             ->where('is_allowed', true)
@@ -37,9 +40,9 @@ class LargePlannerInputValidationService
             }
         }
 
-        $missingCoordinates = $project->houses
-            ->filter(fn ($house) => $house->latitude === null || $house->longitude === null)
-            ->values();
+        $missingCoordinates = $project->houses()
+            ->where(fn ($query) => $query->whereNull('latitude')->orWhereNull('longitude'))
+            ->get();
         if ($missingCoordinates->isNotEmpty()) {
             $issues[] = $this->issue(
                 'error',
@@ -52,7 +55,7 @@ class LargePlannerInputValidationService
         $dropLimit = $project->largePlannerSetting?->max_drop_length_m;
         $distantHouses = [];
         if ($dropLimit !== null && $corridors->isNotEmpty()) {
-            foreach ($project->houses->diff($missingCoordinates) as $house) {
+            foreach ($project->houses()->whereNotNull('latitude')->whereNotNull('longitude')->lazyById(self::BATCH_SIZE) as $house) {
                 $distance = $corridors->min(fn (GisSegment $corridor) => $this->geometry->distanceToRoute(
                     (float) $house->latitude,
                     (float) $house->longitude,
@@ -77,10 +80,11 @@ class LargePlannerInputValidationService
         return [
             'ready' => collect($issues)->where('severity', 'error')->isEmpty(),
             'summary' => [
-                'houses' => $project->houses->count(),
+                'houses' => $housesCount,
                 'corridors' => $corridors->count(),
                 'errors' => collect($issues)->where('severity', 'error')->count(),
                 'warnings' => collect($issues)->where('severity', 'warning')->count(),
+                'batch_size' => self::BATCH_SIZE,
             ],
             'issues' => $issues,
         ];

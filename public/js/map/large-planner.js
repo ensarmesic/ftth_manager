@@ -344,7 +344,192 @@
         }
     });
 
+    const planLayers = L.layerGroup().addTo(map);
+    const variantSelect = document.getElementById('large-planner-variant');
+    const taskMessage = document.getElementById('large-planner-task-message');
+    const taskBadge = document.getElementById('large-planner-task-progress');
+    const progressBar = document.getElementById('large-planner-progress-bar');
+    let activeTaskId = null;
+    let activePreview = null;
+    let pollTimer = null;
+    let activeTask = null;
+    const taskBase = appConfig.largePlannerTasksBaseUrl.replace('__ID__', projectId);
+    const previewBase = appConfig.largePlannerPreviewBaseUrl.replace('__ID__', projectId);
+
+    async function jsonRequest(url, options = {}) {
+        const response = await fetch(url, {
+            ...options,
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf, ...(options.headers || {}) },
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Zahtjev nije uspio.');
+        return result;
+    }
+
+    function updateTask(task) {
+        activeTask = task;
+        const progress = Number(task.progress || 0);
+        taskBadge.textContent = `${task.status.toUpperCase()} · ${progress}%`;
+        progressBar.style.width = `${progress}%`;
+        taskMessage.textContent = task.error || task.status_message || 'Čekanje na obradu.';
+        taskBadge.className = `rounded px-2 py-0.5 text-[9px] font-black ${task.status === 'completed' ? 'bg-emerald-200 text-emerald-800' : task.status === 'failed' ? 'bg-red-200 text-red-800' : 'bg-cyan-200 text-cyan-900'}`;
+        const confirmButton = document.getElementById('large-planner-confirm');
+        if (confirmButton) { confirmButton.disabled = Boolean(task.confirmed_at); confirmButton.textContent = task.confirmed_at ? 'Plan je potvrđen' : 'Potvrdi plan'; }
+    }
+
+    async function savePreviewChange(path, payload) {
+        const result = await jsonRequest(`${previewBase}/${activeTaskId}/${path}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        activePreview = result.preview;
+        renderPlan(activePreview);
+        window.ftthToast?.(result.message, 'success');
+    }
+
+    function elementMarker(item, type, color) {
+        const locked = Boolean(item.locked);
+        const size = type === 'odf' ? 18 : 14;
+        const icon = L.divIcon({
+            className: '',
+            html: `<span style="display:block;width:${size}px;height:${size}px;border-radius:50%;background:${color};border:${locked ? 4 : 2}px solid white;box-shadow:0 1px 5px #0f172a88"></span>`,
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
+        });
+        const marker = L.marker(item.point, { icon, draggable: !locked && window.ftthMapConfig.permissions.edit });
+        marker.bindTooltip(`${item.provisional_name} · ${item.occupancy}/${item.capacity}${locked ? ' · zaključan' : ''}`);
+        const popup = document.createElement('div');
+        const details = document.createElement('b');
+        details.textContent = `${item.provisional_name} · ${item.occupancy}/${item.capacity}`;
+        popup.append(details);
+        if (window.ftthMapConfig.permissions.edit) {
+            const lockButton = document.createElement('button');
+            lockButton.type = 'button';
+            lockButton.className = 'mt-2 block rounded bg-slate-800 px-2 py-1 text-xs font-bold text-white';
+            lockButton.textContent = locked ? 'Otključaj' : 'Zaključaj';
+            lockButton.addEventListener('click', () => savePreviewChange('zakljucaj', { type, key: item.key, locked: !locked }).catch(error => window.ftthToast?.(error.message, 'error')));
+            popup.append(lockButton);
+        }
+        marker.bindPopup(popup);
+        if (!locked && window.ftthMapConfig.permissions.edit) {
+            marker.on('dragend', event => {
+                const point = event.target.getLatLng();
+                savePreviewChange('pomjeri', { type, key: item.key, point: [point.lat, point.lng] }).catch(error => {
+                    window.ftthToast?.(error.message, 'error');
+                    renderPlan(activePreview);
+                });
+            });
+        }
+        marker.addTo(planLayers);
+    }
+
+    function renderPlan(preview) {
+        planLayers.clearLayers();
+        const drawRoutes = (routes, color, weight) => (routes || []).forEach(route => L.polyline(route.path, { color, weight, opacity: 0.85 }).bindTooltip(`${route.key} · ${Math.round(route.length_m || 0)} m`).addTo(planLayers));
+        drawRoutes(preview.odf_placement?.primary_routes, '#dc2626', 5);
+        drawRoutes(preview.routes?.secondary_routes, '#2563eb', 4);
+        drawRoutes(preview.routes?.drop_routes, '#7c3aed', 2);
+        (preview.odf_placement?.odfs || []).forEach(item => elementMarker(item, 'odf', '#dc2626'));
+        (preview.odo_placement?.odos || []).forEach(item => elementMarker(item, 'odo', '#059669'));
+
+        const summary = document.getElementById('large-planner-preview-summary');
+        summary.replaceChildren();
+        const metrics = [
+            ['ODF', preview.odf_placement?.odfs?.length || 0], ['ODO', preview.odo_placement?.odos?.length || 0],
+            ['Sekundarno', `${Math.round(preview.routes?.summary?.secondary_length_m || 0)} m`], ['Drop', `${Math.round(preview.routes?.summary?.drop_length_m || 0)} m`],
+        ];
+        metrics.forEach(([label, value]) => { const item = document.createElement('span'); item.className = 'rounded bg-white px-2 py-1'; item.textContent = `${label}: ${value}`; summary.append(item); });
+        const warnings = document.getElementById('large-planner-preview-warnings');
+        warnings.replaceChildren();
+        (preview.warnings?.items || []).forEach(problem => { const item = document.createElement('div'); item.className = `rounded px-2 py-1 ${problem.severity === 'error' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'}`; item.textContent = problem.message; warnings.append(item); });
+        if (!(preview.warnings?.items || []).length) warnings.textContent = 'Nema upozorenja.';
+        const odoSelect = document.getElementById('large-planner-house-odo');
+        odoSelect.replaceChildren(new Option('Odaberi ODO', ''));
+        (preview.odo_placement?.odos || []).forEach(odo => odoSelect.add(new Option(`${odo.provisional_name} · ${odo.occupancy}/${odo.capacity}`, odo.key)));
+        const bounds = planLayers.getBounds?.();
+        if (bounds?.isValid()) map.fitBounds(bounds.pad(0.08));
+    }
+
+    async function loadPreview(taskId) {
+        const result = await jsonRequest(`${previewBase}/${taskId}`);
+        activeTaskId = Number(taskId);
+        activePreview = result.preview;
+        updateTask(result.task);
+        renderPlan(result.preview);
+    }
+
+    async function loadVariants(selectTaskId = null) {
+        const result = await jsonRequest(previewBase);
+        const selects = [variantSelect, document.getElementById('large-planner-compare-first'), document.getElementById('large-planner-compare-second')];
+        selects.forEach((select, index) => {
+            const placeholder = index === 0 ? 'Odaberi završenu varijantu' : index === 1 ? 'Prva varijanta' : 'Druga varijanta';
+            select.replaceChildren(new Option(placeholder, ''));
+            result.tasks.filter(task => task.status === 'completed').forEach(task => select.add(new Option(`Varijanta #${task.id} · ${new Date(task.created_at).toLocaleString('bs-BA')}`, task.id)));
+        });
+        if (selectTaskId) { variantSelect.value = String(selectTaskId); await loadPreview(selectTaskId); }
+    }
+
+    async function pollTask(taskId) {
+        clearTimeout(pollTimer);
+        const result = await jsonRequest(`${taskBase}/${taskId}`);
+        updateTask(result.task);
+        if (result.task.status === 'completed') { await loadVariants(taskId); return; }
+        if (result.task.status === 'failed') return;
+        pollTimer = setTimeout(() => pollTask(taskId).catch(error => { taskMessage.textContent = error.message; }), 1500);
+    }
+
+    document.getElementById('large-planner-run')?.addEventListener('click', async () => {
+        try {
+            const result = await jsonRequest(taskBase, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'large_plan', base_task_id: activeTaskId || null }) });
+            activeTaskId = result.task.id;
+            updateTask(result.task);
+            pollTask(activeTaskId);
+        } catch (error) { window.ftthToast?.(error.message, 'error'); }
+    });
+    variantSelect?.addEventListener('change', () => { if (variantSelect.value) loadPreview(variantSelect.value).catch(error => window.ftthToast?.(error.message, 'error')); });
+    document.getElementById('large-planner-assign-house')?.addEventListener('click', () => {
+        const houseId = Number(document.getElementById('large-planner-house-id').value);
+        const odoKey = document.getElementById('large-planner-house-odo').value;
+        if (!houseId || !odoKey || !activeTaskId) return window.ftthToast?.('Odaberi preview, kuću i ODO.', 'error');
+        savePreviewChange('kuca', { house_id: houseId, odo_key: odoKey }).catch(error => window.ftthToast?.(error.message, 'error'));
+    });
+    document.getElementById('large-planner-compare')?.addEventListener('click', async () => {
+        const first = document.getElementById('large-planner-compare-first').value;
+        const second = document.getElementById('large-planner-compare-second').value;
+        if (!first || !second || first === second) return window.ftthToast?.('Odaberi dvije različite varijante.', 'error');
+        try {
+            const result = await jsonRequest(`${appConfig.largePlannerCompareBaseUrl.replace('__ID__', projectId)}?first_task_id=${first}&second_task_id=${second}`);
+            document.getElementById('large-planner-comparison').textContent = `ODF ${result.first.odfs} / ${result.second.odfs} · ODO ${result.first.odos} / ${result.second.odos} · Kabl ${Math.round(result.first.primary_length_m + result.first.secondary_length_m + result.first.drop_length_m)} / ${Math.round(result.second.primary_length_m + result.second.secondary_length_m + result.second.drop_length_m)} m · Problemi ${result.first.problems} / ${result.second.problems}`;
+        } catch (error) { window.ftthToast?.(error.message, 'error'); }
+    });
+    document.getElementById('large-planner-final-validate')?.addEventListener('click', async () => {
+        const output = document.getElementById('large-planner-final-status');
+        if (!activeTaskId) return window.ftthToast?.('Prvo odaberi završenu varijantu.', 'error');
+        output.textContent = 'Pokrećem završnu provjeru…';
+        try {
+            const result = await jsonRequest(`${previewBase}/${activeTaskId}/zavrsna-validacija`, { method: 'POST' });
+            output.className = 'text-[10px] leading-4 text-emerald-700';
+            output.textContent = `Plan je spreman · ${result.summary.houses} kuća · ${result.summary.odos} ODO · ${result.summary.routes} trasa.`;
+        } catch (error) { output.className = 'text-[10px] leading-4 text-red-700'; output.textContent = error.message; }
+    });
+    document.getElementById('large-planner-confirm')?.addEventListener('click', async () => {
+        if (!activeTaskId || activeTask?.confirmed_at) return;
+        const accepted = await window.ftthConfirm?.('Potvrdom će se ODF, ODO, trase i veze kuća trajno upisati u postojeću mrežu. Nastaviti?', { title: 'Potvrda velikog plana', confirmLabel: 'Potvrdi i upiši' });
+        if (!accepted) return;
+        const output = document.getElementById('large-planner-final-status');
+        output.textContent = 'Potvrđujem plan u jednoj transakciji…';
+        try {
+            const result = await jsonRequest(`${previewBase}/${activeTaskId}/potvrdi`, { method: 'POST' });
+            updateTask(result.task);
+            output.className = 'text-[10px] leading-4 text-emerald-700';
+            output.textContent = `Upisano: ${result.summary.odfs} ODF, ${result.summary.odos} ODO, ${result.summary.routes} trasa i ${result.summary.houses} kuća.`;
+            window.ftthToast?.(result.message, 'success');
+        } catch (error) { output.className = 'text-[10px] leading-4 text-red-700'; output.textContent = error.message; }
+    });
+
     (data.large_planner_constraints || []).forEach(renderConstraint);
     (data.large_planner_zones || []).forEach(renderZone);
     loadReadiness();
+    loadVariants().catch(error => { taskMessage.textContent = error.message; });
 })();

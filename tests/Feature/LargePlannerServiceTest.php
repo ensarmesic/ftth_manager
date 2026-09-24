@@ -60,6 +60,8 @@ class LargePlannerServiceTest extends TestCase
         $this->assertSame(1, $prepared['graph']['summary']['components']);
         $this->assertSame(1, $prepared['cable_capacity']['summary']['segments']);
         $this->assertSame(4, $prepared['cable_capacity']['segments'][0]['fiber_count']);
+        $this->assertFalse($prepared['warnings']['can_confirm']);
+        $this->assertSame('missing_source_odf', $prepared['warnings']['items'][0]['code']);
         $this->assertDatabaseCount('cabinets', 0);
         $this->assertDatabaseCount('odfs', 0);
         $this->assertDatabaseCount('routes', 0);
@@ -70,6 +72,27 @@ class LargePlannerServiceTest extends TestCase
         $this->expectException(DomainException::class);
 
         app(LargePlannerService::class)->prepare(Project::factory()->create(['planning_mode' => 'standard']));
+    }
+
+    public function test_orchestrator_reports_monotonic_progress_until_finalization(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $project->largePlannerSetting()->create([
+            'odo_capacity' => 16,
+            'max_drop_length_m' => 150,
+            'fiber_reserve_percent' => 20,
+            'optimization_goal' => 'weighted',
+        ]);
+        $this->corridor($project, 'secondary', [[43.8500, 18.4100], [43.8600, 18.4200]]);
+        House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8550, 'longitude' => 18.4150]);
+        $progress = [];
+
+        app(LargePlannerService::class)->prepare($project, function (int $percent, string $message) use (&$progress): void {
+            $progress[$percent] = $message;
+        });
+
+        $this->assertSame([5, 15, 30, 50, 65, 75, 88, 95], array_keys($progress));
+        $this->assertSame('Objedinjavanje upozorenja i završna provjera.', $progress[95]);
     }
 
     private function corridor(Project $project, string $type, array $path): GisSegment

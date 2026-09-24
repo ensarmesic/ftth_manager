@@ -21,6 +21,9 @@ class ProjectBackupService
         'gis_restricted_areas',
         'survey_points',
         'map_drafts',
+        'large_planner_settings',
+        'large_planner_constraints',
+        'large_planner_input_snapshots',
     ];
 
     /**
@@ -31,7 +34,7 @@ class ProjectBackupService
     {
         $backup = [
             'format' => 'ftth-manager-project-backup',
-            'version' => 1,
+            'version' => 2,
             'created_at' => now()->toIso8601String(),
             'project' => [
                 'name' => $project->name,
@@ -39,6 +42,7 @@ class ProjectBackupService
                 'location' => $project->location,
                 'investor' => $project->investor,
                 'status' => $project->status,
+                'planning_mode' => $project->planning_mode,
                 'start_date' => $project->start_date,
                 'deadline' => $project->deadline,
                 'description' => $project->description,
@@ -109,6 +113,7 @@ class ProjectBackupService
                     'status' => $house->status,
                     'cabinet_id' => $house->cabinet_id,
                     'branch_id' => $house->branch_id,
+                    'large_planner_zone_id' => $house->large_planner_zone_id,
                     'import_batch' => $house->import_batch,
                 ])->toArray(),
                 'routes' => $project->routes->map(fn ($route) => [
@@ -154,6 +159,7 @@ class ProjectBackupService
                     'loss_db' => $splice->loss_db,
                     'note' => $splice->note,
                 ])->toArray(),
+                'large_planner_zones' => $this->projectRowsWithId('large_planner_zones', $project->id),
             ] + collect(self::SIMPLE_TABLES)->mapWithKeys(fn (string $table) => [
                 $table => $this->projectRows($table, $project->id),
             ])->all(),
@@ -175,7 +181,7 @@ class ProjectBackupService
             throw new \InvalidArgumentException('Invalid backup format');
         }
 
-        if (! isset($backup['version']) || $backup['version'] !== 1) {
+        if (! isset($backup['version']) || ! in_array($backup['version'], [1, 2], true)) {
             throw new \InvalidArgumentException('Unsupported backup version');
         }
 
@@ -194,12 +200,34 @@ class ProjectBackupService
         return DB::transaction(function () use ($backup, $newProjectName) {
             // Create project
             $projectData = $backup['project'];
+            $projectData['planning_mode'] ??= 'standard';
             $fiberSchemaLayout = $projectData['fiber_schema_layout'] ?? null;
             unset($projectData['fiber_schema_layout']);
             $projectData['name'] = $newProjectName ?? ($projectData['name'].' (Restored)');
             $projectData['code'] = $this->uniqueProjectCode((string) ($projectData['code'] ?? $projectData['name']));
 
             $project = Project::create($projectData);
+
+            foreach (['large_planner_settings', 'large_planner_constraints', 'large_planner_input_snapshots'] as $table) {
+                collect($backup['data'][$table] ?? [])->map(function (array $row) use ($project, $table): array {
+                    $row = $this->safeColumns($table, $row);
+                    $row['project_id'] = $project->id;
+                    if ($table === 'large_planner_input_snapshots') {
+                        $row['user_id'] = null;
+                    }
+
+                    return $row;
+                })->chunk(500)->each(fn ($rows) => DB::table($table)->insert($rows->all()));
+            }
+
+            $zoneMap = [];
+            foreach ($backup['data']['large_planner_zones'] ?? [] as $zoneData) {
+                $zoneId = $zoneData['id'];
+                unset($zoneData['id']);
+                $zoneData = $this->safeColumns('large_planner_zones', $zoneData);
+                $zoneData['project_id'] = $project->id;
+                $zoneMap[$zoneId] = DB::table('large_planner_zones')->insertGetId($zoneData);
+            }
 
             // Restore ODF-s
             $odfMap = [];
@@ -291,6 +319,7 @@ class ProjectBackupService
                 $houseData['project_id'] = $project->id;
                 $houseData['cabinet_id'] = $this->mappedId($houseData['cabinet_id'] ?? null, $cabinetMap);
                 $houseData['branch_id'] = $this->mappedId($houseData['branch_id'] ?? null, $branchMap);
+                $houseData['large_planner_zone_id'] = $this->mappedId($houseData['large_planner_zone_id'] ?? null, $zoneMap);
                 $houseMap[$houseId] = DB::table('houses')->insertGetId($houseData);
             }
 
@@ -320,6 +349,9 @@ class ProjectBackupService
                 ->chunk(500)->each(fn ($rows) => DB::table('fiber_splices')->insert($rows->all()));
 
             foreach (self::SIMPLE_TABLES as $table) {
+                if (in_array($table, ['large_planner_settings', 'large_planner_constraints', 'large_planner_input_snapshots'], true)) {
+                    continue;
+                }
                 collect($backup['data'][$table] ?? [])->map(function (array $row) use ($project, $table): array {
                     $row = $this->safeColumns($table, $row);
                     $row['project_id'] = $project->id;
@@ -360,6 +392,16 @@ class ProjectBackupService
         return DB::table($table)->where('project_id', $projectId)->get()->map(function ($row): array {
             $data = (array) $row;
             unset($data['id'], $data['project_id'], $data['created_at'], $data['updated_at']);
+
+            return $data;
+        })->all();
+    }
+
+    private function projectRowsWithId(string $table, int $projectId): array
+    {
+        return DB::table($table)->where('project_id', $projectId)->get()->map(function ($row): array {
+            $data = (array) $row;
+            unset($data['project_id'], $data['created_at'], $data['updated_at']);
 
             return $data;
         })->all();

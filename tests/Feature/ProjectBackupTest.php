@@ -10,6 +10,7 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use App\Services\ProjectBackupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,34 @@ use Tests\TestCase;
 class ProjectBackupTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_large_planner_configuration_and_zones_survive_backup_restore(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $project->largePlannerSetting()->create(['odo_capacity' => 16, 'max_drop_length_m' => 150, 'fiber_reserve_percent' => 20, 'optimization_goal' => 'weighted']);
+        $zone = $project->largePlannerZones()->create(['name' => 'Zona A', 'geometry' => [[43.85, 18.41], [43.86, 18.41], [43.86, 18.42]], 'status' => 'accepted']);
+        $house = House::factory()->create(['project_id' => $project->id, 'large_planner_zone_id' => $zone->id]);
+        $project->largePlannerConstraints()->create(['type' => 'required_waypoint', 'geometry' => [43.855, 18.415]]);
+
+        $backup = app(ProjectBackupService::class)->backup($project->fresh());
+        $restored = app(ProjectBackupService::class)->restore($backup, 'Vraćeni veliki projekat');
+
+        $this->assertSame(2, $backup['version']);
+        $this->assertSame('large_auto', $restored->planning_mode);
+        $this->assertSame(16, $restored->largePlannerSetting->odo_capacity);
+        $this->assertSame('Zona A', $restored->largePlannerZones()->sole()->name);
+        $this->assertSame($restored->largePlannerZones()->sole()->id, $restored->houses()->where('label', $house->label)->sole()->large_planner_zone_id);
+        $this->assertSame('required_waypoint', $restored->largePlannerConstraints()->sole()->type);
+    }
+
+    public function test_version_one_backup_without_planning_mode_restores_as_standard(): void
+    {
+        $backup = ['format' => 'ftth-manager-project-backup', 'version' => 1, 'project' => ['name' => 'Stari backup', 'code' => 'OLD', 'location' => 'Tuzla'], 'data' => []];
+
+        $restored = app(ProjectBackupService::class)->restore($backup);
+
+        $this->assertSame('standard', $restored->planning_mode);
+    }
 
     public function test_project_backup_can_be_downloaded_and_restored_with_relationships(): void
     {

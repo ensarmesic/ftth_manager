@@ -40,6 +40,9 @@ window.ftthMapConfig = {
         largePlannerInputValidationBaseUrl: @json(url('/projekti/__ID__/veliki-planer/validacija-ulaza')),
         largePlannerReadinessBaseUrl: @json(url('/projekti/__ID__/veliki-planer/spremnost')),
         largePlannerZonesBaseUrl: @json(url('/projekti/__ID__/veliki-planer/zone')),
+        largePlannerTasksBaseUrl: @json(url('/projekti/__ID__/background-zadaci')),
+        largePlannerPreviewBaseUrl: @json(url('/projekti/__ID__/veliki-planer/preview')),
+        largePlannerCompareBaseUrl: @json(url('/projekti/__ID__/veliki-planer/preview-poredjenje')),
     },
     data: @json($mapData),
 };

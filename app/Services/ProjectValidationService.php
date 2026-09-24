@@ -18,6 +18,8 @@ class ProjectValidationService
     {
         $items = [];
         $distanceLimit = $project->houseDistanceLimit();
+        $configuredLargeCapacity = $project->largePlannerSetting?->odo_capacity;
+        $largePlannerCapacity = $project->planning_mode === 'large_auto' && $configuredLargeCapacity !== null ? (int) $configuredLargeCapacity : null;
         $project->loadMissing(['odfs.cabinets', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
         $branchRoutes = $this->branchRoutes($project);
 
@@ -89,16 +91,19 @@ class ProjectValidationService
             if ($cabinet->latitude === null || $cabinet->longitude === null) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} nema koordinate.", 'cabinet', $cabinet->id, 'Postavi ODO na mapi.');
             }
-            if ($cabinet->splitter_count > 3 || $cabinet->ports_per_splitter > 4) {
+            if ($largePlannerCapacity === null && ($cabinet->splitter_count > 3 || $cabinet->ports_per_splitter > 4)) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} ima neispravnu splitter konfiguraciju.", 'cabinet', $cabinet->id, 'Koristi najviše 3 splittera sa po 4 porta.');
             }
             if ($houseCount === 0) {
                 $items[] = $this->validationItem('info', "{$cabinet->name} nema povezanih kuća.", 'cabinet', $cabinet->id, 'Poveži kuće na ODO.');
             }
-            if ($houseCount > 12) {
+            if ($largePlannerCapacity === null && $houseCount > 12) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} ima vise od 12 kuca.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
             }
-            if ($cabinet->splitter_count < $neededSplitters) {
+            if ($largePlannerCapacity !== null && ($houseCount > $largePlannerCapacity || $houseCount > $cabinet->capacity)) {
+                $items[] = $this->validationItem('error', "{$cabinet->name} ima više kuća od dozvoljenog kapaciteta.", 'cabinet', $cabinet->id, "Smanji broj kuća ili povećaj kapacitet iznad {$houseCount} portova.");
+            }
+            if ($largePlannerCapacity === null && $cabinet->splitter_count < $neededSplitters) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} nema dovoljno splittera.", 'cabinet', $cabinet->id, "Postavi {$neededSplitters} splittera.");
             }
             if ($branchRoutes->isNotEmpty() && $cabinet->latitude && $cabinet->longitude) {

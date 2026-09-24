@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Services\LargePlanner\CorridorGraphBuilder;
 use App\Services\LargePlanner\HouseClusterer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class LargePlannerHouseClustererTest extends TestCase
@@ -74,6 +75,31 @@ class LargePlannerHouseClustererTest extends TestCase
         $second = $this->cluster($project);
 
         $this->assertSame($first, $second);
+    }
+
+    public function test_large_mode_processes_more_than_three_hundred_houses_in_batches(): void
+    {
+        $project = $this->project(16, 100);
+        $this->corridor($project);
+        $now = now();
+        foreach (array_chunk(range(1, 620), 200) as $numbers) {
+            DB::table('houses')->insert(array_map(fn (int $number) => [
+                'project_id' => $project->id,
+                'label' => 'B-'.$number,
+                'status' => 'planned',
+                'latitude' => 43.8501 + ($number * 0.000001),
+                'longitude' => 18.4101 + ($number * 0.000001),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $numbers));
+        }
+
+        $result = $this->cluster($project);
+
+        $this->assertSame(620, $result['summary']['houses']);
+        $this->assertSame(620, $result['summary']['clustered_houses']);
+        $this->assertSame(39, $result['summary']['clusters']);
+        $this->assertSame(500, $result['summary']['batch_size']);
     }
 
     private function cluster(Project $project): array

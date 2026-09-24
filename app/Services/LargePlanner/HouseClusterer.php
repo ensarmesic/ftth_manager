@@ -9,6 +9,8 @@ use DomainException;
 
 class HouseClusterer
 {
+    private const BATCH_SIZE = 500;
+
     public function __construct(private readonly GeometryService $geometry) {}
 
     public function cluster(Project $project, array $graph): array
@@ -22,10 +24,19 @@ class HouseClusterer
 
         $edges = $this->uniqueEdges($graph);
         $componentByNode = $this->componentMap($graph['components']);
-        $groups = [];
+        $buffers = [];
+        $clusters = [];
         $unroutable = [];
 
-        foreach ($project->houses()->orderBy('id')->get() as $house) {
+        $houses = $project->houses()
+            ->orderByRaw('CASE WHEN large_planner_zone_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('large_planner_zone_id')
+            ->orderBy('latitude')
+            ->orderBy('longitude')
+            ->orderBy('id')
+            ->lazy(self::BATCH_SIZE);
+
+        foreach ($houses as $house) {
             if ($house->latitude === null || $house->longitude === null) {
                 $unroutable[] = $this->unroutable($house, 'missing_coordinates');
 
@@ -38,32 +49,22 @@ class HouseClusterer
                 continue;
             }
             $groupKey = ($house->large_planner_zone_id ?? 0).':'.$attachment['component'];
-            $groups[$groupKey][] = $attachment + [
+            $buffers[$groupKey][] = $attachment + [
                 'house_id' => $house->id,
                 'label' => $house->label,
                 'zone_id' => $house->large_planner_zone_id,
                 'house_point' => [(float) $house->latitude, (float) $house->longitude],
             ];
+            if (count($buffers[$groupKey]) === $capacity) {
+                $clusters[] = $this->clusterFrom($buffers[$groupKey], count($clusters));
+                $buffers[$groupKey] = [];
+            }
         }
 
-        ksort($groups);
-        $clusters = [];
-        foreach ($groups as $groupKey => $houses) {
-            usort($houses, fn (array $a, array $b) => [$a['access_point'][0], $a['access_point'][1], $a['house_id']]
-                <=> [$b['access_point'][0], $b['access_point'][1], $b['house_id']]);
-            foreach (array_chunk($houses, $capacity) as $chunk) {
-                $candidate = $chunk[(int) floor((count($chunk) - 1) / 2)];
-                $clusters[] = [
-                    'key' => 'cluster-'.str_pad((string) (count($clusters) + 1), 4, '0', STR_PAD_LEFT),
-                    'zone_id' => $candidate['zone_id'],
-                    'component' => $candidate['component'],
-                    'candidate_point' => $candidate['access_point'],
-                    'corridor_id' => $candidate['corridor_id'],
-                    'house_count' => count($chunk),
-                    'house_ids' => array_column($chunk, 'house_id'),
-                    'max_drop_distance_m' => (int) ceil(max(array_column($chunk, 'distance_m'))),
-                    'houses' => $chunk,
-                ];
+        ksort($buffers);
+        foreach ($buffers as $buffer) {
+            if ($buffer !== []) {
+                $clusters[] = $this->clusterFrom($buffer, count($clusters));
             }
         }
 
@@ -77,7 +78,25 @@ class HouseClusterer
                 'unroutable_houses' => count($unroutable),
                 'odo_capacity' => $capacity,
                 'max_drop_length_m' => $maxDrop,
+                'batch_size' => self::BATCH_SIZE,
             ],
+        ];
+    }
+
+    private function clusterFrom(array $houses, int $index): array
+    {
+        $candidate = $houses[(int) floor((count($houses) - 1) / 2)];
+
+        return [
+            'key' => 'cluster-'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT),
+            'zone_id' => $candidate['zone_id'],
+            'component' => $candidate['component'],
+            'candidate_point' => $candidate['access_point'],
+            'corridor_id' => $candidate['corridor_id'],
+            'house_count' => count($houses),
+            'house_ids' => array_column($houses, 'house_id'),
+            'max_drop_distance_m' => (int) ceil(max(array_column($houses, 'distance_m'))),
+            'houses' => $houses,
         ];
     }
 

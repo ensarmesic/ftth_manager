@@ -130,6 +130,21 @@
                 <button class="sb-btn sb-btn-primary">Sačuvaj pravila</button>
             @endcan
         </form>
+        <section class="grid gap-2 rounded-lg border border-cyan-200 bg-cyan-50 p-3" aria-labelledby="large-planner-preview-title">
+            <div class="flex items-center justify-between gap-2"><div id="large-planner-preview-title" class="sb-kicker text-cyan-900">Proračun i pregled</div><span id="large-planner-task-progress" class="rounded bg-slate-200 px-2 py-0.5 text-[9px] font-black text-slate-700">NIJE POKRENUT</span></div>
+            @can('project.edit')<button id="large-planner-run" type="button" class="sb-btn sb-btn-primary">Pokreni proračun</button>@endcan
+            <select id="large-planner-variant" class="sb-sel" aria-label="Varijanta plana"><option value="">Odaberi završenu varijantu</option></select>
+            <div class="h-1.5 overflow-hidden rounded bg-cyan-100"><div id="large-planner-progress-bar" class="h-full bg-cyan-600 transition-all" style="width:0%"></div></div>
+            <p id="large-planner-task-message" class="text-[10px] leading-4 text-cyan-900">Pokreni proračun kada su ulazi spremni.</p>
+            <div class="grid grid-cols-3 gap-1 text-center text-[9px] font-bold"><span class="rounded bg-red-100 px-1 py-1 text-red-800">Primarna</span><span class="rounded bg-blue-100 px-1 py-1 text-blue-800">Sekundarna</span><span class="rounded bg-violet-100 px-1 py-1 text-violet-800">Drop</span></div>
+            <div id="large-planner-preview-summary" class="grid grid-cols-2 gap-1 text-[10px]"></div>
+            <div id="large-planner-preview-warnings" class="max-h-36 overflow-y-auto text-[10px]"></div>
+            @can('project.edit')<div class="grid grid-cols-2 gap-1.5"><button id="large-planner-final-validate" type="button" class="sb-btn sb-btn-outline">Završna provjera</button><button id="large-planner-confirm" type="button" class="sb-btn sb-btn-primary">Potvrdi plan</button></div>@endcan
+            <div id="large-planner-final-status" class="text-[10px] leading-4 text-slate-600"></div>
+            <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Prebaci kuću na drugi ODO</summary><div class="mt-2 grid gap-1.5"><input id="large-planner-house-id" type="number" min="1" class="sb-inp" placeholder="ID kuće"><select id="large-planner-house-odo" class="sb-sel"><option value="">Odaberi ODO</option></select>@can('project.edit')<button id="large-planner-assign-house" type="button" class="sb-btn sb-btn-outline">Provjeri i prebaci</button>@endcan</div></details>
+            <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Poredi dvije varijante</summary><div class="mt-2 grid gap-1.5"><select id="large-planner-compare-first" class="sb-sel"><option value="">Prva varijanta</option></select><select id="large-planner-compare-second" class="sb-sel"><option value="">Druga varijanta</option></select><button id="large-planner-compare" type="button" class="sb-btn sb-btn-outline">Uporedi</button><div id="large-planner-comparison" class="text-[10px]"></div></div></details>
+            <p class="text-[9px] leading-4 text-cyan-800">Povuci predloženi ODF/ODO marker za pomjeranje. Klik na marker otvara detalje i zaključavanje.</p>
+        </section>
         <p class="text-[10px] leading-4 text-slate-500">Nepotvrđena pravila ostaju prazna; sistem ne pretpostavlja tehničke vrijednosti.</p>
     </div>
 </details>

@@ -11,7 +11,15 @@ class ProjectBackgroundTask extends Model
 
     protected function casts(): array
     {
-        return ['options' => 'array', 'started_at' => 'datetime', 'finished_at' => 'datetime'];
+        return [
+            'options' => 'array',
+            'progress' => 'integer',
+            'attempt_count' => 'integer',
+            'confirmation_summary' => 'array',
+            'started_at' => 'datetime',
+            'finished_at' => 'datetime',
+            'confirmed_at' => 'datetime',
+        ];
     }
 
     public function project(): BelongsTo
