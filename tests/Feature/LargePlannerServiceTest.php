@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\GisSegment;
 use App\Models\House;
+use App\Models\Odf;
 use App\Models\Project;
 use App\Services\LargePlanner\CorridorGraphBuilder;
 use App\Services\LargePlanner\LargePlannerService;
@@ -40,6 +41,23 @@ class LargePlannerServiceTest extends TestCase
 
         $this->assertSame(2, $graph['summary']['components']);
         $this->assertCount(2, $graph['components']);
+    }
+
+    public function test_graph_builder_removes_edges_that_cross_a_restricted_area(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $this->corridor($project, 'secondary', [[43.8500, 18.4100], [43.8520, 18.4120]]);
+        $project->largePlannerConstraints()->create([
+            'type' => 'restricted_area',
+            'name' => 'Zabranjena parcela',
+            'geometry' => [[43.8508, 18.4108], [43.8512, 18.4108], [43.8512, 18.4112], [43.8508, 18.4112]],
+        ]);
+
+        $graph = app(CorridorGraphBuilder::class)->build($project);
+
+        $this->assertSame(1, $graph['summary']['blocked_edges']);
+        $this->assertSame(0, $graph['summary']['edges']);
+        $this->assertSame(2, $graph['summary']['components']);
     }
 
     public function test_large_planner_orchestrator_prepares_input_without_persisting_network_elements(): void
@@ -93,6 +111,27 @@ class LargePlannerServiceTest extends TestCase
 
         $this->assertSame([5, 15, 30, 50, 65, 75, 88, 95], array_keys($progress));
         $this->assertSame('Objedinjavanje upozorenja i završna provjera.', $progress[95]);
+    }
+
+    public function test_same_input_and_rules_always_produce_the_same_plan(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $project->largePlannerSetting()->create([
+            'odo_capacity' => 2,
+            'max_drop_length_m' => 150,
+            'fiber_reserve_percent' => 20,
+            'optimization_goal' => 'weighted',
+        ]);
+        $this->corridor($project, 'secondary', [[43.8500, 18.4100], [43.8600, 18.4200]]);
+        Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.85, 'longitude' => 18.41]);
+        House::factory()->create(['project_id' => $project->id, 'label' => 'K-2', 'latitude' => 43.852, 'longitude' => 18.412]);
+        House::factory()->create(['project_id' => $project->id, 'label' => 'K-1', 'latitude' => 43.851, 'longitude' => 18.411]);
+        House::factory()->create(['project_id' => $project->id, 'label' => 'K-3', 'latitude' => 43.853, 'longitude' => 18.413]);
+
+        $first = app(LargePlannerService::class)->prepare($project);
+        $second = app(LargePlannerService::class)->prepare($project->fresh());
+
+        $this->assertSame($first, $second);
     }
 
     private function corridor(Project $project, string $type, array $path): GisSegment

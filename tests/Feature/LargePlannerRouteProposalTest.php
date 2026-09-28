@@ -72,6 +72,30 @@ class LargePlannerRouteProposalTest extends TestCase
         $this->assertSame('odo_without_odf_route', $result['warnings'][0]['code']);
     }
 
+    public function test_secondary_route_passes_through_required_waypoint(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $this->corridor($project, [[43.8500, 18.4100], [43.8520, 18.4100]]);
+        $this->corridor($project, [[43.8500, 18.4100], [43.8500, 18.4120], [43.8520, 18.4100]]);
+        Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.8500, 'longitude' => 18.4100]);
+        $house = House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8520, 'longitude' => 18.4100]);
+        $project->largePlannerConstraints()->create([
+            'type' => 'required_waypoint',
+            'name' => 'Obavezni prolaz',
+            'geometry' => [43.8500, 18.4120],
+        ]);
+
+        $result = app(NetworkRouteProposalService::class)->propose(
+            $project,
+            app(CorridorGraphBuilder::class)->build($project),
+            $this->placement($house, [43.8520, 18.4100]),
+        );
+
+        $this->assertCount(1, $result['secondary_routes']);
+        $this->assertContains([43.85, 18.412], $result['secondary_routes'][0]['path']);
+        $this->assertGreaterThan(350, $result['secondary_routes'][0]['length_m']);
+    }
+
     private function placement(House $house, array $point): array
     {
         return ['odos' => [[

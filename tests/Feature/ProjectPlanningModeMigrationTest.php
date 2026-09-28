@@ -82,6 +82,15 @@ class ProjectPlanningModeMigrationTest extends TestCase
         $this->get(route('map.dashboard', ['project' => $large]))
             ->assertOk()
             ->assertSee('id="large-planner-workspace"', false)
+            ->assertSee('data-large-planner-step="inputs"', false)
+            ->assertSee('data-large-planner-step="rules"', false)
+            ->assertSee('data-large-planner-step="zones"', false)
+            ->assertSee('data-large-planner-step="calculation"', false)
+            ->assertSee('data-large-planner-step="review"', false)
+            ->assertSee('data-large-planner-step="confirmation"', false)
+            ->assertSee('data-large-route-filter="primary"', false)
+            ->assertSee('id="large-planner-zone-filter"', false)
+            ->assertSee('id="large-planner-export"', false)
             ->assertSee('Veliki planer');
     }
 

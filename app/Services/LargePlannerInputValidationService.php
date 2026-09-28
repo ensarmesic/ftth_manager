@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\GisSegment;
 use App\Models\Project;
+use App\Services\LargePlanner\CorridorGraphBuilder;
 
 class LargePlannerInputValidationService
 {
@@ -11,7 +12,10 @@ class LargePlannerInputValidationService
 
     private const BATCH_SIZE = 500;
 
-    public function __construct(private readonly GeometryService $geometry) {}
+    public function __construct(
+        private readonly GeometryService $geometry,
+        private readonly CorridorGraphBuilder $graphs,
+    ) {}
 
     public function validate(Project $project): array
     {
@@ -38,6 +42,42 @@ class LargePlannerInputValidationService
                     ['components' => $components],
                 );
             }
+
+            $graph = $this->graphs->build($project);
+            if ($graph['summary']['blocked_edges'] > 0) {
+                $issues[] = $this->issue(
+                    'error',
+                    'corridors_cross_restricted_areas',
+                    $graph['summary']['blocked_edges'].' segmenata koridora presijeca zabranjeno područje.',
+                    ['blocked_edges' => $graph['summary']['blocked_edges']],
+                );
+            }
+        }
+
+        $invalidWaypoints = [];
+        if ($corridors->isNotEmpty()) {
+            foreach ($project->largePlannerConstraints()->where('type', 'required_waypoint')->get() as $waypoint) {
+                $point = $waypoint->geometry ?? [];
+                if (count($point) !== 2) {
+                    continue;
+                }
+                $distance = $corridors->min(fn (GisSegment $corridor) => $this->geometry->distanceToRoute(
+                    (float) $point[0],
+                    (float) $point[1],
+                    $corridor->path ?? [],
+                ));
+                if ($distance > self::CONNECTION_TOLERANCE_M) {
+                    $invalidWaypoints[] = ['id' => $waypoint->id, 'name' => $waypoint->name, 'distance_m' => (int) round($distance)];
+                }
+            }
+        }
+        if ($invalidWaypoints !== []) {
+            $issues[] = $this->issue(
+                'error',
+                'waypoints_outside_corridors',
+                count($invalidWaypoints).' obaveznih tačaka nije postavljeno na dozvoljeni koridor.',
+                ['waypoints' => $invalidWaypoints],
+            );
         }
 
         $missingCoordinates = $project->houses()

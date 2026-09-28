@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Project;
+use Illuminate\Support\Facades\Storage;
 
 class LargePlannerReadinessService
 {
@@ -32,17 +33,51 @@ class LargePlannerReadinessService
                 $settings?->optimization_goal !== null ? 'Cilj optimizacije je odabran.' : 'Cilj optimizacije nije odabran.'),
             $this->check('odf_capacity', 'Kapacitet predloženog ODF-a', ! $settings?->propose_odfs || $settings?->odf_capacity !== null,
                 ! $settings?->propose_odfs ? 'Automatski prijedlog ODF-a nije uključen.' : ($settings?->odf_capacity !== null ? "Kapacitet: {$settings->odf_capacity} ODO-a." : 'Kapacitet ODF-a nije određen.')),
-            $this->check('constraints', 'Posebna ograničenja', true, $this->constraintSummary($project)),
+            $this->check('constraints', 'Posebna ograničenja', ! $issues->has('waypoints_outside_corridors') && ! $issues->has('corridors_cross_restricted_areas'),
+                $issues->get('waypoints_outside_corridors')['message'] ?? $issues->get('corridors_cross_restricted_areas')['message'] ?? $this->constraintSummary($project)),
         ];
 
         return [
             'ready' => collect($checks)->where('blocking', true)->every(fn (array $check) => $check['status'] === 'ready'),
             'checks' => $checks,
+            'estimate' => $this->estimate($project, (int) $validation['summary']['houses']),
             'summary' => [
                 'ready' => collect($checks)->where('status', 'ready')->count(),
                 'blocking' => collect($checks)->where('status', 'blocked')->count(),
                 'total' => count($checks),
             ],
+        ];
+    }
+
+    private function estimate(Project $project, int $houseCount): array
+    {
+        $samples = $project->backgroundTasks()
+            ->where('type', 'large_plan')
+            ->where('status', 'completed')
+            ->whereNotNull('result_path')
+            ->latest()->limit(5)->get()
+            ->map(function ($task): ?float {
+                if (! Storage::exists($task->result_path)) {
+                    return null;
+                }
+                $result = json_decode(Storage::get($task->result_path), true);
+                $houses = (int) data_get($result, 'execution.houses', 0);
+                $duration = (float) data_get($result, 'execution.duration_ms', 0);
+
+                return $houses > 0 && $duration > 0 ? $duration / $houses : null;
+            })->filter()->sort()->values();
+
+        $millisecondsPerHouse = $samples->isEmpty()
+            ? 12.0
+            : (float) $samples[(int) floor(($samples->count() - 1) / 2)];
+        $seconds = max(2, (int) ceil($houseCount * $millisecondsPerHouse / 1000));
+
+        return [
+            'seconds' => $seconds,
+            'minimum_seconds' => max(1, (int) floor($seconds * 0.7)),
+            'maximum_seconds' => max(3, (int) ceil($seconds * 1.8)),
+            'source' => $samples->isEmpty() ? 'conservative_default' : 'project_history',
+            'sample_count' => $samples->count(),
         ];
     }
 

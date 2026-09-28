@@ -19,6 +19,13 @@ class NetworkRouteProposalService
             ? collect($odfPlan['odfs'])->map(fn (array $odf) => ['odf_id' => null, 'odf_key' => $odf['key'], 'point' => $odf['point']])->all()
             : $odfs->map(fn ($odf) => ['odf_id' => $odf->id, 'odf_key' => null, 'point' => [(float) $odf->latitude, (float) $odf->longitude]])->all();
         $houses = $project->houses()->get()->keyBy('id');
+        $requiredWaypoints = $project->largePlannerConstraints()
+            ->where('type', 'required_waypoint')
+            ->orderBy('id')
+            ->pluck('geometry')
+            ->filter(fn ($point) => is_array($point) && count($point) === 2)
+            ->map(fn (array $point) => [(float) $point[0], (float) $point[1]])
+            ->values()->all();
         $secondary = [];
         $drops = [];
         $warnings = [];
@@ -31,7 +38,7 @@ class NetworkRouteProposalService
             $bestPath = null;
             $bestOdf = null;
             foreach ($sources as $candidate) {
-                $path = $this->pathThroughGraph($graph, $candidate['point'], $odo['point']);
+                $path = $this->pathThroughRequiredWaypoints($graph, $candidate['point'], $odo['point'], $requiredWaypoints);
                 if ($path !== null && ($bestPath === null || $path['length_m'] < $bestPath['length_m'])) {
                     $bestPath = $path;
                     $bestOdf = $candidate;
@@ -85,6 +92,29 @@ class NetworkRouteProposalService
                 'warnings' => count($warnings),
             ],
         ];
+    }
+
+    private function pathThroughRequiredWaypoints(array $graph, array $from, array $to, array $waypoints): ?array
+    {
+        $stops = [...$waypoints, $to];
+        $current = $from;
+        $path = [];
+        $length = 0.0;
+        foreach ($stops as $stop) {
+            $segment = $this->pathThroughGraph($graph, $current, $stop);
+            if ($segment === null) {
+                return null;
+            }
+            $segmentPath = $segment['path'];
+            if ($path !== [] && $segmentPath !== []) {
+                array_shift($segmentPath);
+            }
+            $path = [...$path, ...$segmentPath];
+            $length += $segment['length_m'];
+            $current = $stop;
+        }
+
+        return ['path' => $this->geometry->compactPath($path), 'length_m' => $length];
     }
 
     public function pathThroughGraph(array $graph, array $from, array $to): ?array

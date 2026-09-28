@@ -10,6 +10,8 @@
     const validationResult = document.getElementById('large-planner-validation-result');
     const readinessResult = document.getElementById('large-planner-readiness');
     const readinessBadge = document.getElementById('large-planner-readiness-badge');
+    const runButton = document.getElementById('large-planner-run');
+    const cancelTaskButton = document.getElementById('large-planner-cancel-task');
     let drawingType = null;
     let points = [];
     let previewLayer = null;
@@ -17,6 +19,18 @@
     let zonePoints = [];
     let zonePreviewLayer = null;
     const zoneLayerById = new Map();
+
+    document.querySelectorAll('[data-large-planner-step]').forEach(button => {
+        button.addEventListener('click', () => {
+            const panel = document.getElementById(`large-planner-step-${button.dataset.largePlannerStep}`);
+            if (!panel) return;
+            document.querySelectorAll('[data-large-planner-step]').forEach(item => item.removeAttribute('aria-current'));
+            button.setAttribute('aria-current', 'step');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            panel.classList.add('ring-2', 'ring-violet-400');
+            window.setTimeout(() => panel.classList.remove('ring-2', 'ring-violet-400'), 1200);
+        });
+    });
 
     const endpoint = id => `${appConfig.largePlannerConstraintsBaseUrl.replace('__ID__', projectId)}${id ? `/${id}` : ''}`;
     const zoneEndpoint = suffix => `${appConfig.largePlannerZonesBaseUrl.replace('__ID__', projectId)}${suffix || ''}`;
@@ -196,9 +210,19 @@
             });
             readinessBadge.textContent = result.ready ? 'SPREMAN' : `${result.summary.blocking} BLOKIRA`;
             readinessBadge.className = `rounded px-2 py-0.5 text-[9px] font-black ${result.ready ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}`;
+            if (runButton) {
+                runButton.disabled = !result.ready;
+                runButton.title = result.ready ? 'Pokreni novi proračun.' : 'Prvo riješi blokirajuće stavke spremnosti.';
+            }
+            const estimate = document.getElementById('large-planner-time-estimate');
+            if (estimate) {
+                const source = result.estimate.source === 'project_history' ? `na osnovu ${result.estimate.sample_count} ranijih proračuna` : 'po konzervativnoj početnoj procjeni';
+                estimate.textContent = `Očekivano trajanje: ${result.estimate.minimum_seconds}–${result.estimate.maximum_seconds} s (${source}).`;
+            }
         } catch (error) {
             readinessResult.textContent = error.message;
             readinessBadge.textContent = 'GREŠKA';
+            if (runButton) runButton.disabled = true;
         }
     }
 
@@ -345,6 +369,9 @@
     });
 
     const planLayers = L.layerGroup().addTo(map);
+    const routeLayersByType = { primary: [], secondary: [], drop: [] };
+    const elementMarkerByKey = new Map();
+    const zoneFilter = document.getElementById('large-planner-zone-filter');
     const variantSelect = document.getElementById('large-planner-variant');
     const taskMessage = document.getElementById('large-planner-task-message');
     const taskBadge = document.getElementById('large-planner-task-progress');
@@ -372,7 +399,9 @@
         taskBadge.textContent = `${task.status.toUpperCase()} · ${progress}%`;
         progressBar.style.width = `${progress}%`;
         taskMessage.textContent = task.error || task.status_message || 'Čekanje na obradu.';
-        taskBadge.className = `rounded px-2 py-0.5 text-[9px] font-black ${task.status === 'completed' ? 'bg-emerald-200 text-emerald-800' : task.status === 'failed' ? 'bg-red-200 text-red-800' : 'bg-cyan-200 text-cyan-900'}`;
+        taskBadge.className = `rounded px-2 py-0.5 text-[9px] font-black ${task.status === 'completed' ? 'bg-emerald-200 text-emerald-800' : task.status === 'failed' ? 'bg-red-200 text-red-800' : task.status === 'cancelled' ? 'bg-slate-200 text-slate-700' : 'bg-cyan-200 text-cyan-900'}`;
+        if (cancelTaskButton) cancelTaskButton.disabled = !['queued', 'running'].includes(task.status);
+        if (runButton && ['queued', 'running', 'cancelling'].includes(task.status)) runButton.disabled = true;
         const confirmButton = document.getElementById('large-planner-confirm');
         if (confirmButton) { confirmButton.disabled = Boolean(task.confirmed_at); confirmButton.textContent = task.confirmed_at ? 'Plan je potvrđen' : 'Potvrdi plan'; }
     }
@@ -422,34 +451,107 @@
             });
         }
         marker.addTo(planLayers);
+        elementMarkerByKey.set(item.key, marker);
+    }
+
+    function focusProblem(problem) {
+        const odoKey = problem.odo_key || problem.details?.odo_key;
+        const marker = odoKey ? elementMarkerByKey.get(odoKey) : null;
+        if (marker) {
+            map.setView(marker.getLatLng(), Math.max(map.getZoom(), 18));
+            marker.openPopup();
+            return;
+        }
+        const houseId = Number(problem.house_id || problem.details?.house_id || problem.id || 0);
+        const house = houseId ? (data.houses || []).find(item => Number(item.id) === houseId) : null;
+        if (house?.latitude != null && house?.longitude != null) {
+            map.setView([Number(house.latitude), Number(house.longitude)], Math.max(map.getZoom(), 19));
+            return;
+        }
+        const routeKey = problem.route_key || problem.segment_key || problem.details?.route_key;
+        const routeLayer = Object.values(routeLayersByType).flat().find(layer => layer.options.routeKey === routeKey);
+        if (routeLayer) map.fitBounds(routeLayer.getBounds().pad(0.4));
     }
 
     function renderPlan(preview) {
         planLayers.clearLayers();
-        const drawRoutes = (routes, color, weight) => (routes || []).forEach(route => L.polyline(route.path, { color, weight, opacity: 0.85 }).bindTooltip(`${route.key} · ${Math.round(route.length_m || 0)} m`).addTo(planLayers));
-        drawRoutes(preview.odf_placement?.primary_routes, '#dc2626', 5);
-        drawRoutes(preview.routes?.secondary_routes, '#2563eb', 4);
-        drawRoutes(preview.routes?.drop_routes, '#7c3aed', 2);
+        elementMarkerByKey.clear();
+        Object.values(routeLayersByType).forEach(layers => layers.splice(0));
+        const selectedZone = zoneFilter?.value || '';
+        const odoByKey = new Map((preview.odo_placement?.odos || []).map(odo => [odo.key, odo]));
+        const belongsToSelectedZone = item => !selectedZone || String(item?.zone_id ?? 'unassigned') === selectedZone;
+        const drawRoutes = (type, routes, color, weight) => (routes || []).forEach(route => {
+            if (type !== 'primary' && !belongsToSelectedZone(odoByKey.get(route.odo_key))) return;
+            const enabled = document.querySelector(`[data-large-route-filter="${type}"]`)?.checked !== false;
+            const layer = L.polyline(route.path, { color, weight, opacity: enabled ? 0.85 : 0, interactive: enabled, routeKey: route.key }).bindTooltip(`${route.key} · ${Math.round(route.length_m || 0)} m`).addTo(planLayers);
+            routeLayersByType[type].push(layer);
+        });
+        drawRoutes('primary', preview.odf_placement?.primary_routes, '#dc2626', 5);
+        drawRoutes('secondary', preview.routes?.secondary_routes, '#2563eb', 4);
+        drawRoutes('drop', preview.routes?.drop_routes, '#7c3aed', 2);
         (preview.odf_placement?.odfs || []).forEach(item => elementMarker(item, 'odf', '#dc2626'));
-        (preview.odo_placement?.odos || []).forEach(item => elementMarker(item, 'odo', '#059669'));
+        (preview.odo_placement?.odos || []).filter(belongsToSelectedZone).forEach(item => elementMarker(item, 'odo', '#059669'));
+
+        if (zoneFilter) {
+            const previousValue = zoneFilter.value;
+            const zoneIds = [...new Set((preview.odo_placement?.odos || []).map(odo => odo.zone_id ?? 'unassigned'))];
+            zoneFilter.replaceChildren(new Option('Sve zone', ''));
+            zoneIds.forEach(zoneId => {
+                const zone = (data.large_planner_zones || []).find(item => String(item.id) === String(zoneId));
+                zoneFilter.add(new Option(zone?.name || (zoneId === 'unassigned' ? 'Bez zone' : `Zona #${zoneId}`), String(zoneId)));
+            });
+            zoneFilter.value = [...zoneFilter.options].some(option => option.value === previousValue) ? previousValue : '';
+        }
 
         const summary = document.getElementById('large-planner-preview-summary');
         summary.replaceChildren();
+        const primaryLength = (preview.odf_placement?.primary_routes || []).reduce((total, route) => total + Number(route.length_m || 0), 0);
+        const secondaryLength = Number(preview.routes?.summary?.secondary_length_m || 0);
+        const dropLength = Number(preview.routes?.summary?.drop_length_m || 0);
+        const houseCount = (preview.odo_placement?.odos || []).reduce((total, odo) => total + (odo.house_ids?.length || 0), 0);
         const metrics = [
             ['ODF', preview.odf_placement?.odfs?.length || 0], ['ODO', preview.odo_placement?.odos?.length || 0],
-            ['Sekundarno', `${Math.round(preview.routes?.summary?.secondary_length_m || 0)} m`], ['Drop', `${Math.round(preview.routes?.summary?.drop_length_m || 0)} m`],
+            ['Kuće', houseCount], ['Problemi', preview.warnings?.summary?.total || preview.warnings?.items?.length || 0],
+            ['Primarno', `${Math.round(primaryLength)} m`], ['Sekundarno', `${Math.round(secondaryLength)} m`],
+            ['Drop', `${Math.round(dropLength)} m`], ['Ukupno kabla', `${Math.round(primaryLength + secondaryLength + dropLength)} m`],
         ];
         metrics.forEach(([label, value]) => { const item = document.createElement('span'); item.className = 'rounded bg-white px-2 py-1'; item.textContent = `${label}: ${value}`; summary.append(item); });
         const warnings = document.getElementById('large-planner-preview-warnings');
         warnings.replaceChildren();
-        (preview.warnings?.items || []).forEach(problem => { const item = document.createElement('div'); item.className = `rounded px-2 py-1 ${problem.severity === 'error' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'}`; item.textContent = problem.message; warnings.append(item); });
+        (preview.warnings?.items || []).forEach(problem => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = `block w-full rounded px-2 py-1 text-left ${problem.severity === 'error' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'}`;
+            item.textContent = problem.message;
+            item.title = 'Fokusiraj problem na mapi';
+            item.addEventListener('click', () => focusProblem(problem));
+            warnings.append(item);
+        });
         if (!(preview.warnings?.items || []).length) warnings.textContent = 'Nema upozorenja.';
         const odoSelect = document.getElementById('large-planner-house-odo');
         odoSelect.replaceChildren(new Option('Odaberi ODO', ''));
-        (preview.odo_placement?.odos || []).forEach(odo => odoSelect.add(new Option(`${odo.provisional_name} · ${odo.occupancy}/${odo.capacity}`, odo.key)));
+        const groupOdoSelect = document.getElementById('large-planner-houses-odo');
+        groupOdoSelect?.replaceChildren(new Option('Odaberi ODO', ''));
+        (preview.odo_placement?.odos || []).forEach(odo => {
+            const label = `${odo.provisional_name} · ${odo.occupancy}/${odo.capacity}`;
+            odoSelect.add(new Option(label, odo.key));
+            groupOdoSelect?.add(new Option(label, odo.key));
+        });
         const bounds = planLayers.getBounds?.();
         if (bounds?.isValid()) map.fitBounds(bounds.pad(0.08));
     }
+
+    document.querySelectorAll('[data-large-route-filter]').forEach(filter => {
+        filter.addEventListener('change', () => {
+            const enabled = filter.checked;
+            (routeLayersByType[filter.dataset.largeRouteFilter] || []).forEach(layer => {
+                layer.setStyle({ opacity: enabled ? 0.85 : 0 });
+                if (enabled) layer.addTo(planLayers);
+                else planLayers.removeLayer(layer);
+            });
+        });
+    });
+    zoneFilter?.addEventListener('change', () => { if (activePreview) renderPlan(activePreview); });
 
     async function loadPreview(taskId) {
         const result = await jsonRequest(`${previewBase}/${taskId}`);
@@ -457,6 +559,11 @@
         activePreview = result.preview;
         updateTask(result.task);
         renderPlan(result.preview);
+        const exportLink = document.getElementById('large-planner-export');
+        if (exportLink) {
+            exportLink.href = `${previewBase}/${taskId}/izvoz`;
+            exportLink.classList.remove('hidden');
+        }
     }
 
     async function loadVariants(selectTaskId = null) {
@@ -475,16 +582,27 @@
         const result = await jsonRequest(`${taskBase}/${taskId}`);
         updateTask(result.task);
         if (result.task.status === 'completed') { await loadVariants(taskId); return; }
-        if (result.task.status === 'failed') return;
+        if (['failed', 'cancelled'].includes(result.task.status)) { await loadReadiness(); return; }
         pollTimer = setTimeout(() => pollTask(taskId).catch(error => { taskMessage.textContent = error.message; }), 1500);
     }
 
-    document.getElementById('large-planner-run')?.addEventListener('click', async () => {
+    runButton?.addEventListener('click', async () => {
         try {
             const result = await jsonRequest(taskBase, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'large_plan', base_task_id: activeTaskId || null }) });
             activeTaskId = result.task.id;
             updateTask(result.task);
             pollTask(activeTaskId);
+        } catch (error) { window.ftthToast?.(error.message, 'error'); }
+    });
+    cancelTaskButton?.addEventListener('click', async () => {
+        if (!activeTaskId || cancelTaskButton.disabled) return;
+        try {
+            const result = await jsonRequest(`${taskBase}/${activeTaskId}/otkazi`, { method: 'POST' });
+            updateTask(result.task);
+            clearTimeout(pollTimer);
+            if (result.task.status === 'cancelling') pollTask(activeTaskId);
+            else loadReadiness();
+            window.ftthToast?.(result.message, 'success');
         } catch (error) { window.ftthToast?.(error.message, 'error'); }
     });
     variantSelect?.addEventListener('change', () => { if (variantSelect.value) loadPreview(variantSelect.value).catch(error => window.ftthToast?.(error.message, 'error')); });
@@ -493,6 +611,23 @@
         const odoKey = document.getElementById('large-planner-house-odo').value;
         if (!houseId || !odoKey || !activeTaskId) return window.ftthToast?.('Odaberi preview, kuću i ODO.', 'error');
         savePreviewChange('kuca', { house_id: houseId, odo_key: odoKey }).catch(error => window.ftthToast?.(error.message, 'error'));
+    });
+    document.getElementById('large-planner-reset-preview')?.addEventListener('click', async () => {
+        if (!activeTaskId || activeTask?.confirmed_at) return window.ftthToast?.('Odaberi nepotvrđenu varijantu.', 'error');
+        const accepted = await window.ftthConfirm?.('Poništiti sva ručna pomjeranja, dodjele i zaključavanja ove varijante?', { title: 'Poništi korekcije', confirmLabel: 'Poništi' });
+        if (!accepted) return;
+        try {
+            const result = await jsonRequest(`${previewBase}/${activeTaskId}/ponisti-korekcije`, { method: 'POST' });
+            activePreview = result.preview;
+            renderPlan(activePreview);
+            window.ftthToast?.(result.message, 'success');
+        } catch (error) { window.ftthToast?.(error.message, 'error'); }
+    });
+    document.getElementById('large-planner-assign-houses')?.addEventListener('click', () => {
+        const houseIds = [...new Set((document.getElementById('large-planner-house-ids')?.value || '').split(/[\s,;]+/).filter(Boolean).map(Number))];
+        const odoKey = document.getElementById('large-planner-houses-odo')?.value;
+        if (!houseIds.length || houseIds.some(id => !Number.isInteger(id) || id < 1) || !odoKey || !activeTaskId) return window.ftthToast?.('Unesi ispravne ID brojeve kuća i odaberi ODO.', 'error');
+        savePreviewChange('kuce', { house_ids: houseIds, odo_key: odoKey }).catch(error => window.ftthToast?.(error.message, 'error'));
     });
     document.getElementById('large-planner-compare')?.addEventListener('click', async () => {
         const first = document.getElementById('large-planner-compare-first').value;
@@ -520,10 +655,13 @@
         const output = document.getElementById('large-planner-final-status');
         output.textContent = 'Potvrđujem plan u jednoj transakciji…';
         try {
-            const result = await jsonRequest(`${previewBase}/${activeTaskId}/potvrdi`, { method: 'POST' });
+            const result = await jsonRequest(`${previewBase}/${activeTaskId}/potvrdi`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ acknowledge_warnings: document.getElementById('large-planner-acknowledge-warnings')?.checked || false }),
+            });
             updateTask(result.task);
             output.className = 'text-[10px] leading-4 text-emerald-700';
-            output.textContent = `Upisano: ${result.summary.odfs} ODF, ${result.summary.odos} ODO, ${result.summary.routes} trasa i ${result.summary.houses} kuća.`;
+            output.textContent = `Upisano: ${result.summary.odfs} ODF, ${result.summary.odos} ODO, ${result.summary.routes} trasa i ${result.summary.houses} kuća. Materijal: ${Math.round(result.summary.materials?.route_length_m || 0)} m trase, ${Math.round(result.summary.materials?.microduct_14_10_m || 0)} m cijevi 14/10 i ${Math.round(result.summary.materials?.microduct_10_8_m || 0)} m cijevi 10/8.`;
             window.ftthToast?.(result.message, 'success');
         } catch (error) { output.className = 'text-[10px] leading-4 text-red-700'; output.textContent = error.message; }
     });

@@ -14,9 +14,11 @@
             <button type="button" class="step-btn step-violet" data-large-planner-step="inputs"><b>1</b> Ulazni podaci</button>
             <button type="button" class="step-btn step-violet" data-large-planner-step="rules"><b>2</b> Pravila</button>
             <button type="button" class="step-btn step-violet" data-large-planner-step="zones"><b>3</b> Zone</button>
-            <button type="button" class="step-btn step-violet" data-large-planner-step="preview"><b>4</b> Proračun</button>
+            <button type="button" class="step-btn step-violet" data-large-planner-step="calculation"><b>4</b> Proračun</button>
+            <button type="button" class="step-btn step-violet" data-large-planner-step="review"><b>5</b> Pregled</button>
+            <button type="button" class="step-btn step-violet" data-large-planner-step="confirmation"><b>6</b> Potvrda</button>
         </nav>
-        <div class="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <div id="large-planner-step-inputs" class="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
             <div class="flex items-center justify-between gap-2">
                 <span class="sb-kicker text-amber-900">Spremnost za planiranje</span>
                 <span id="large-planner-readiness-badge" class="rounded bg-slate-200 px-2 py-0.5 text-[9px] font-black text-slate-700">PROVJERA</span>
@@ -24,6 +26,7 @@
             <div id="large-planner-readiness" class="grid gap-1 text-[10px] leading-4 text-slate-700">Učitavam checklistu…</div>
             <button id="large-planner-validate-input" type="button" class="sb-btn sb-btn-outline">Provjeri ulazne podatke</button>
             <div id="large-planner-validation-result" class="text-[10px] leading-4 text-amber-900">Provjera još nije pokrenuta.</div>
+            <div id="large-planner-time-estimate" class="rounded border border-amber-200 bg-white px-2 py-1 text-[10px] text-amber-900">Procjena vremena će biti dostupna nakon provjere.</div>
         </div>
         @can('project.edit')
             <form method="POST" action="{{ route('projects.large-planner.input-snapshots.store', $project) }}" class="grid gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3">
@@ -35,7 +38,7 @@
             </form>
         @endcan
         @can('project.edit')
-            <div class="grid gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+            <div id="large-planner-step-zones" class="grid gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                 <div class="sb-kicker text-indigo-800">Zone projekta</div>
                 <input id="large-planner-zone-name" maxlength="120" class="sb-inp" placeholder="Naziv nove zone">
                 <div class="grid grid-cols-2 gap-1.5">
@@ -90,7 +93,7 @@
                 </div>
             </details>
         @endcan
-        <form method="POST" action="{{ route('projects.large-planner.settings.update', $project) }}" class="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <form id="large-planner-step-rules" method="POST" action="{{ route('projects.large-planner.settings.update', $project) }}" class="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
             @csrf
             @method('PATCH')
             <div class="sb-kicker">Tehnička pravila</div>
@@ -130,18 +133,27 @@
                 <button class="sb-btn sb-btn-primary">Sačuvaj pravila</button>
             @endcan
         </form>
-        <section class="grid gap-2 rounded-lg border border-cyan-200 bg-cyan-50 p-3" aria-labelledby="large-planner-preview-title">
+        <section id="large-planner-step-calculation" class="grid gap-2 rounded-lg border border-cyan-200 bg-cyan-50 p-3" aria-labelledby="large-planner-preview-title">
             <div class="flex items-center justify-between gap-2"><div id="large-planner-preview-title" class="sb-kicker text-cyan-900">Proračun i pregled</div><span id="large-planner-task-progress" class="rounded bg-slate-200 px-2 py-0.5 text-[9px] font-black text-slate-700">NIJE POKRENUT</span></div>
-            @can('project.edit')<button id="large-planner-run" type="button" class="sb-btn sb-btn-primary">Pokreni proračun</button>@endcan
+            @can('project.edit')<div class="grid grid-cols-2 gap-1.5"><button id="large-planner-run" type="button" class="sb-btn sb-btn-primary">Pokreni proračun</button><button id="large-planner-cancel-task" type="button" class="sb-btn sb-btn-outline" disabled>Otkaži</button></div>@endcan
             <select id="large-planner-variant" class="sb-sel" aria-label="Varijanta plana"><option value="">Odaberi završenu varijantu</option></select>
             <div class="h-1.5 overflow-hidden rounded bg-cyan-100"><div id="large-planner-progress-bar" class="h-full bg-cyan-600 transition-all" style="width:0%"></div></div>
             <p id="large-planner-task-message" class="text-[10px] leading-4 text-cyan-900">Pokreni proračun kada su ulazi spremni.</p>
-            <div class="grid grid-cols-3 gap-1 text-center text-[9px] font-bold"><span class="rounded bg-red-100 px-1 py-1 text-red-800">Primarna</span><span class="rounded bg-blue-100 px-1 py-1 text-blue-800">Sekundarna</span><span class="rounded bg-violet-100 px-1 py-1 text-violet-800">Drop</span></div>
-            <div id="large-planner-preview-summary" class="grid grid-cols-2 gap-1 text-[10px]"></div>
-            <div id="large-planner-preview-warnings" class="max-h-36 overflow-y-auto text-[10px]"></div>
-            @can('project.edit')<div class="grid grid-cols-2 gap-1.5"><button id="large-planner-final-validate" type="button" class="sb-btn sb-btn-outline">Završna provjera</button><button id="large-planner-confirm" type="button" class="sb-btn sb-btn-primary">Potvrdi plan</button></div>@endcan
-            <div id="large-planner-final-status" class="text-[10px] leading-4 text-slate-600"></div>
+            <div id="large-planner-step-review" class="grid gap-2 scroll-mt-4 rounded border border-cyan-200 bg-white/70 p-2">
+                <select id="large-planner-zone-filter" class="sb-sel" aria-label="Filter po zoni"><option value="">Sve zone</option></select>
+                <div class="grid grid-cols-3 gap-1 text-center text-[9px] font-bold"><label class="rounded bg-red-100 px-1 py-1 text-red-800"><input type="checkbox" data-large-route-filter="primary" checked> Primarna</label><label class="rounded bg-blue-100 px-1 py-1 text-blue-800"><input type="checkbox" data-large-route-filter="secondary" checked> Sekundarna</label><label class="rounded bg-violet-100 px-1 py-1 text-violet-800"><input type="checkbox" data-large-route-filter="drop" checked> Drop</label></div>
+                <div id="large-planner-preview-summary" class="grid grid-cols-2 gap-1 text-[10px]"></div>
+                <div id="large-planner-preview-warnings" class="max-h-36 overflow-y-auto text-[10px]"></div>
+                @can('project.export')<a id="large-planner-export" href="#" class="sb-btn sb-btn-outline hidden text-center">Izvezi plan i upozorenja (CSV)</a>@endcan
+                @can('project.edit')<button id="large-planner-reset-preview" type="button" class="sb-btn sb-btn-outline">Poništi ručne korekcije</button>@endcan
+            </div>
+            <div id="large-planner-step-confirmation" class="grid gap-2 scroll-mt-4 rounded border border-emerald-200 bg-emerald-50 p-2">
+                <label class="flex items-start gap-2 text-[10px] leading-4 text-emerald-950"><input id="large-planner-acknowledge-warnings" type="checkbox" class="mt-0.5"><span>Pregledao/la sam sva upozorenja i prihvatam preostala nekritična odstupanja.</span></label>
+                @can('project.edit')<div class="grid grid-cols-2 gap-1.5"><button id="large-planner-final-validate" type="button" class="sb-btn sb-btn-outline">Završna provjera</button><button id="large-planner-confirm" type="button" class="sb-btn sb-btn-primary">Potvrdi plan</button></div>@endcan
+                <div id="large-planner-final-status" class="text-[10px] leading-4 text-slate-600">Odaberi varijantu i pokreni završnu provjeru.</div>
+            </div>
             <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Prebaci kuću na drugi ODO</summary><div class="mt-2 grid gap-1.5"><input id="large-planner-house-id" type="number" min="1" class="sb-inp" placeholder="ID kuće"><select id="large-planner-house-odo" class="sb-sel"><option value="">Odaberi ODO</option></select>@can('project.edit')<button id="large-planner-assign-house" type="button" class="sb-btn sb-btn-outline">Provjeri i prebaci</button>@endcan</div></details>
+            <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Grupno prebaci kuće</summary><div class="mt-2 grid gap-1.5"><textarea id="large-planner-house-ids" rows="2" class="sb-inp" placeholder="ID kuća odvojeni zarezom, npr. 12, 15, 18"></textarea><select id="large-planner-houses-odo" class="sb-sel"><option value="">Odaberi ODO</option></select>@can('project.edit')<button id="large-planner-assign-houses" type="button" class="sb-btn sb-btn-outline">Provjeri i grupno prebaci</button>@endcan</div></details>
             <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Poredi dvije varijante</summary><div class="mt-2 grid gap-1.5"><select id="large-planner-compare-first" class="sb-sel"><option value="">Prva varijanta</option></select><select id="large-planner-compare-second" class="sb-sel"><option value="">Druga varijanta</option></select><button id="large-planner-compare" type="button" class="sb-btn sb-btn-outline">Uporedi</button><div id="large-planner-comparison" class="text-[10px]"></div></div></details>
             <p class="text-[9px] leading-4 text-cyan-800">Povuci predloženi ODF/ODO marker za pomjeranje. Klik na marker otvara detalje i zaključavanje.</p>
         </section>

@@ -62,4 +62,19 @@ class ProjectBackgroundTaskController extends Controller
 
         return response()->json(['task' => $task->fresh(), 'message' => 'Ponovni pokušaj je stavljen u red obrade.'], 202);
     }
+
+    public function cancel(Project $project, ProjectBackgroundTask $task): JsonResponse
+    {
+        abort_unless($task->project_id === $project->id && $task->type === 'large_plan', 404);
+        abort_unless(in_array($task->status, ['queued', 'running'], true), 409, 'Otkazati se može samo aktivan proračun.');
+
+        $queued = $task->status === 'queued';
+        $task->update([
+            'status' => $queued ? 'cancelled' : 'cancelling',
+            'status_message' => $queued ? 'Proračun je otkazan.' : 'Zahtjev za otkazivanje je zaprimljen.',
+            'finished_at' => $queued ? now() : null,
+        ]);
+
+        return response()->json(['task' => $task->fresh(), 'message' => $queued ? 'Proračun je otkazan.' : 'Proračun će biti zaustavljen nakon trenutne faze.']);
+    }
 }

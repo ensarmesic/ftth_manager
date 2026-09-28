@@ -1,5 +1,13 @@
 # Plan rada — automatsko projektovanje velikih FTTH projekata
 
+## Status implementacije — 28.09.2026.
+
+Implementirani su `large_auto` režim, ulazi i pravila, zone, graf i algoritam, background obrada, preview i ručne korekcije, transakcijska potvrda, snapshot/restore, mrežni integritet, backup kompatibilnost, performance testovi do 2.000 kuća, šestokoračni korisnički tok, izvještaj/CSV izvoz, audit, cleanup, retry/cancel i automatizovani kompletni HTTP workflow.
+
+Automatizovani PHP i JavaScript paketi prolaze, a standardni način rada ostaje izolovan regresionim testovima.
+
+Preostale vanjske završne aktivnosti su pravi Playwright tok sa E2E kredencijalima, pilot na kopiji stvarnog velikog projekta, stručna potvrda projektanta i slike stvarnog pilot toka. Ove stavke se ne označavaju završenim bez stvarnih pristupnih podataka i stručnog pregleda.
+
 ## Cilj
 
 Dodati opcionalni režim **Veliki projekat** za projekte sa približno 1.000 ili više kuća.

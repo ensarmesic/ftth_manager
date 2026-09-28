@@ -6,6 +6,7 @@ use App\Models\GisSegment;
 use App\Models\House;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class LargePlannerInputValidationTest extends TestCase
@@ -54,6 +55,49 @@ class LargePlannerInputValidationTest extends TestCase
         );
     }
 
+    public function test_corridor_crossing_a_restricted_area_blocks_readiness(): void
+    {
+        $project = $this->largeProject(150);
+        $this->corridor($project, [[43.8560, 18.4130], [43.8580, 18.4150]]);
+        House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8562, 'longitude' => 18.4132]);
+        $project->largePlannerConstraints()->create([
+            'type' => 'restricted_area',
+            'name' => 'Zabranjena parcela',
+            'geometry' => [[43.8568, 18.4138], [43.8572, 18.4138], [43.8572, 18.4142], [43.8568, 18.4142]],
+        ]);
+
+        $this->getJson(route('projects.large-planner.input-validation', $project))
+            ->assertOk()
+            ->assertJsonPath('ready', false)
+            ->assertJsonPath('issues.0.code', 'corridors_cross_restricted_areas')
+            ->assertJsonPath('issues.0.details.blocked_edges', 1);
+
+        $this->getJson(route('projects.large-planner.readiness', $project))
+            ->assertOk()
+            ->assertJsonPath('ready', false);
+    }
+
+    public function test_required_waypoint_outside_allowed_corridor_blocks_readiness(): void
+    {
+        $project = $this->largeProject(150);
+        $this->corridor($project, [[43.8560, 18.4130], [43.8570, 18.4140]]);
+        House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8563, 'longitude' => 18.4133]);
+        $project->largePlannerConstraints()->create([
+            'type' => 'required_waypoint',
+            'name' => 'Pogrešno postavljena tačka',
+            'geometry' => [44.0, 19.0],
+        ]);
+
+        $this->getJson(route('projects.large-planner.input-validation', $project))
+            ->assertOk()
+            ->assertJsonPath('ready', false)
+            ->assertJsonPath('issues.0.code', 'waypoints_outside_corridors');
+
+        $this->getJson(route('projects.large-planner.readiness', $project))
+            ->assertOk()
+            ->assertJsonPath('ready', false);
+    }
+
     public function test_standard_project_cannot_use_large_input_validation(): void
     {
         $project = Project::factory()->create(['planning_mode' => 'standard']);
@@ -96,6 +140,21 @@ class LargePlannerInputValidationTest extends TestCase
         $project = Project::factory()->create(['planning_mode' => 'standard']);
 
         $this->getJson(route('projects.large-planner.readiness', $project))->assertNotFound();
+    }
+
+    public function test_readiness_estimate_uses_previous_project_measurements_when_available(): void
+    {
+        Storage::fake();
+        $project = $this->largeProject(150);
+        $path = "background-tasks/{$project->id}/measured.json";
+        Storage::put($path, json_encode(['execution' => ['houses' => 100, 'duration_ms' => 5000]], JSON_THROW_ON_ERROR));
+        $project->backgroundTasks()->create(['type' => 'large_plan', 'status' => 'completed', 'result_path' => $path]);
+
+        $this->getJson(route('projects.large-planner.readiness', $project))
+            ->assertOk()
+            ->assertJsonPath('estimate.source', 'project_history')
+            ->assertJsonPath('estimate.sample_count', 1)
+            ->assertJsonPath('estimate.seconds', 2);
     }
 
     private function largeProject(int $dropLimit): Project

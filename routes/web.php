@@ -136,9 +136,12 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projekti/{project}/veliki-planer/preview/{task}', [LargePlannerPreviewController::class, 'show'])->middleware('can:project.view')->name('projects.large-planner.preview.show');
     Route::patch('/projekti/{project}/veliki-planer/preview/{task}/pomjeri', [LargePlannerPreviewController::class, 'move'])->middleware('can:project.edit')->name('projects.large-planner.preview.move');
     Route::patch('/projekti/{project}/veliki-planer/preview/{task}/kuca', [LargePlannerPreviewController::class, 'assignHouse'])->middleware('can:project.edit')->name('projects.large-planner.preview.house');
+    Route::patch('/projekti/{project}/veliki-planer/preview/{task}/kuce', [LargePlannerPreviewController::class, 'assignHouses'])->middleware('can:project.edit')->name('projects.large-planner.preview.houses');
     Route::patch('/projekti/{project}/veliki-planer/preview/{task}/zakljucaj', [LargePlannerPreviewController::class, 'lock'])->middleware('can:project.edit')->name('projects.large-planner.preview.lock');
+    Route::post('/projekti/{project}/veliki-planer/preview/{task}/ponisti-korekcije', [LargePlannerPreviewController::class, 'reset'])->middleware('can:project.edit')->name('projects.large-planner.preview.reset');
     Route::post('/projekti/{project}/veliki-planer/preview/{task}/zavrsna-validacija', [LargePlannerPreviewController::class, 'validateFinal'])->middleware('can:project.edit')->name('projects.large-planner.preview.validate-final');
     Route::post('/projekti/{project}/veliki-planer/preview/{task}/potvrdi', [LargePlannerPreviewController::class, 'confirm'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.large-planner.preview.confirm');
+    Route::get('/projekti/{project}/veliki-planer/preview/{task}/izvoz', [LargePlannerPreviewController::class, 'export'])->middleware('can:project.export')->name('projects.large-planner.preview.export');
     Route::get('/projekti/{project}/veliki-planer/preview-poredjenje', [LargePlannerPreviewController::class, 'compare'])->middleware('can:project.view')->name('projects.large-planner.preview.compare');
     Route::post('/projekti/{project}/odo-plan/preview', [ProjectPlanningController::class, 'previewOdo'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.odo-plan.preview');
     Route::get('/projekti/{project}/gis-plan/preview', [ProjectPlanningController::class, 'previewGis'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.gis-plan.preview');
@@ -160,6 +163,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/background-zadaci', [ProjectBackgroundTaskController::class, 'store'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.background-tasks.store');
     Route::get('/projekti/{project}/background-zadaci/{task}', [ProjectBackgroundTaskController::class, 'show'])->name('projects.background-tasks.show');
     Route::post('/projekti/{project}/background-zadaci/{task}/ponovi', [ProjectBackgroundTaskController::class, 'retry'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.background-tasks.retry');
+    Route::post('/projekti/{project}/background-zadaci/{task}/otkazi', [ProjectBackgroundTaskController::class, 'cancel'])->middleware('can:project.edit')->name('projects.background-tasks.cancel');
     Route::get('/projekti/{project}/background-zadaci/{task}/download', [ProjectBackgroundTaskController::class, 'download'])->middleware('can:project.export')->name('projects.background-tasks.download');
     Route::post('/projekti/{project}/drop-trase/popuni', MissingDropRouteController::class)->middleware('can:project.edit')->name('projects.drop-routes.fill');
     Route::get('/projekti/{project}/drop-trase/audit', [DropRouteMaintenanceController::class, 'audit'])->name('projects.drop-routes.audit');

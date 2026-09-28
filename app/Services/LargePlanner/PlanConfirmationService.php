@@ -10,6 +10,8 @@ use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectBackgroundTask;
 use App\Models\User;
+use App\Services\FiberPlanService;
+use App\Services\ProjectMaterialService;
 use App\Services\ProjectSnapshotService;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -19,11 +21,13 @@ class PlanConfirmationService
     public function __construct(
         private readonly FinalValidationService $validator,
         private readonly ProjectSnapshotService $snapshots,
+        private readonly FiberPlanService $fiberPlans,
+        private readonly ProjectMaterialService $materials,
     ) {}
 
-    public function confirm(Project $project, ProjectBackgroundTask $task, array $preview, User $user, ?string $ipAddress = null): array
+    public function confirm(Project $project, ProjectBackgroundTask $task, array $preview, User $user, ?string $ipAddress = null, bool $warningsAcknowledged = false): array
     {
-        return DB::transaction(function () use ($project, $task, $preview, $user, $ipAddress): array {
+        return DB::transaction(function () use ($project, $task, $preview, $user, $ipAddress, $warningsAcknowledged): array {
             $lockedTask = ProjectBackgroundTask::query()->lockForUpdate()->findOrFail($task->id);
             if ($lockedTask->project_id !== $project->id || $lockedTask->type !== 'large_plan') {
                 throw new DomainException('Preview ne pripada odabranom projektu.');
@@ -39,15 +43,29 @@ class PlanConfirmationService
             if (! $validation['valid']) {
                 throw new DomainException('Plan nije moguće potvrditi dok postoje kritične greške.');
             }
+            $warnings = collect(data_get($preview, 'warnings.items', []))->reject(fn (array $warning) => ($warning['severity'] ?? 'warning') === 'error');
+            if ($warnings->isNotEmpty() && ! $warningsAcknowledged) {
+                throw new DomainException('Pregledaj upozorenja i potvrdi da ih prihvataš prije konačnog upisa.');
+            }
 
             $snapshot = $this->snapshots->create($project, "Automatski: prije potvrde velikog plana #{$task->id}");
             $batch = 'large-plan:'.$task->id;
             $odfIds = $this->createOdfs($project, $preview, $batch);
             [$cabinetIds, $branchIds, $routeCount] = $this->createSecondaryNetwork($project, $preview, $odfIds, $batch);
             $routeCount += $this->createPrimaryRoutes($project, $preview, $odfIds, $batch);
-            $routeCount += $this->createDrops($project, $preview, $cabinetIds, $batch);
+            $routeCount += $this->createDrops($project, $preview, $cabinetIds, $branchIds, $batch);
 
-            $summary = ['odfs' => count($odfIds), 'odos' => count($cabinetIds), 'branches' => count($branchIds), 'routes' => $routeCount, 'houses' => collect(data_get($preview, 'odo_placement.odos', []))->sum(fn (array $odo) => count($odo['house_ids'] ?? [])), 'snapshot_id' => $snapshot->id];
+            $fiberPlan = $this->fiberPlans->build($project->fresh());
+            $fiberErrors = collect($fiberPlan['issues'] ?? [])->where('level', 'error')->values();
+            if (($fiberPlan['assumptionsConfirmed'] ?? false) && $fiberErrors->isNotEmpty()) {
+                throw new DomainException('Potvrđeni plan ne prolazi optičku/PON provjeru: '.data_get($fiberErrors->first(), 'message'));
+            }
+
+            $materialSummary = $this->materials->summary(
+                $project->fresh()->load(['odfs', 'cabinets', 'houses', 'routes', 'materials']),
+                (int) round((float) ($project->largePlannerSetting?->fiber_reserve_percent ?? 10)),
+            );
+            $summary = ['odfs' => count($odfIds), 'odos' => count($cabinetIds), 'branches' => count($branchIds), 'routes' => $routeCount, 'houses' => collect(data_get($preview, 'odo_placement.odos', []))->sum(fn (array $odo) => count($odo['house_ids'] ?? [])), 'snapshot_id' => $snapshot->id, 'warnings_acknowledged' => $warningsAcknowledged, 'fiber_plan_signature' => $fiberPlan['signature'] ?? null, 'fiber_health' => $fiberPlan['health'] ?? null, 'fiber_errors' => $fiberErrors->count(), 'materials' => $materialSummary];
             $lockedTask->update(['confirmed_at' => now(), 'confirmed_by' => $user->id, 'snapshot_id' => $snapshot->id, 'confirmation_summary' => $summary]);
             ActivityLog::create(['user_id' => $user->id, 'project_id' => $project->id, 'method' => 'CONFIRM', 'route_name' => 'projects.large-planner.preview.confirm', 'path' => "/projekti/{$project->id}/veliki-planer/preview/{$task->id}/potvrdi", 'subject_type' => ProjectBackgroundTask::class, 'subject_id' => $task->id, 'status_code' => 200, 'metadata' => $summary, 'ip_address' => $ipAddress]);
 
@@ -104,13 +122,13 @@ class PlanConfirmationService
         return count(data_get($preview, 'odf_placement.primary_routes', []));
     }
 
-    private function createDrops(Project $project, array $preview, array $cabinetIds, string $batch): int
+    private function createDrops(Project $project, array $preview, array $cabinetIds, array $branchIds, string $batch): int
     {
         $count = 0;
         foreach (data_get($preview, 'routes.drop_routes', []) as $routePreview) {
             $cabinetId = $cabinetIds[$routePreview['odo_key']] ?? null;
             $house = $project->houses()->findOrFail($routePreview['house_id']);
-            $house->update(['cabinet_id' => $cabinetId]);
+            $house->update(['cabinet_id' => $cabinetId, 'branch_id' => $branchIds[$routePreview['odo_key']] ?? null]);
             $this->route($project, $routePreview, ['cabinet_id' => $cabinetId, 'from_type' => 'cabinet', 'from_id' => $cabinetId, 'to_type' => 'house', 'to_id' => $house->id, 'name' => 'Drop '.$house->label, 'route_type' => 'drop', 'fiber_count' => 4, 'microduct_type' => '10/8', 'import_batch' => $batch]);
             $count++;
         }
@@ -120,7 +138,9 @@ class PlanConfirmationService
 
     private function route(Project $project, array $preview, array $attributes): NetworkRoute
     {
-        $length = (int) ceil($preview['length_m'] ?? 0);
+        // I kod poklopljenih koordinata postoji završni servisni spoj unutar objekta/ormara.
+        // Minimalni obračunski metar sprečava nevažeću trasu bez kabla ili mikrocijevi.
+        $length = max(1, (int) ceil($preview['length_m'] ?? 0));
 
         return NetworkRoute::create($attributes + ['project_id' => $project->id, 'installation_type' => 'underground', 'duct_length_m' => $length, 'fiber_length_m' => $length, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => $preview['path']]);
     }

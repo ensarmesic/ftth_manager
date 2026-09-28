@@ -1,5 +1,36 @@
 # FTTH Manager — kompletno korisničko uputstvo
 
+## Veliki planer za velike projekte
+
+Veliki planer je odvojen od postojećeg Auto ODO toka i prikazuje se samo projektu čiji je način planiranja `large_auto`. Standardni projekti nastavljaju raditi kao ranije.
+
+### Tok kroz šest koraka
+
+1. **Ulazni podaci** — unesi ili CSV datotekom uvezi kuće, klasifikuj dozvoljene koridore te označi obavezne tačke i zabranjena područja. Pokreni provjeru ulaza i sačuvaj ulaznu reviziju.
+2. **Pravila** — potvrdi ODO kapacitet, maksimalni drop, rezervu vlakana, cilj optimizacije i opcionalni prijedlog novih ODF-ova.
+3. **Zone** — nacrtaj zone ili koristi automatsku podjelu. Prihvaćenu zonu možeš zaključati; zaključana zona se ne mijenja djelimičnim replanom.
+4. **Proračun** — pregledaj readiness listu i procjenu trajanja. Dugme za pokretanje dostupno je tek kada nema blokirajućih problema. Aktivni proračun se može sigurno otkazati.
+5. **Pregled** — odaberi varijantu, filtriraj zonu i tip trase, klikni upozorenje radi fokusa na mapi, pomjeri ili zaključaj ODF/ODO i grupno prebaci kuće. Ručne korekcije možeš vratiti na originalni rezultat.
+6. **Potvrda** — pokreni završnu validaciju, pregledaj upozorenja i označi da prihvataš nekritična odstupanja. Potvrda u jednoj transakciji upisuje mrežu u postojeće modele i automatski pravi snapshot.
+
+### Izvoz i oporavak
+
+- CSV izvoz sadrži ODF/ODO elemente, primarne, sekundarne i drop trase te upozorenja.
+- Završni rezultat koristi postojeće izvještaje materijala i fiber schemu.
+- Ako potvrđeni rezultat treba poništiti, vrati automatski snapshot napravljen prije potvrde.
+- Stari nepotvrđeni preview rezultati automatski se čiste; potvrđeni rezultati se ne brišu.
+
+### Lista provjera prije potvrde
+
+- [ ] Readiness prikazuje **SPREMAN**.
+- [ ] Sve kuće imaju koordinatu, zonu i dostupnu rutu.
+- [ ] Nema kritičnih grešaka završne validacije.
+- [ ] Pregledani su kapaciteti svih ODF/ODO elemenata.
+- [ ] Pregledane su maksimalne drop dužine i optički/PON budžet.
+- [ ] Provjereni su filteri zona i tipova trasa.
+- [ ] Pregledana su sva upozorenja i prihvaćena nekritična odstupanja.
+- [ ] Odabrana je tačna varijanta plana i po potrebi izvezen CSV.
+
 ## Prvi ulazak i ugrađeni vodič
 
 Pri prvom ulasku aplikacija prikazuje kratki profesionalni onboarding: kreiranje projekta, postavljanje ODF-a i mrežne osnove, stručni pregled Auto ODO prijedloga te završnu validaciju i izvještaje. Svaka kartica vodi direktno na odgovarajući radni ekran ili poglavlje dokumentacije. Opcija **Ne prikazuj ponovo** pamti izbor samo u trenutnom browseru; vodič je i dalje dostupan kroz stavku **Uputstvo**.

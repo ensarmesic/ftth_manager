@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Tests\TestCase;
 
 class ProjectBackgroundTaskTest extends TestCase
@@ -85,6 +86,23 @@ class ProjectBackgroundTaskTest extends TestCase
         Queue::assertPushed(RunProjectBackgroundTask::class, fn ($job) => $job->taskId === $task->id);
     }
 
+    public function test_queued_and_running_large_plans_can_be_cancelled_safely(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $user = User::factory()->designer()->create();
+        $queued = $project->backgroundTasks()->create(['type' => 'large_plan', 'status' => 'queued']);
+
+        $this->actingAs($user)->postJson(route('projects.background-tasks.cancel', [$project, $queued]))
+            ->assertOk()->assertJsonPath('task.status', 'cancelled');
+        $this->assertNotNull($queued->fresh()->finished_at);
+
+        $running = $project->backgroundTasks()->create(['type' => 'large_plan', 'status' => 'running']);
+        $this->actingAs($user)->postJson(route('projects.background-tasks.cancel', [$project, $running]))
+            ->assertOk()->assertJsonPath('task.status', 'cancelling');
+        (new RunProjectBackgroundTask($running->id))->handle();
+        $this->assertSame('cancelled', $running->fresh()->status);
+    }
+
     public function test_large_plan_job_stores_preview_and_completes_progress(): void
     {
         Storage::fake();
@@ -117,6 +135,11 @@ class ProjectBackgroundTaskTest extends TestCase
         Storage::assertExists($task->result_path);
         $result = json_decode(Storage::get($task->result_path), true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame($project->id, $result['project_id']);
+        $this->assertSame(1, $result['execution']['houses']);
+        $this->assertSame(2, $result['execution']['nodes']);
+        $this->assertCount(8, $result['execution']['phases']);
+        $this->assertArrayHasKey('duration_ms', $result['execution']);
+        $this->assertArrayHasKey('memory_peak_mb', $result['execution']);
         $this->assertDatabaseCount('routes', 0);
 
         $result['odo_placement']['odos'][0]['locked'] = true;
@@ -128,5 +151,24 @@ class ProjectBackgroundTaskTest extends TestCase
 
         $this->assertTrue($replanned['odo_placement']['odos'][0]['locked']);
         $this->assertSame([43.856, 18.416], $replanned['odo_placement']['odos'][0]['point']);
+    }
+
+    public function test_exhausted_queue_job_is_marked_failed_instead_of_remaining_running(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $task = $project->backgroundTasks()->create([
+            'type' => 'large_plan',
+            'status' => 'running',
+            'progress' => 50,
+            'started_at' => now()->subMinutes(11),
+        ]);
+
+        (new RunProjectBackgroundTask($task->id))->failed(new RuntimeException('Vrijeme obrade je isteklo.'));
+
+        $task->refresh();
+        $this->assertSame('failed', $task->status);
+        $this->assertNotNull($task->finished_at);
+        $this->assertSame('Vrijeme obrade je isteklo.', $task->error);
+        $this->assertSame('Proračun je prekinut nakon svih dozvoljenih pokušaja.', $task->status_message);
     }
 }

@@ -6,6 +6,8 @@ use App\Models\House;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\FiberPlanService;
+use App\Services\ProjectMaterialService;
 use App\Services\ProjectSnapshotService;
 use App\Services\ProjectValidationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,13 +30,18 @@ class LargePlannerConfirmationTest extends TestCase
         $user = User::factory()->designer()->create();
 
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))
-            ->assertOk()->assertJsonPath('summary.odos', 1)->assertJsonPath('summary.routes', 2);
+            ->assertOk()->assertJsonPath('summary.odos', 1)->assertJsonPath('summary.routes', 2)
+            ->assertJsonPath('summary.fiber_errors', 0)
+            ->assertJsonPath('summary.materials.route_length_m', 160)
+            ->assertJsonPath('summary.materials.microduct_14_10_m', 140)
+            ->assertJsonPath('summary.materials.microduct_10_8_m', 20);
 
         $this->assertDatabaseCount('cabinets', 1);
         $this->assertDatabaseCount('network_branches', 1);
         $this->assertDatabaseCount('routes', 2);
         $this->assertSame($sourceOdf->id, $project->cabinets()->firstOrFail()->odf_id);
         $this->assertNotNull($house->fresh()->cabinet_id);
+        $this->assertSame($project->cabinets()->sole()->branch_id, $house->fresh()->branch_id);
         $this->assertDatabaseCount('project_snapshots', 1);
 
         $secondPath = "background-tasks/{$project->id}/second-confirm.json";
@@ -47,6 +54,11 @@ class LargePlannerConfirmationTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['project_id' => $project->id, 'method' => 'CONFIRM', 'subject_id' => $task->id]);
         $validation = app(ProjectValidationService::class)->validateProject($project->fresh());
         $this->assertSame([], collect($validation)->where('level', 'error')->pluck('message')->all());
+        $fiberPlan = app(FiberPlanService::class)->build($project->fresh());
+        $this->assertArrayHasKey($project->cabinets()->sole()->id, $fiberPlan['allocations']);
+        $materials = app(ProjectMaterialService::class)->summary($project->fresh()->load(['odfs', 'cabinets', 'houses', 'routes', 'materials']));
+        $this->assertSame(0, $materials['unclassified_routes']);
+        $this->assertSame(160, $materials['route_length_m']);
 
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))
             ->assertOk()->assertJsonPath('summary.routes', 2);
@@ -67,6 +79,46 @@ class LargePlannerConfirmationTest extends TestCase
             ->assertUnprocessable();
 
         $this->assertDatabaseCount('cabinets', 0);
+        $this->assertDatabaseCount('routes', 0);
+        $this->assertDatabaseCount('project_snapshots', 0);
+        $this->assertNull($task->fresh()->confirmed_at);
+    }
+
+    public function test_noncritical_warnings_require_explicit_acknowledgement(): void
+    {
+        [$project, $task] = $this->taskWithPreview();
+        $preview = json_decode(Storage::get($task->result_path), true, flags: JSON_THROW_ON_ERROR);
+        $preview['warnings'] = ['items' => [['severity' => 'warning', 'code' => 'review_distance', 'message' => 'Provjeri udaljenost.']], 'can_confirm' => true];
+        Storage::put($task->result_path, json_encode($preview, JSON_THROW_ON_ERROR));
+        $user = User::factory()->designer()->create();
+
+        $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))
+            ->assertUnprocessable();
+        $this->assertDatabaseCount('cabinets', 0);
+
+        $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]), ['acknowledge_warnings' => true])
+            ->assertOk()->assertJsonPath('summary.warnings_acknowledged', true);
+    }
+
+    public function test_confirmed_optical_budget_failure_rolls_back_everything(): void
+    {
+        [$project, $task] = $this->taskWithPreview();
+        $project->update([
+            'power_budget_confirmed' => true,
+            'additional_passive_loss_db' => 20,
+            'engineering_margin_db' => 20,
+            'olt_tx_power_dbm' => 4,
+            'onu_tx_power_dbm' => 2,
+            'onu_rx_sensitivity_dbm' => -28,
+            'olt_rx_sensitivity_dbm' => -28,
+        ]);
+
+        $this->actingAs(User::factory()->designer()->create())
+            ->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))
+            ->assertUnprocessable();
+
+        $this->assertDatabaseCount('cabinets', 0);
+        $this->assertDatabaseCount('network_branches', 0);
         $this->assertDatabaseCount('routes', 0);
         $this->assertDatabaseCount('project_snapshots', 0);
         $this->assertNull($task->fresh()->confirmed_at);

@@ -50,6 +50,12 @@ Schedule::command('ftth:prune-dxf-cache --days=30')
     ->onSuccess(fn () => $markScheduledSuccess('dxf-cache-prune'))
     ->onFailure(fn () => $logScheduledFailure('dxf-cache-prune'));
 
+Schedule::command('ftth:prune-background-tasks --days=30')
+    ->dailyAt('03:30')->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/scheduler.log'))
+    ->onSuccess(fn () => $markScheduledSuccess('background-task-prune'))
+    ->onFailure(fn () => $logScheduledFailure('background-task-prune'));
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
