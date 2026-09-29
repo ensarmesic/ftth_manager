@@ -367,9 +367,21 @@
             validationResult.textContent = error.message;
         }
     });
+    document.getElementById('large-planner-sync-trenches')?.addEventListener('click', async () => {
+        const button = document.getElementById('large-planner-sync-trenches');
+        button.disabled = true;
+        try {
+            const result = await jsonRequest(appConfig.largePlannerTrenchesBaseUrl.replace('__ID__', projectId), { method: 'POST' });
+            window.ftthToast?.(result.message, 'success');
+            window.location.reload();
+        } catch (error) {
+            button.disabled = false;
+            window.ftthToast?.(error.message, 'error');
+        }
+    });
 
     const planLayers = L.layerGroup().addTo(map);
-    const routeLayersByType = { primary: [], secondary: [], drop: [] };
+    const routeLayersByType = { primary: [], secondary: [] };
     const elementMarkerByKey = new Map();
     const zoneFilter = document.getElementById('large-planner-zone-filter');
     const variantSelect = document.getElementById('large-planner-variant');
@@ -481,14 +493,13 @@
         const odoByKey = new Map((preview.odo_placement?.odos || []).map(odo => [odo.key, odo]));
         const belongsToSelectedZone = item => !selectedZone || String(item?.zone_id ?? 'unassigned') === selectedZone;
         const drawRoutes = (type, routes, color, weight) => (routes || []).forEach(route => {
-            if (type !== 'primary' && !belongsToSelectedZone(odoByKey.get(route.odo_key))) return;
+            if (type !== 'primary' && !belongsToSelectedZone(odoByKey.get(route.terminal_odo_key || route.odo_key))) return;
             const enabled = document.querySelector(`[data-large-route-filter="${type}"]`)?.checked !== false;
             const layer = L.polyline(route.path, { color, weight, opacity: enabled ? 0.85 : 0, interactive: enabled, routeKey: route.key }).bindTooltip(`${route.key} · ${Math.round(route.length_m || 0)} m`).addTo(planLayers);
             routeLayersByType[type].push(layer);
         });
         drawRoutes('primary', preview.odf_placement?.primary_routes, '#dc2626', 5);
         drawRoutes('secondary', preview.routes?.secondary_routes, '#2563eb', 4);
-        drawRoutes('drop', preview.routes?.drop_routes, '#7c3aed', 2);
         (preview.odf_placement?.odfs || []).forEach(item => elementMarker(item, 'odf', '#dc2626'));
         (preview.odo_placement?.odos || []).filter(belongsToSelectedZone).forEach(item => elementMarker(item, 'odo', '#059669'));
 

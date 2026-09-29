@@ -24,6 +24,11 @@ class HouseClusterer
 
         $edges = $this->uniqueEdges($graph);
         $componentByNode = $this->componentMap($graph['components']);
+        $corridorPaths = $project->gisSegments()
+            ->where('is_allowed', true)
+            ->whereNotNull('planning_corridor_type')
+            ->get(['id', 'path'])
+            ->mapWithKeys(fn ($corridor) => [$corridor->id => $corridor->path ?? []]);
         $buffers = [];
         $clusters = [];
         $unroutable = [];
@@ -42,7 +47,7 @@ class HouseClusterer
 
                 continue;
             }
-            $attachment = $this->nearestEdge($house, $edges, $componentByNode);
+            $attachment = $this->nearestEdge($house, $edges, $componentByNode, $corridorPaths->all());
             if ($attachment === null || $attachment['distance_m'] > $maxDrop) {
                 $unroutable[] = $this->unroutable($house, 'outside_max_drop', $attachment['distance_m'] ?? null);
 
@@ -127,7 +132,7 @@ class HouseClusterer
         return $map;
     }
 
-    private function nearestEdge(House $house, array $edges, array $componentByNode): ?array
+    private function nearestEdge(House $house, array $edges, array $componentByNode, array $corridorPaths): ?array
     {
         $best = null;
         $point = [(float) $house->latitude, (float) $house->longitude];
@@ -145,7 +150,35 @@ class HouseClusterer
             }
         }
 
+        if ($best !== null) {
+            $best['corridor_chainage_m'] = $this->pathChainage(
+                $best['access_point'],
+                $corridorPaths[$best['corridor_id']] ?? [],
+            );
+        }
+
         return $best;
+    }
+
+    private function pathChainage(array $point, array $path): float
+    {
+        $chainage = 0.0;
+        $best = ['distance_m' => INF, 'chainage_m' => 0.0];
+        for ($index = 1; $index < count($path); $index++) {
+            $projection = $this->geometry->projectPointToPath($point, [$path[$index - 1], $path[$index]]);
+            if ($projection['distance_m'] < $best['distance_m']) {
+                $best = [
+                    'distance_m' => $projection['distance_m'],
+                    'chainage_m' => $chainage + $this->geometry->distanceBetweenPoints(
+                        $path[$index - 1],
+                        [$projection['lat'], $projection['lng']],
+                    ),
+                ];
+            }
+            $chainage += $this->geometry->distanceBetweenPoints($path[$index - 1], $path[$index]);
+        }
+
+        return $best['chainage_m'];
     }
 
     private function unroutable(House $house, string $reason, ?float $distance = null): array

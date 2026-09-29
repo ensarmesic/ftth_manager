@@ -52,13 +52,19 @@ class NetworkRouteProposalService
                     'message' => "Za {$odo['provisional_name']} nije pronađena ruta do ODF-a kroz dozvoljene koridore.",
                 ];
             } else {
+                $secondaryPath = $bestPath['path'];
+                if (count($secondaryPath) < 2) {
+                    // Predloženi ODF i prvi ODO mogu dijeliti istu tačku na rovu.
+                    // I dalje sačuvaj oba logička kraja servisne veze.
+                    $secondaryPath = [$bestOdf['point'], $odo['point']];
+                }
                 $secondary[] = [
                     'key' => 'secondary-'.$odo['key'],
                     'type' => 'secondary',
                     'odf_id' => $bestOdf['odf_id'],
                     'odf_key' => $bestOdf['odf_key'],
                     'odo_key' => $odo['key'],
-                    'path' => $bestPath['path'],
+                    'path' => $secondaryPath,
                     'length_m' => $bestPath['length_m'],
                 ];
             }
@@ -68,7 +74,27 @@ class NetworkRouteProposalService
                 if (! $house || $house->latitude === null || $house->longitude === null) {
                     continue;
                 }
-                $path = [$odo['point'], [(float) $house->latitude, (float) $house->longitude]];
+                $housePoint = [(float) $house->latitude, (float) $house->longitude];
+                $attachment = $this->attachment($graph, $housePoint);
+                $corridorPath = $attachment === null
+                    ? null
+                    : $this->pathThroughGraph($graph, $odo['point'], $attachment['projection']);
+                if ($corridorPath === null) {
+                    $warnings[] = [
+                        'code' => 'house_without_corridor_route',
+                        'odo_key' => $odo['key'],
+                        'house_id' => $house->id,
+                        'message' => "Za kuću {$house->label} nije pronađena ruta od ODO-a kroz glavni rov.",
+                    ];
+
+                    continue;
+                }
+                $path = $this->geometry->compactPath([...$corridorPath['path'], $housePoint]);
+                if (count($path) < 2) {
+                    // Kuća može biti praktično na tački ODO-a. Zadrži oba
+                    // kraja servisnog spoja i kada su koordinate jednake.
+                    $path = [$odo['point'], $housePoint];
+                }
                 $drops[] = [
                     'key' => 'drop-'.$odo['key'].'-'.$house->id,
                     'type' => 'drop',
@@ -76,13 +102,18 @@ class NetworkRouteProposalService
                     'house_id' => $house->id,
                     'path' => $path,
                     'length_m' => $this->geometry->polylineLength($path),
+                    'corridor_length_m' => $corridorPath['length_m'],
+                    'house_connection_length_m' => $attachment['distance_m'],
                 ];
             }
         }
 
+        [$secondary, $namedOdos] = $this->secondaryBranches($secondary, $placement['odos']);
+
         return [
             'secondary_routes' => $secondary,
             'drop_routes' => $drops,
+            'odos' => $namedOdos,
             'warnings' => $warnings,
             'summary' => [
                 'secondary_routes' => count($secondary),
@@ -92,6 +123,51 @@ class NetworkRouteProposalService
                 'warnings' => count($warnings),
             ],
         ];
+    }
+
+    private function secondaryBranches(array $routes, array $odos): array
+    {
+        $odoByKey = collect($odos)->keyBy('key');
+        $named = $odoByKey;
+        $branches = collect($routes)
+            ->groupBy(function (array $route) use ($odoByKey): string {
+                $odo = $odoByKey->get($route['odo_key']);
+
+                return implode(':', [
+                    $route['odf_id'] ?? 'new-'.$route['odf_key'],
+                    $odo['corridor_id'] ?? 0,
+                ]);
+            })
+            ->sortKeys()
+            ->values()
+            ->map(function ($items, int $branchIndex) use (&$named): array {
+                $ordered = $items->sortBy(fn (array $route) => [$route['length_m'], $route['odo_key']])->values();
+                $terminal = $ordered->last();
+                $branchNumber = $branchIndex + 1;
+                $odoKeys = $ordered->pluck('odo_key')->all();
+                foreach ($odoKeys as $order => $odoKey) {
+                    $odo = $named->get($odoKey);
+                    $odo['provisional_name'] = 'ZO-'.$branchNumber.'.'.($order + 1);
+                    $odo['secondary_branch_key'] = 'secondary-branch-'.str_pad((string) $branchNumber, 4, '0', STR_PAD_LEFT);
+                    $odo['branch_index'] = $branchNumber;
+                    $odo['branch_order'] = $order + 1;
+                    $named->put($odoKey, $odo);
+                }
+
+                return [
+                    'key' => 'secondary-branch-'.str_pad((string) $branchNumber, 4, '0', STR_PAD_LEFT),
+                    'type' => 'secondary',
+                    'branch_index' => $branchNumber,
+                    'odf_id' => $terminal['odf_id'],
+                    'odf_key' => $terminal['odf_key'],
+                    'odo_keys' => $odoKeys,
+                    'terminal_odo_key' => $terminal['odo_key'],
+                    'path' => $terminal['path'],
+                    'length_m' => $terminal['length_m'],
+                ];
+            })->all();
+
+        return [$branches, $named->values()->all()];
     }
 
     private function pathThroughRequiredWaypoints(array $graph, array $from, array $to, array $waypoints): ?array

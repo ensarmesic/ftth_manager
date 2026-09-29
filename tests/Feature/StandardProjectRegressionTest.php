@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Cabinet;
 use App\Models\House;
+use App\Models\NetworkRoute;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -36,6 +37,16 @@ class StandardProjectRegressionTest extends TestCase
 
         $this->assertSame(0, Cabinet::where('project_id', $project->id)->count());
         $this->assertSame(0, House::where('project_id', $project->id)->whereNotNull('cabinet_id')->count());
+
+        NetworkRoute::create([
+            'project_id' => $project->id,
+            'name' => 'Postojeći standardni drop',
+            'route_type' => 'drop',
+            'path' => [[43.8563, 18.4131], [43.8564, 18.4132]],
+        ]);
+        $this->getJson(route('api.projects.map-data', $project))
+            ->assertOk()
+            ->assertJsonPath('routes.0.type', 'drop');
 
         $this->get(route('map.dashboard', ['project' => $project]))
             ->assertOk()

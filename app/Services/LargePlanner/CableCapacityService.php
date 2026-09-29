@@ -8,6 +8,8 @@ class CableCapacityService
 {
     private const CAPACITIES = [4, 12, 24, 48];
 
+    private const PORTS_PER_SPLITTER = 4;
+
     public function calculate(Project $project, array $placement, array $odfPlan, array $routes): array
     {
         $reservePercent = (float) $project->largePlannerSetting()->firstOrFail()->fiber_reserve_percent;
@@ -19,11 +21,15 @@ class CableCapacityService
 
         foreach ($odfPlan['primary_routes'] ?? [] as $route) {
             $odf = $odfByKey->get($route['to_odf_key']);
-            $load = collect($odf['odo_keys'] ?? [])->sum(fn (string $key) => max(1, (int) ($odoByKey->get($key)['occupancy'] ?? 1)));
+            $load = collect($odf['odo_keys'] ?? [])->sum(
+                fn (string $key) => $this->splitterCount((int) ($odoByKey->get($key)['occupancy'] ?? 1))
+            );
             $annotated['primary_routes'][] = $this->annotate($route, max(1, $load), $reservePercent);
         }
         foreach ($routes['secondary_routes'] ?? [] as $route) {
-            $load = max(1, (int) ($odoByKey->get($route['odo_key'])['occupancy'] ?? 1));
+            $load = collect($route['odo_keys'] ?? [$route['odo_key']])->sum(
+                fn (string $key) => $this->splitterCount((int) ($odoByKey->get($key)['occupancy'] ?? 1))
+            );
             $annotated['secondary_routes'][] = $this->annotate($route, $load, $reservePercent);
         }
         foreach ($routes['drop_routes'] ?? [] as $route) {
@@ -96,6 +102,11 @@ class CableCapacityService
             'fiber_count' => $capacity,
             'overloaded' => $capacity === null,
         ];
+    }
+
+    private function splitterCount(int $houses): int
+    {
+        return max(1, (int) ceil($houses / self::PORTS_PER_SPLITTER));
     }
 
     private function segmentKey(array $from, array $to): string

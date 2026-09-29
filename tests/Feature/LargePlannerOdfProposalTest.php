@@ -72,7 +72,8 @@ class LargePlannerOdfProposalTest extends TestCase
 
         $routes = app(NetworkRouteProposalService::class)->propose($project, $graph, $placement, $odfPlan);
 
-        $this->assertCount(2, $routes['secondary_routes']);
+        $this->assertCount(1, $routes['secondary_routes']);
+        $this->assertCount(2, $routes['secondary_routes'][0]['odo_keys']);
         $this->assertSame('odf-0001', $routes['secondary_routes'][0]['odf_key']);
         $this->assertNull($routes['secondary_routes'][0]['odf_id']);
         $this->assertNotContains('missing_source_odf', array_column($routes['warnings'], 'code'));

@@ -62,13 +62,17 @@ class OdfProposalService
 
                 continue;
             }
+            $primaryPath = $best['path'];
+            if (count($primaryPath) < 2) {
+                $primaryPath = [$source['point'], $proposal['point']];
+            }
             $primary[] = [
                 'key' => 'primary-'.$proposal['key'],
                 'type' => 'primary',
                 'from_odf_id' => $source['odf_id'],
                 'from_odf_key' => $source['odf_key'],
                 'to_odf_key' => $proposal['key'],
-                'path' => $best['path'],
+                'path' => $primaryPath,
                 'length_m' => $best['length_m'],
             ];
         }

@@ -115,6 +115,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projekti/{project}/pregled', [ProjectManagementController::class, 'show'])->name('projects.show');
     Route::match(['put', 'patch'], '/projekti/{id}', [ProjectManagementController::class, 'update'])->middleware('can:project.edit')->name('projects.update');
     Route::patch('/projekti/{project}/veliki-planer/postavke', [LargePlannerSettingController::class, 'update'])->middleware('can:project.edit')->name('projects.large-planner.settings.update');
+    Route::post('/projekti/{project}/veliki-planer/koridori/preuzmi-rovove', [LargePlannerCorridorController::class, 'syncTrenches'])->middleware('can:project.edit')->name('projects.large-planner.corridors.sync-trenches');
     Route::patch('/projekti/{project}/veliki-planer/koridori/{segment}', [LargePlannerCorridorController::class, 'update'])->middleware('can:project.edit')->name('projects.large-planner.corridors.update');
     Route::post('/projekti/{project}/veliki-planer/ogranicenja', [LargePlannerConstraintController::class, 'store'])->middleware('can:project.edit')->name('projects.large-planner.constraints.store');
     Route::delete('/projekti/{project}/veliki-planer/ogranicenja/{constraint}', [LargePlannerConstraintController::class, 'destroy'])->middleware('can:project.edit')->name('projects.large-planner.constraints.destroy');

@@ -31,6 +31,7 @@ class CorridorGraphBuilder
 
         $nodes = [];
         $edges = [];
+        $graphSegments = [];
         $segmentNodes = [];
         $blockedEdges = 0;
         foreach ($corridors as $corridor) {
@@ -46,6 +47,11 @@ class CorridorGraphBuilder
                     } else {
                         $weight = $this->geometry->distanceBetweenPoints($nodes[$previousKey], $normalized);
                         $this->connect($edges, $previousKey, $key, $weight, $corridor);
+                        $graphSegments[] = [
+                            'from' => $previousKey,
+                            'to' => $key,
+                            'corridor' => $corridor,
+                        ];
                     }
                 }
                 $previousKey = $key;
@@ -53,6 +59,7 @@ class CorridorGraphBuilder
         }
 
         $nearbyConnections = $this->connectNearbyNodes($nodes, $edges);
+        $edgeConnections = $this->connectNodesToNearbyEdges($nodes, $edges, $graphSegments);
         $components = $this->components($nodes, $edges);
 
         return [
@@ -66,6 +73,7 @@ class CorridorGraphBuilder
                 'edges' => (int) (array_sum(array_map('count', $edges)) / 2),
                 'components' => count($components),
                 'nearby_connections' => $nearbyConnections,
+                'edge_connections' => $edgeConnections,
                 'blocked_edges' => $blockedEdges,
             ],
         ];
@@ -170,6 +178,47 @@ class CorridorGraphBuilder
                 }
             }
             $grid[$cellX.':'.$cellY][] = $key;
+        }
+
+        return $created;
+    }
+
+    /**
+     * Join a corridor vertex that lands on the middle of another corridor edge.
+     * Drawn trench branches commonly end on an existing line without adding a
+     * vertex to that older line, so comparing vertices alone leaves a false gap.
+     */
+    private function connectNodesToNearbyEdges(array $nodes, array &$edges, array $segments): int
+    {
+        $created = 0;
+        foreach ($nodes as $nodeKey => $point) {
+            foreach ($segments as $segment) {
+                if ($nodeKey === $segment['from'] || $nodeKey === $segment['to']) {
+                    continue;
+                }
+
+                $projection = $this->geometry->projectPointToPath($point, [
+                    $nodes[$segment['from']],
+                    $nodes[$segment['to']],
+                ]);
+                if ($projection['distance_m'] > self::NODE_MERGE_TOLERANCE_M) {
+                    continue;
+                }
+
+                foreach ([$segment['from'], $segment['to']] as $edgeKey) {
+                    if (isset($edges[$nodeKey][$edgeKey])) {
+                        continue;
+                    }
+                    $this->connect(
+                        $edges,
+                        $nodeKey,
+                        $edgeKey,
+                        $this->geometry->distanceBetweenPoints($point, $nodes[$edgeKey]),
+                        $segment['corridor'],
+                    );
+                    $created++;
+                }
+            }
         }
 
         return $created;

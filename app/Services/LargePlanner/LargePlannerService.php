@@ -42,11 +42,12 @@ class LargePlannerService
         $clustering = $this->clusterer->cluster($project, $graph);
 
         $this->report($progress, 50, 'Određivanje položaja ODO ormara.');
-        $placement = $this->odoPlacement->propose($project, $clustering);
+        $placement = $this->odoPlacement->propose($project, $clustering, $graph);
         $this->report($progress, 65, 'Proračun ODF-ova i primarnih krakova.');
         $odfPlan = $this->odfProposals->propose($project, $graph, $placement);
         $this->report($progress, 75, 'Proračun sekundarnih i drop trasa.');
         $routes = $this->routeProposals->propose($project, $graph, $placement, $odfPlan);
+        $placement['odos'] = $routes['odos'];
         $this->report($progress, 88, 'Dimenzionisanje kablova i provjera kapaciteta.');
         $capacity = $this->cableCapacities->calculate($project, $placement, $odfPlan, $routes);
         $this->report($progress, 95, 'Objedinjavanje upozorenja i završna provjera.');

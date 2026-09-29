@@ -36,13 +36,13 @@ class FinalValidationService
             foreach ($odo['house_ids'] ?? [] as $houseId) {
                 $assignments[$houseId][] = $odo['key'];
             }
-            if ($secondary->where('odo_key', $odo['key'])->count() !== 1) {
+            if ($secondary->filter(fn (array $route) => in_array($odo['key'], $route['odo_keys'] ?? [$route['odo_key'] ?? null], true))->count() !== 1) {
                 $errors[] = $this->error('invalid_odo_parent', "{$odo['key']} mora imati tačno jednu vezu prema ODF-u.", ['odo_key' => $odo['key']]);
             }
         }
 
         foreach ($secondary as $route) {
-            if (! in_array($route['odo_key'] ?? null, $odoKeys, true)) {
+            if (collect($route['odo_keys'] ?? [$route['odo_key'] ?? null])->contains(fn ($key) => ! in_array($key, $odoKeys, true))) {
                 $errors[] = $this->error('unknown_odo_reference', "Sekundarna trasa {$route['key']} upućuje na nepostojeći ODO.", ['route_key' => $route['key']]);
             }
             $hasExisting = isset($route['odf_id']) && $route['odf_id'] !== null;
@@ -52,7 +52,7 @@ class FinalValidationService
                 || ($hasProposed && ! in_array($route['odf_key'], $proposedOdfKeys, true))) {
                 $errors[] = $this->error('invalid_odf_reference', "Sekundarna trasa {$route['key']} nema valjan ODF ovog projekta.", ['route_key' => $route['key']]);
             }
-            $odoPoint = $odos->firstWhere('key', $route['odo_key'] ?? null)['point'] ?? null;
+            $odoPoint = $odos->firstWhere('key', $route['terminal_odo_key'] ?? $route['odo_key'] ?? null)['point'] ?? null;
             $odfPoint = $hasExisting
                 ? optional($project->odfs()->find($route['odf_id']))->only(['latitude', 'longitude'])
                 : $proposedOdfPoints->get($route['odf_key'] ?? '');

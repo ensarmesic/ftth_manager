@@ -37,6 +37,9 @@ class MapDataService
 
         $routes = NetworkRoute::with(['project', 'odf', 'cabinet', 'fromCabinet'])
             ->when($scope, fn ($query) => $query->where('project_id', $projectId))
+            ->where(fn ($query) => $query
+                ->where('route_type', '!=', 'drop')
+                ->orWhereHas('project', fn ($project) => $project->where('planning_mode', '!=', 'large_auto')))
             ->where(fn ($query) => $query->whereNotNull('path')->orWhere(fn ($linked) => $linked
                 ->whereHas('odf', fn ($odf) => $odf->whereNotNull('latitude')->whereNotNull('longitude'))
                 ->whereHas('cabinet', fn ($cabinet) => $cabinet->whereNotNull('latitude')->whereNotNull('longitude'))))

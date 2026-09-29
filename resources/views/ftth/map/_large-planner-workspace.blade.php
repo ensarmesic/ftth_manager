@@ -25,6 +25,7 @@
             </div>
             <div id="large-planner-readiness" class="grid gap-1 text-[10px] leading-4 text-slate-700">Učitavam checklistu…</div>
             <button id="large-planner-validate-input" type="button" class="sb-btn sb-btn-outline">Provjeri ulazne podatke</button>
+            @can('project.edit')<button id="large-planner-sync-trenches" type="button" class="sb-btn sb-btn-primary">Preuzmi glavne rovove kao koridore</button>@endcan
             <div id="large-planner-validation-result" class="text-[10px] leading-4 text-amber-900">Provjera još nije pokrenuta.</div>
             <div id="large-planner-time-estimate" class="rounded border border-amber-200 bg-white px-2 py-1 text-[10px] text-amber-900">Procjena vremena će biti dostupna nakon provjere.</div>
         </div>
@@ -141,7 +142,7 @@
             <p id="large-planner-task-message" class="text-[10px] leading-4 text-cyan-900">Pokreni proračun kada su ulazi spremni.</p>
             <div id="large-planner-step-review" class="grid gap-2 scroll-mt-4 rounded border border-cyan-200 bg-white/70 p-2">
                 <select id="large-planner-zone-filter" class="sb-sel" aria-label="Filter po zoni"><option value="">Sve zone</option></select>
-                <div class="grid grid-cols-3 gap-1 text-center text-[9px] font-bold"><label class="rounded bg-red-100 px-1 py-1 text-red-800"><input type="checkbox" data-large-route-filter="primary" checked> Primarna</label><label class="rounded bg-blue-100 px-1 py-1 text-blue-800"><input type="checkbox" data-large-route-filter="secondary" checked> Sekundarna</label><label class="rounded bg-violet-100 px-1 py-1 text-violet-800"><input type="checkbox" data-large-route-filter="drop" checked> Drop</label></div>
+                <div class="grid grid-cols-2 gap-1 text-center text-[9px] font-bold"><label class="rounded bg-red-100 px-1 py-1 text-red-800"><input type="checkbox" data-large-route-filter="primary" checked> Primarna</label><label class="rounded bg-blue-100 px-1 py-1 text-blue-800"><input type="checkbox" data-large-route-filter="secondary" checked> Sekundarna</label></div>
                 <div id="large-planner-preview-summary" class="grid grid-cols-2 gap-1 text-[10px]"></div>
                 <div id="large-planner-preview-warnings" class="max-h-36 overflow-y-auto text-[10px]"></div>
                 @can('project.export')<a id="large-planner-export" href="#" class="sb-btn sb-btn-outline hidden text-center">Izvezi plan i upozorenja (CSV)</a>@endcan

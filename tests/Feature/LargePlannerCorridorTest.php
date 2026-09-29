@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\GisSegment;
+use App\Models\NetworkRoute;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -10,6 +11,68 @@ use Tests\TestCase;
 class LargePlannerCorridorTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_saved_trenches_can_be_synced_as_allowed_corridors_without_duplicates(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $route = NetworkRoute::create([
+            'project_id' => $project->id,
+            'name' => 'Glavni rov 5',
+            'route_type' => 'trench',
+            'duct_length_m' => 200,
+            'path' => [[43.85, 18.41], [43.86, 18.42]],
+        ]);
+
+        $this->postJson(route('projects.large-planner.corridors.sync-trenches', $project))
+            ->assertOk()
+            ->assertJsonPath('created', 1)
+            ->assertJsonPath('updated', 0)
+            ->assertJsonPath('total', 1);
+
+        $this->assertDatabaseHas('gis_segments', [
+            'project_id' => $project->id,
+            'name' => 'Glavni rov 5',
+            'source' => 'large-planner-trench',
+            'segment_type' => 'corridor',
+            'is_allowed' => true,
+            'planning_corridor_type' => 'main',
+            'length_m' => 200,
+        ]);
+        $segment = GisSegment::query()->where('source', 'large-planner-trench')->firstOrFail();
+        $this->assertSame($route->id, (int) data_get($segment->properties, 'source_route_id'));
+
+        $route->update(['path' => [[43.87, 18.43], [43.88, 18.44]]]);
+        $this->postJson(route('projects.large-planner.corridors.sync-trenches', $project))
+            ->assertOk()
+            ->assertJsonPath('created', 0)
+            ->assertJsonPath('updated', 1);
+
+        $this->assertSame(1, GisSegment::query()->where('source', 'large-planner-trench')->count());
+        $this->assertSame($route->fresh()->path, $segment->fresh()->path);
+    }
+
+    public function test_trench_sync_is_not_available_for_standard_projects(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'standard']);
+        NetworkRoute::create([
+            'project_id' => $project->id,
+            'name' => 'Postojeći rov',
+            'route_type' => 'trench',
+            'path' => [[43.85, 18.41], [43.86, 18.42]],
+        ]);
+
+        $this->postJson(route('projects.large-planner.corridors.sync-trenches', $project))->assertNotFound();
+        $this->assertDatabaseCount('gis_segments', 0);
+    }
+
+    public function test_trench_sync_requires_a_saved_trench_with_geometry(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+
+        $this->postJson(route('projects.large-planner.corridors.sync-trenches', $project))
+            ->assertUnprocessable()
+            ->assertJsonPath('total', 0);
+    }
 
     public function test_allowed_segments_can_be_classified_for_a_large_project(): void
     {

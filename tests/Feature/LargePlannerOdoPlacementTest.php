@@ -39,7 +39,7 @@ class LargePlannerOdoPlacementTest extends TestCase
         $this->assertDatabaseCount('cabinets', 0);
     }
 
-    public function test_placement_reports_when_one_odo_cannot_cover_spread_out_houses(): void
+    public function test_placement_splits_spread_out_houses_into_nearby_odos(): void
     {
         [$project] = $this->projectWithCorridor(16, 40);
         House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8500, 'longitude' => 18.4100]);
@@ -47,9 +47,9 @@ class LargePlannerOdoPlacementTest extends TestCase
 
         $result = $this->propose($project);
 
-        $this->assertCount(1, $result['odos']);
-        $this->assertFalse($result['odos'][0]['within_drop_limit']);
-        $this->assertSame('odo_drop_limit_exceeded', $result['warnings'][0]['code']);
+        $this->assertCount(2, $result['odos']);
+        $this->assertSame([], $result['warnings']);
+        $this->assertTrue(collect($result['odos'])->every(fn (array $odo) => $odo['within_drop_limit']));
     }
 
     public function test_same_clusters_produce_identical_odo_placement(): void
@@ -65,7 +65,7 @@ class LargePlannerOdoPlacementTest extends TestCase
         $graph = app(CorridorGraphBuilder::class)->build($project);
         $clusters = app(HouseClusterer::class)->cluster($project, $graph);
 
-        return app(OdoPlacementService::class)->propose($project, $clusters);
+        return app(OdoPlacementService::class)->propose($project, $clusters, $graph);
     }
 
     private function projectWithCorridor(int $capacity, int $maxDrop): array

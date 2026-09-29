@@ -43,6 +43,18 @@ class LargePlannerServiceTest extends TestCase
         $this->assertCount(2, $graph['components']);
     }
 
+    public function test_graph_builder_connects_a_branch_ending_on_the_middle_of_another_corridor(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $this->corridor($project, 'main', [[43.8500, 18.4100], [43.8520, 18.4120]]);
+        $this->corridor($project, 'secondary', [[43.8510, 18.4110], [43.8500, 18.4140]]);
+
+        $graph = app(CorridorGraphBuilder::class)->build($project);
+
+        $this->assertSame(1, $graph['summary']['components']);
+        $this->assertSame(2, $graph['summary']['edge_connections']);
+    }
+
     public function test_graph_builder_removes_edges_that_cross_a_restricted_area(): void
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);

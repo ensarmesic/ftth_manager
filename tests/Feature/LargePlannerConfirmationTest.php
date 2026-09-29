@@ -40,8 +40,13 @@ class LargePlannerConfirmationTest extends TestCase
         $this->assertDatabaseCount('network_branches', 1);
         $this->assertDatabaseCount('routes', 2);
         $this->assertSame($sourceOdf->id, $project->cabinets()->firstOrFail()->odf_id);
+        $this->assertSame(2, $project->cabinets()->firstOrFail()->splitter_count);
+        $this->assertSame(4, $project->cabinets()->firstOrFail()->ports_per_splitter);
         $this->assertNotNull($house->fresh()->cabinet_id);
         $this->assertSame($project->cabinets()->sole()->branch_id, $house->fresh()->branch_id);
+        $this->getJson(route('api.projects.map-data', $project))
+            ->assertOk()
+            ->assertJsonMissing(['type' => 'drop']);
         $this->assertDatabaseCount('project_snapshots', 1);
 
         $secondPath = "background-tasks/{$project->id}/second-confirm.json";

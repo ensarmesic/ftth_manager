@@ -88,25 +88,31 @@ class PlanConfirmationService
     {
         $cabinetIds = [];
         $branchIds = [];
-        $routes = collect(data_get($preview, 'routes.secondary_routes', []))->keyBy('odo_key');
+        $routes = collect(data_get($preview, 'routes.secondary_routes', []));
         $sized = collect(data_get($preview, 'cable_capacity.routes.secondary_routes', []))->keyBy('key');
-        foreach (data_get($preview, 'odo_placement.odos', []) as $index => $odo) {
-            $routePreview = $routes->get($odo['key']);
+        $odos = collect(data_get($preview, 'odo_placement.odos', []))->keyBy('key');
+        foreach ($routes as $index => $routePreview) {
             $odfId = $routePreview['odf_id'] ?? ($odfIds[$routePreview['odf_key'] ?? ''] ?? null);
             if (! $odfId) {
-                throw new DomainException("Za {$odo['provisional_name']} nije određen ODF.");
+                throw new DomainException('Za sekundarni krak #'.($index + 1).' nije određen ODF.');
             }
-            [$splitters, $ports] = $this->splitterShape((int) $odo['capacity']);
-            $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odfId, 'name' => $odo['provisional_name'], 'address' => 'Automatski prijedlog velikog planera', 'splitter_count' => $splitters, 'ports_per_splitter' => $ports, 'latitude' => $odo['point'][0], 'longitude' => $odo['point'][1], 'branch_order' => $index + 1, 'import_batch' => $batch]);
             $size = $sized->get($routePreview['key']);
-            $route = $this->route($project, $routePreview, ['odf_id' => $odfId, 'cabinet_id' => $cabinet->id, 'from_type' => 'odf', 'from_id' => $odfId, 'to_type' => 'cabinet', 'to_id' => $cabinet->id, 'name' => 'Sekundarni '.$odo['provisional_name'], 'route_type' => 'distribution', 'fiber_count' => $size['fiber_count'] ?? 4, 'import_batch' => $batch]);
-            $branch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odfId, 'route_id' => $route->id, 'name' => 'Krak '.$odo['provisional_name'], 'code' => $odo['key'], 'type' => 'secondary', 'sort_order' => $index + 1]);
-            $cabinet->update(['branch_id' => $branch->id]);
-            $cabinetIds[$odo['key']] = $cabinet->id;
-            $branchIds[$odo['key']] = $branch->id;
+            $route = $this->route($project, $routePreview, ['odf_id' => $odfId, 'from_type' => 'odf', 'from_id' => $odfId, 'name' => 'Sekundarni krak '.($index + 1), 'route_type' => 'distribution', 'fiber_count' => $size['fiber_count'] ?? 4, 'import_batch' => $batch]);
+            $branch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odfId, 'route_id' => $route->id, 'name' => 'Sekundarni krak '.($index + 1), 'code' => $routePreview['key'], 'type' => 'secondary', 'sort_order' => $index + 1]);
+            $routeOdoKeys = $routePreview['odo_keys'] ?? [$routePreview['odo_key']];
+            foreach ($routeOdoKeys as $order => $odoKey) {
+                $odo = $odos->get($odoKey);
+                [$splitters, $ports] = $this->splitterShape((int) $odo['capacity']);
+                $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odfId, 'branch_id' => $branch->id, 'name' => $odo['provisional_name'], 'address' => 'Automatski prijedlog velikog planera', 'splitter_count' => $splitters, 'ports_per_splitter' => $ports, 'latitude' => $odo['point'][0], 'longitude' => $odo['point'][1], 'branch_order' => $order + 1, 'import_batch' => $batch]);
+                $cabinetIds[$odoKey] = $cabinet->id;
+                $branchIds[$odoKey] = $branch->id;
+                if ($odoKey === ($routePreview['terminal_odo_key'] ?? $routePreview['odo_key'])) {
+                    $route->update(['cabinet_id' => $cabinet->id, 'to_type' => 'cabinet', 'to_id' => $cabinet->id]);
+                }
+            }
         }
 
-        return [$cabinetIds, $branchIds, count($cabinetIds)];
+        return [$cabinetIds, $branchIds, $routes->count()];
     }
 
     private function createPrimaryRoutes(Project $project, array $preview, array $odfIds, string $batch): int
@@ -147,7 +153,7 @@ class PlanConfirmationService
 
     private function splitterShape(int $capacity): array
     {
-        $ports = min(max($capacity, 1), 255);
+        $ports = 4;
 
         return [(int) ceil($capacity / $ports), $ports];
     }

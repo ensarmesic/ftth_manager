@@ -37,6 +37,7 @@ window.ftthMapConfig = {
         mapDraftStore: @json(route('map.draft.store')),
         projectsStore: @json(route('projects.store')),
         largePlannerConstraintsBaseUrl: @json(url('/projekti/__ID__/veliki-planer/ogranicenja')),
+        largePlannerTrenchesBaseUrl: @json(url('/projekti/__ID__/veliki-planer/koridori/preuzmi-rovove')),
         largePlannerInputValidationBaseUrl: @json(url('/projekti/__ID__/veliki-planer/validacija-ulaza')),
         largePlannerReadinessBaseUrl: @json(url('/projekti/__ID__/veliki-planer/spremnost')),
         largePlannerZonesBaseUrl: @json(url('/projekti/__ID__/veliki-planer/zone')),
