@@ -144,6 +144,7 @@
                 <select id="large-planner-zone-filter" class="sb-sel" aria-label="Filter po zoni"><option value="">Sve zone</option></select>
                 <div class="grid grid-cols-2 gap-1 text-center text-[9px] font-bold"><label class="rounded bg-red-100 px-1 py-1 text-red-800"><input type="checkbox" data-large-route-filter="primary" checked> Primarna</label><label class="rounded bg-blue-100 px-1 py-1 text-blue-800"><input type="checkbox" data-large-route-filter="secondary" checked> Sekundarna</label></div>
                 <div id="large-planner-preview-summary" class="grid grid-cols-2 gap-1 text-[10px]"></div>
+                <details class="rounded border border-slate-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-slate-700">Topologija i kapaciteti</summary><div id="large-planner-network-details" class="mt-2 grid max-h-48 gap-1 overflow-y-auto text-[9px]"></div></details>
                 <div id="large-planner-preview-warnings" class="max-h-36 overflow-y-auto text-[10px]"></div>
                 @can('project.export')<a id="large-planner-export" href="#" class="sb-btn sb-btn-outline hidden text-center">Izvezi plan i upozorenja (CSV)</a>@endcan
                 @can('project.edit')<button id="large-planner-reset-preview" type="button" class="sb-btn sb-btn-outline">Poništi ručne korekcije</button>@endcan
@@ -151,6 +152,7 @@
             <div id="large-planner-step-confirmation" class="grid gap-2 scroll-mt-4 rounded border border-emerald-200 bg-emerald-50 p-2">
                 <label class="flex items-start gap-2 text-[10px] leading-4 text-emerald-950"><input id="large-planner-acknowledge-warnings" type="checkbox" class="mt-0.5"><span>Pregledao/la sam sva upozorenja i prihvatam preostala nekritična odstupanja.</span></label>
                 @can('project.edit')<div class="grid grid-cols-2 gap-1.5"><button id="large-planner-final-validate" type="button" class="sb-btn sb-btn-outline">Završna provjera</button><button id="large-planner-confirm" type="button" class="sb-btn sb-btn-primary">Potvrdi plan</button></div>@endcan
+                @can('project.edit')<button id="large-planner-reopen" type="button" class="sb-btn sb-btn-outline hidden">Vrati stanje prije potvrde i radi novi proračun</button>@endcan
                 <div id="large-planner-final-status" class="text-[10px] leading-4 text-slate-600">Odaberi varijantu i pokreni završnu provjeru.</div>
             </div>
             <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Prebaci kuću na drugi ODO</summary><div class="mt-2 grid gap-1.5"><input id="large-planner-house-id" type="number" min="1" class="sb-inp" placeholder="ID kuće"><select id="large-planner-house-odo" class="sb-sel"><option value="">Odaberi ODO</option></select>@can('project.edit')<button id="large-planner-assign-house" type="button" class="sb-btn sb-btn-outline">Provjeri i prebaci</button>@endcan</div></details>

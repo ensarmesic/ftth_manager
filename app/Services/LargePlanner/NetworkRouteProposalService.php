@@ -15,8 +15,12 @@ class NetworkRouteProposalService
     public function propose(Project $project, array $graph, array $placement, ?array $odfPlan = null): array
     {
         $odfs = $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->orderBy('id')->get();
+        $manualOdfs = $odfs->whereNull('import_batch')->values();
+        if ($manualOdfs->isNotEmpty()) {
+            $odfs = $manualOdfs;
+        }
         $sources = ($odfPlan['enabled'] ?? false) && ($odfPlan['odfs'] ?? []) !== []
-            ? collect($odfPlan['odfs'])->map(fn (array $odf) => ['odf_id' => null, 'odf_key' => $odf['key'], 'point' => $odf['point']])->all()
+            ? collect($odfPlan['odfs'])->map(fn (array $odf) => ['odf_id' => null, 'odf_key' => $odf['key'], 'point' => $odf['point'], 'odo_keys' => $odf['odo_keys'] ?? []])->all()
             : $odfs->map(fn ($odf) => ['odf_id' => $odf->id, 'odf_key' => null, 'point' => [(float) $odf->latitude, (float) $odf->longitude]])->all();
         $houses = $project->houses()->get()->keyBy('id');
         $requiredWaypoints = $project->largePlannerConstraints()
@@ -37,7 +41,9 @@ class NetworkRouteProposalService
         foreach ($placement['odos'] as $odo) {
             $bestPath = null;
             $bestOdf = null;
-            foreach ($sources as $candidate) {
+            $assignedSources = collect($sources)->filter(fn (array $source) => in_array($odo['key'], $source['odo_keys'] ?? [], true))->values()->all();
+            $candidateSources = $assignedSources !== [] ? $assignedSources : $sources;
+            foreach ($candidateSources as $candidate) {
                 $path = $this->pathThroughRequiredWaypoints($graph, $candidate['point'], $odo['point'], $requiredWaypoints);
                 if ($path !== null && ($bestPath === null || $path['length_m'] < $bestPath['length_m'])) {
                     $bestPath = $path;
@@ -129,19 +135,24 @@ class NetworkRouteProposalService
     {
         $odoByKey = collect($odos)->keyBy('key');
         $named = $odoByKey;
-        $branches = collect($routes)
-            ->groupBy(function (array $route) use ($odoByKey): string {
-                $odo = $odoByKey->get($route['odo_key']);
+        $chains = [];
+        foreach (collect($routes)->groupBy(fn (array $route) => $route['odf_id'] ?? 'new-'.$route['odf_key'])->sortKeys() as $sourceRoutes) {
+            $remaining = $sourceRoutes->sortByDesc('length_m')->values();
+            while ($remaining->isNotEmpty()) {
+                $terminal = $remaining->shift();
+                $samePath = $remaining->filter(fn (array $route) => $this->pathFollows($route['path'], $terminal['path']));
+                $chain = $samePath->push($terminal)->sortBy(fn (array $route) => [$route['length_m'], $route['odo_key']])->values();
+                $remaining = $remaining->reject(fn (array $route) => $samePath->contains(fn (array $item) => $item['odo_key'] === $route['odo_key']))->values();
+                $chunkCount = (int) ceil($chain->count() / 8);
+                $chunkSize = (int) ceil($chain->count() / max(1, $chunkCount));
+                foreach ($chain->chunk($chunkSize) as $chunk) {
+                    $chains[] = $chunk->values();
+                }
+            }
+        }
 
-                return implode(':', [
-                    $route['odf_id'] ?? 'new-'.$route['odf_key'],
-                    $odo['corridor_id'] ?? 0,
-                ]);
-            })
-            ->sortKeys()
-            ->values()
-            ->map(function ($items, int $branchIndex) use (&$named): array {
-                $ordered = $items->sortBy(fn (array $route) => [$route['length_m'], $route['odo_key']])->values();
+        $branches = collect($chains)
+            ->map(function ($ordered, int $branchIndex) use (&$named): array {
                 $terminal = $ordered->last();
                 $branchNumber = $branchIndex + 1;
                 $odoKeys = $ordered->pluck('odo_key')->all();
@@ -156,11 +167,13 @@ class NetworkRouteProposalService
 
                 return [
                     'key' => 'secondary-branch-'.str_pad((string) $branchNumber, 4, '0', STR_PAD_LEFT),
+                    'name' => 'Sekundarni krak '.$branchNumber,
                     'type' => 'secondary',
                     'branch_index' => $branchNumber,
                     'odf_id' => $terminal['odf_id'],
                     'odf_key' => $terminal['odf_key'],
                     'odo_keys' => $odoKeys,
+                    'odo_sequence' => $odoKeys,
                     'terminal_odo_key' => $terminal['odo_key'],
                     'path' => $terminal['path'],
                     'length_m' => $terminal['length_m'],
@@ -168,6 +181,13 @@ class NetworkRouteProposalService
             })->all();
 
         return [$branches, $named->values()->all()];
+    }
+
+    private function pathFollows(array $candidate, array $terminal): bool
+    {
+        return collect($candidate)->every(
+            fn (array $point) => $this->geometry->distanceToRoute((float) $point[0], (float) $point[1], $terminal) <= self::ATTACHMENT_TOLERANCE_M
+        );
     }
 
     private function pathThroughRequiredWaypoints(array $graph, array $from, array $to, array $waypoints): ?array
@@ -193,10 +213,10 @@ class NetworkRouteProposalService
         return ['path' => $this->geometry->compactPath($path), 'length_m' => $length];
     }
 
-    public function pathThroughGraph(array $graph, array $from, array $to): ?array
+    public function pathThroughGraph(array $graph, array $from, array $to, ?array $allowedCorridorTypes = null): ?array
     {
-        $start = $this->attachment($graph, $from);
-        $end = $this->attachment($graph, $to);
+        $start = $this->attachment($graph, $from, $allowedCorridorTypes);
+        $end = $this->attachment($graph, $to, $allowedCorridorTypes);
         if ($start === null || $end === null
             || $start['distance_m'] > self::ATTACHMENT_TOLERANCE_M
             || $end['distance_m'] > self::ATTACHMENT_TOLERANCE_M
@@ -225,6 +245,9 @@ class NetworkRouteProposalService
                 continue;
             }
             foreach ($graph['edges'][$node] ?? [] as $next => $edge) {
+                if ($allowedCorridorTypes !== null && $edge['corridor_id'] !== null && ! in_array($edge['corridor_type'], $allowedCorridorTypes, true)) {
+                    continue;
+                }
                 $candidate = $distance + $edge['weight_m'];
                 if ($candidate < ($distances[$next] ?? INF)) {
                     $distances[$next] = $candidate;
@@ -256,7 +279,7 @@ class NetworkRouteProposalService
         return ['path' => $path, 'length_m' => $this->geometry->polylineLength($path)];
     }
 
-    private function attachment(array $graph, array $point): ?array
+    private function attachment(array $graph, array $point, ?array $allowedCorridorTypes = null): ?array
     {
         $best = null;
         $componentMap = [];
@@ -268,6 +291,9 @@ class NetworkRouteProposalService
         foreach ($graph['edges'] as $from => $targets) {
             foreach ($targets as $to => $edge) {
                 if (strcmp($from, $to) >= 0 || $edge['corridor_id'] === null) {
+                    continue;
+                }
+                if ($allowedCorridorTypes !== null && ! in_array($edge['corridor_type'], $allowedCorridorTypes, true)) {
                     continue;
                 }
                 $projection = $this->geometry->projectPointToPath($point, [$graph['nodes'][$from], $graph['nodes'][$to]]);

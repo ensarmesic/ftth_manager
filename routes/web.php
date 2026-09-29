@@ -142,6 +142,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/veliki-planer/preview/{task}/ponisti-korekcije', [LargePlannerPreviewController::class, 'reset'])->middleware('can:project.edit')->name('projects.large-planner.preview.reset');
     Route::post('/projekti/{project}/veliki-planer/preview/{task}/zavrsna-validacija', [LargePlannerPreviewController::class, 'validateFinal'])->middleware('can:project.edit')->name('projects.large-planner.preview.validate-final');
     Route::post('/projekti/{project}/veliki-planer/preview/{task}/potvrdi', [LargePlannerPreviewController::class, 'confirm'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.large-planner.preview.confirm');
+    Route::post('/projekti/{project}/veliki-planer/preview/{task}/ponovo-otvori', [LargePlannerPreviewController::class, 'reopen'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.large-planner.preview.reopen');
     Route::get('/projekti/{project}/veliki-planer/preview/{task}/izvoz', [LargePlannerPreviewController::class, 'export'])->middleware('can:project.export')->name('projects.large-planner.preview.export');
     Route::get('/projekti/{project}/veliki-planer/preview-poredjenje', [LargePlannerPreviewController::class, 'compare'])->middleware('can:project.view')->name('projects.large-planner.preview.compare');
     Route::post('/projekti/{project}/odo-plan/preview', [ProjectPlanningController::class, 'previewOdo'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.odo-plan.preview');

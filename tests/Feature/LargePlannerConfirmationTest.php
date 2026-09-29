@@ -8,7 +8,6 @@ use App\Models\Project;
 use App\Models\User;
 use App\Services\FiberPlanService;
 use App\Services\ProjectMaterialService;
-use App\Services\ProjectSnapshotService;
 use App\Services\ProjectValidationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -134,9 +133,10 @@ class LargePlannerConfirmationTest extends TestCase
         [$project, $task] = $this->taskWithPreview();
         $user = User::factory()->designer()->create();
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))->assertOk();
-        $snapshot = $task->fresh()->snapshot_id;
-
-        app(ProjectSnapshotService::class)->restore($project, $project->snapshots()->findOrFail($snapshot));
+        $this->actingAs($user)
+            ->postJson(route('projects.large-planner.preview.reopen', [$project, $task]))
+            ->assertOk()
+            ->assertJsonPath('task.confirmed_at', null);
 
         $this->assertDatabaseCount('cabinets', 0);
         $this->assertDatabaseCount('routes', 0);

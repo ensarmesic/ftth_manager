@@ -77,7 +77,8 @@ class PlanConfirmationService
     {
         $ids = [];
         foreach (data_get($preview, 'odf_placement.odfs', []) as $proposal) {
-            $odf = Odf::create(['project_id' => $project->id, 'name' => $proposal['provisional_name'], 'address' => 'Automatski prijedlog velikog planera', 'fiber_capacity' => max(1, (int) $proposal['capacity']), 'port_count' => max(1, (int) $proposal['capacity']), 'latitude' => $proposal['point'][0], 'longitude' => $proposal['point'][1], 'notes' => "Potvrđeno iz preview zadatka {$batch}.", 'import_batch' => $batch]);
+            $fiberCapacity = max(1, (int) ($proposal['fiber_capacity'] ?? 144));
+            $odf = Odf::create(['project_id' => $project->id, 'name' => $proposal['provisional_name'], 'address' => 'Automatski prijedlog velikog planera', 'fiber_capacity' => $fiberCapacity, 'port_count' => $fiberCapacity, 'latitude' => $proposal['point'][0], 'longitude' => $proposal['point'][1], 'notes' => "Potvrđeno iz preview zadatka {$batch}.", 'import_batch' => $batch]);
             $ids[$proposal['key']] = $odf->id;
         }
 
@@ -118,11 +119,14 @@ class PlanConfirmationService
     private function createPrimaryRoutes(Project $project, array $preview, array $odfIds, string $batch): int
     {
         $sized = collect(data_get($preview, 'cable_capacity.routes.primary_routes', []))->keyBy('key');
-        foreach (data_get($preview, 'odf_placement.primary_routes', []) as $routePreview) {
+        foreach (data_get($preview, 'odf_placement.primary_routes', []) as $index => $routePreview) {
             $sourceId = $routePreview['from_odf_id'] ?? ($odfIds[$routePreview['from_odf_key'] ?? ''] ?? null);
-            $targetId = $odfIds[$routePreview['to_odf_key']] ?? null;
+            $targetId = $routePreview['to_odf_id'] ?? ($odfIds[$routePreview['to_odf_key'] ?? ''] ?? null);
+            if (! $sourceId || ! $targetId) {
+                throw new DomainException('Primarni krak nema oba pripadajuća ODF-a.');
+            }
             $size = $sized->get($routePreview['key']);
-            $this->route($project, $routePreview, ['odf_id' => $sourceId, 'from_type' => 'odf', 'from_id' => $sourceId, 'name' => 'Primarni '.$routePreview['to_odf_key'], 'route_type' => 'backbone', 'fiber_count' => $size['fiber_count'] ?? 4, 'note' => $targetId ? "Ciljni ODF #{$targetId}" : null, 'import_batch' => $batch]);
+            $this->route($project, $routePreview, ['odf_id' => $sourceId, 'from_type' => 'odf', 'from_id' => $sourceId, 'to_type' => 'odf', 'to_id' => $targetId, 'name' => 'Primarni krak '.($index + 1), 'route_type' => 'backbone', 'fiber_count' => $size['fiber_count'] ?? 4, 'note' => "Veza ODF #{$sourceId} – ODF #{$targetId}", 'import_batch' => $batch]);
         }
 
         return count(data_get($preview, 'odf_placement.primary_routes', []));

@@ -7,6 +7,7 @@ use App\Models\ProjectBackgroundTask;
 use App\Services\LargePlanner\FinalValidationService;
 use App\Services\LargePlanner\PlanConfirmationService;
 use App\Services\LargePlanner\PreviewEditorService;
+use App\Services\ProjectSnapshotService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -111,6 +112,19 @@ class LargePlannerPreviewController extends Controller
         }
 
         return response()->json(['summary' => $summary, 'task' => $task->fresh(), 'message' => 'Plan je potvrđen i upisan u postojeću mrežu.']);
+    }
+
+    public function reopen(Project $project, ProjectBackgroundTask $task, ProjectSnapshotService $snapshots): JsonResponse
+    {
+        $this->read($project, $task);
+        abort_unless($task->confirmed_at !== null && $task->snapshot_id !== null, 409, 'Odabrana varijanta nije potvrđena.');
+        $snapshot = $project->snapshots()->findOrFail($task->snapshot_id);
+        $snapshots->restore($project, $snapshot);
+
+        return response()->json([
+            'task' => $task->fresh(),
+            'message' => 'Projekat je vraćen na stanje prije potvrde. Možeš pokrenuti novi proračun.',
+        ]);
     }
 
     public function export(Project $project, ProjectBackgroundTask $task): StreamedResponse

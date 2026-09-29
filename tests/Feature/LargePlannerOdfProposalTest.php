@@ -39,13 +39,19 @@ class LargePlannerOdfProposalTest extends TestCase
             $this->assertLessThanOrEqual(2, $odf['occupancy']);
             $this->assertSame($corridor->id, $odf['corridor_id']);
             $this->assertLessThan(0.2, app(GeometryService::class)->distanceToRoute($odf['point'][0], $odf['point'][1], $corridor->path));
+            foreach ($this->placement($corridor->id, 5)['odos'] as $odo) {
+                $this->assertGreaterThanOrEqual(5, app(GeometryService::class)->distanceBetweenPoints($odf['point'], $odo['point']));
+            }
         }
         $this->assertCount(2, $result['primary_routes']);
-        $this->assertSame('odf-0001', $result['primary_routes'][0]['from_odf_key']);
+        $this->assertEqualsCanonicalizing(
+            ['odf-0001', 'odf-0002', 'odf-0003'],
+            collect($result['primary_routes'])->flatMap(fn (array $route) => [$route['from_odf_key'], $route['to_odf_key']])->unique()->values()->all(),
+        );
         $this->assertDatabaseCount('odfs', 0);
     }
 
-    public function test_existing_odf_is_used_as_source_for_each_primary_route(): void
+    public function test_manual_existing_odf_prevents_an_unwanted_automatic_odf_proposal(): void
     {
         [$project, $graph, $corridor] = $this->projectWithCorridor(true, 2);
         $existing = Odf::factory()->create([
@@ -56,12 +62,35 @@ class LargePlannerOdfProposalTest extends TestCase
 
         $result = app(OdfProposalService::class)->propose($project, $graph, $this->placement($corridor->id, 3));
 
-        $this->assertCount(2, $result['odfs']);
+        $this->assertFalse($result['enabled']);
+        $this->assertSame([], $result['odfs']);
+        $this->assertSame([], $result['primary_routes']);
+        $this->assertSame(1, $result['summary']['existing_source_odfs']);
+        $this->assertNotNull($existing->id);
+    }
+
+    public function test_multiple_manual_odfs_are_connected_as_one_minimum_primary_network(): void
+    {
+        [$project, $graph, $corridor] = $this->projectWithCorridor(true, 8);
+        $odfs = collect([
+            [43.8502, 18.4102],
+            [43.8525, 18.4125],
+            [43.8548, 18.4148],
+        ])->map(fn (array $point, int $index) => Odf::factory()->create([
+            'project_id' => $project->id,
+            'name' => 'ODF-'.($index + 1),
+            'latitude' => $point[0],
+            'longitude' => $point[1],
+            'import_batch' => null,
+        ]));
+
+        $result = app(OdfProposalService::class)->propose($project, $graph, $this->placement($corridor->id, 3));
+
+        $this->assertFalse($result['enabled']);
         $this->assertCount(2, $result['primary_routes']);
-        foreach ($result['primary_routes'] as $route) {
-            $this->assertSame($existing->id, $route['from_odf_id']);
-            $this->assertNull($route['from_odf_key']);
-        }
+        $this->assertEqualsCanonicalizing($odfs->pluck('id')->all(), collect($result['primary_routes'])
+            ->flatMap(fn (array $route) => [$route['from_odf_id'], $route['to_odf_id']])->unique()->values()->all());
+        $this->assertSame([], $result['warnings']);
     }
 
     public function test_secondary_routes_use_proposed_odfs_when_option_is_enabled(): void
@@ -72,10 +101,10 @@ class LargePlannerOdfProposalTest extends TestCase
 
         $routes = app(NetworkRouteProposalService::class)->propose($project, $graph, $placement, $odfPlan);
 
-        $this->assertCount(1, $routes['secondary_routes']);
-        $this->assertCount(2, $routes['secondary_routes'][0]['odo_keys']);
-        $this->assertSame('odf-0001', $routes['secondary_routes'][0]['odf_key']);
-        $this->assertNull($routes['secondary_routes'][0]['odf_id']);
+        $this->assertCount(2, $routes['secondary_routes']);
+        $this->assertEqualsCanonicalizing(['odo-0001', 'odo-0002'], collect($routes['secondary_routes'])->pluck('odo_keys')->flatten()->all());
+        $this->assertTrue(collect($routes['secondary_routes'])->every(fn (array $route) => $route['odf_key'] === 'odf-0001'));
+        $this->assertTrue(collect($routes['secondary_routes'])->every(fn (array $route) => $route['odf_id'] === null));
         $this->assertNotContains('missing_source_odf', array_column($routes['warnings'], 'code'));
     }
 
@@ -96,7 +125,7 @@ class LargePlannerOdfProposalTest extends TestCase
             'source' => 'test',
             'segment_type' => 'corridor',
             'is_allowed' => true,
-            'planning_corridor_type' => 'secondary',
+            'planning_corridor_type' => 'main',
             'length_m' => 1000,
             'path' => [[43.8500, 18.4100], [43.8550, 18.4150]],
         ]);

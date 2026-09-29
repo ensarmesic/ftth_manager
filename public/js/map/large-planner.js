@@ -413,9 +413,11 @@
         taskMessage.textContent = task.error || task.status_message || 'Čekanje na obradu.';
         taskBadge.className = `rounded px-2 py-0.5 text-[9px] font-black ${task.status === 'completed' ? 'bg-emerald-200 text-emerald-800' : task.status === 'failed' ? 'bg-red-200 text-red-800' : task.status === 'cancelled' ? 'bg-slate-200 text-slate-700' : 'bg-cyan-200 text-cyan-900'}`;
         if (cancelTaskButton) cancelTaskButton.disabled = !['queued', 'running'].includes(task.status);
-        if (runButton && ['queued', 'running', 'cancelling'].includes(task.status)) runButton.disabled = true;
+        if (runButton) runButton.disabled = ['queued', 'running', 'cancelling'].includes(task.status);
         const confirmButton = document.getElementById('large-planner-confirm');
         if (confirmButton) { confirmButton.disabled = Boolean(task.confirmed_at); confirmButton.textContent = task.confirmed_at ? 'Plan je potvrđen' : 'Potvrdi plan'; }
+        const reopenButton = document.getElementById('large-planner-reopen');
+        reopenButton?.classList.toggle('hidden', !task.confirmed_at);
     }
 
     async function savePreviewChange(path, payload) {
@@ -492,12 +494,33 @@
         const selectedZone = zoneFilter?.value || '';
         const odoByKey = new Map((preview.odo_placement?.odos || []).map(odo => [odo.key, odo]));
         const belongsToSelectedZone = item => !selectedZone || String(item?.zone_id ?? 'unassigned') === selectedZone;
-        const drawRoutes = (type, routes, color, weight) => (routes || []).forEach(route => {
-            if (type !== 'primary' && !belongsToSelectedZone(odoByKey.get(route.terminal_odo_key || route.odo_key))) return;
-            const enabled = document.querySelector(`[data-large-route-filter="${type}"]`)?.checked !== false;
-            const layer = L.polyline(route.path, { color, weight, opacity: enabled ? 0.85 : 0, interactive: enabled, routeKey: route.key }).bindTooltip(`${route.key} · ${Math.round(route.length_m || 0)} m`).addTo(planLayers);
-            routeLayersByType[type].push(layer);
-        });
+        const secondaryColors = ['#2563eb', '#7c3aed', '#0891b2', '#ea580c', '#db2777', '#16a34a', '#4f46e5', '#b45309'];
+        const drawRoutes = (type, routes, color, weight) => {
+            const visibleRoutes = (routes || []).filter(route =>
+                type === 'primary' || belongsToSelectedZone(odoByKey.get(route.terminal_odo_key || route.odo_key))
+            );
+            visibleRoutes.forEach((route, routeIndex) => {
+                const enabled = document.querySelector(`[data-large-route-filter="${type}"]`)?.checked !== false;
+                const routeColor = type === 'secondary' ? secondaryColors[routeIndex % secondaryColors.length] : color;
+                const sourcePoints = (route.path || []).map(point => L.latLng(Number(point[0]), Number(point[1])));
+                // Every secondary cable starts at the ODF. Narrow display lanes keep
+                // cables sharing one trench from completely covering one another.
+                // Endpoint taper preserves the exact ODF and terminal ODO positions.
+                const lane = routeIndex === 0 ? 0 : Math.ceil(routeIndex / 2) * (routeIndex % 2 ? 1 : -1);
+                const displayPoints = type === 'secondary' && typeof offsetRouteDisplayPoints === 'function'
+                    ? offsetRouteDisplayPoints(sourcePoints, lane * 1.35)
+                    : sourcePoints;
+                const routeName = route.name || (type === 'secondary' ? `Sekundarni krak ${routeIndex + 1}` : route.key);
+                const layer = L.polyline(displayPoints, {
+                    color: routeColor,
+                    weight,
+                    opacity: enabled ? 0.9 : 0,
+                    interactive: enabled,
+                    routeKey: route.key,
+                }).bindTooltip(`${routeName} · ${Math.round(route.length_m || 0)} m · polazi iz ODF-a`).addTo(planLayers);
+                routeLayersByType[type].push(layer);
+            });
+        };
         drawRoutes('primary', preview.odf_placement?.primary_routes, '#dc2626', 5);
         drawRoutes('secondary', preview.routes?.secondary_routes, '#2563eb', 4);
         (preview.odf_placement?.odfs || []).forEach(item => elementMarker(item, 'odf', '#dc2626'));
@@ -527,6 +550,33 @@
             ['Drop', `${Math.round(dropLength)} m`], ['Ukupno kabla', `${Math.round(primaryLength + secondaryLength + dropLength)} m`],
         ];
         metrics.forEach(([label, value]) => { const item = document.createElement('span'); item.className = 'rounded bg-white px-2 py-1'; item.textContent = `${label}: ${value}`; summary.append(item); });
+        const networkDetails = document.getElementById('large-planner-network-details');
+        networkDetails?.replaceChildren();
+        const addNetworkDetail = (title, text, tone = 'slate') => {
+            if (!networkDetails) return;
+            const item = document.createElement('div');
+            item.className = `rounded border px-2 py-1 ${tone === 'red' ? 'bg-red-50 border-red-200 text-red-900' : tone === 'blue' ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-slate-50 border-slate-200 text-slate-900'}`;
+            const strong = document.createElement('strong');
+            strong.textContent = title;
+            item.append(strong, document.createTextNode(` · ${text}`));
+            networkDetails.append(item);
+        };
+        (preview.odf_placement?.odfs || []).forEach(odf => addNetworkDetail(
+            odf.provisional_name,
+            `${odf.occupancy || 0}/${odf.max_odos || odf.occupancy || 0} ODO · ${odf.fiber_capacity || odf.capacity || 144}F · optimizovano ${Math.round(odf.secondary_cost_m || 0)} m`,
+            'red',
+        ));
+        (preview.odf_placement?.primary_routes || []).forEach((route, index) => addNetworkDetail(
+            `Primarni krak ${index + 1}`,
+            `${route.from_odf_key || `ODF #${route.from_odf_id}`} ↔ ${route.to_odf_key || `ODF #${route.to_odf_id}`} · ${Math.round(route.length_m || 0)} m`,
+            'red',
+        ));
+        const secondarySizes = new Map((preview.cable_capacity?.routes?.secondary_routes || []).map(route => [route.key, route]));
+        (preview.routes?.secondary_routes || []).forEach((route, index) => {
+            const sizing = secondarySizes.get(route.key) || {};
+            addNetworkDetail(route.name || `Sekundarni krak ${index + 1}`, `${(route.odo_keys || []).length} ODO · ${Math.round(route.length_m || 0)} m · ${sizing.fiber_count || '?'}F (${sizing.required_fibers || '?'} potrebno)`, 'blue');
+        });
+        if (networkDetails && !networkDetails.children.length) networkDetails.textContent = 'Nema mrežnih elemenata za prikaz.';
         const warnings = document.getElementById('large-planner-preview-warnings');
         warnings.replaceChildren();
         (preview.warnings?.items || []).forEach(problem => {
@@ -675,6 +725,16 @@
             output.textContent = `Upisano: ${result.summary.odfs} ODF, ${result.summary.odos} ODO, ${result.summary.routes} trasa i ${result.summary.houses} kuća. Materijal: ${Math.round(result.summary.materials?.route_length_m || 0)} m trase, ${Math.round(result.summary.materials?.microduct_14_10_m || 0)} m cijevi 14/10 i ${Math.round(result.summary.materials?.microduct_10_8_m || 0)} m cijevi 10/8.`;
             window.ftthToast?.(result.message, 'success');
         } catch (error) { output.className = 'text-[10px] leading-4 text-red-700'; output.textContent = error.message; }
+    });
+    document.getElementById('large-planner-reopen')?.addEventListener('click', async () => {
+        if (!activeTaskId || !activeTask?.confirmed_at) return;
+        const accepted = await window.ftthConfirm?.('Vratiti projekat na stanje prije potvrde ovog plana? Trenutno potvrđeni automatski elementi bit će uklonjeni, a sigurnosna kopija sadašnjeg stanja bit će sačuvana.', { title: 'Novi proračun', confirmLabel: 'Vrati i nastavi' });
+        if (!accepted) return;
+        try {
+            const result = await jsonRequest(`${previewBase}/${activeTaskId}/ponovo-otvori`, { method: 'POST' });
+            window.ftthToast?.(result.message, 'success');
+            window.location.reload();
+        } catch (error) { window.ftthToast?.(error.message, 'error'); }
     });
 
     (data.large_planner_constraints || []).forEach(renderConstraint);

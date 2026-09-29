@@ -429,18 +429,29 @@ function applyRouteLabelLanes(routes) {
 // Keep neighbouring ducts distinguishable without making the display offset look
 // like a separate surveyed route. At normal working zoom this leaves only a thin
 // sliver between strokes, and the physical display offset never becomes metres wide.
-const ROUTE_VISUAL_MAX_SPREAD_METERS = 0.8;
+const LARGE_PLANNER_ROUTE_DISPLAY = window.ftthMapConfig.planningMode === 'large_auto';
+const ROUTE_VISUAL_MAX_SPREAD_METERS = LARGE_PLANNER_ROUTE_DISPLAY ? 12 : 0.8;
 const ROUTE_VISUAL_GAP_PIXELS = 5.5;
 const ROUTE_VISUAL_ENDPOINT_TAPER_METERS = 8;
 const ROUTE_VISUAL_SHARED_TOLERANCE_METERS = 0.35;
 function routeVisualGapMeters() {
     const latitude = map.getCenter()?.lat ?? 44.45;
     const metersPerPixel = 40075016.686 * Math.cos(latitude * Math.PI / 180) / (256 * (2 ** map.getZoom()));
+    if (LARGE_PLANNER_ROUTE_DISPLAY) {
+        // A confirmed large plan can carry many separate secondary cables through
+        // the same trench. Give every cable a visible lane from the common ODF;
+        // this changes display geometry only, never the saved surveyed path.
+        return Math.max(0.8, Math.min(3, metersPerPixel * ROUTE_VISUAL_GAP_PIXELS));
+    }
     return Math.max(0.18, Math.min(0.55, metersPerPixel * ROUTE_VISUAL_GAP_PIXELS));
 }
 function routePathsOverlapForDisplay(first, second) {
     if (!first.path?.length || !second.path?.length) return false;
-    if (first.cabinet_id && second.cabinet_id && Number(first.cabinet_id) !== Number(second.cabinet_id)) return false;
+    const largePlannerSiblings = LARGE_PLANNER_ROUTE_DISPLAY
+        && first.type === 'distribution'
+        && second.type === 'distribution'
+        && Number(first.odf_id) === Number(second.odf_id);
+    if (!largePlannerSiblings && first.cabinet_id && second.cabinet_id && Number(first.cabinet_id) !== Number(second.cabinet_id)) return false;
     const a = first.path.length <= second.path.length ? first.path : second.path;
     const b = first.path.length <= second.path.length ? second.path : first.path;
     let near = 0;
@@ -546,7 +557,8 @@ function applyRouteVisualLanes(routes) {
         const eligibleCompanions = candidates.filter(other =>
             Number(other.id) !== Number(route.id)
             && (route.type !== 'drop' || other.type !== 'drop')
-            && (!route.cabinet_id || !other.cabinet_id || Number(route.cabinet_id) === Number(other.cabinet_id))
+            && (LARGE_PLANNER_ROUTE_DISPLAY && route.type === 'distribution' && other.type === 'distribution' && Number(route.odf_id) === Number(other.odf_id)
+                || !route.cabinet_id || !other.cabinet_id || Number(route.cabinet_id) === Number(other.cabinet_id))
             && routeDisplayBoundsOverlap(route, other, ROUTE_VISUAL_SHARED_TOLERANCE_METERS)
         );
         route._visualSharedMask = route.path.map(point => {

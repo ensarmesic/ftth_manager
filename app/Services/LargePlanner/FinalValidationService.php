@@ -7,6 +7,8 @@ use App\Services\GeometryService;
 
 class FinalValidationService
 {
+    private const MIN_ODF_ODO_DISTANCE_M = 5.0;
+
     public function __construct(private readonly GeometryService $geometry) {}
 
     public function validate(Project $project, array $preview): array
@@ -21,12 +23,28 @@ class FinalValidationService
         $proposedOdfs = collect(data_get($preview, 'odf_placement.odfs', []));
         $proposedOdfPoints = $proposedOdfs->mapWithKeys(fn (array $odf) => [$odf['key'] => $odf['point'] ?? null]);
         $proposedOdfKeys = $proposedOdfs->pluck('key')->all();
-        $projectOdfIds = $project->odfs()->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $projectOdfs = $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->get();
+        $manualProjectOdfs = $projectOdfs->whereNull('import_batch')->values();
+        if ($manualProjectOdfs->isNotEmpty()) {
+            $projectOdfs = $manualProjectOdfs;
+        }
+        $projectOdfIds = $projectOdfs->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $allOdfPoints = $proposedOdfs->filter(fn (array $odf) => is_array($odf['point'] ?? null))
+            ->map(fn (array $odf) => ['key' => $odf['key'], 'point' => $odf['point']])
+            ->concat($projectOdfs->map(fn ($odf) => [
+                'key' => 'odf-id-'.$odf->id,
+                'point' => [(float) $odf->latitude, (float) $odf->longitude],
+            ]));
         $primary = collect(data_get($preview, 'odf_placement.primary_routes', []));
         $secondary = collect(data_get($preview, 'routes.secondary_routes', []));
         $drops = collect(data_get($preview, 'routes.drop_routes', []));
         $assignments = [];
         foreach ($odos as $odo) {
+            foreach (is_array($odo['point'] ?? null) ? $allOdfPoints : [] as $odf) {
+                if ($this->geometry->distanceBetweenPoints($odo['point'], $odf['point']) < self::MIN_ODF_ODO_DISTANCE_M) {
+                    $errors[] = $this->error('odf_odo_overlap', "{$odo['key']} ne smije biti postavljen na ODF.", ['odo_key' => $odo['key'], 'odf_key' => $odf['key']]);
+                }
+            }
             if ((int) ($odo['occupancy'] ?? 0) !== count($odo['house_ids'] ?? [])) {
                 $errors[] = $this->error('odo_occupancy_mismatch', "Zauzeće za {$odo['key']} ne odgovara broju kuća.", ['odo_key' => $odo['key']]);
             }
@@ -42,7 +60,11 @@ class FinalValidationService
         }
 
         foreach ($secondary as $route) {
-            if (collect($route['odo_keys'] ?? [$route['odo_key'] ?? null])->contains(fn ($key) => ! in_array($key, $odoKeys, true))) {
+            $routeOdoKeys = array_values($route['odo_keys'] ?? [$route['odo_key'] ?? null]);
+            if (count($routeOdoKeys) > 8) {
+                $errors[] = $this->error('secondary_branch_too_large', "Sekundarna trasa {$route['key']} ima više od 8 ODO ormarića.", ['route_key' => $route['key']]);
+            }
+            if (collect($routeOdoKeys)->contains(fn ($key) => ! in_array($key, $odoKeys, true))) {
                 $errors[] = $this->error('unknown_odo_reference', "Sekundarna trasa {$route['key']} upućuje na nepostojeći ODO.", ['route_key' => $route['key']]);
             }
             $hasExisting = isset($route['odf_id']) && $route['odf_id'] !== null;
@@ -51,6 +73,12 @@ class FinalValidationService
                 || ($hasExisting && ! in_array((int) $route['odf_id'], $projectOdfIds, true))
                 || ($hasProposed && ! in_array($route['odf_key'], $proposedOdfKeys, true))) {
                 $errors[] = $this->error('invalid_odf_reference', "Sekundarna trasa {$route['key']} nema valjan ODF ovog projekta.", ['route_key' => $route['key']]);
+            }
+            if ($hasProposed) {
+                $plannedOdf = $proposedOdfs->firstWhere('key', $route['odf_key']);
+                if (array_key_exists('odo_keys', $plannedOdf ?? []) && array_diff($routeOdoKeys, $plannedOdf['odo_keys']) !== []) {
+                    $errors[] = $this->error('odo_assigned_to_wrong_odf', "Sekundarna trasa {$route['key']} sadrži ODO koji nije dodijeljen tom ODF-u.", ['route_key' => $route['key']]);
+                }
             }
             $odoPoint = $odos->firstWhere('key', $route['terminal_odo_key'] ?? $route['odo_key'] ?? null)['point'] ?? null;
             $odfPoint = $hasExisting
@@ -61,6 +89,20 @@ class FinalValidationService
             }
             if (! $this->connects($route['path'] ?? [], $odfPoint, $odoPoint)) {
                 $errors[] = $this->error('route_endpoint_mismatch', "Sekundarna trasa {$route['key']} ne dodiruje svoj ODF i ODO.", ['route_key' => $route['key']]);
+            }
+            $previousChainage = -INF;
+            foreach ($routeOdoKeys as $odoKey) {
+                $point = $odos->firstWhere('key', $odoKey)['point'] ?? null;
+                $position = is_array($point) ? $this->positionOnPath($point, $route['path'] ?? []) : null;
+                if ($position === null || $position['distance_m'] > 3) {
+                    $errors[] = $this->error('secondary_route_misses_odo', "Sekundarna trasa {$route['key']} ne prolazi kroz {$odoKey}.", ['route_key' => $route['key'], 'odo_key' => $odoKey]);
+
+                    continue;
+                }
+                if ($previousChainage > $position['chainage_m'] + 0.5) {
+                    $errors[] = $this->error('secondary_odo_order_invalid', "Redoslijed ODO ormarića na trasi {$route['key']} nije pravilan.", ['route_key' => $route['key'], 'odo_key' => $odoKey]);
+                }
+                $previousChainage = max($previousChainage, $position['chainage_m']);
             }
         }
 
@@ -91,22 +133,44 @@ class FinalValidationService
             $errors[] = $this->error('foreign_house', "Kuća #{$houseId} ne pripada projektu.", ['house_id' => $houseId]);
         }
 
-        foreach ($primary as $route) {
-            $sourceKey = $route['from_odf_key'] ?? null;
-            $sourceId = $route['from_odf_id'] ?? null;
-            if (! in_array($route['to_odf_key'] ?? null, $proposedOdfKeys, true)
-                || ($sourceKey === null && ! in_array((int) $sourceId, $projectOdfIds, true))
-                || ($sourceKey !== null && ! in_array($sourceKey, $proposedOdfKeys, true))) {
-                $errors[] = $this->error('invalid_primary_reference', "Primarna trasa {$route['key']} ima nevaljan ODF kraj.", ['route_key' => $route['key']]);
+        $resolveOdf = function (array $route, string $side) use ($proposedOdfKeys, $proposedOdfPoints, $projectOdfIds, $projectOdfs): ?array {
+            $key = $route[$side.'_odf_key'] ?? null;
+            $id = $route[$side.'_odf_id'] ?? null;
+            if (($key === null) === ($id === null)) {
+                return null;
             }
-            $sourcePoint = $sourceKey !== null
-                ? $proposedOdfPoints->get($sourceKey)
-                : (($source = $project->odfs()->find($sourceId)) ? [(float) $source->latitude, (float) $source->longitude] : null);
-            if (! $this->connects($route['path'] ?? [], $sourcePoint, $proposedOdfPoints->get($route['to_odf_key'] ?? ''))) {
+            if ($key !== null) {
+                return in_array($key, $proposedOdfKeys, true)
+                    ? ['node' => 'key:'.$key, 'point' => $proposedOdfPoints->get($key)]
+                    : null;
+            }
+            $numericId = (int) $id;
+            $odf = $projectOdfs->firstWhere('id', $numericId);
+
+            return in_array($numericId, $projectOdfIds, true) && $odf
+                ? ['node' => 'id:'.$numericId, 'point' => [(float) $odf->latitude, (float) $odf->longitude]]
+                : null;
+        };
+        $primaryEdges = [];
+        foreach ($primary as $route) {
+            $source = $resolveOdf($route, 'from');
+            $target = $resolveOdf($route, 'to');
+            if ($source === null || $target === null || $source['node'] === $target['node']) {
+                $errors[] = $this->error('invalid_primary_reference', "Primarna trasa {$route['key']} ima nevaljan ODF kraj.", ['route_key' => $route['key']]);
+
+                continue;
+            }
+            $primaryEdges[] = [$source['node'], $target['node']];
+            if (! $this->connects($route['path'] ?? [], $source['point'], $target['point'])) {
                 $errors[] = $this->error('route_endpoint_mismatch', "Primarna trasa {$route['key']} ne dodiruje oba ODF-a.", ['route_key' => $route['key']]);
             }
         }
-        if ($this->hasOdfCycle($primary->all())) {
+        $allOdfNodes = collect($projectOdfIds)->map(fn (int $id) => 'id:'.$id)
+            ->concat(collect($proposedOdfKeys)->map(fn (string $key) => 'key:'.$key))->all();
+        if (! $this->allOdfsConnected($allOdfNodes, $primaryEdges)) {
+            $errors[] = $this->error('odf_network_disconnected', 'Svi ODF-ovi moraju biti povezani primarnim krakovima u jednu mrežu.');
+        }
+        if ($this->hasOdfCycle($primaryEdges)) {
             $errors[] = $this->error('odf_cycle', 'Primarne ODF veze sadrže ciklus.');
         }
 
@@ -141,36 +205,55 @@ class FinalValidationService
         return compact('code', 'message', 'details');
     }
 
-    private function hasOdfCycle(array $routes): bool
+    private function allOdfsConnected(array $nodes, array $edges): bool
     {
-        $edges = [];
-        foreach ($routes as $route) {
-            if (($route['from_odf_key'] ?? null) !== null && ($route['to_odf_key'] ?? null) !== null) {
-                $edges[$route['from_odf_key']][] = $route['to_odf_key'];
+        if (count($nodes) < 2) {
+            return true;
+        }
+        $adjacency = array_fill_keys($nodes, []);
+        foreach ($edges as [$from, $to]) {
+            $adjacency[$from][] = $to;
+            $adjacency[$to][] = $from;
+        }
+        $visited = [];
+        $queue = [$nodes[0]];
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (isset($visited[$node])) {
+                continue;
+            }
+            $visited[$node] = true;
+            foreach ($adjacency[$node] ?? [] as $next) {
+                $queue[] = $next;
             }
         }
-        $visiting = [];
+
+        return count($visited) === count($nodes);
+    }
+
+    private function hasOdfCycle(array $edges): bool
+    {
+        $adjacency = [];
+        foreach ($edges as [$from, $to]) {
+            $adjacency[$from][] = $to;
+            $adjacency[$to][] = $from;
+        }
         $visited = [];
-        $walk = function (string $node) use (&$walk, &$visiting, &$visited, $edges): bool {
-            if (isset($visiting[$node])) {
-                return true;
-            }
+        $walk = function (string $node, ?string $parent = null) use (&$walk, &$visited, $adjacency): bool {
             if (isset($visited[$node])) {
                 return false;
             }
-            $visiting[$node] = true;
-            foreach ($edges[$node] ?? [] as $next) {
-                if ($walk($next)) {
+            $visited[$node] = true;
+            foreach ($adjacency[$node] ?? [] as $next) {
+                if ($next !== $parent && (isset($visited[$next]) || $walk($next, $node))) {
                     return true;
                 }
             }
-            unset($visiting[$node]);
-            $visited[$node] = true;
 
             return false;
         };
 
-        return collect(array_keys($edges))->contains(fn (string $node) => $walk($node));
+        return collect(array_keys($adjacency))->contains(fn (string $node) => ! isset($visited[$node]) && $walk($node));
     }
 
     private function connects(array $path, ?array $first, ?array $second): bool
@@ -183,5 +266,29 @@ class FinalValidationService
 
         return ($matches($ends[0], $first) && $matches($ends[1], $second))
             || ($matches($ends[1], $first) && $matches($ends[0], $second));
+    }
+
+    private function positionOnPath(array $point, array $path): ?array
+    {
+        if (count($path) < 2) {
+            return null;
+        }
+        $best = null;
+        $chainage = 0.0;
+        for ($index = 1; $index < count($path); $index++) {
+            $segment = [$path[$index - 1], $path[$index]];
+            $projection = $this->geometry->projectPointToPath($point, $segment);
+            $projected = [$projection['lat'], $projection['lng']];
+            $candidate = [
+                'distance_m' => $projection['distance_m'],
+                'chainage_m' => $chainage + $this->geometry->distanceBetweenPoints($segment[0], $projected),
+            ];
+            if ($best === null || $candidate['distance_m'] < $best['distance_m']) {
+                $best = $candidate;
+            }
+            $chainage += $this->geometry->distanceBetweenPoints($segment[0], $segment[1]);
+        }
+
+        return $best;
     }
 }

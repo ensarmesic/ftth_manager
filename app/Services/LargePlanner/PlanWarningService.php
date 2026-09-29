@@ -10,7 +10,9 @@ class PlanWarningService
         'missing_source_odf',
         'odo_without_odf_route',
         'odf_without_primary_route',
+        'odf_network_disconnected',
         'cable_capacity_exceeded',
+        'odf_fiber_capacity_exceeded',
     ];
 
     public function collect(array $clustering, array $placement, array $odfPlan, array $routes, array $capacity): array

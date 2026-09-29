@@ -11,10 +11,13 @@ class PreviewEditorService
 {
     private const SNAP_LIMIT_M = 50;
 
+    private const MIN_ODF_ODO_DISTANCE_M = 5;
+
     public function __construct(
         private readonly GeometryService $geometry,
         private readonly CorridorGraphBuilder $graphs,
         private readonly NetworkRouteProposalService $routes,
+        private readonly OdfProposalService $odfProposals,
         private readonly CableCapacityService $capacities,
         private readonly PlanWarningService $warnings,
     ) {}
@@ -34,6 +37,14 @@ class PreviewEditorService
         $snap = $this->nearestCorridor($project, $point);
         if ($snap === null || $snap['distance_m'] > self::SNAP_LIMIT_M) {
             throw new DomainException('Nova pozicija mora biti uz dozvoljeni koridor.');
+        }
+        $oppositePoints = $type === 'odf'
+            ? collect(data_get($preview, 'odo_placement.odos', []))->pluck('point')
+            : collect(data_get($preview, 'odf_placement.odfs', []))->pluck('point')->concat(
+                $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->get()->map(fn ($odf) => [(float) $odf->latitude, (float) $odf->longitude])
+            );
+        if ($oppositePoints->contains(fn ($other) => is_array($other) && $this->geometry->distanceBetweenPoints($snap['point'], $other) < self::MIN_ODF_ODO_DISTANCE_M)) {
+            throw new DomainException('ODF i ODO moraju biti međusobno udaljeni najmanje 5 m.');
         }
         $items[$index]['point'] = $snap['point'];
         $items[$index]['corridor_id'] = $snap['corridor_id'];
@@ -140,43 +151,7 @@ class PreviewEditorService
 
     private function refreshPrimaryRoutes(Project $project, array $graph, array $odfPlan): array
     {
-        if (! ($odfPlan['enabled'] ?? false)) {
-            return $odfPlan;
-        }
-        $existing = $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->orderBy('id')->get()
-            ->map(fn ($odf) => ['odf_id' => $odf->id, 'odf_key' => null, 'point' => [(float) $odf->latitude, (float) $odf->longitude]])->all();
-        $primary = [];
-        $warnings = [];
-        foreach ($odfPlan['odfs'] as $index => $proposal) {
-            $sources = $existing;
-            if ($sources === [] && $index > 0) {
-                $sources[] = ['odf_id' => null, 'odf_key' => $odfPlan['odfs'][0]['key'], 'point' => $odfPlan['odfs'][0]['point']];
-            }
-            if ($sources === []) {
-                continue;
-            }
-            $best = null;
-            $source = null;
-            foreach ($sources as $candidate) {
-                $path = $this->routes->pathThroughGraph($graph, $candidate['point'], $proposal['point']);
-                if ($path !== null && ($best === null || $path['length_m'] < $best['length_m'])) {
-                    $best = $path;
-                    $source = $candidate;
-                }
-            }
-            if ($best === null) {
-                $warnings[] = ['code' => 'odf_without_primary_route', 'odf_key' => $proposal['key'], 'message' => "Za {$proposal['provisional_name']} nije pronađena primarna ruta."];
-
-                continue;
-            }
-            $primary[] = ['key' => 'primary-'.$proposal['key'], 'type' => 'primary', 'from_odf_id' => $source['odf_id'], 'from_odf_key' => $source['odf_key'], 'to_odf_key' => $proposal['key'], 'path' => $best['path'], 'length_m' => $best['length_m']];
-        }
-        $odfPlan['primary_routes'] = $primary;
-        $odfPlan['warnings'] = $warnings;
-        $odfPlan['summary']['primary_routes'] = count($primary);
-        $odfPlan['summary']['primary_length_m'] = array_sum(array_column($primary, 'length_m'));
-
-        return $odfPlan;
+        return $this->odfProposals->reconnect($project, $graph, $odfPlan);
     }
 
     private function nearestCorridor(Project $project, array $point): ?array

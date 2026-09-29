@@ -48,7 +48,7 @@ class LargePlannerCableCapacityTest extends TestCase
     public function test_capacity_overflow_is_reported_without_persisting_routes(): void
     {
         $project = $this->project(20);
-        $placement = ['odos' => [['key' => 'odo-0001', 'occupancy' => 200]]];
+        $placement = ['odos' => [['key' => 'odo-0001', 'occupancy' => 600]]];
         $result = app(CableCapacityService::class)->calculate($project, $placement, ['odfs' => [], 'primary_routes' => []], [
             'secondary_routes' => [['key' => 'secondary-1', 'odo_key' => 'odo-0001', 'path' => [[43.85, 18.41], [43.851, 18.411]]]],
             'drop_routes' => [],
