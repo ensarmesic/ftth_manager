@@ -42,6 +42,11 @@ class ProjectPlanningModeMigrationTest extends TestCase
 
         $project = Project::where('code', 'LARGE-001')->firstOrFail();
         $this->assertSame('large_auto', $project->planning_mode);
+        $this->assertDatabaseHas('large_planner_settings', [
+            'project_id' => $project->id,
+            'propose_odfs' => true,
+            'odf_capacity' => 48,
+        ]);
 
         $this->patch(route('projects.update', $project), [
             'name' => $project->name,

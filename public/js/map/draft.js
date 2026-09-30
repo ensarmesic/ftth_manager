@@ -1,7 +1,8 @@
 // ── DRAFT / PLAN PERSISTENCE ──────────────────────────────────────────────────
 function collectDraftPreflightIssues(payload) {
     const issues = [];
-    if (!payload.odfs.length && !data.odfs.length && (payload.cabinets.length || payload.routes.length)) {
+    const plannerPlacesOdfs = window.ftthMapConfig.planningMode === 'large_auto';
+    if (!plannerPlacesOdfs && !payload.odfs.length && !data.odfs.length && (payload.cabinets.length || payload.routes.length)) {
         issues.push({ message: 'Nedostaje centralni ODF.', action: 'Dodaj ODF', type: 'mode', mode: 'odf' });
     }
     payload.cabinets.forEach((cabinet, index) => {

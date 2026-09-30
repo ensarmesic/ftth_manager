@@ -79,6 +79,7 @@ class ProjectManagementController extends Controller
         }
 
         $project = Project::create($request->validate($this->rules()));
+        $this->ensureLargePlannerOdfDefaults($project);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -104,8 +105,21 @@ class ProjectManagementController extends Controller
             }
         }
         $project->update($request->validate($this->rules($project)));
+        $this->ensureLargePlannerOdfDefaults($project);
 
         return back()->with('success', 'Projekat je ažuriran.');
+    }
+
+    private function ensureLargePlannerOdfDefaults(Project $project): void
+    {
+        if ($project->planning_mode !== 'large_auto') {
+            return;
+        }
+
+        $project->largePlannerSetting()->firstOrCreate([], [
+            'propose_odfs' => true,
+            'odf_capacity' => 48,
+        ]);
     }
 
     public function destroy(int $id)
