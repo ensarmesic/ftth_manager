@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GisSegment;
 use App\Models\House;
 use App\Models\Odf;
 use App\Models\Project;
@@ -21,7 +22,7 @@ class LargePlannerFinalValidationTest extends TestCase
 
         $this->assertTrue($result['valid']);
         $this->assertSame(0, $result['summary']['errors']);
-        $this->assertSame(3, $result['summary']['routes']);
+        $this->assertSame(2, $result['summary']['routes']);
     }
 
     public function test_duplicate_house_capacity_and_missing_parent_block_confirmation(): void
@@ -84,22 +85,51 @@ class LargePlannerFinalValidationTest extends TestCase
         $this->assertContains('route_endpoint_mismatch', array_column($result['errors'], 'code'));
     }
 
+    public function test_primary_route_outside_main_corridor_is_blocked(): void
+    {
+        [$project, $preview] = $this->validPreview();
+        $primaryLine = [[43.849, 18.409], [43.85, 18.41]];
+        GisSegment::create([
+            'project_id' => $project->id, 'name' => 'Glavni rov', 'source' => 'test', 'segment_type' => 'corridor',
+            'is_allowed' => true, 'planning_corridor_type' => 'main', 'length_m' => 150, 'path' => $primaryLine,
+        ]);
+        $preview['odf_placement']['odfs'][] = ['key' => 'odf-0002', 'point' => [43.849, 18.409]];
+        $preview['odf_placement']['primary_routes'][] = [
+            'key' => 'primary-1', 'from_odf_key' => 'odf-0001', 'to_odf_key' => 'odf-0002',
+            'path' => [[43.85, 18.41], [44.0, 19.0], [43.849, 18.409]], 'length_m' => 100,
+        ];
+
+        $result = app(FinalValidationService::class)->validate($project, $preview);
+
+        $this->assertFalse($result['valid']);
+        $this->assertContains('primary_outside_corridor', array_column($result['errors'], 'code'));
+    }
+
+    public function test_secondary_route_with_return_loop_is_blocked(): void
+    {
+        [$project, $preview] = $this->validPreview();
+        $preview['routes']['secondary_routes'][0]['path'] = [
+            [43.85, 18.41], [43.8505, 18.4105], [43.85, 18.41], [43.851, 18.411],
+        ];
+
+        $result = app(FinalValidationService::class)->validate($project, $preview);
+
+        $this->assertFalse($result['valid']);
+        $this->assertContains('secondary_route_loop', array_column($result['errors'], 'code'));
+    }
+
     private function validPreview(): array
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
-        $existingOdf = Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.849, 'longitude' => 18.409]);
         $house = House::factory()->create(['project_id' => $project->id, 'latitude' => 43.852, 'longitude' => 18.412]);
         $line = [[43.85, 18.41], [43.851, 18.411]];
-        $primaryLine = [[43.849, 18.409], [43.85, 18.41]];
         $dropLine = [[43.851, 18.411], [43.852, 18.412]];
         $preview = [
             'project_id' => $project->id,
             'odo_placement' => ['odos' => [[
                 'key' => 'odo-0001', 'point' => [43.851, 18.411], 'capacity' => 8, 'occupancy' => 1, 'house_ids' => [$house->id],
             ]]],
-            'odf_placement' => ['odfs' => [['key' => 'odf-0001', 'point' => [43.85, 18.41]]], 'primary_routes' => [[
-                'key' => 'primary-1', 'from_odf_id' => $existingOdf->id, 'from_odf_key' => null, 'to_odf_key' => 'odf-0001', 'path' => $primaryLine, 'length_m' => 100,
-            ]]],
+            'odf_placement' => ['odfs' => [['key' => 'odf-0001', 'point' => [43.85, 18.41]]], 'primary_routes' => []],
             'routes' => [
                 'secondary_routes' => [['key' => 'secondary-1', 'odo_key' => 'odo-0001', 'odf_id' => null, 'odf_key' => 'odf-0001', 'path' => $line, 'length_m' => 100]],
                 'drop_routes' => [['key' => 'drop-1', 'odo_key' => 'odo-0001', 'house_id' => $house->id, 'path' => $dropLine, 'length_m' => 100]],

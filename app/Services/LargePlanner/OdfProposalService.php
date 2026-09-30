@@ -9,6 +9,8 @@ class OdfProposalService
 {
     private const MIN_ODO_DISTANCE_M = 5.0;
 
+    private const ODO_DISTANCE_SELECTION_MARGIN_M = 0.5;
+
     public function __construct(
         private readonly NetworkRouteProposalService $routes,
         private readonly GeometryService $geometry,
@@ -200,7 +202,7 @@ class OdfProposalService
         }
 
         $shortlist = collect($candidates)
-            ->filter(fn (array $candidate) => $candidate['clearance'] >= self::MIN_ODO_DISTANCE_M)
+            ->filter(fn (array $candidate) => $candidate['clearance'] >= self::MIN_ODO_DISTANCE_M + self::ODO_DISTANCE_SELECTION_MARGIN_M)
             ->sortBy(fn (array $candidate) => [$candidate['direct_cost_m'], $candidate['preferred_distance']])
             ->take(40)
             ->map(function (array $candidate) use ($graph, $assignedOdos): array {

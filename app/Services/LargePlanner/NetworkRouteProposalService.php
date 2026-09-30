@@ -115,6 +115,16 @@ class NetworkRouteProposalService
         }
 
         [$secondary, $namedOdos] = $this->secondaryBranches($secondary, $placement['odos']);
+        foreach ($secondary as $branch) {
+            if (count($branch['odo_keys'] ?? []) === 1) {
+                $warnings[] = [
+                    'code' => 'single_odo_branch',
+                    'route_key' => $branch['key'],
+                    'odo_key' => $branch['odo_keys'][0],
+                    'message' => "{$branch['name']} ima samo jedan ODO; provjeri da li je fizički izdvojen od ostalih krakova.",
+                ];
+            }
+        }
 
         return [
             'secondary_routes' => $secondary,
@@ -159,7 +169,10 @@ class NetworkRouteProposalService
                 foreach ($odoKeys as $order => $odoKey) {
                     $odo = $named->get($odoKey);
                     $odo['provisional_name'] = 'ZO-'.$branchNumber.'.'.($order + 1);
+                    $odo['odf_id'] = $terminal['odf_id'];
+                    $odo['odf_key'] = $terminal['odf_key'];
                     $odo['secondary_branch_key'] = 'secondary-branch-'.str_pad((string) $branchNumber, 4, '0', STR_PAD_LEFT);
+                    $odo['secondary_branch_name'] = 'Sekundarni krak '.$branchNumber;
                     $odo['branch_index'] = $branchNumber;
                     $odo['branch_order'] = $order + 1;
                     $named->put($odoKey, $odo);

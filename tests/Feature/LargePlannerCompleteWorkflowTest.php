@@ -62,7 +62,7 @@ class LargePlannerCompleteWorkflowTest extends TestCase
 
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.validate-final', [$project, $task]))
             ->assertOk()->assertJsonPath('valid', true);
-        $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))
+        $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]), ['acknowledge_warnings' => true])
             ->assertOk()
             ->assertJsonPath('summary.houses', 3)
             ->assertJsonPath('summary.materials.unclassified_routes', 0);

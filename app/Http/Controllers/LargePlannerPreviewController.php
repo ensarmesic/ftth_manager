@@ -134,24 +134,32 @@ class LargePlannerPreviewController extends Controller
         return response()->streamDownload(function () use ($preview): void {
             $output = fopen('php://output', 'wb');
             fwrite($output, "\xEF\xBB\xBF");
-            fputcsv($output, ['Tip', 'Oznaka', 'Roditelj', 'Kapacitet', 'Zauzeće', 'Dužina m', 'Status/poruka'], ';', '"', '');
+            fputcsv($output, ['Tip', 'Oznaka', 'Roditelj', 'Veza / redoslijed ODO-a', 'Kapacitet', 'Zauzeće', 'Dužina m', 'Potrebno F', 'Rezerva F', 'Kabel', 'Status/poruka'], ';', '"', '');
+            $primarySizing = collect(data_get($preview, 'cable_capacity.routes.primary_routes', []))->keyBy('key');
+            $secondarySizing = collect(data_get($preview, 'cable_capacity.routes.secondary_routes', []))->keyBy('key');
             foreach (data_get($preview, 'odf_placement.odfs', []) as $odf) {
-                fputcsv($output, ['ODF', $odf['provisional_name'] ?? $odf['key'], '', $odf['capacity'] ?? '', $odf['occupancy'] ?? '', '', $odf['locked'] ?? false ? 'Zaključan' : 'Predložen'], ';', '"', '');
+                fputcsv($output, ['ODF', $odf['provisional_name'] ?? $odf['key'], '', implode(' → ', $odf['odo_keys'] ?? []), $odf['fiber_capacity'] ?? $odf['capacity'] ?? 144, $odf['occupancy'] ?? '', '', '', '', '', $odf['selection_reason'] ?? ($odf['locked'] ?? false ? 'Zaključan' : 'Predložen')], ';', '"', '');
             }
             foreach (data_get($preview, 'odo_placement.odos', []) as $odo) {
-                fputcsv($output, ['ODO', $odo['provisional_name'] ?? $odo['key'], $odo['odf_key'] ?? '', $odo['capacity'] ?? '', $odo['occupancy'] ?? count($odo['house_ids'] ?? []), '', $odo['locked'] ?? false ? 'Zaključan' : 'Predložen'], ';', '"', '');
+                $parent = $odo['odf_key'] ?? (isset($odo['odf_id']) ? 'ODF #'.$odo['odf_id'] : '');
+                fputcsv($output, ['ODO', $odo['provisional_name'] ?? $odo['key'], $parent, $odo['secondary_branch_name'] ?? '', $odo['capacity'] ?? '', $odo['occupancy'] ?? count($odo['house_ids'] ?? []), '', '', '', '', $odo['locked'] ?? false ? 'Zaključan' : 'Predložen'], ';', '"', '');
             }
             foreach (data_get($preview, 'odf_placement.primary_routes', []) as $route) {
-                fputcsv($output, ['Primarna trasa', $route['key'], $route['from_odf_key'] ?? $route['from_odf_id'] ?? '', '', '', round($route['length_m'] ?? 0, 1), ''], ';', '"', '');
+                $sizing = $primarySizing->get($route['key'], []);
+                $from = $route['from_odf_key'] ?? 'ODF #'.($route['from_odf_id'] ?? '');
+                $to = $route['to_odf_key'] ?? 'ODF #'.($route['to_odf_id'] ?? '');
+                fputcsv($output, ['Primarna trasa', $route['key'], $from.' ↔ '.$to, '', '', '', round($route['length_m'] ?? 0, 1), $sizing['required_fibers'] ?? '', $sizing['reserve_fibers'] ?? '', isset($sizing['fiber_count']) ? $sizing['fiber_count'].'F' : '', 'Povezuje ravnopravne ODF-ove'], ';', '"', '');
             }
             foreach (data_get($preview, 'routes.secondary_routes', []) as $route) {
-                fputcsv($output, ['Sekundarna trasa', $route['key'], $route['odo_key'] ?? '', '', '', round($route['length_m'] ?? 0, 1), ''], ';', '"', '');
+                $sizing = $secondarySizing->get($route['key'], []);
+                $parent = $route['odf_key'] ?? 'ODF #'.($route['odf_id'] ?? '');
+                fputcsv($output, ['Sekundarna trasa', $route['name'] ?? $route['key'], $parent, implode(' → ', $route['odo_keys'] ?? [$route['odo_key'] ?? '']), '', count($route['odo_keys'] ?? [$route['odo_key'] ?? '']), round($route['length_m'] ?? 0, 1), $sizing['required_fibers'] ?? '', $sizing['reserve_fibers'] ?? '', isset($sizing['fiber_count']) ? $sizing['fiber_count'].'F' : '', 'Počinje na ODF-u'], ';', '"', '');
             }
             foreach (data_get($preview, 'routes.drop_routes', []) as $route) {
-                fputcsv($output, ['Drop trasa', $route['key'], $route['odo_key'] ?? '', '', '', round($route['length_m'] ?? 0, 1), 'Kuća #'.($route['house_id'] ?? '')], ';', '"', '');
+                fputcsv($output, ['Drop trasa', $route['key'], $route['odo_key'] ?? '', '', '', '', round($route['length_m'] ?? 0, 1), '', '', '', 'Kuća #'.($route['house_id'] ?? '')], ';', '"', '');
             }
             foreach (data_get($preview, 'warnings.items', []) as $warning) {
-                fputcsv($output, ['Upozorenje', $warning['code'] ?? '', '', '', '', '', $warning['message'] ?? ''], ';', '"', '');
+                fputcsv($output, ['Upozorenje', $warning['code'] ?? '', '', '', '', '', '', '', '', '', $warning['message'] ?? ''], ';', '"', '');
             }
             fclose($output);
         }, "veliki-plan-{$project->code}-varijanta-{$task->id}.csv", ['Content-Type' => 'text/csv; charset=UTF-8']);

@@ -2,6 +2,7 @@
 
 namespace App\Services\LargePlanner;
 
+use App\Models\GisSegment;
 use App\Models\Project;
 use App\Services\GeometryService;
 
@@ -25,7 +26,9 @@ class FinalValidationService
         $proposedOdfKeys = $proposedOdfs->pluck('key')->all();
         $projectOdfs = $project->odfs()->whereNotNull('latitude')->whereNotNull('longitude')->get();
         $manualProjectOdfs = $projectOdfs->whereNull('import_batch')->values();
-        if ($manualProjectOdfs->isNotEmpty()) {
+        if ($proposedOdfs->isNotEmpty()) {
+            $projectOdfs = collect();
+        } elseif ($manualProjectOdfs->isNotEmpty()) {
             $projectOdfs = $manualProjectOdfs;
         }
         $projectOdfIds = $projectOdfs->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -39,6 +42,14 @@ class FinalValidationService
         $secondary = collect(data_get($preview, 'routes.secondary_routes', []));
         $drops = collect(data_get($preview, 'routes.drop_routes', []));
         $assignments = [];
+        $primaryCorridors = GisSegment::query()
+            ->where('project_id', $project->id)
+            ->where('is_allowed', true)
+            ->whereIn('planning_corridor_type', ['main', 'primary'])
+            ->get()
+            ->pluck('path')
+            ->filter(fn ($path) => is_array($path) && count($path) >= 2)
+            ->values();
         foreach ($odos as $odo) {
             foreach (is_array($odo['point'] ?? null) ? $allOdfPoints : [] as $odf) {
                 if ($this->geometry->distanceBetweenPoints($odo['point'], $odf['point']) < self::MIN_ODF_ODO_DISTANCE_M) {
@@ -90,6 +101,9 @@ class FinalValidationService
             if (! $this->connects($route['path'] ?? [], $odfPoint, $odoPoint)) {
                 $errors[] = $this->error('route_endpoint_mismatch', "Sekundarna trasa {$route['key']} ne dodiruje svoj ODF i ODO.", ['route_key' => $route['key']]);
             }
+            if ($this->pathHasRepeatedSegment($route['path'] ?? [])) {
+                $errors[] = $this->error('secondary_route_loop', "Sekundarna trasa {$route['key']} sadrži povratnu petlju.", ['route_key' => $route['key']]);
+            }
             $previousChainage = -INF;
             foreach ($routeOdoKeys as $odoKey) {
                 $point = $odos->firstWhere('key', $odoKey)['point'] ?? null;
@@ -103,6 +117,18 @@ class FinalValidationService
                     $errors[] = $this->error('secondary_odo_order_invalid', "Redoslijed ODO ormarića na trasi {$route['key']} nije pravilan.", ['route_key' => $route['key'], 'odo_key' => $odoKey]);
                 }
                 $previousChainage = max($previousChainage, $position['chainage_m']);
+            }
+        }
+        for ($left = 0; $left < $secondary->count(); $left++) {
+            for ($right = $left + 1; $right < $secondary->count(); $right++) {
+                $first = $secondary->values()->get($left);
+                $second = $secondary->values()->get($right);
+                $sameOdf = ($first['odf_key'] ?? null) !== null
+                    ? ($first['odf_key'] ?? null) === ($second['odf_key'] ?? null)
+                    : (int) ($first['odf_id'] ?? 0) === (int) ($second['odf_id'] ?? 0);
+                if ($sameOdf && $this->branchesRejoin($first['path'] ?? [], $second['path'] ?? [])) {
+                    $errors[] = $this->error('secondary_branches_rejoin', "Krakovi {$first['key']} i {$second['key']} ponovo se spajaju nakon razdvajanja.", ['route_key' => $first['key']]);
+                }
             }
         }
 
@@ -163,6 +189,14 @@ class FinalValidationService
             $primaryEdges[] = [$source['node'], $target['node']];
             if (! $this->connects($route['path'] ?? [], $source['point'], $target['point'])) {
                 $errors[] = $this->error('route_endpoint_mismatch', "Primarna trasa {$route['key']} ne dodiruje oba ODF-a.", ['route_key' => $route['key']]);
+            }
+            if (collect($route['path'] ?? [])->contains(fn (array $point) => ! $primaryCorridors->contains(
+                fn (array $corridor) => $this->geometry->distanceToRoute((float) $point[0], (float) $point[1], $corridor) <= 3
+            ))) {
+                $errors[] = $this->error('primary_outside_corridor', "Primarna trasa {$route['key']} napušta glavni/primarni koridor.", ['route_key' => $route['key']]);
+            }
+            if ($this->pathHasRepeatedSegment($route['path'] ?? [])) {
+                $errors[] = $this->error('primary_route_loop', "Primarna trasa {$route['key']} sadrži povratnu petlju.", ['route_key' => $route['key']]);
             }
         }
         $allOdfNodes = collect($projectOdfIds)->map(fn (int $id) => 'id:'.$id)
@@ -290,5 +324,37 @@ class FinalValidationService
         }
 
         return $best;
+    }
+
+    private function pathHasRepeatedSegment(array $path): bool
+    {
+        $segments = [];
+        for ($index = 1; $index < count($path); $index++) {
+            $from = number_format((float) $path[$index - 1][0], 7, '.', '').','.number_format((float) $path[$index - 1][1], 7, '.', '');
+            $to = number_format((float) $path[$index][0], 7, '.', '').','.number_format((float) $path[$index][1], 7, '.', '');
+            $key = strcmp($from, $to) <= 0 ? $from.'|'.$to : $to.'|'.$from;
+            if (isset($segments[$key])) {
+                return true;
+            }
+            $segments[$key] = true;
+        }
+
+        return false;
+    }
+
+    private function branchesRejoin(array $first, array $second): bool
+    {
+        $firstKeys = collect($first)->map(fn (array $point) => number_format((float) $point[0], 7, '.', '').','.number_format((float) $point[1], 7, '.', ''))->all();
+        $secondKeys = collect($second)->map(fn (array $point) => number_format((float) $point[0], 7, '.', '').','.number_format((float) $point[1], 7, '.', ''))->all();
+        $prefix = 0;
+        $limit = min(count($firstKeys), count($secondKeys));
+        while ($prefix < $limit && $firstKeys[$prefix] === $secondKeys[$prefix]) {
+            $prefix++;
+        }
+        if ($prefix === $limit) {
+            return false;
+        }
+
+        return array_intersect(array_slice($firstKeys, $prefix), array_slice($secondKeys, $prefix)) !== [];
     }
 }
