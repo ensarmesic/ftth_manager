@@ -79,6 +79,7 @@ jobs:
           php artisan migrate --force
           php artisan db:seed --force
           php artisan tinker --execute="App\\Models\\User::factory()->create(['name'=>'E2E','username'=>'e2e','email'=>'e2e@example.test','password'=>\Illuminate\Support\Facades\Hash::make('e2e-password')]);"
+          php artisan tinker --execute="foreach (['administrator'=>'admin','designer'=>'designer','field'=>'field','viewer'=>'viewer'] as \$state => \$suffix) { App\\Models\\User::factory()->{\$state}()->create(['name'=>'E2E '.ucfirst(\$suffix),'username'=>'e2e_'.\$suffix,'email'=>'e2e_'.\$suffix.'@example.test','password'=>\Illuminate\Support\Facades\Hash::make('e2e-password')]); }"
       - name: Start application
         run: |
           php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-server.log 2>&1 &

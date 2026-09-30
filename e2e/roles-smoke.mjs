@@ -22,10 +22,17 @@ try {
         await page.goto(`${baseUrl}/prijava`, { waitUntil: 'networkidle' });
         await page.fill('input[name="username"]', role.username);
         await page.fill('input[name="password"]', password);
-        await Promise.all([
-            page.waitForURL(url => !url.pathname.startsWith('/prijava'), { timeout: 15000 }),
-            page.click('button[type="submit"]'),
-        ]);
+        await page.click('button[type="submit"]');
+        await page.waitForLoadState('networkidle');
+
+        if (new URL(page.url()).pathname.startsWith('/prijava')) {
+            const message = (await page.locator('[role="alert"], .alert, .invalid-feedback, .text-danger')
+                .allTextContents())
+                .map(text => text.trim())
+                .filter(Boolean)
+                .join(' ');
+            throw new Error(`Prijava za ${role.username} nije uspjela${message ? `: ${message}` : '. Provjeri postoji li CI korisnik i odgovara li E2E_PASSWORD.'}`);
+        }
 
         for (const path of role.allowed) {
             const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle' });
