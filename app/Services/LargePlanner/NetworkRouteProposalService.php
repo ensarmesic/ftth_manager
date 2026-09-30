@@ -150,8 +150,13 @@ class NetworkRouteProposalService
             $remaining = $sourceRoutes->sortByDesc('length_m')->values();
             while ($remaining->isNotEmpty()) {
                 $terminal = $remaining->shift();
-                $samePath = $remaining->filter(fn (array $route) => $this->pathFollows($route['path'], $terminal['path']));
-                $chain = $samePath->push($terminal)->sortBy(fn (array $route) => [$route['length_m'], $route['odo_key']])->values();
+                $samePath = $remaining->filter(function (array $route) use ($terminal, $odoByKey): bool {
+                    $point = $odoByKey->get($route['odo_key'])['point'] ?? null;
+
+                    return is_array($point)
+                        && $this->geometry->distanceToRoute((float) $point[0], (float) $point[1], $terminal['path']) <= 3.0;
+                });
+                $chain = $samePath->push($terminal)->sortBy(fn (array $route) => [$this->routePosition($odoByKey->get($route['odo_key'])['point'], $terminal['path']), $route['odo_key']])->values();
                 $remaining = $remaining->reject(fn (array $route) => $samePath->contains(fn (array $item) => $item['odo_key'] === $route['odo_key']))->values();
                 $chunkCount = (int) ceil($chain->count() / 8);
                 $chunkSize = (int) ceil($chain->count() / max(1, $chunkCount));
@@ -196,11 +201,22 @@ class NetworkRouteProposalService
         return [$branches, $named->values()->all()];
     }
 
-    private function pathFollows(array $candidate, array $terminal): bool
+    private function routePosition(array $point, array $path): float
     {
-        return collect($candidate)->every(
-            fn (array $point) => $this->geometry->distanceToRoute((float) $point[0], (float) $point[1], $terminal) <= self::ATTACHMENT_TOLERANCE_M
-        );
+        $chainage = 0.0;
+        $best = INF;
+        $bestChainage = INF;
+        for ($index = 1; $index < count($path); $index++) {
+            $segment = [$path[$index - 1], $path[$index]];
+            $projection = $this->geometry->projectPointToPath($point, $segment);
+            if ($projection['distance_m'] < $best) {
+                $best = $projection['distance_m'];
+                $bestChainage = $chainage + $this->geometry->distanceBetweenPoints($path[$index - 1], [$projection['lat'], $projection['lng']]);
+            }
+            $chainage += $this->geometry->distanceBetweenPoints($path[$index - 1], $path[$index]);
+        }
+
+        return $bestChainage;
     }
 
     private function pathThroughRequiredWaypoints(array $graph, array $from, array $to, array $waypoints): ?array

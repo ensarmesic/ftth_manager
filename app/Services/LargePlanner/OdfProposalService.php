@@ -48,8 +48,7 @@ class OdfProposalService
         $groups = collect($placement['odos'])->groupBy('component')->sortKeys();
         $proposals = [];
         foreach ($groups as $odos) {
-            $sorted = $odos->sortBy(fn (array $odo) => [$odo['point'][0], $odo['point'][1], $odo['key']])->values();
-            foreach ($sorted->chunk($maxOdos) as $chunk) {
+            foreach ($this->packCorridorGroups($odos->values(), $maxOdos) as $chunk) {
                 $items = $chunk->values()->all();
                 $candidate = $items[(int) floor((count($items) - 1) / 2)];
                 $odfLocation = $this->optimizedLocation($graph, $candidate['point'], $items, $placement['odos'], (int) $candidate['component']);
@@ -87,6 +86,51 @@ class OdfProposalService
                 'primary_routes' => count($primary),
                 'primary_length_m' => array_sum(array_column($primary, 'length_m')),
             ],
+        ];
+    }
+
+    private function packCorridorGroups($odos, int $capacity): array
+    {
+        $groups = $odos
+            ->groupBy(fn (array $odo) => $odo['corridor_id'] ?? 'none-'.$odo['key'])
+            ->flatMap(fn ($corridorOdos) => $corridorOdos
+                ->sortBy(fn (array $odo) => [$odo['point'][0], $odo['point'][1], $odo['key']])
+                ->values()
+                ->chunk($capacity))
+            ->map(fn ($group) => $group->values())
+            ->values();
+        $bins = [];
+
+        while ($groups->isNotEmpty()) {
+            $seedIndex = $groups->keys()->sortBy(fn ($index) => $this->groupCentroid($groups[$index]))->first();
+            $bin = $groups->pull($seedIndex)->values();
+            $groups = $groups->values();
+
+            while ($bin->count() < $capacity) {
+                $space = $capacity - $bin->count();
+                $center = $this->groupCentroid($bin);
+                $candidateIndex = $groups->keys()
+                    ->filter(fn ($index) => $groups[$index]->count() <= $space)
+                    ->sortBy(fn ($index) => $this->geometry->distanceBetweenPoints($center, $this->groupCentroid($groups[$index])))
+                    ->first();
+                if ($candidateIndex === null) {
+                    break;
+                }
+                $bin = $bin->concat($groups->pull($candidateIndex))->values();
+                $groups = $groups->values();
+            }
+
+            $bins[] = $bin;
+        }
+
+        return $bins;
+    }
+
+    private function groupCentroid($odos): array
+    {
+        return [
+            (float) $odos->avg(fn (array $odo) => $odo['point'][0]),
+            (float) $odos->avg(fn (array $odo) => $odo['point'][1]),
         ];
     }
 

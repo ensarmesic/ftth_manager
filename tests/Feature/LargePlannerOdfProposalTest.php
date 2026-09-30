@@ -108,6 +108,28 @@ class LargePlannerOdfProposalTest extends TestCase
         $this->assertNotContains('missing_source_odf', array_column($routes['warnings'], 'code'));
     }
 
+    public function test_a_corridor_is_not_split_between_odfs_when_its_odos_fit_capacity(): void
+    {
+        [$project, $graph, $corridor] = $this->projectWithCorridor(true, 3);
+        $placement = $this->placement($corridor->id, 6);
+        foreach ($placement['odos'] as $index => &$odo) {
+            $odo['corridor_id'] = $index % 2 === 0 ? 101 : 202;
+        }
+        unset($odo);
+
+        $result = app(OdfProposalService::class)->propose($project, $graph, $placement);
+
+        $owners = collect($result['odfs'])->flatMap(fn (array $odf) => collect($odf['odo_keys'])
+            ->mapWithKeys(fn (string $key) => [$key => $odf['key']]));
+        $corridorOwners = collect($placement['odos'])->groupBy('corridor_id')
+            ->map(fn ($odos) => $odos->map(fn (array $odo) => $owners[$odo['key']])->unique()->values()->all());
+
+        $this->assertCount(2, $result['odfs']);
+        $this->assertCount(1, $corridorOwners[101]);
+        $this->assertCount(1, $corridorOwners[202]);
+        $this->assertNotSame($corridorOwners[101][0], $corridorOwners[202][0]);
+    }
+
     private function projectWithCorridor(bool $proposeOdfs, ?int $capacity): array
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
