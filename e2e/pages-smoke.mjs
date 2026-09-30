@@ -103,7 +103,29 @@ try {
             });
 
             if (path === "/mapa") {
+                const overlay = page.locator(
+                    "#project-picker-overlay:not(.hidden)",
+                );
+                if (await overlay.isVisible()) {
+                    const firstProject = overlay
+                        .locator("[data-project-id]")
+                        .first();
+                    if ((await firstProject.count()) === 0)
+                        throw new Error(
+                            "Nema projekta za provjeru mape; E2E seed nije izvršen.",
+                        );
+                    const projectId = await firstProject.getAttribute(
+                        "data-project-id",
+                    );
+                    if (!projectId)
+                        throw new Error("Odabrani projekat nema ispravan ID.");
+                    await page.goto(
+                        `${baseUrl}/mapa?project=${encodeURIComponent(projectId)}`,
+                        { waitUntil: "networkidle", timeout: 30000 },
+                    );
+                }
                 await page.waitForSelector("#network-map.leaflet-container", {
+                    state: "attached",
                     timeout: 15000,
                 });
             }

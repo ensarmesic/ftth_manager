@@ -39,6 +39,23 @@ const page = await browser.newPage();
 const pageErrors = [];
 page.on("pageerror", (error) => pageErrors.push(error.message));
 
+async function selectProjectIfNeeded() {
+    const overlay = page.locator("#project-picker-overlay:not(.hidden)");
+    if (!(await overlay.isVisible())) return;
+    const firstProject = overlay.locator("[data-project-id]").first();
+    if ((await firstProject.count()) === 0) {
+        throw new Error(
+            "Nema projekta za smoke test; pokreni E2E seed prije browser testova.",
+        );
+    }
+    const projectId = await firstProject.getAttribute("data-project-id");
+    if (!projectId) throw new Error("Odabrani projekat nema ispravan ID.");
+    await page.goto(`${target}?project=${encodeURIComponent(projectId)}`, {
+        waitUntil: "networkidle",
+        timeout: 30000,
+    });
+}
+
 try {
     await page.goto(target, { waitUntil: "networkidle", timeout: 30000 });
 
@@ -112,8 +129,14 @@ try {
         });
     }
 
+    await page.evaluate(() =>
+        localStorage.setItem("ftthOnboardingComplete", "1"),
+    );
+    await selectProjectIfNeeded();
+
     // 1. Leaflet mounted the map — it stamps `leaflet-container` onto #network-map itself.
     await page.waitForSelector("#network-map.leaflet-container", {
+        state: "attached",
         timeout: 15000,
     });
 
