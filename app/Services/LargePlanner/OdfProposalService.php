@@ -95,6 +95,8 @@ class OdfProposalService
 
     private function packCorridorGroups($odos, int $capacity): array
     {
+        $requiredOdfs = max(1, (int) ceil($odos->count() / $capacity));
+        $targetOccupancy = (int) ceil($odos->count() / $requiredOdfs);
         $groups = $odos
             ->groupBy(fn (array $odo) => $odo['corridor_id'] ?? 'none-'.$odo['key'])
             ->flatMap(fn ($corridorOdos) => $corridorOdos
@@ -103,28 +105,30 @@ class OdfProposalService
                 ->chunk($capacity))
             ->map(fn ($group) => $group->values())
             ->values();
+        $centroids = $groups->map(fn ($group) => $this->groupCentroid($group));
+        $latitudeSpanM = ((float) $centroids->max(fn (array $point) => $point[0]) - (float) $centroids->min(fn (array $point) => $point[0])) * 111_320;
+        $meanLatitude = (float) $centroids->avg(fn (array $point) => $point[0]);
+        $longitudeSpanM = ((float) $centroids->max(fn (array $point) => $point[1]) - (float) $centroids->min(fn (array $point) => $point[1]))
+            * 111_320 * cos(deg2rad($meanLatitude));
+        $axis = $longitudeSpanM >= $latitudeSpanM ? 1 : 0;
+        $groups = $groups->sortBy(fn ($group) => [
+            $this->groupCentroid($group)[$axis],
+            $this->groupCentroid($group)[1 - $axis],
+        ])->values();
+
+        return $this->balancedSequentialBins($groups, $requiredOdfs, $capacity, $targetOccupancy);
+    }
+
+    private function balancedSequentialBins($groups, int $binCount, int $capacity, int $target): array
+    {
+        $ordered = $groups->reduce(fn ($items, $group) => $items->concat($group), collect())->values();
+        $baseSize = intdiv($ordered->count(), $binCount);
+        $largerBins = $ordered->count() % $binCount;
         $bins = [];
 
-        while ($groups->isNotEmpty()) {
-            $seedIndex = $groups->keys()->sortBy(fn ($index) => $this->groupCentroid($groups[$index]))->first();
-            $bin = $groups->pull($seedIndex)->values();
-            $groups = $groups->values();
-
-            while ($bin->count() < $capacity) {
-                $space = $capacity - $bin->count();
-                $center = $this->groupCentroid($bin);
-                $candidateIndex = $groups->keys()
-                    ->filter(fn ($index) => $groups[$index]->count() <= $space)
-                    ->sortBy(fn ($index) => $this->geometry->distanceBetweenPoints($center, $this->groupCentroid($groups[$index])))
-                    ->first();
-                if ($candidateIndex === null) {
-                    break;
-                }
-                $bin = $bin->concat($groups->pull($candidateIndex))->values();
-                $groups = $groups->values();
-            }
-
-            $bins[] = $bin;
+        for ($index = 0; $index < $binCount; $index++) {
+            $size = $baseSize + ($index < $largerBins ? 1 : 0);
+            $bins[] = $ordered->splice(0, min($capacity, $size))->values();
         }
 
         return $bins;
