@@ -10,6 +10,12 @@ class NetworkRouteProposalService
 {
     private const ATTACHMENT_TOLERANCE_M = 2.0;
 
+    private const NORMAL_MAX_ODOS_PER_BRANCH = 2;
+
+    private const EXTREME_MAX_ODOS_PER_BRANCH = 3;
+
+    private const THREE_ODO_MIN_SAVED_CABLE_M = 300.0;
+
     public function __construct(private readonly GeometryService $geometry) {}
 
     public function propose(Project $project, array $graph, array $placement, ?array $odfPlan = null): array
@@ -159,10 +165,8 @@ class NetworkRouteProposalService
                 });
                 $chain = $samePath->push($terminal)->sortBy(fn (array $route) => [$this->routePosition($odoByKey->get($route['odo_key'])['point'], $terminal['path']), $route['odo_key']])->values();
                 $remaining = $remaining->reject(fn (array $route) => $samePath->contains(fn (array $item) => $item['odo_key'] === $route['odo_key']))->values();
-                $chunkCount = (int) ceil($chain->count() / 8);
-                $chunkSize = (int) ceil($chain->count() / max(1, $chunkCount));
-                foreach ($chain->chunk($chunkSize) as $chunk) {
-                    $chains[] = $chunk->values();
+                foreach ($this->branchChunks($chain, (float) $terminal['length_m']) as $chunk) {
+                    $chains[] = $chunk;
                 }
             }
         }
@@ -200,6 +204,25 @@ class NetworkRouteProposalService
             })->all();
 
         return [$branches, $named->values()->all()];
+    }
+
+    private function branchChunks($chain, float $sharedRouteLength): array
+    {
+        $chunks = [];
+        $remaining = $chain->values();
+        $useExtremeGroup = $remaining->count() > self::NORMAL_MAX_ODOS_PER_BRANCH
+            && $remaining->count() % self::NORMAL_MAX_ODOS_PER_BRANCH === 1
+            && $sharedRouteLength >= self::THREE_ODO_MIN_SAVED_CABLE_M;
+
+        while ($remaining->isNotEmpty()) {
+            $size = self::NORMAL_MAX_ODOS_PER_BRANCH;
+            if ($useExtremeGroup && $remaining->count() === self::EXTREME_MAX_ODOS_PER_BRANCH) {
+                $size = self::EXTREME_MAX_ODOS_PER_BRANCH;
+            }
+            $chunks[] = $remaining->splice(0, $size)->values();
+        }
+
+        return $chunks;
     }
 
     private function attachSingletonBranches(array $graph, array $branches, array $odos): array

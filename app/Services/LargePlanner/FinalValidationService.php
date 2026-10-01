@@ -72,8 +72,8 @@ class FinalValidationService
 
         foreach ($secondary as $route) {
             $routeOdoKeys = array_values($route['odo_keys'] ?? [$route['odo_key'] ?? null]);
-            if (count($routeOdoKeys) > 8) {
-                $errors[] = $this->error('secondary_branch_too_large', "Sekundarna trasa {$route['key']} ima više od 8 ODO ormarića.", ['route_key' => $route['key']]);
+            if (count($routeOdoKeys) > 3) {
+                $errors[] = $this->error('secondary_branch_too_large', "Sekundarna trasa {$route['key']} ima više od 3 ODO ormarića.", ['route_key' => $route['key']]);
             }
             if (collect($routeOdoKeys)->contains(fn ($key) => ! in_array($key, $odoKeys, true))) {
                 $errors[] = $this->error('unknown_odo_reference', "Sekundarna trasa {$route['key']} upućuje na nepostojeći ODO.", ['route_key' => $route['key']]);

@@ -165,6 +165,45 @@ class LargePlannerRouteProposalTest extends TestCase
         $this->assertSame('ZO-1.1.1', collect($result['odos'])->firstWhere('key', $lateral['terminal_odo_key'])['provisional_name']);
     }
 
+    public function test_normal_secondary_branches_have_at_most_two_odos(): void
+    {
+        $result = $this->linearBranchResult(43.8520);
+        $main = collect($result['secondary_routes'])->where('is_lateral', false);
+
+        $this->assertTrue($main->every(fn (array $route) => count($route['odo_keys']) <= 2));
+        $this->assertCount(1, collect($result['secondary_routes'])->where('is_lateral', true));
+    }
+
+    public function test_three_odos_are_used_only_to_avoid_a_separate_long_branch(): void
+    {
+        $result = $this->linearBranchResult(43.8600);
+        $sizes = collect($result['secondary_routes'])->where('is_lateral', false)
+            ->map(fn (array $route) => count($route['odo_keys']))->sort()->values()->all();
+
+        $this->assertSame([2, 3], $sizes);
+        $this->assertCount(0, collect($result['secondary_routes'])->where('is_lateral', true));
+    }
+
+    private function linearBranchResult(float $endLatitude): array
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $this->corridor($project, [[43.8500, 18.4100], [$endLatitude, 18.4100]]);
+        Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.8500, 'longitude' => 18.4100]);
+        $step = ($endLatitude - 43.8500) / 5;
+        $odos = collect(range(1, 5))->map(fn (int $number) => [
+            'key' => 'odo-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT),
+            'provisional_name' => 'ODO-'.$number,
+            'point' => [43.8500 + ($step * $number), 18.4100],
+            'house_ids' => [],
+        ])->all();
+
+        return app(NetworkRouteProposalService::class)->propose(
+            $project,
+            app(CorridorGraphBuilder::class)->build($project),
+            ['odos' => $odos],
+        );
+    }
+
     private function placement(House $house, array $point): array
     {
         return ['odos' => [[
