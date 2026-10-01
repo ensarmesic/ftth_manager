@@ -115,8 +115,9 @@ class NetworkRouteProposalService
         }
 
         [$secondary, $namedOdos] = $this->secondaryBranches($secondary, $placement['odos']);
+        [$secondary, $namedOdos] = $this->attachSingletonBranches($graph, $secondary, $namedOdos);
         foreach ($secondary as $branch) {
-            if (count($branch['odo_keys'] ?? []) === 1) {
+            if (count($branch['odo_keys'] ?? []) === 1 && ! ($branch['is_lateral'] ?? false)) {
                 $warnings[] = [
                     'code' => 'single_odo_branch',
                     'route_key' => $branch['key'],
@@ -199,6 +200,87 @@ class NetworkRouteProposalService
             })->all();
 
         return [$branches, $named->values()->all()];
+    }
+
+    private function attachSingletonBranches(array $graph, array $branches, array $odos): array
+    {
+        $odoByKey = collect($odos)->keyBy('key');
+        $mainBranches = collect($branches)
+            ->filter(fn (array $branch) => count($branch['odo_keys'] ?? []) >= 2)
+            ->values()
+            ->map(function (array $branch, int $index) use (&$odoByKey): array {
+                $number = $index + 1;
+                $branch['name'] = 'Sekundarni krak '.$number;
+                $branch['branch_index'] = $number;
+                $branch['branch_number'] = (string) $number;
+                foreach ($branch['odo_keys'] as $order => $odoKey) {
+                    $odo = $odoByKey->get($odoKey);
+                    $odo['provisional_name'] = 'ZO-'.$number.'.'.($order + 1);
+                    $odo['secondary_branch_name'] = $branch['name'];
+                    $odo['branch_index'] = $number;
+                    $odo['branch_number'] = (string) $number;
+                    $odoByKey->put($odoKey, $odo);
+                }
+
+                return $branch;
+            });
+        $mainByKey = $mainBranches->keyBy('key');
+        $lateralCounters = [];
+
+        $updated = collect($branches)->map(function (array $branch) use ($graph, $mainBranches, $mainByKey, &$odoByKey, &$lateralCounters): array {
+            if (count($branch['odo_keys'] ?? []) !== 1) {
+                return $mainByKey->get($branch['key'], $branch);
+            }
+            $singleKey = $branch['odo_keys'][0];
+            $singlePoint = $odoByKey->get($singleKey)['point'] ?? null;
+            if (! is_array($singlePoint)) {
+                return $branch;
+            }
+
+            $candidates = $mainBranches
+                ->filter(fn (array $parent) => ($parent['odf_key'] ?? null) === ($branch['odf_key'] ?? null)
+                    && (int) ($parent['odf_id'] ?? 0) === (int) ($branch['odf_id'] ?? 0))
+                ->flatMap(fn (array $parent) => collect($parent['odo_keys'])->map(fn (string $odoKey) => [
+                    'branch' => $parent,
+                    'odo_key' => $odoKey,
+                    'point' => $odoByKey->get($odoKey)['point'] ?? null,
+                ]))
+                ->filter(fn (array $candidate) => is_array($candidate['point']))
+                ->map(function (array $candidate) use ($graph, $singlePoint): array {
+                    $candidate['route'] = $this->pathThroughGraph($graph, $candidate['point'], $singlePoint);
+
+                    return $candidate;
+                })
+                ->filter(fn (array $candidate) => $candidate['route'] !== null)
+                ->sortBy(fn (array $candidate) => [$candidate['route']['length_m'], $candidate['branch']['branch_index'], $candidate['odo_key']]);
+            $parent = $candidates->first();
+            if ($parent === null) {
+                return $branch;
+            }
+
+            $parentNumber = (int) $parent['branch']['branch_index'];
+            $lateralCounters[$parentNumber] = ($lateralCounters[$parentNumber] ?? 0) + 1;
+            $lateralNumber = $parentNumber.'.'.$lateralCounters[$parentNumber];
+            $odo = $odoByKey->get($singleKey);
+            $odo['provisional_name'] = 'ZO-'.$lateralNumber.'.1';
+            $odo['secondary_branch_key'] = $branch['key'];
+            $odo['secondary_branch_name'] = 'Sekundarni krak '.$lateralNumber;
+            $odo['parent_odo_key'] = $parent['odo_key'];
+            $odo['branch_number'] = $lateralNumber;
+            $odoByKey->put($singleKey, $odo);
+
+            return array_merge($branch, [
+                'name' => 'Sekundarni krak '.$lateralNumber,
+                'branch_number' => $lateralNumber,
+                'is_lateral' => true,
+                'parent_branch_key' => $parent['branch']['key'],
+                'from_odo_key' => $parent['odo_key'],
+                'path' => $parent['route']['path'],
+                'length_m' => $parent['route']['length_m'],
+            ]);
+        });
+
+        return [$updated->values()->all(), $odoByKey->values()->all()];
     }
 
     private function routePosition(array $point, array $path): float

@@ -89,22 +89,50 @@ class PlanConfirmationService
     {
         $cabinetIds = [];
         $branchIds = [];
-        $routes = collect(data_get($preview, 'routes.secondary_routes', []));
+        $routes = collect(data_get($preview, 'routes.secondary_routes', []))
+            ->sortBy(fn (array $route) => ($route['is_lateral'] ?? false) ? 1 : 0)
+            ->values();
         $sized = collect(data_get($preview, 'cable_capacity.routes.secondary_routes', []))->keyBy('key');
         $odos = collect(data_get($preview, 'odo_placement.odos', []))->keyBy('key');
+        $branchIdsByKey = [];
         foreach ($routes as $index => $routePreview) {
             $odfId = $routePreview['odf_id'] ?? ($odfIds[$routePreview['odf_key'] ?? ''] ?? null);
             if (! $odfId) {
                 throw new DomainException('Za sekundarni krak #'.($index + 1).' nije određen ODF.');
             }
             $size = $sized->get($routePreview['key']);
-            $route = $this->route($project, $routePreview, ['odf_id' => $odfId, 'from_type' => 'odf', 'from_id' => $odfId, 'name' => 'Sekundarni krak '.($index + 1), 'route_type' => 'distribution', 'fiber_count' => $size['fiber_count'] ?? 4, 'import_batch' => $batch]);
-            $branch = NetworkBranch::create(['project_id' => $project->id, 'odf_id' => $odfId, 'route_id' => $route->id, 'name' => 'Sekundarni krak '.($index + 1), 'code' => $routePreview['key'], 'type' => 'secondary', 'sort_order' => $index + 1]);
+            $lateral = (bool) ($routePreview['is_lateral'] ?? false);
+            $sourceCabinetId = $lateral ? ($cabinetIds[$routePreview['from_odo_key'] ?? ''] ?? null) : null;
+            if ($lateral && ! $sourceCabinetId) {
+                throw new DomainException('Sporedni sekundarni krak nema poÄetni ZO.');
+            }
+            $branchName = $routePreview['name'] ?? 'Sekundarni krak '.($index + 1);
+            $route = $this->route($project, $routePreview, [
+                'odf_id' => $odfId,
+                'from_type' => $lateral ? 'cabinet' : 'odf',
+                'from_id' => $lateral ? $sourceCabinetId : $odfId,
+                'name' => $branchName,
+                'route_type' => 'distribution',
+                'fiber_count' => $size['fiber_count'] ?? 4,
+                'note' => $lateral ? 'Sporedni krak izveden mikrocijevi iz najbliÅ¾eg ZO-a.' : null,
+                'import_batch' => $batch,
+            ]);
+            $branch = NetworkBranch::create([
+                'project_id' => $project->id,
+                'odf_id' => $odfId,
+                'parent_branch_id' => $lateral ? ($branchIdsByKey[$routePreview['parent_branch_key'] ?? ''] ?? null) : null,
+                'route_id' => $route->id,
+                'name' => $branchName,
+                'code' => $routePreview['key'],
+                'type' => 'secondary',
+                'sort_order' => $index + 1,
+            ]);
+            $branchIdsByKey[$routePreview['key']] = $branch->id;
             $routeOdoKeys = $routePreview['odo_keys'] ?? [$routePreview['odo_key']];
             foreach ($routeOdoKeys as $order => $odoKey) {
                 $odo = $odos->get($odoKey);
                 [$splitters, $ports] = $this->splitterShape((int) $odo['capacity']);
-                $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odfId, 'branch_id' => $branch->id, 'name' => $odo['provisional_name'], 'address' => 'Automatski prijedlog velikog planera', 'splitter_count' => $splitters, 'ports_per_splitter' => $ports, 'latitude' => $odo['point'][0], 'longitude' => $odo['point'][1], 'branch_order' => $order + 1, 'import_batch' => $batch]);
+                $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odfId, 'parent_cabinet_id' => $lateral ? $sourceCabinetId : null, 'branch_id' => $branch->id, 'name' => $odo['provisional_name'], 'address' => 'Automatski prijedlog velikog planera', 'splitter_count' => $splitters, 'ports_per_splitter' => $ports, 'latitude' => $odo['point'][0], 'longitude' => $odo['point'][1], 'branch_order' => $order + 1, 'import_batch' => $batch]);
                 $cabinetIds[$odoKey] = $cabinet->id;
                 $branchIds[$odoKey] = $branch->id;
                 if ($odoKey === ($routePreview['terminal_odo_key'] ?? $routePreview['odo_key'])) {

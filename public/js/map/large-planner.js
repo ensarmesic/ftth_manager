@@ -504,6 +504,7 @@
                 const routeColor = type === 'secondary' ? secondaryColors[routeIndex % secondaryColors.length] : color;
                 const sourcePoints = (route.path || []).map(point => L.latLng(Number(point[0]), Number(point[1])));
                 const routeName = route.name || (type === 'secondary' ? `Sekundarni krak ${routeIndex + 1}` : route.key);
+                const lateral = type === 'secondary' && Boolean(route.is_lateral);
                 // The engineering geometry must remain visually on the surveyed
                 // trench axis. With dozens of branches, cumulative display lanes
                 // looked like off-road routes even though stored paths were valid.
@@ -513,7 +514,8 @@
                     opacity: enabled ? 0.9 : 0,
                     interactive: enabled,
                     routeKey: route.key,
-                }).bindTooltip(`${routeName} · ${Math.round(route.length_m || 0)} m · polazi iz ODF-a`).addTo(planLayers);
+                    dashArray: lateral ? '8 6' : null,
+                }).bindTooltip(`${routeName} · ${Math.round(route.length_m || 0)} m · polazi iz ${lateral ? 'ZO-a' : 'ODF-a'}`).addTo(planLayers);
                 routeLayersByType[type].push(layer);
             });
         };

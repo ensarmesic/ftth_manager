@@ -98,8 +98,21 @@ class FinalValidationService
             if (is_array($odfPoint) && array_key_exists('latitude', $odfPoint)) {
                 $odfPoint = [(float) $odfPoint['latitude'], (float) $odfPoint['longitude']];
             }
-            if (! $this->connects($route['path'] ?? [], $odfPoint, $odoPoint)) {
-                $errors[] = $this->error('route_endpoint_mismatch', "Sekundarna trasa {$route['key']} ne dodiruje svoj ODF i ODO.", ['route_key' => $route['key']]);
+            $sourcePoint = $odfPoint;
+            if ($route['is_lateral'] ?? false) {
+                $sourcePoint = $odos->firstWhere('key', $route['from_odo_key'] ?? null)['point'] ?? null;
+                if ($sourcePoint === null || ! in_array($route['from_odo_key'] ?? null, $odoKeys, true)) {
+                    $errors[] = $this->error('invalid_lateral_source', "Sporedni krak {$route['key']} nema valjan poÄetni ZO.", ['route_key' => $route['key']]);
+                }
+                $parentRoute = $secondary->firstWhere('key', $route['parent_branch_key'] ?? null);
+                if ($parentRoute === null
+                    || ($parentRoute['is_lateral'] ?? false)
+                    || ! in_array($route['from_odo_key'] ?? null, $parentRoute['odo_keys'] ?? [], true)) {
+                    $errors[] = $this->error('invalid_lateral_parent', "Sporedni krak {$route['key']} nije vezan za valjan matiÄni sekundarni krak.", ['route_key' => $route['key']]);
+                }
+            }
+            if (! $this->connects($route['path'] ?? [], $sourcePoint, $odoPoint)) {
+                $errors[] = $this->error('route_endpoint_mismatch', "Sekundarna trasa {$route['key']} ne dodiruje svoj poÄetak i zavrÅ¡ni ODO.", ['route_key' => $route['key']]);
             }
             if ($this->pathHasRepeatedSegment($route['path'] ?? [])) {
                 $errors[] = $this->error('secondary_route_loop', "Sekundarna trasa {$route['key']} sadrži povratnu petlju.", ['route_key' => $route['key']]);
@@ -123,6 +136,9 @@ class FinalValidationService
             for ($right = $left + 1; $right < $secondary->count(); $right++) {
                 $first = $secondary->values()->get($left);
                 $second = $secondary->values()->get($right);
+                if (($first['is_lateral'] ?? false) || ($second['is_lateral'] ?? false)) {
+                    continue;
+                }
                 $sameOdf = ($first['odf_key'] ?? null) !== null
                     ? ($first['odf_key'] ?? null) === ($second['odf_key'] ?? null)
                     : (int) ($first['odf_id'] ?? 0) === (int) ($second['odf_id'] ?? 0);

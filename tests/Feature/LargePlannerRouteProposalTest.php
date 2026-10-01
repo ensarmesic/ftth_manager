@@ -137,6 +137,34 @@ class LargePlannerRouteProposalTest extends TestCase
         $this->assertGreaterThan(350, $result['secondary_routes'][0]['length_m']);
     }
 
+    public function test_single_odo_branch_becomes_numbered_lateral_from_nearest_odo(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $this->corridor($project, [[43.8500, 18.4100], [43.8520, 18.4100]]);
+        $this->corridor($project, [[43.8510, 18.4100], [43.8510, 18.4120]]);
+        $odf = Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.8500, 'longitude' => 18.4100]);
+        $placement = ['odos' => [
+            ['key' => 'odo-0001', 'provisional_name' => 'ODO-1', 'point' => [43.8505, 18.4100], 'house_ids' => []],
+            ['key' => 'odo-0002', 'provisional_name' => 'ODO-2', 'point' => [43.8520, 18.4100], 'house_ids' => []],
+            ['key' => 'odo-0003', 'provisional_name' => 'ODO-3', 'point' => [43.8510, 18.4120], 'house_ids' => []],
+        ]];
+
+        $result = app(NetworkRouteProposalService::class)->propose(
+            $project,
+            app(CorridorGraphBuilder::class)->build($project),
+            $placement,
+        );
+
+        $lateral = collect($result['secondary_routes'])->firstWhere('is_lateral', true);
+        $this->assertNotNull($lateral);
+        $this->assertSame($odf->id, $lateral['odf_id']);
+        $this->assertSame('Sekundarni krak 1.1', $lateral['name']);
+        $this->assertSame('secondary-branch-0001', $lateral['parent_branch_key']);
+        $this->assertContains($lateral['from_odo_key'], ['odo-0001', 'odo-0002', 'odo-0003']);
+        $this->assertNotSame($lateral['from_odo_key'], $lateral['terminal_odo_key']);
+        $this->assertSame('ZO-1.1.1', collect($result['odos'])->firstWhere('key', $lateral['terminal_odo_key'])['provisional_name']);
+    }
+
     private function placement(House $house, array $point): array
     {
         return ['odos' => [[
