@@ -84,7 +84,9 @@ class CableCapacityService
         $segments = collect($segments)->sortKeys()->map(function (array $segment) use ($reservePercent, &$warnings): array {
             $segment['route_types'] = array_values(array_unique($segment['route_types']));
             $segment['route_keys'] = array_values(array_unique($segment['route_keys']));
-            $sizing = $this->sizing($segment['load_fibers'], $reservePercent);
+            $sizing = count($segment['route_keys']) > 1
+                ? $this->bundleSizing($segment['load_fibers'], $reservePercent)
+                : $this->sizing($segment['load_fibers'], $reservePercent);
             $segment += $sizing;
             if ($sizing['overloaded']) {
                 $warnings[] = [
@@ -137,6 +139,31 @@ class CableCapacityService
             'required_fibers' => $required,
             'fiber_count' => $capacity,
             'overloaded' => $capacity === null,
+        ];
+    }
+
+    private function bundleSizing(int $load, float $reservePercent): array
+    {
+        $reserve = (int) ceil($load * $reservePercent / 100);
+        $required = $load + $reserve;
+        $remaining = $required;
+        $cables = [];
+        while ($remaining > max(self::CAPACITIES)) {
+            $cables[] = max(self::CAPACITIES);
+            $remaining -= max(self::CAPACITIES);
+        }
+        if ($remaining > 0) {
+            $cables[] = collect(self::CAPACITIES)->first(fn (int $candidate) => $candidate >= $remaining);
+        }
+
+        return [
+            'load_fibers' => $load,
+            'reserve_fibers' => $reserve,
+            'required_fibers' => $required,
+            'fiber_count' => array_sum($cables),
+            'cable_count' => count($cables),
+            'cable_sizes' => $cables,
+            'overloaded' => false,
         ];
     }
 

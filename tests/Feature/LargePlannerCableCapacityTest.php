@@ -60,6 +60,30 @@ class LargePlannerCableCapacityTest extends TestCase
         $this->assertDatabaseCount('routes', 0);
     }
 
+    public function test_shared_segment_uses_multiple_parallel_cables_when_total_exceeds_144f(): void
+    {
+        $project = $this->project(20);
+        $placement = ['odos' => [
+            ['key' => 'odo-0001', 'occupancy' => 300],
+            ['key' => 'odo-0002', 'occupancy' => 300],
+        ]];
+        $path = [[43.85, 18.41], [43.851, 18.411]];
+
+        $result = app(CableCapacityService::class)->calculate($project, $placement, ['odfs' => [], 'primary_routes' => []], [
+            'secondary_routes' => [
+                ['key' => 'secondary-1', 'odo_key' => 'odo-0001', 'path' => $path],
+                ['key' => 'secondary-2', 'odo_key' => 'odo-0002', 'path' => $path],
+            ],
+            'drop_routes' => [],
+        ]);
+
+        $this->assertSame(180, $result['segments'][0]['required_fibers']);
+        $this->assertSame(2, $result['segments'][0]['cable_count']);
+        $this->assertSame([144, 48], $result['segments'][0]['cable_sizes']);
+        $this->assertFalse($result['segments'][0]['overloaded']);
+        $this->assertSame(0, $result['summary']['overloaded_segments']);
+    }
+
     private function project(int $reserve): Project
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
