@@ -503,15 +503,11 @@
                 const enabled = document.querySelector(`[data-large-route-filter="${type}"]`)?.checked !== false;
                 const routeColor = type === 'secondary' ? secondaryColors[routeIndex % secondaryColors.length] : color;
                 const sourcePoints = (route.path || []).map(point => L.latLng(Number(point[0]), Number(point[1])));
-                // Every secondary cable starts at the ODF. Narrow display lanes keep
-                // cables sharing one trench from completely covering one another.
-                // Endpoint taper preserves the exact ODF and terminal ODO positions.
-                const lane = routeIndex === 0 ? 0 : Math.ceil(routeIndex / 2) * (routeIndex % 2 ? 1 : -1);
-                const displayPoints = type === 'secondary' && typeof offsetRouteDisplayPoints === 'function'
-                    ? offsetRouteDisplayPoints(sourcePoints, lane * 1.35)
-                    : sourcePoints;
                 const routeName = route.name || (type === 'secondary' ? `Sekundarni krak ${routeIndex + 1}` : route.key);
-                const layer = L.polyline(displayPoints, {
+                // The engineering geometry must remain visually on the surveyed
+                // trench axis. With dozens of branches, cumulative display lanes
+                // looked like off-road routes even though stored paths were valid.
+                const layer = L.polyline(sourcePoints, {
                     color: routeColor,
                     weight,
                     opacity: enabled ? 0.9 : 0,
