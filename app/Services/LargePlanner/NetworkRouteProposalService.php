@@ -26,8 +26,8 @@ class NetworkRouteProposalService
             $odfs = $manualOdfs;
         }
         $sources = ($odfPlan['enabled'] ?? false) && ($odfPlan['odfs'] ?? []) !== []
-            ? collect($odfPlan['odfs'])->map(fn (array $odf) => ['odf_id' => null, 'odf_key' => $odf['key'], 'point' => $odf['point'], 'odo_keys' => $odf['odo_keys'] ?? []])->all()
-            : $odfs->map(fn ($odf) => ['odf_id' => $odf->id, 'odf_key' => null, 'point' => [(float) $odf->latitude, (float) $odf->longitude]])->all();
+            ? collect($odfPlan['odfs'])->values()->map(fn (array $odf, int $index) => ['odf_id' => null, 'odf_key' => $odf['key'], 'odf_number' => $odf['odf_number'] ?? $index + 1, 'point' => $odf['point'], 'odo_keys' => $odf['odo_keys'] ?? []])->all()
+            : $odfs->values()->map(fn ($odf, int $index) => ['odf_id' => $odf->id, 'odf_key' => null, 'odf_number' => $index + 1, 'point' => [(float) $odf->latitude, (float) $odf->longitude]])->all();
         $houses = $project->houses()->get()->keyBy('id');
         $requiredWaypoints = $project->largePlannerConstraints()
             ->where('type', 'required_waypoint')
@@ -75,6 +75,7 @@ class NetworkRouteProposalService
                     'type' => 'secondary',
                     'odf_id' => $bestOdf['odf_id'],
                     'odf_key' => $bestOdf['odf_key'],
+                    'odf_number' => $bestOdf['odf_number'],
                     'odo_key' => $odo['key'],
                     'path' => $secondaryPath,
                     'length_m' => $bestPath['length_m'],
@@ -153,7 +154,8 @@ class NetworkRouteProposalService
         $odoByKey = collect($odos)->keyBy('key');
         $named = $odoByKey;
         $chains = [];
-        foreach (collect($routes)->groupBy(fn (array $route) => $route['odf_id'] ?? 'new-'.$route['odf_key'])->sortKeys() as $sourceRoutes) {
+        foreach (collect($routes)->groupBy('odf_number')->sortKeys() as $odfNumber => $sourceRoutes) {
+            $localBranchNumber = 0;
             $remaining = $sourceRoutes->sortByDesc('length_m')->values();
             while ($remaining->isNotEmpty()) {
                 $terminal = $remaining->shift();
@@ -166,22 +168,23 @@ class NetworkRouteProposalService
                 $chain = $samePath->push($terminal)->sortBy(fn (array $route) => [$this->routePosition($odoByKey->get($route['odo_key'])['point'], $terminal['path']), $route['odo_key']])->values();
                 $remaining = $remaining->reject(fn (array $route) => $samePath->contains(fn (array $item) => $item['odo_key'] === $route['odo_key']))->values();
                 foreach ($this->branchChunks($chain, (float) $terminal['length_m']) as $chunk) {
-                    $chains[] = $chunk;
+                    $chains[] = ['number' => $odfNumber.'.'.(++$localBranchNumber), 'routes' => $chunk];
                 }
             }
         }
 
         $branches = collect($chains)
-            ->map(function ($ordered, int $branchIndex) use (&$named): array {
+            ->map(function (array $chain) use (&$named): array {
+                $ordered = $chain['routes'];
                 $terminal = $ordered->last();
-                $branchNumber = $branchIndex + 1;
+                $branchNumber = $chain['number'];
                 $odoKeys = $ordered->pluck('odo_key')->all();
                 foreach ($odoKeys as $order => $odoKey) {
                     $odo = $named->get($odoKey);
                     $odo['provisional_name'] = 'ZO-'.$branchNumber.'.'.($order + 1);
                     $odo['odf_id'] = $terminal['odf_id'];
                     $odo['odf_key'] = $terminal['odf_key'];
-                    $odo['secondary_branch_key'] = 'secondary-branch-'.str_pad((string) $branchNumber, 4, '0', STR_PAD_LEFT);
+                    $odo['secondary_branch_key'] = 'secondary-branch-'.str_replace('.', '-', $branchNumber);
                     $odo['secondary_branch_name'] = 'Sekundarni krak '.$branchNumber;
                     $odo['branch_index'] = $branchNumber;
                     $odo['branch_order'] = $order + 1;
@@ -189,10 +192,12 @@ class NetworkRouteProposalService
                 }
 
                 return [
-                    'key' => 'secondary-branch-'.str_pad((string) $branchNumber, 4, '0', STR_PAD_LEFT),
+                    'key' => 'secondary-branch-'.str_replace('.', '-', $branchNumber),
                     'name' => 'Sekundarni krak '.$branchNumber,
                     'type' => 'secondary',
                     'branch_index' => $branchNumber,
+                    'branch_number' => $branchNumber,
+                    'odf_number' => $terminal['odf_number'],
                     'odf_id' => $terminal['odf_id'],
                     'odf_key' => $terminal['odf_key'],
                     'odo_keys' => $odoKeys,
@@ -231,8 +236,8 @@ class NetworkRouteProposalService
         $mainBranches = collect($branches)
             ->filter(fn (array $branch) => count($branch['odo_keys'] ?? []) >= 2)
             ->values()
-            ->map(function (array $branch, int $index) use (&$odoByKey): array {
-                $number = $index + 1;
+            ->map(function (array $branch) use (&$odoByKey): array {
+                $number = (string) ($branch['branch_number'] ?? $branch['branch_index']);
                 $branch['name'] = 'Sekundarni krak '.$number;
                 $branch['branch_index'] = $number;
                 $branch['branch_number'] = (string) $number;
@@ -281,7 +286,7 @@ class NetworkRouteProposalService
                 return $branch;
             }
 
-            $parentNumber = (int) $parent['branch']['branch_index'];
+            $parentNumber = (string) $parent['branch']['branch_number'];
             $lateralCounters[$parentNumber] = ($lateralCounters[$parentNumber] ?? 0) + 1;
             $lateralNumber = $parentNumber.'.'.$lateralCounters[$parentNumber];
             $odo = $odoByKey->get($singleKey);

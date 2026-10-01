@@ -158,11 +158,43 @@ class LargePlannerRouteProposalTest extends TestCase
         $lateral = collect($result['secondary_routes'])->firstWhere('is_lateral', true);
         $this->assertNotNull($lateral);
         $this->assertSame($odf->id, $lateral['odf_id']);
-        $this->assertSame('Sekundarni krak 1.1', $lateral['name']);
-        $this->assertSame('secondary-branch-0001', $lateral['parent_branch_key']);
+        $this->assertSame('Sekundarni krak 1.1.1', $lateral['name']);
+        $this->assertSame('secondary-branch-1-1', $lateral['parent_branch_key']);
         $this->assertContains($lateral['from_odo_key'], ['odo-0001', 'odo-0002', 'odo-0003']);
         $this->assertNotSame($lateral['from_odo_key'], $lateral['terminal_odo_key']);
-        $this->assertSame('ZO-1.1.1', collect($result['odos'])->firstWhere('key', $lateral['terminal_odo_key'])['provisional_name']);
+        $this->assertSame('ZO-1.1.1.1', collect($result['odos'])->firstWhere('key', $lateral['terminal_odo_key'])['provisional_name']);
+    }
+
+    public function test_secondary_branch_numbers_restart_under_each_odf_number(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $this->corridor($project, [[43.8500, 18.4100], [43.8600, 18.4100]]);
+        $placement = ['odos' => collect(range(1, 4))->map(fn (int $number) => [
+            'key' => 'odo-000'.$number,
+            'provisional_name' => 'ODO-'.$number,
+            'point' => [43.8500 + ($number * 0.002), 18.4100],
+            'house_ids' => [],
+        ])->all()];
+        $odfPlan = ['enabled' => true, 'odfs' => [
+            ['key' => 'odf-0001', 'odf_number' => 1, 'point' => [43.8500, 18.4100], 'odo_keys' => ['odo-0001', 'odo-0002']],
+            ['key' => 'odf-0002', 'odf_number' => 2, 'point' => [43.8600, 18.4100], 'odo_keys' => ['odo-0003', 'odo-0004']],
+        ]];
+
+        $result = app(NetworkRouteProposalService::class)->propose(
+            $project,
+            app(CorridorGraphBuilder::class)->build($project),
+            $placement,
+            $odfPlan,
+        );
+
+        $this->assertEqualsCanonicalizing(
+            ['Sekundarni krak 1.1', 'Sekundarni krak 2.1'],
+            collect($result['secondary_routes'])->pluck('name')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            ['ZO-1.1.1', 'ZO-1.1.2', 'ZO-2.1.1', 'ZO-2.1.2'],
+            collect($result['odos'])->pluck('provisional_name')->all(),
+        );
     }
 
     public function test_normal_secondary_branches_have_at_most_two_odos(): void

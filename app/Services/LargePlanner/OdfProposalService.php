@@ -23,12 +23,14 @@ class OdfProposalService
             ->whereNull('import_batch')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
+            ->orderBy('id')
             ->get();
         if ($manualOdfs->isNotEmpty()) {
-            [$primary, $warnings] = $this->minimumPrimaryNetwork($graph, $manualOdfs->map(fn ($odf) => [
+            [$primary, $warnings] = $this->minimumPrimaryNetwork($graph, $manualOdfs->values()->map(fn ($odf, int $index) => [
                 'odf_id' => $odf->id,
                 'odf_key' => null,
-                'name' => $odf->name,
+                'name' => 'ODF '.($index + 1),
+                'odf_number' => $index + 1,
                 'point' => [(float) $odf->latitude, (float) $odf->longitude],
             ])->values()->all());
 
@@ -54,7 +56,8 @@ class OdfProposalService
                 $odfLocation = $this->optimizedLocation($graph, $candidate['point'], $items, $placement['odos'], (int) $candidate['component']);
                 $proposals[] = [
                     'key' => 'odf-'.str_pad((string) (count($proposals) + 1), 4, '0', STR_PAD_LEFT),
-                    'provisional_name' => 'ODF-P-'.str_pad((string) (count($proposals) + 1), 4, '0', STR_PAD_LEFT),
+                    'provisional_name' => 'ODF '.(count($proposals) + 1),
+                    'odf_number' => count($proposals) + 1,
                     'point' => $odfLocation['point'],
                     'corridor_id' => $odfLocation['corridor_id'],
                     'component' => $candidate['component'],
@@ -73,6 +76,7 @@ class OdfProposalService
             'odf_id' => null,
             'odf_key' => $odf['key'],
             'name' => $odf['provisional_name'],
+            'odf_number' => $odf['odf_number'],
             'point' => $odf['point'],
         ])->all());
 
@@ -137,9 +141,9 @@ class OdfProposalService
     public function reconnect(Project $project, array $graph, array $odfPlan): array
     {
         $sources = ($odfPlan['enabled'] ?? false)
-            ? collect($odfPlan['odfs'] ?? [])->map(fn (array $odf) => ['odf_id' => null, 'odf_key' => $odf['key'], 'name' => $odf['provisional_name'], 'point' => $odf['point']])->all()
+            ? collect($odfPlan['odfs'] ?? [])->map(fn (array $odf, int $index) => ['odf_id' => null, 'odf_key' => $odf['key'], 'name' => $odf['provisional_name'], 'odf_number' => $odf['odf_number'] ?? $index + 1, 'point' => $odf['point']])->all()
             : $project->odfs()->whereNull('import_batch')->whereNotNull('latitude')->whereNotNull('longitude')->orderBy('id')->get()
-                ->map(fn ($odf) => ['odf_id' => $odf->id, 'odf_key' => null, 'name' => $odf->name, 'point' => [(float) $odf->latitude, (float) $odf->longitude]])->all();
+                ->values()->map(fn ($odf, int $index) => ['odf_id' => $odf->id, 'odf_key' => null, 'name' => 'ODF '.($index + 1), 'odf_number' => $index + 1, 'point' => [(float) $odf->latitude, (float) $odf->longitude]])->all();
         [$primary, $networkWarnings] = $this->minimumPrimaryNetwork($graph, $sources);
         $odfPlan['primary_routes'] = $primary;
         $odfPlan['warnings'] = collect($odfPlan['warnings'] ?? [])

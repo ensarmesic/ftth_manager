@@ -50,6 +50,7 @@ class PlanConfirmationService
 
             $snapshot = $this->snapshots->create($project, "Automatski: prije potvrde velikog plana #{$task->id}");
             $batch = 'large-plan:'.$task->id;
+            $this->normalizeExistingOdfNames($project);
             $odfIds = $this->createOdfs($project, $preview, $batch);
             [$cabinetIds, $branchIds, $routeCount] = $this->createSecondaryNetwork($project, $preview, $odfIds, $batch);
             $routeCount += $this->createPrimaryRoutes($project, $preview, $odfIds, $batch);
@@ -83,6 +84,12 @@ class PlanConfirmationService
         }
 
         return $ids;
+    }
+
+    private function normalizeExistingOdfNames(Project $project): void
+    {
+        $project->odfs()->whereNull('import_batch')->orderBy('id')->get()
+            ->each(fn (Odf $odf, int $index) => $odf->update(['name' => 'ODF '.($index + 1)]));
     }
 
     private function createSecondaryNetwork(Project $project, array $preview, array $odfIds, string $batch): array

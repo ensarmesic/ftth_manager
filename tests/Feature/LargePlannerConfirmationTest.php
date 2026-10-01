@@ -38,6 +38,7 @@ class LargePlannerConfirmationTest extends TestCase
         $this->assertDatabaseCount('cabinets', 1);
         $this->assertDatabaseCount('network_branches', 1);
         $this->assertDatabaseCount('routes', 2);
+        $this->assertSame('ODF 1', $sourceOdf->fresh()->name);
         $this->assertSame($sourceOdf->id, $project->cabinets()->firstOrFail()->odf_id);
         $this->assertSame(2, $project->cabinets()->firstOrFail()->splitter_count);
         $this->assertSame(4, $project->cabinets()->firstOrFail()->ports_per_splitter);

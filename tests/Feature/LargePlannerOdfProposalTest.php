@@ -35,6 +35,7 @@ class LargePlannerOdfProposalTest extends TestCase
         $result = app(OdfProposalService::class)->propose($project, $graph, $this->placement($corridor->id, 5));
 
         $this->assertCount(3, $result['odfs']);
+        $this->assertSame(['ODF 1', 'ODF 2', 'ODF 3'], collect($result['odfs'])->pluck('provisional_name')->all());
         foreach ($result['odfs'] as $odf) {
             $this->assertLessThanOrEqual(2, $odf['occupancy']);
             $this->assertSame($corridor->id, $odf['corridor_id']);
