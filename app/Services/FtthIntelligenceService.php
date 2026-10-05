@@ -422,7 +422,40 @@ class FtthIntelligenceService
             $groups[] = $current->values();
         }
 
-        return $groups;
+        return $this->rebalanceSmallOdoGroups($groups, 3, $params['max_houses_per_odo']);
+    }
+
+    /**
+     * Keep spatial/chainage order while preventing a final one- or two-house ODO.
+     * Neighbouring groups lend their edge houses without exceeding capacity.
+     *
+     * @param  array<int, Collection<int, House>>  $groups
+     * @return array<int, Collection<int, House>>
+     */
+    private function rebalanceSmallOdoGroups(array $groups, int $minimum, int $maximum): array
+    {
+        for ($index = 0; $index < count($groups); $index++) {
+            if ($groups[$index]->count() >= $minimum) {
+                continue;
+            }
+
+            $needed = $minimum - $groups[$index]->count();
+            if ($index > 0 && $groups[$index - 1]->count() - $needed >= $minimum) {
+                $moved = $groups[$index - 1]->splice(-$needed);
+                $groups[$index] = $moved->concat($groups[$index])->values();
+
+                continue;
+            }
+            if (isset($groups[$index + 1]) && $groups[$index + 1]->count() - $needed >= $minimum) {
+                $moved = $groups[$index + 1]->splice(0, $needed);
+                $groups[$index] = $groups[$index]->concat($moved)->values();
+            }
+        }
+
+        return collect($groups)
+            ->filter(fn (Collection $group) => $group->isNotEmpty() && $group->count() <= $maximum)
+            ->values()
+            ->all();
     }
 
     private function fillExistingCabinets(Project $project, Collection $houses, array $branch, Collection $odfs, array $params): array
