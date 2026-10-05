@@ -34,12 +34,13 @@ class LargePlannerOdoPlacementTest extends TestCase
             $this->assertSame($corridor->id, $odo['corridor_id']);
             $this->assertLessThan(0.2, app(GeometryService::class)->distanceToRoute($odo['point'][0], $odo['point'][1], $corridor->path));
             $this->assertLessThanOrEqual(4, $odo['occupancy']);
+            $this->assertGreaterThanOrEqual(3, $odo['occupancy']);
             $this->assertLessThanOrEqual($odo['capacity'], $odo['occupancy']);
         }
         $this->assertDatabaseCount('cabinets', 0);
     }
 
-    public function test_placement_splits_spread_out_houses_into_nearby_odos(): void
+    public function test_placement_does_not_create_cabinets_for_fewer_than_three_houses(): void
     {
         [$project] = $this->projectWithCorridor(16, 40);
         House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8500, 'longitude' => 18.4100]);
@@ -47,9 +48,60 @@ class LargePlannerOdoPlacementTest extends TestCase
 
         $result = $this->propose($project);
 
-        $this->assertCount(2, $result['odos']);
+        $this->assertCount(0, $result['odos']);
+        $this->assertNotEmpty($result['warnings']);
+        $this->assertSame('odo_minimum_houses_not_met', $result['warnings'][0]['code']);
+    }
+
+    public function test_nine_houses_are_balanced_as_six_plus_three_instead_of_eight_plus_one(): void
+    {
+        [$project] = $this->projectWithCorridor(8, 150);
+        for ($index = 0; $index < 9; $index++) {
+            House::factory()->create([
+                'project_id' => $project->id,
+                'latitude' => 43.8501 + ($index * 0.00002),
+                'longitude' => 18.4101 + ($index * 0.00002),
+            ]);
+        }
+
+        $result = $this->propose($project);
+
+        $this->assertSame([3, 6], collect($result['odos'])->pluck('occupancy')->sort()->values()->all());
+        $this->assertTrue(collect($result['odos'])->every(fn (array $odo) => $odo['occupancy'] >= 3));
+    }
+
+    public function test_cabinets_prefer_eleven_or_twelve_houses_when_capacity_allows_it(): void
+    {
+        [$project] = $this->projectWithCorridor(16, 150);
+        for ($index = 0; $index < 23; $index++) {
+            House::factory()->create([
+                'project_id' => $project->id,
+                'latitude' => 43.8501 + ($index * 0.00001),
+                'longitude' => 18.4101 + ($index * 0.00001),
+            ]);
+        }
+
+        $result = $this->propose($project);
+
+        $this->assertSame([11, 12], collect($result['odos'])->pluck('occupancy')->sort()->values()->all());
         $this->assertSame([], $result['warnings']);
-        $this->assertTrue(collect($result['odos'])->every(fn (array $odo) => $odo['within_drop_limit']));
+    }
+
+    public function test_twenty_houses_are_balanced_without_one_weakly_filled_cabinet(): void
+    {
+        [$project] = $this->projectWithCorridor(16, 150);
+        for ($index = 0; $index < 20; $index++) {
+            House::factory()->create([
+                'project_id' => $project->id,
+                'latitude' => 43.8501 + ($index * 0.00001),
+                'longitude' => 18.4101 + ($index * 0.00001),
+            ]);
+        }
+
+        $result = $this->propose($project);
+
+        $this->assertSame([10, 10], collect($result['odos'])->pluck('occupancy')->sort()->values()->all());
+        $this->assertCount(2, collect($result['warnings'])->where('code', 'odo_below_preferred_occupancy'));
     }
 
     public function test_same_clusters_produce_identical_odo_placement(): void

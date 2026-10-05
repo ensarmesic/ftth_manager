@@ -29,15 +29,15 @@ class LargePlannerConfirmationTest extends TestCase
         $user = User::factory()->designer()->create();
 
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))
-            ->assertOk()->assertJsonPath('summary.odos', 1)->assertJsonPath('summary.routes', 2)
+            ->assertOk()->assertJsonPath('summary.odos', 1)->assertJsonPath('summary.routes', 4)
             ->assertJsonPath('summary.fiber_errors', 0)
-            ->assertJsonPath('summary.materials.route_length_m', 160)
+            ->assertJsonPath('summary.materials.route_length_m', 200)
             ->assertJsonPath('summary.materials.microduct_14_10_m', 140)
-            ->assertJsonPath('summary.materials.microduct_10_8_m', 20);
+            ->assertJsonPath('summary.materials.microduct_10_8_m', 60);
 
         $this->assertDatabaseCount('cabinets', 1);
         $this->assertDatabaseCount('network_branches', 1);
-        $this->assertDatabaseCount('routes', 2);
+        $this->assertDatabaseCount('routes', 4);
         $this->assertSame('ODF 1', $sourceOdf->fresh()->name);
         $this->assertSame($sourceOdf->id, $project->cabinets()->firstOrFail()->odf_id);
         $this->assertSame(2, $project->cabinets()->firstOrFail()->splitter_count);
@@ -55,7 +55,7 @@ class LargePlannerConfirmationTest extends TestCase
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $secondTask]))
             ->assertUnprocessable();
         $this->assertDatabaseCount('cabinets', 1);
-        $this->assertDatabaseCount('routes', 2);
+        $this->assertDatabaseCount('routes', 4);
         $this->assertDatabaseHas('activity_logs', ['project_id' => $project->id, 'method' => 'CONFIRM', 'subject_id' => $task->id]);
         $validation = app(ProjectValidationService::class)->validateProject($project->fresh());
         $this->assertSame([], collect($validation)->where('level', 'error')->pluck('message')->all());
@@ -63,12 +63,12 @@ class LargePlannerConfirmationTest extends TestCase
         $this->assertArrayHasKey($project->cabinets()->sole()->id, $fiberPlan['allocations']);
         $materials = app(ProjectMaterialService::class)->summary($project->fresh()->load(['odfs', 'cabinets', 'houses', 'routes', 'materials']));
         $this->assertSame(0, $materials['unclassified_routes']);
-        $this->assertSame(160, $materials['route_length_m']);
+        $this->assertSame(200, $materials['route_length_m']);
 
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))
-            ->assertOk()->assertJsonPath('summary.routes', 2);
+            ->assertOk()->assertJsonPath('summary.routes', 4);
         $this->assertDatabaseCount('cabinets', 1);
-        $this->assertDatabaseCount('routes', 2);
+        $this->assertDatabaseCount('routes', 4);
         $this->assertDatabaseCount('project_snapshots', 1);
     }
 
@@ -147,24 +147,35 @@ class LargePlannerConfirmationTest extends TestCase
 
         $this->actingAs($user)->postJson(route('projects.large-planner.preview.confirm', [$project, $task]))->assertOk();
         $this->assertDatabaseCount('cabinets', 1);
-        $this->assertDatabaseCount('routes', 2);
+        $this->assertDatabaseCount('routes', 4);
     }
 
     private function taskWithPreview(): array
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
         $project->largePlannerSetting()->create(['odo_capacity' => 8, 'max_drop_length_m' => 150, 'fiber_reserve_percent' => 20, 'optimization_goal' => 'weighted']);
-        $house = House::factory()->create(['project_id' => $project->id, 'label' => 'K-1']);
+        $houses = collect(range(1, 3))->map(fn (int $number) => House::factory()->create([
+            'project_id' => $project->id,
+            'label' => 'K-'.$number,
+            'latitude' => 43.851 + ($number * 0.0001),
+            'longitude' => 18.411 + ($number * 0.0001),
+        ]));
+        $house = $houses->first();
         $sourceOdf = Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.85, 'longitude' => 18.41]);
         $secondaryPath = [[43.85, 18.41], [43.851, 18.411]];
-        $dropPath = [[43.851, 18.411], [(float) $house->latitude, (float) $house->longitude]];
         $preview = [
             'project_id' => $project->id,
-            'odo_placement' => ['odos' => [['key' => 'odo-0001', 'provisional_name' => 'ODO-P-0001', 'point' => [43.851, 18.411], 'capacity' => 8, 'occupancy' => 1, 'house_ids' => [$house->id]]]],
+            'odo_placement' => ['odos' => [['key' => 'odo-0001', 'provisional_name' => 'ODO-P-0001', 'point' => [43.851, 18.411], 'capacity' => 8, 'occupancy' => 3, 'house_ids' => $houses->pluck('id')->all()]]],
             'odf_placement' => ['odfs' => [], 'primary_routes' => []],
             'routes' => [
                 'secondary_routes' => [['key' => 'secondary-odo-0001', 'odo_key' => 'odo-0001', 'odf_id' => $sourceOdf->id, 'odf_key' => null, 'path' => $secondaryPath, 'length_m' => 140]],
-                'drop_routes' => [['key' => 'drop-1', 'odo_key' => 'odo-0001', 'house_id' => $house->id, 'path' => $dropPath, 'length_m' => 20]],
+                'drop_routes' => $houses->values()->map(fn (House $item, int $index) => [
+                    'key' => 'drop-'.($index + 1),
+                    'odo_key' => 'odo-0001',
+                    'house_id' => $item->id,
+                    'path' => [[43.851, 18.411], [(float) $item->latitude, (float) $item->longitude]],
+                    'length_m' => 20,
+                ])->all(),
             ],
             'cable_capacity' => ['routes' => ['primary_routes' => [], 'secondary_routes' => [['key' => 'secondary-odo-0001', 'fiber_count' => 12]]]],
             'warnings' => ['items' => [], 'can_confirm' => true],

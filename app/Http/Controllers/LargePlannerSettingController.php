@@ -13,7 +13,7 @@ class LargePlannerSettingController extends Controller
         abort_unless($project->planning_mode === 'large_auto', 404);
 
         $settings = $request->validate([
-            'odo_capacity' => ['nullable', 'integer', 'min:1', 'max:1152'],
+            'odo_capacity' => ['nullable', 'integer', 'min:3', 'max:1152'],
             'max_drop_length_m' => ['nullable', 'integer', 'min:1', 'max:1000000'],
             'fiber_reserve_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'optimization_goal' => ['nullable', 'in:min_trench,min_cable,min_odo,weighted'],

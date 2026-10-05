@@ -100,7 +100,7 @@
             <div class="sb-kicker">Tehnička pravila</div>
             <div class="grid grid-cols-2 gap-2">
                 <label class="grid gap-1 text-[10px] font-bold text-slate-600">ODO kapacitet
-                    <input name="odo_capacity" type="number" min="1" max="1152" value="{{ old('odo_capacity', $project->largePlannerSetting?->odo_capacity) }}" class="sb-inp" placeholder="Nije određeno">
+                    <input name="odo_capacity" type="number" min="3" max="1152" value="{{ old('odo_capacity', $project->largePlannerSetting?->odo_capacity) }}" class="sb-inp" placeholder="Najmanje 3">
                     @error('odo_capacity')<span class="text-red-600">{{ $message }}</span>@enderror
                 </label>
                 <label class="grid gap-1 text-[10px] font-bold text-slate-600">Maks. drop (m)

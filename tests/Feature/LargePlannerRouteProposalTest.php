@@ -137,7 +137,7 @@ class LargePlannerRouteProposalTest extends TestCase
         $this->assertGreaterThan(350, $result['secondary_routes'][0]['length_m']);
     }
 
-    public function test_single_odo_branch_becomes_numbered_lateral_from_nearest_odo(): void
+    public function test_every_secondary_branch_starts_from_its_assigned_odf(): void
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
         $this->corridor($project, [[43.8500, 18.4100], [43.8520, 18.4100]]);
@@ -155,14 +155,13 @@ class LargePlannerRouteProposalTest extends TestCase
             $placement,
         );
 
-        $lateral = collect($result['secondary_routes'])->firstWhere('is_lateral', true);
-        $this->assertNotNull($lateral);
-        $this->assertSame($odf->id, $lateral['odf_id']);
-        $this->assertSame('Sekundarni krak 1.1.1', $lateral['name']);
-        $this->assertSame('secondary-branch-1-1', $lateral['parent_branch_key']);
-        $this->assertContains($lateral['from_odo_key'], ['odo-0001', 'odo-0002', 'odo-0003']);
-        $this->assertNotSame($lateral['from_odo_key'], $lateral['terminal_odo_key']);
-        $this->assertSame('ZO-1.1.1.1', collect($result['odos'])->firstWhere('key', $lateral['terminal_odo_key'])['provisional_name']);
+        $this->assertCount(2, $result['secondary_routes']);
+        foreach ($result['secondary_routes'] as $route) {
+            $this->assertSame($odf->id, $route['odf_id']);
+            $this->assertSame([43.85, 18.41], $route['path'][0]);
+            $this->assertArrayNotHasKey('is_lateral', $route);
+            $this->assertArrayNotHasKey('from_odo_key', $route);
+        }
     }
 
     public function test_secondary_branch_numbers_restart_under_each_odf_number(): void
@@ -197,32 +196,44 @@ class LargePlannerRouteProposalTest extends TestCase
         );
     }
 
-    public function test_normal_secondary_branches_have_at_most_two_odos(): void
+    public function test_secondary_branches_group_up_to_eight_odos(): void
     {
         $result = $this->linearBranchResult(43.8520);
         $main = collect($result['secondary_routes'])->where('is_lateral', false);
 
-        $this->assertTrue($main->every(fn (array $route) => count($route['odo_keys']) <= 2));
-        $this->assertCount(1, collect($result['secondary_routes'])->where('is_lateral', true));
+        $this->assertTrue($main->every(fn (array $route) => count($route['odo_keys']) <= 8));
+        $this->assertSame([5], $main->map(fn (array $route) => count($route['odo_keys']))->values()->all());
+        $this->assertCount(0, collect($result['secondary_routes'])->where('is_lateral', true));
     }
 
-    public function test_three_odos_are_used_only_to_avoid_a_separate_long_branch(): void
+    public function test_long_secondary_branch_keeps_five_odos_together(): void
     {
         $result = $this->linearBranchResult(43.8600);
         $sizes = collect($result['secondary_routes'])->where('is_lateral', false)
             ->map(fn (array $route) => count($route['odo_keys']))->sort()->values()->all();
 
-        $this->assertSame([2, 3], $sizes);
+        $this->assertSame([5], $sizes);
         $this->assertCount(0, collect($result['secondary_routes'])->where('is_lateral', true));
     }
 
-    private function linearBranchResult(float $endLatitude): array
+    public function test_secondary_branch_never_contains_more_than_eight_odos(): void
+    {
+        $result = $this->linearBranchResult(43.8600, 9);
+        $sizes = collect($result['secondary_routes'])
+            ->map(fn (array $route) => count($route['odo_keys']))
+            ->values();
+
+        $this->assertSame(8, $sizes->max());
+        $this->assertTrue($sizes->every(fn (int $size) => $size <= 8));
+    }
+
+    private function linearBranchResult(float $endLatitude, int $odoCount = 5): array
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
         $this->corridor($project, [[43.8500, 18.4100], [$endLatitude, 18.4100]]);
         Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.8500, 'longitude' => 18.4100]);
-        $step = ($endLatitude - 43.8500) / 5;
-        $odos = collect(range(1, 5))->map(fn (int $number) => [
+        $step = ($endLatitude - 43.8500) / $odoCount;
+        $odos = collect(range(1, $odoCount))->map(fn (int $number) => [
             'key' => 'odo-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT),
             'provisional_name' => 'ODO-'.$number,
             'point' => [43.8500 + ($step * $number), 18.4100],

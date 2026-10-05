@@ -7,6 +7,10 @@ use App\Services\GeometryService;
 
 class OdoPlacementService
 {
+    private const MIN_HOUSES_PER_ODO = 3;
+
+    private const PREFERRED_HOUSES_PER_ODO = 12;
+
     public function __construct(
         private readonly GeometryService $geometry,
         private readonly NetworkRouteProposalService $routes,
@@ -28,18 +32,18 @@ class OdoPlacementService
             ]))
             ->flatMap(function ($houses) use ($settings) {
                 $houses = $houses->sortBy(fn (array $house) => [$house['corridor_chainage_m'] ?? 0, $house['house_id']])->values();
-                $windows = $houses->chunk((int) $settings->odo_capacity);
 
-                return $windows->map(function ($window): array {
-                    $first = $window->first();
+                return collect($this->balancedWindows($houses, (int) $settings->odo_capacity))
+                    ->map(function ($window): array {
+                        $first = $window->first();
 
-                    return [
-                        'key' => 'corridor-'.$first['corridor_id'],
-                        'zone_id' => $first['zone_id'],
-                        'component' => $first['component'],
-                        'houses' => $window->values()->all(),
-                    ];
-                });
+                        return [
+                            'key' => 'corridor-'.$first['corridor_id'],
+                            'zone_id' => $first['zone_id'],
+                            'component' => $first['component'],
+                            'houses' => $window->values()->all(),
+                        ];
+                    });
             })
             ->values();
 
@@ -47,6 +51,10 @@ class OdoPlacementService
             $remaining = collect($cluster['houses'])->keyBy('house_id');
             $part = 1;
             while ($remaining->isNotEmpty()) {
+                if ($remaining->count() < self::MIN_HOUSES_PER_ODO) {
+                    $warnings[] = $this->minimumOccupancyWarning($cluster, $remaining->keys()->all());
+                    break;
+                }
                 $evaluated = $remaining
                     ->unique(fn (array $house) => implode(',', $house['access_point']))
                     ->map(fn (array $candidate) => $this->evaluate(
@@ -60,17 +68,26 @@ class OdoPlacementService
                     ->sortBy(fn (array $candidate) => [-$candidate['covered_houses'], $candidate['score'], $candidate['point'][0], $candidate['point'][1]])
                     ->values();
                 $candidate = $evaluated->first();
-                $selectedHouses = $remaining
+                $coveredHouses = $remaining
                     ->filter(fn (array $house) => ($candidate['house_distances'][$house['house_id']] ?? INF) <= $maxDrop)
                     ->sortBy(fn (array $house) => [$candidate['house_distances'][$house['house_id']], $house['house_id']])
-                    ->take((int) $settings->odo_capacity)
                     ->values();
+                $selectionSize = min((int) $settings->odo_capacity, $coveredHouses->count());
+                $remainderSize = $remaining->count() - $selectionSize;
+                if ($remainderSize > 0 && $remainderSize < self::MIN_HOUSES_PER_ODO) {
+                    $balancedSize = $selectionSize - (self::MIN_HOUSES_PER_ODO - $remainderSize);
+                    if ($balancedSize >= self::MIN_HOUSES_PER_ODO) {
+                        $selectionSize = $balancedSize;
+                    }
+                }
+                $selectedHouses = $coveredHouses->take($selectionSize)->values();
 
-                if ($selectedHouses->isEmpty()) {
+                if ($selectedHouses->count() < self::MIN_HOUSES_PER_ODO) {
                     $warnings[] = [
-                        'code' => 'odo_drop_limit_exceeded',
+                        'code' => 'odo_minimum_houses_not_met',
                         'cluster_key' => $cluster['key'],
-                        'message' => "Za {$cluster['key']} nije pronađen ODO položaj unutar maksimalnih {$maxDrop} m.",
+                        'house_ids' => $remaining->keys()->all(),
+                        'message' => "Za {$cluster['key']} nije moguće grupisati najmanje ".self::MIN_HOUSES_PER_ODO." kuće unutar maksimalnih {$maxDrop} m; ormar nije predložen.",
                     ];
                     break;
                 }
@@ -104,6 +121,17 @@ class OdoPlacementService
             }
         }
 
+        foreach ($proposals as $proposal) {
+            if ($proposal['occupancy'] < 11) {
+                $warnings[] = [
+                    'code' => 'odo_below_preferred_occupancy',
+                    'odo_key' => $proposal['key'],
+                    'occupancy' => $proposal['occupancy'],
+                    'message' => "{$proposal['provisional_name']} ima {$proposal['occupancy']} kuća; ciljna popunjenost je 11–12.",
+                ];
+            }
+        }
+
         return [
             'odos' => $proposals,
             'warnings' => $warnings,
@@ -114,6 +142,48 @@ class OdoPlacementService
                 'warnings' => count($warnings),
             ],
         ];
+    }
+
+    private function minimumOccupancyWarning(array $cluster, array $houseIds): array
+    {
+        return [
+            'code' => 'odo_minimum_houses_not_met',
+            'cluster_key' => $cluster['key'],
+            'house_ids' => $houseIds,
+            'message' => "Za {$cluster['key']} su preostale manje od ".self::MIN_HOUSES_PER_ODO.' kuće; ormar nije predložen.',
+        ];
+    }
+
+    private function balancedWindows($houses, int $capacity): array
+    {
+        $windows = [];
+        $remaining = $houses->values();
+        $preferredSize = min($capacity, self::PREFERRED_HOUSES_PER_ODO);
+        $windowCount = (int) ceil($remaining->count() / max($preferredSize, 1));
+        $balancedMinimum = max(self::MIN_HOUSES_PER_ODO, $preferredSize - 2);
+        if ($windowCount > 1 && intdiv($remaining->count(), $windowCount) >= $balancedMinimum) {
+            $baseSize = intdiv($remaining->count(), $windowCount);
+            $largerWindows = $remaining->count() % $windowCount;
+            for ($index = 0; $index < $windowCount; $index++) {
+                $size = $baseSize + ($index >= $windowCount - $largerWindows ? 1 : 0);
+                $windows[] = $remaining->splice(0, $size)->values();
+            }
+
+            return $windows;
+        }
+        while ($remaining->isNotEmpty()) {
+            $size = min($preferredSize, $remaining->count());
+            $tail = $remaining->count() - $size;
+            if ($tail > 0 && $tail < self::MIN_HOUSES_PER_ODO) {
+                $balancedSize = $remaining->count() - self::MIN_HOUSES_PER_ODO;
+                if ($balancedSize >= self::MIN_HOUSES_PER_ODO) {
+                    $size = $balancedSize;
+                }
+            }
+            $windows[] = $remaining->splice(0, $size)->values();
+        }
+
+        return $windows;
     }
 
     private function evaluate(array $graph, array $point, int $corridorId, array $houses, ?string $goal, int $maxDrop): array

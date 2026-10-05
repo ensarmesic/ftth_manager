@@ -7,6 +7,7 @@ class PlanWarningService
     private const CRITICAL_CODES = [
         'house_without_route',
         'odo_drop_limit_exceeded',
+        'odo_minimum_houses_not_met',
         'missing_source_odf',
         'odo_without_odf_route',
         'odf_without_primary_route',

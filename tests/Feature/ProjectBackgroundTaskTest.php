@@ -123,7 +123,11 @@ class ProjectBackgroundTaskTest extends TestCase
             'length_m' => 1000,
             'path' => [[43.8500, 18.4100], [43.8600, 18.4200]],
         ]);
-        House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8550, 'longitude' => 18.4150]);
+        House::factory()->count(3)->sequence(
+            ['latitude' => 43.8549, 'longitude' => 18.4149],
+            ['latitude' => 43.8550, 'longitude' => 18.4150],
+            ['latitude' => 43.8551, 'longitude' => 18.4151],
+        )->create(['project_id' => $project->id]);
         $task = $project->backgroundTasks()->create(['type' => 'large_plan']);
 
         (new RunProjectBackgroundTask($task->id))->handle();
@@ -135,7 +139,7 @@ class ProjectBackgroundTaskTest extends TestCase
         Storage::assertExists($task->result_path);
         $result = json_decode(Storage::get($task->result_path), true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame($project->id, $result['project_id']);
-        $this->assertSame(1, $result['execution']['houses']);
+        $this->assertSame(3, $result['execution']['houses']);
         $this->assertSame(2, $result['execution']['nodes']);
         $this->assertCount(8, $result['execution']['phases']);
         $this->assertArrayHasKey('duration_ms', $result['execution']);

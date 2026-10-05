@@ -82,16 +82,20 @@ class LargePlannerServiceTest extends TestCase
             'optimization_goal' => 'weighted',
         ]);
         $this->corridor($project, 'secondary', [[43.8500, 18.4100], [43.8600, 18.4200]]);
-        House::factory()->create(['project_id' => $project->id, 'latitude' => 43.8550, 'longitude' => 18.4150]);
+        House::factory()->count(3)->sequence(
+            ['latitude' => 43.8549, 'longitude' => 18.4149],
+            ['latitude' => 43.8550, 'longitude' => 18.4150],
+            ['latitude' => 43.8551, 'longitude' => 18.4151],
+        )->create(['project_id' => $project->id]);
 
         $prepared = app(LargePlannerService::class)->prepare($project);
 
         $this->assertTrue($prepared['readiness']['ready']);
         $this->assertSame(1, $prepared['graph']['summary']['components']);
-        $this->assertSame(1, $prepared['cable_capacity']['summary']['segments']);
+        $this->assertSame(3, $prepared['cable_capacity']['summary']['segments']);
         $this->assertSame(4, $prepared['cable_capacity']['segments'][0]['fiber_count']);
         $this->assertFalse($prepared['warnings']['can_confirm']);
-        $this->assertSame('missing_source_odf', $prepared['warnings']['items'][0]['code']);
+        $this->assertContains('missing_source_odf', collect($prepared['warnings']['items'])->pluck('code')->all());
         $this->assertDatabaseCount('cabinets', 0);
         $this->assertDatabaseCount('odfs', 0);
         $this->assertDatabaseCount('routes', 0);
@@ -129,7 +133,7 @@ class LargePlannerServiceTest extends TestCase
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
         $project->largePlannerSetting()->create([
-            'odo_capacity' => 2,
+            'odo_capacity' => 3,
             'max_drop_length_m' => 150,
             'fiber_reserve_percent' => 20,
             'optimization_goal' => 'weighted',

@@ -10,6 +10,10 @@ class FinalValidationService
 {
     private const MIN_ODF_ODO_DISTANCE_M = 5.0;
 
+    private const MIN_HOUSES_PER_ODO = 3;
+
+    private const MAX_ODOS_PER_BRANCH = 8;
+
     public function __construct(private readonly GeometryService $geometry) {}
 
     public function validate(Project $project, array $preview): array
@@ -62,6 +66,9 @@ class FinalValidationService
             if (count($odo['house_ids'] ?? []) > (int) ($odo['capacity'] ?? 0)) {
                 $errors[] = $this->error('odo_capacity_exceeded', "Kapacitet za {$odo['key']} je prekoračen.", ['odo_key' => $odo['key']]);
             }
+            if (count($odo['house_ids'] ?? []) < self::MIN_HOUSES_PER_ODO) {
+                $errors[] = $this->error('odo_minimum_houses_not_met', "{$odo['key']} mora imati najmanje ".self::MIN_HOUSES_PER_ODO.' kuće.', ['odo_key' => $odo['key']]);
+            }
             foreach ($odo['house_ids'] ?? [] as $houseId) {
                 $assignments[$houseId][] = $odo['key'];
             }
@@ -72,8 +79,8 @@ class FinalValidationService
 
         foreach ($secondary as $route) {
             $routeOdoKeys = array_values($route['odo_keys'] ?? [$route['odo_key'] ?? null]);
-            if (count($routeOdoKeys) > 3) {
-                $errors[] = $this->error('secondary_branch_too_large', "Sekundarna trasa {$route['key']} ima više od 3 ODO ormarića.", ['route_key' => $route['key']]);
+            if (count($routeOdoKeys) > self::MAX_ODOS_PER_BRANCH) {
+                $errors[] = $this->error('secondary_branch_too_large', "Sekundarna trasa {$route['key']} ima više od ".self::MAX_ODOS_PER_BRANCH.' ODO ormarića.', ['route_key' => $route['key']]);
             }
             if (collect($routeOdoKeys)->contains(fn ($key) => ! in_array($key, $odoKeys, true))) {
                 $errors[] = $this->error('unknown_odo_reference', "Sekundarna trasa {$route['key']} upućuje na nepostojeći ODO.", ['route_key' => $route['key']]);

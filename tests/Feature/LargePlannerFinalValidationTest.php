@@ -22,7 +22,7 @@ class LargePlannerFinalValidationTest extends TestCase
 
         $this->assertTrue($result['valid']);
         $this->assertSame(0, $result['summary']['errors']);
-        $this->assertSame(2, $result['summary']['routes']);
+        $this->assertSame(4, $result['summary']['routes']);
     }
 
     public function test_duplicate_house_capacity_and_missing_parent_block_confirmation(): void
@@ -121,18 +121,31 @@ class LargePlannerFinalValidationTest extends TestCase
     private function validPreview(): array
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);
-        $house = House::factory()->create(['project_id' => $project->id, 'latitude' => 43.852, 'longitude' => 18.412]);
+        $houses = collect([
+            [43.8520, 18.4120],
+            [43.8521, 18.4121],
+            [43.8522, 18.4122],
+        ])->map(fn (array $point) => House::factory()->create([
+            'project_id' => $project->id,
+            'latitude' => $point[0],
+            'longitude' => $point[1],
+        ]));
         $line = [[43.85, 18.41], [43.851, 18.411]];
-        $dropLine = [[43.851, 18.411], [43.852, 18.412]];
         $preview = [
             'project_id' => $project->id,
             'odo_placement' => ['odos' => [[
-                'key' => 'odo-0001', 'point' => [43.851, 18.411], 'capacity' => 8, 'occupancy' => 1, 'house_ids' => [$house->id],
+                'key' => 'odo-0001', 'point' => [43.851, 18.411], 'capacity' => 8, 'occupancy' => 3, 'house_ids' => $houses->pluck('id')->all(),
             ]]],
             'odf_placement' => ['odfs' => [['key' => 'odf-0001', 'point' => [43.85, 18.41]]], 'primary_routes' => []],
             'routes' => [
                 'secondary_routes' => [['key' => 'secondary-1', 'odo_key' => 'odo-0001', 'odf_id' => null, 'odf_key' => 'odf-0001', 'path' => $line, 'length_m' => 100]],
-                'drop_routes' => [['key' => 'drop-1', 'odo_key' => 'odo-0001', 'house_id' => $house->id, 'path' => $dropLine, 'length_m' => 100]],
+                'drop_routes' => $houses->values()->map(fn (House $house, int $index) => [
+                    'key' => 'drop-'.($index + 1),
+                    'odo_key' => 'odo-0001',
+                    'house_id' => $house->id,
+                    'path' => [[43.851, 18.411], [(float) $house->latitude, (float) $house->longitude]],
+                    'length_m' => 100,
+                ])->all(),
             ],
             'warnings' => ['items' => []],
         ];
