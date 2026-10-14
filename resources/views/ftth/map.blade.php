@@ -62,6 +62,7 @@
             <button type="button" id="mode-cabinet" class="tc tc-emerald">FTTH</button>
             <button type="button" id="mode-house" class="tc tc-violet">Kuće</button>
             <button type="button" id="mode-manhole" class="tc tc-slate">Šaht</button>
+            <button type="button" id="mode-pole" class="tc tc-amber">Stub</button>
             <button type="button" id="mode-boring-fi-130" class="tc tc-red">Raketa FI130</button>
             <div class="tc-sep"></div>
             <span class="toolbar-group-label">Trase</span>
@@ -153,6 +154,9 @@
                 </button>
                 <button type="button" data-map-tool="manhole" title="Dodaj šaht" aria-label="Dodaj šaht">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 4h10M10 4v12M6.5 16h7"/></svg>
+                </button>
+                <button type="button" data-map-tool="pole" title="Dodaj stub" aria-label="Dodaj stub">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3v14M5 6h10M7 17h6"/><circle cx="10" cy="3" r="1" fill="currentColor"/></svg>
                 </button>
                 <button type="button" data-map-delete title="Obriši selektovane elemente" aria-label="Obriši selektovane elemente">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h12M8 3h4l1 3H7l1-3zM6 6l1 11h6l1-11M9 9v5M11 9v5"/></svg>
@@ -359,20 +363,22 @@
                         <div class="grid grid-cols-2 gap-2">
                             <div class="sb-kicker">Tip
                                 <select id="route-draw-type" class="sb-sel mt-1 font-normal">
+                                    @if(($activeProject?->network_installation_type ?? 'underground') !== 'aerial')
                                     <option value="trench">Glavni rov</option>
+                                    @endif
                                     <option value="feeder">Primarni</option>
                                     <option value="distribution">Sekundarni</option>
                                 </select>
                             </div>
-                            <div class="sb-kicker">Mikrocijevi
+                            <div class="sb-kicker {{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 'hidden' : '' }}">Mikrocijevi
                                 <input id="route-draw-microducts" type="number" min="1" value="1" class="sb-inp mt-1">
                             </div>
                         </div>
                         <div class="grid grid-cols-3 gap-2">
                             <div class="sb-kicker">Polaganje
-                                <select id="route-draw-installation" class="sb-sel mt-1 font-normal"><option value="underground">Podzemna</option><option value="aerial">Zracna</option></select>
+                                <select id="route-draw-installation" class="sb-sel mt-1 font-normal"><option value="underground" @selected(($activeProject?->network_installation_type ?? 'underground') !== 'aerial')>Podzemna</option><option value="aerial" @selected(($activeProject?->network_installation_type ?? 'underground') === 'aerial')>Nadzemna · ADSS</option></select>
                             </div>
-                            <div class="sb-kicker">Mikrocijev
+                            <div class="sb-kicker {{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 'hidden' : '' }}">Mikrocijev
                                 <select id="route-draw-microduct-type" class="sb-sel mt-1 font-normal"><option value="14/10">14/10</option><option value="10/8">10/8</option></select>
                             </div>
                             <div class="sb-kicker">Niti
@@ -589,7 +595,7 @@
                     <input name="name" class="sb-inp" placeholder="Naziv, npr. FTTH 1-2-3" required>
                     <input name="address" class="sb-inp" placeholder="Adresa" required>
                     <div class="grid grid-cols-2 gap-2">
-                        <input type="number" name="splitter_count" value="3" min="1" max="3" class="sb-inp" placeholder="Splitteri">
+                        <input type="number" name="splitter_count" value="{{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 1 : 3 }}" min="1" max="{{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 1 : 3 }}" class="sb-inp" placeholder="Splitteri" {{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 'readonly' : '' }}>
                         <input type="number" name="ports_per_splitter" value="4" min="1" max="4" class="sb-inp" placeholder="Portovi">
                     </div>
                     <div class="grid grid-cols-2 gap-2">

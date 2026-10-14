@@ -112,6 +112,27 @@ class LargePlannerOdoPlacementTest extends TestCase
         $this->assertSame($this->propose($project), $this->propose($project));
     }
 
+    public function test_aerial_project_uses_at_most_four_houses_per_pole_and_keeps_small_tail(): void
+    {
+        [$project] = $this->projectWithCorridor(16, 150);
+        $project->update(['network_installation_type' => 'aerial']);
+        for ($index = 0; $index < 9; $index++) {
+            House::factory()->create([
+                'project_id' => $project->id,
+                'latitude' => 43.8501 + ($index * 0.00001),
+                'longitude' => 18.4101 + ($index * 0.00001),
+            ]);
+        }
+
+        $result = $this->propose($project->fresh());
+
+        $this->assertSame(9, collect($result['odos'])->sum('occupancy'));
+        $this->assertTrue(collect($result['odos'])->every(fn (array $odo) => $odo['occupancy'] >= 1 && $odo['occupancy'] <= 4));
+        $this->assertTrue(collect($result['odos'])->every(fn (array $odo) => $odo['capacity'] === 4));
+        $this->assertTrue(collect($result['odos'])->every(fn (array $odo) => str_starts_with($odo['provisional_name'], 'ODP-P-')));
+        $this->assertSame([], collect($result['warnings'])->where('code', 'odo_below_preferred_occupancy')->values()->all());
+    }
+
     private function propose(Project $project): array
     {
         $graph = app(CorridorGraphBuilder::class)->build($project);

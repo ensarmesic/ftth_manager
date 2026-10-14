@@ -429,8 +429,10 @@
             </div>
             <div class="divide-y divide-slate-50">
                 @foreach([
+                    ...($project->isAerial() ? [['ADSS optika', $materials['adss_cable_m'], 'm']] : [
                     ['Mikrocijev 14/10', $materials['microduct_14_10_m'], 'm'],
                     ['Mikrocijev 10/8',  $materials['microduct_10_8_m'],  'm'],
+                    ]),
                     ['Optika 4 niti',   $materials['fiber_4_m'],         'm'],
                     ['Optika 12 niti',  $materials['fiber_12_m'],        'm'],
                     ['Optika 24 niti',  $materials['fiber_24_m'],        'm'],

@@ -202,6 +202,7 @@
     .ftth-house-icon .ftth-tag { left: 50%; top: 50%; }
     .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }
+    .ftth-tag.pole { width: 16px; height: 16px; border: 2px solid #fff; border-radius: 999px; background: #f59e0b; color: #422006; box-shadow: 0 0 0 2px #92400e; font-size: 8px; font-weight: 900; }
     .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
     .ftth-tag.splice { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.loop { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #0891b2; box-shadow: 0 0 0 1px #0f172a; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }

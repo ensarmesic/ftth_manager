@@ -62,6 +62,7 @@ async function connectSelectedOdfToCabinet(cabinet) {
     }
     const points = [L.latLng(connectOdf.lat, connectOdf.lng), L.latLng(cabinet.lat, cabinet.lng)];
     const length = distance(points);
+    const isAerial = window.ftthMapConfig.networkInstallationType === 'aerial';
     const payload = {
         project_id: connectOdf.project_id,
         odf_id: connectOdf.id,
@@ -72,12 +73,13 @@ async function connectSelectedOdfToCabinet(cabinet) {
         to_id: cabinet.id,
         name: `${connectOdf.name} - ${cabinet.name}`,
         route_type: 'backbone',
-        installation_type: 'underground',
+        installation_type: isAerial ? 'aerial' : 'underground',
         duct_length_m: length,
         fiber_length_m: length,
         fiber_count: 24,
-        microduct_type: '14/10',
-        microduct_count: 1,
+        microduct_type: isAerial ? null : '14/10',
+        microduct_count: isAerial ? 0 : 1,
+        cable_type: isAerial ? 'ADSS' : null,
         status: 'planned',
         path: JSON.stringify(points.map(point => [Number(point.lat.toFixed(7)), Number(point.lng.toFixed(7))])),
     };
@@ -99,7 +101,7 @@ async function connectSelectedOdfToCabinet(cabinet) {
             project_id: connectOdf.project_id,
             project: connectOdf.project,
             cabinet_id: cabinet.id,
-            installation_type: 'underground',
+            installation_type: isAerial ? 'aerial' : 'underground',
             fiber_count: 24,
             duct_length_m: result.route.length,
             fiber_length_m: result.route.length,

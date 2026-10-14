@@ -23,6 +23,7 @@ class ProjectFactory extends Factory
             'location' => $this->faker->city(),
             'investor' => $this->faker->company(),
             'status' => 'planning',
+            'network_installation_type' => 'underground',
             'description' => $this->faker->sentence(),
         ];
     }

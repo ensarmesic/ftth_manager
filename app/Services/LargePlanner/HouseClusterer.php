@@ -16,7 +16,7 @@ class HouseClusterer
     public function cluster(Project $project, array $graph): array
     {
         $settings = $project->largePlannerSetting()->first();
-        $capacity = (int) ($settings?->odo_capacity ?? 0);
+        $capacity = $project->distributionPointCapacity($settings?->odo_capacity);
         $maxDrop = (int) ($settings?->max_drop_length_m ?? 0);
         if ($capacity < 1 || $maxDrop < 1) {
             throw new DomainException('ODO kapacitet i maksimalni drop moraju biti potvrđeni prije grupisanja.');

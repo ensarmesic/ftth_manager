@@ -30,6 +30,7 @@ function setMode(next) {
         house: 'KUCE: klikni svaku kucu/prikljucak. CTRL+Z vraca zadnju.',
         draw: 'TRASA: klik po klik crtaj trasu. Blizu postojece trase/tacke automatski se spoji. ENTER, dupla klik ili desni klik zavrsava krak. ESC prekida.',
         manhole: 'SAHT: klikni lokaciju prolaznog sahta.',
+        pole: 'STUB: klikni lokaciju stuba za ADSS optiku.',
         'boring-fi-130': 'RAKETA FI130: klikni lokaciju podbusivanja ispod ceste.',
         ruler: 'MJERAČ: klikni prvu tačku. Svaki naredni klik mjeri od prethodne tačke. ESC završava.',
         'branch-source': 'NOVI KRAK IZ ODO: klikni ormarić iz kojeg novi krak polazi.',
@@ -76,15 +77,16 @@ function currentRouteDraftMeta() {
     const [fromType, fromId] = startSource ? startSource.split(':') : [null, null];
     const sourceCabinet = fromType === 'cabinet' ? data.cabinets.find(cabinet => Number(cabinet.id) === Number(fromId)) : null;
     const isTrench = type === 'trench';
+    const isAerial = window.ftthMapConfig.networkInstallationType === 'aerial';
     return {
         name: manualName || nextRouteName(type),
         route_type: type,
-        installation_type: document.getElementById('route-draw-installation').value,
+        installation_type: isAerial ? 'aerial' : document.getElementById('route-draw-installation').value,
         counts_as_trench: isTrench,
         trench_length_m: null,
-        microduct_type: isTrench ? null : document.getElementById('route-draw-microduct-type').value,
+        microduct_type: isTrench || isAerial ? null : document.getElementById('route-draw-microduct-type').value,
         fiber_count: isTrench ? 4 : Number(document.getElementById('route-draw-fiber-count').value || 12),
-        microduct_count: isTrench ? 0 : Math.max(1, Number(document.getElementById('route-draw-microducts').value || 1)),
+        microduct_count: isTrench || isAerial ? 0 : Math.max(1, Number(document.getElementById('route-draw-microducts').value || 1)),
         odf_index: fromType === 'odf' ? null : odf.odf_index,
         odf_id: fromType === 'odf' ? Number(fromId) : (sourceCabinet?.odf_id || odf.odf_id),
         from_type: fromType || null,

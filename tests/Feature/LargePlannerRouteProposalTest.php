@@ -227,6 +227,29 @@ class LargePlannerRouteProposalTest extends TestCase
         $this->assertTrue($sizes->every(fn (int $size) => $size <= 8));
     }
 
+    public function test_all_odos_in_a_planning_zone_are_served_by_one_odf(): void
+    {
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $this->corridor($project, [[43.8500, 18.4100], [43.8600, 18.4100]]);
+        $leftOdf = Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.8500, 'longitude' => 18.4100]);
+        $rightOdf = Odf::factory()->create(['project_id' => $project->id, 'latitude' => 43.8600, 'longitude' => 18.4100]);
+        $placement = ['odos' => [
+            ['key' => 'odo-0001', 'provisional_name' => 'ODO-1', 'point' => [43.8505, 18.4100], 'zone_id' => 17, 'house_ids' => []],
+            ['key' => 'odo-0002', 'provisional_name' => 'ODO-2', 'point' => [43.8580, 18.4100], 'zone_id' => 17, 'house_ids' => []],
+            ['key' => 'odo-0003', 'provisional_name' => 'ODO-3', 'point' => [43.8590, 18.4100], 'zone_id' => 17, 'house_ids' => []],
+        ]];
+
+        $result = app(NetworkRouteProposalService::class)->propose(
+            $project,
+            app(CorridorGraphBuilder::class)->build($project),
+            $placement,
+        );
+
+        $this->assertNotSame($leftOdf->id, $rightOdf->id);
+        $this->assertNotEmpty($result['secondary_routes']);
+        $this->assertSame([$rightOdf->id], collect($result['secondary_routes'])->pluck('odf_id')->unique()->values()->all());
+    }
+
     private function linearBranchResult(float $endLatitude, int $odoCount = 5): array
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);

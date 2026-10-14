@@ -3,6 +3,8 @@
     if (!workspace || !window.ftthNetworkMap) return;
 
     const projectId = Number(workspace.dataset.projectId);
+    const isAerial = window.ftthMapConfig.networkInstallationType === 'aerial';
+    const distributionLabel = isAerial ? 'ODP/NAP' : 'ODO';
     const constraintLayers = L.layerGroup().addTo(map);
     const zoneLayers = L.layerGroup().addTo(map);
     const status = document.getElementById('large-planner-constraint-status');
@@ -494,14 +496,15 @@
         const selectedZone = zoneFilter?.value || '';
         const odoByKey = new Map((preview.odo_placement?.odos || []).map(odo => [odo.key, odo]));
         const belongsToSelectedZone = item => !selectedZone || String(item?.zone_id ?? 'unassigned') === selectedZone;
-        const secondaryColors = ['#2563eb', '#7c3aed', '#0891b2', '#ea580c', '#db2777', '#16a34a', '#4f46e5', '#b45309'];
         const drawRoutes = (type, routes, color, weight) => {
             const visibleRoutes = (routes || []).filter(route =>
                 type === 'primary' || belongsToSelectedZone(odoByKey.get(route.terminal_odo_key || route.odo_key))
             );
             visibleRoutes.forEach((route, routeIndex) => {
                 const enabled = document.querySelector(`[data-large-route-filter="${type}"]`)?.checked !== false;
-                const routeColor = type === 'secondary' ? secondaryColors[routeIndex % secondaryColors.length] : color;
+                const routeColor = type === 'secondary'
+                    ? odfRouteColor(route.odf_id ?? route.odf_key)
+                    : color;
                 const sourcePoints = (route.path || []).map(point => L.latLng(Number(point[0]), Number(point[1])));
                 const routeName = route.name || (type === 'secondary' ? `Sekundarni krak ${routeIndex + 1}` : route.key);
                 const lateral = type === 'secondary' && Boolean(route.is_lateral);
@@ -542,7 +545,7 @@
         const dropLength = Number(preview.routes?.summary?.drop_length_m || 0);
         const houseCount = (preview.odo_placement?.odos || []).reduce((total, odo) => total + (odo.house_ids?.length || 0), 0);
         const metrics = [
-            ['ODF', preview.odf_placement?.odfs?.length || 0], ['ODO', preview.odo_placement?.odos?.length || 0],
+            ['ODF', preview.odf_placement?.odfs?.length || 0], [distributionLabel, preview.odo_placement?.odos?.length || 0],
             ['Kuće', houseCount], ['Problemi', preview.warnings?.summary?.total || preview.warnings?.items?.length || 0],
             ['Primarno', `${Math.round(primaryLength)} m`], ['Sekundarno', `${Math.round(secondaryLength)} m`],
             ['Drop', `${Math.round(dropLength)} m`], ['Ukupno kabla', `${Math.round(primaryLength + secondaryLength + dropLength)} m`],
@@ -561,7 +564,7 @@
         };
         (preview.odf_placement?.odfs || []).forEach(odf => addNetworkDetail(
             odf.provisional_name,
-            `${odf.occupancy || 0}/${odf.max_odos || odf.occupancy || 0} ODO · ${odf.fiber_capacity || odf.capacity || 144}F · optimizovano ${Math.round(odf.secondary_cost_m || 0)} m`,
+            `${odf.occupancy || 0}/${odf.max_odos || odf.occupancy || 0} ${distributionLabel} · ${odf.fiber_capacity || odf.capacity || 144}F · optimizovano ${Math.round(odf.secondary_cost_m || 0)} m`,
             'red',
         ));
         (preview.odf_placement?.primary_routes || []).forEach((route, index) => addNetworkDetail(
@@ -572,7 +575,7 @@
         const secondarySizes = new Map((preview.cable_capacity?.routes?.secondary_routes || []).map(route => [route.key, route]));
         (preview.routes?.secondary_routes || []).forEach((route, index) => {
             const sizing = secondarySizes.get(route.key) || {};
-            addNetworkDetail(route.name || `Sekundarni krak ${index + 1}`, `${(route.odo_keys || []).length} ODO · ${Math.round(route.length_m || 0)} m · ${sizing.fiber_count || '?'}F (${sizing.required_fibers || '?'} potrebno)`, 'blue');
+            addNetworkDetail(route.name || `Sekundarni krak ${index + 1}`, `${(route.odo_keys || []).length} ${distributionLabel} · ${Math.round(route.length_m || 0)} m · ${sizing.fiber_count || '?'}F (${sizing.required_fibers || '?'} potrebno)`, 'blue');
         });
         if (networkDetails && !networkDetails.children.length) networkDetails.textContent = 'Nema mrežnih elemenata za prikaz.';
         const warnings = document.getElementById('large-planner-preview-warnings');
@@ -588,9 +591,9 @@
         });
         if (!(preview.warnings?.items || []).length) warnings.textContent = 'Nema upozorenja.';
         const odoSelect = document.getElementById('large-planner-house-odo');
-        odoSelect.replaceChildren(new Option('Odaberi ODO', ''));
+        odoSelect.replaceChildren(new Option(`Odaberi ${distributionLabel}`, ''));
         const groupOdoSelect = document.getElementById('large-planner-houses-odo');
-        groupOdoSelect?.replaceChildren(new Option('Odaberi ODO', ''));
+        groupOdoSelect?.replaceChildren(new Option(`Odaberi ${distributionLabel}`, ''));
         (preview.odo_placement?.odos || []).forEach(odo => {
             const label = `${odo.provisional_name} · ${odo.occupancy}/${odo.capacity}`;
             odoSelect.add(new Option(label, odo.key));
@@ -704,12 +707,12 @@
         try {
             const result = await jsonRequest(`${previewBase}/${activeTaskId}/zavrsna-validacija`, { method: 'POST' });
             output.className = 'text-[10px] leading-4 text-emerald-700';
-            output.textContent = `Plan je spreman · ${result.summary.houses} kuća · ${result.summary.odos} ODO · ${result.summary.routes} trasa.`;
+            output.textContent = `Plan je spreman · ${result.summary.houses} kuća · ${result.summary.odos} ${distributionLabel} · ${result.summary.routes} trasa.`;
         } catch (error) { output.className = 'text-[10px] leading-4 text-red-700'; output.textContent = error.message; }
     });
     document.getElementById('large-planner-confirm')?.addEventListener('click', async () => {
         if (!activeTaskId || activeTask?.confirmed_at) return;
-        const accepted = await window.ftthConfirm?.('Potvrdom će se ODF, ODO, trase i veze kuća trajno upisati u postojeću mrežu. Nastaviti?', { title: 'Potvrda velikog plana', confirmLabel: 'Potvrdi i upiši' });
+        const accepted = await window.ftthConfirm?.(`Potvrdom će se ODF, ${distributionLabel}, trase i veze kuća trajno upisati u postojeću mrežu. Nastaviti?`, { title: 'Potvrda velikog plana', confirmLabel: 'Potvrdi i upiši' });
         if (!accepted) return;
         const output = document.getElementById('large-planner-final-status');
         output.textContent = 'Potvrđujem plan u jednoj transakciji…';
@@ -720,7 +723,9 @@
             });
             updateTask(result.task);
             output.className = 'text-[10px] leading-4 text-emerald-700';
-            output.textContent = `Upisano: ${result.summary.odfs} ODF, ${result.summary.odos} ODO, ${result.summary.routes} trasa i ${result.summary.houses} kuća. Materijal: ${Math.round(result.summary.materials?.route_length_m || 0)} m trase, ${Math.round(result.summary.materials?.microduct_14_10_m || 0)} m cijevi 14/10 i ${Math.round(result.summary.materials?.microduct_10_8_m || 0)} m cijevi 10/8.`;
+            output.textContent = isAerial
+                ? `Upisano: ${result.summary.odfs} ODF, ${result.summary.odos} ODP/NAP na stubovima, ${result.summary.routes} ADSS trasa i ${result.summary.houses} kuća. Materijal: ${Math.round(result.summary.materials?.adss_cable_m || 0)} m ADSS kabla.`
+                : `Upisano: ${result.summary.odfs} ODF, ${result.summary.odos} ODO, ${result.summary.routes} trasa i ${result.summary.houses} kuća. Materijal: ${Math.round(result.summary.materials?.route_length_m || 0)} m trase, ${Math.round(result.summary.materials?.microduct_14_10_m || 0)} m cijevi 14/10 i ${Math.round(result.summary.materials?.microduct_10_8_m || 0)} m cijevi 10/8.`;
             window.ftthToast?.(result.message, 'success');
         } catch (error) { output.className = 'text-[10px] leading-4 text-red-700'; output.textContent = error.message; }
     });

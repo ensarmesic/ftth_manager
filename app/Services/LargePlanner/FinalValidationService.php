@@ -19,6 +19,7 @@ class FinalValidationService
     public function validate(Project $project, array $preview): array
     {
         $errors = [];
+        $minimumHouses = $project->isAerial() ? 1 : self::MIN_HOUSES_PER_ODO;
         if ((int) ($preview['project_id'] ?? 0) !== $project->id) {
             $errors[] = $this->error('project_mismatch', 'Preview ne pripada odabranom projektu.');
         }
@@ -66,8 +67,8 @@ class FinalValidationService
             if (count($odo['house_ids'] ?? []) > (int) ($odo['capacity'] ?? 0)) {
                 $errors[] = $this->error('odo_capacity_exceeded', "Kapacitet za {$odo['key']} je prekoračen.", ['odo_key' => $odo['key']]);
             }
-            if (count($odo['house_ids'] ?? []) < self::MIN_HOUSES_PER_ODO) {
-                $errors[] = $this->error('odo_minimum_houses_not_met', "{$odo['key']} mora imati najmanje ".self::MIN_HOUSES_PER_ODO.' kuće.', ['odo_key' => $odo['key']]);
+            if (count($odo['house_ids'] ?? []) < $minimumHouses) {
+                $errors[] = $this->error('odo_minimum_houses_not_met', "{$odo['key']} mora imati najmanje {$minimumHouses} kuću.", ['odo_key' => $odo['key']]);
             }
             foreach ($odo['house_ids'] ?? [] as $houseId) {
                 $assignments[$houseId][] = $odo['key'];

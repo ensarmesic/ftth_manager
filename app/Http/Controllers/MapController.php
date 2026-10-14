@@ -116,7 +116,7 @@ class MapController extends Controller
             'routes.*.counts_as_trench' => ['nullable', 'boolean'],
             'routes.*.trench_length_m' => ['nullable', 'integer', 'min:0'],
             'appendix_items' => ['nullable', 'array', 'max:10000'],
-            'appendix_items.*.type' => ['required', 'in:manhole,boring_fi_130'],
+            'appendix_items.*.type' => ['required', 'in:manhole,boring_fi_130,pole'],
             'appendix_items.*.lat' => $this->latitudeRules(true),
             'appendix_items.*.lng' => $this->longitudeRules(true),
             'appendix_items.*.quantity' => ['nullable', 'numeric', 'min:0'],
@@ -127,6 +127,8 @@ class MapController extends Controller
         ])->validate();
 
         $projectId = (int) $data['project_id'];
+        $project = Project::findOrFail($projectId);
+        $aerial = $project->isAerial();
 
         $projectOdfIds = Odf::where('project_id', $projectId)->pluck('id')->flip()->all();
         $projectCabinetIds = Cabinet::where('project_id', $projectId)->pluck('id')->flip()->all();
@@ -153,7 +155,7 @@ class MapController extends Controller
         $createdHouses = collect();
         $createdSecondaryBranches = collect();
 
-        DB::transaction(function () use ($plan, $projectId, $resolveOdfId, $resolveCabinetId, &$projectOdfIds, &$projectCabinetIds, &$createdOdfs, &$createdCabinets, &$createdHouses, &$createdSecondaryBranches): void {
+        DB::transaction(function () use ($plan, $projectId, $aerial, $resolveOdfId, $resolveCabinetId, &$projectOdfIds, &$projectCabinetIds, &$createdOdfs, &$createdCabinets, &$createdHouses, &$createdSecondaryBranches): void {
             foreach (($plan['odfs'] ?? []) as $index => $odf) {
                 // Re-saving a plan must not spawn a second ODF at the same spot.
                 // Reuse an existing ODF at the identical position instead of
@@ -192,7 +194,7 @@ class MapController extends Controller
                     'odf_id' => $odfId,
                     'name' => $this->uniqueProjectName(Cabinet::class, $projectId, $cabinetName),
                     'address' => $cabinet['address'] ?? 'Sa mape',
-                    'splitter_count' => $cabinet['splitter_count'] ?? 3,
+                    'splitter_count' => $aerial ? 1 : ($cabinet['splitter_count'] ?? 3),
                     'ports_per_splitter' => $cabinet['ports_per_splitter'] ?? 4,
                     'latitude' => $cabinet['lat'],
                     'longitude' => $cabinet['lng'],
@@ -242,6 +244,12 @@ class MapController extends Controller
 
             foreach (($plan['routes'] ?? []) as $index => $route) {
                 $routeType = $route['route_type'] ?? 'distribution';
+                if ($aerial && $routeType === 'trench') {
+                    continue;
+                }
+                $installationType = $aerial ? 'aerial' : ($route['installation_type'] ?? 'underground');
+                $microductCount = $aerial ? 0 : ($route['microduct_count'] ?? 1);
+                $microductType = $aerial ? null : ($route['microduct_type'] ?? '14/10');
 
                 // Re-saving a plan must not clone a route that already exists at
                 // the same geometry and type — skip a drawn route already stored.
@@ -287,15 +295,16 @@ class MapController extends Controller
                         'from_id' => $fromId,
                         'to_type' => $route['to_type'] ?? ($routeToId ? 'cabinet' : null),
                         'to_id' => $routeToId,
-                        'installation_type' => $route['installation_type'] ?? 'underground',
+                        'installation_type' => $installationType,
                         'trench_group' => $route['trench_group'] ?? null,
                         'counts_as_trench' => $routeType === 'trench',
                         'trench_length_m' => null,
                         'duct_length_m' => $route['duct_length_m'] ?? 0,
                         'fiber_length_m' => $routeType === 'trench' ? 0 : ($route['fiber_length_m'] ?? 0),
                         'fiber_count' => $routeType === 'trench' ? null : ($route['fiber_count'] ?? 12),
-                        'microduct_count' => $routeType === 'trench' ? 0 : ($route['microduct_count'] ?? 1),
-                        'microduct_type' => $routeType === 'trench' ? null : ($route['microduct_type'] ?? '14/10'),
+                        'microduct_count' => $routeType === 'trench' ? 0 : $microductCount,
+                        'microduct_type' => $routeType === 'trench' ? null : $microductType,
+                        'cable_type' => $aerial ? 'ADSS' : ($route['cable_type'] ?? $existingNamedRoute->cable_type),
                         'path' => $route['path'] ?? null,
                     ]);
                     if ($routeSig) {
@@ -315,15 +324,16 @@ class MapController extends Controller
                     'to_id' => $routeToId,
                     'name' => $this->uniqueProjectName(NetworkRoute::class, $projectId, $routeName),
                     'route_type' => $routeType,
-                    'installation_type' => $route['installation_type'] ?? 'underground',
+                    'installation_type' => $installationType,
                     'trench_group' => $route['trench_group'] ?? null,
                     'counts_as_trench' => $routeType === 'trench',
                     'trench_length_m' => null,
                     'duct_length_m' => $route['duct_length_m'] ?? 0,
                     'fiber_length_m' => $routeType === 'trench' ? 0 : ($route['fiber_length_m'] ?? 0),
                     'fiber_count' => $route['fiber_count'] ?? 12,
-                    'microduct_count' => $routeType === 'trench' ? 0 : ($route['microduct_count'] ?? 1),
-                    'microduct_type' => $routeType === 'trench' ? null : ($route['microduct_type'] ?? '14/10'),
+                    'microduct_count' => $routeType === 'trench' ? 0 : $microductCount,
+                    'microduct_type' => $routeType === 'trench' ? null : $microductType,
+                    'cable_type' => $aerial ? 'ADSS' : ($route['cable_type'] ?? null),
                     'status' => 'planned',
                     'path' => $route['path'] ?? null,
                 ]);

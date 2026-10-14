@@ -184,6 +184,12 @@ data.appendix_items?.forEach(item => {
             .bindPopup(`<b>Rezerva/slinga</b>${item.note ? `<br>${item.note}` : ''}`)
             .addTo(map);
         trackLayer(marker, 'preview');
+    } else if (item.type === 'pole') {
+        const marker = L.marker(p, { icon: icon('pole', 'ST'), draggable: false })
+            .bindTooltip('Stub za ADSS', { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>Stub za ADSS</b>${item.note ? `<br>${item.note}` : ''}`)
+            .addTo(map);
+        trackLayer(marker, 'preview');
     } else {
         const marker = L.marker(p, { icon: icon('manhole', 'S'), draggable: false })
             .bindTooltip(`Prolazni saht: ${item.quantity} ${item.unit}`, { direction: 'top', offset: [0, -10] })

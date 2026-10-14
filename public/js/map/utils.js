@@ -88,7 +88,7 @@ function rulerClick(latlng) {
     rulerStartMarker = L.circleMarker(latlng, { radius: 5, color: '#b91c1c', weight: 2, fillColor: '#fee2e2', fillOpacity: 1, interactive: false }).addTo(map);
 }
 function icon(type, text = '', color = null) {
-    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'boring' ? 'boring' : type === 'splice' ? 'splice' : type === 'loop' ? 'loop' : 'house';
+    const cls = type === 'odf' ? 'odf' : type === 'cabinet' ? 'cabinet' : type === 'suggest' ? 'suggest' : type === 'manhole' ? 'manhole' : type === 'pole' ? 'pole' : type === 'boring' ? 'boring' : type === 'splice' ? 'splice' : type === 'loop' ? 'loop' : 'house';
     const style = color ? ` style="background:${color}"` : '';
     if (type === 'cabinet') {
         const match = String(text || '').trim().match(/^FTTH\s+(.+)$/i);
@@ -343,6 +343,17 @@ function routeTypeLabel(type) {
 function routeColor(type) {
     return type === 'trench' ? '#111827' : type === 'backbone' ? '#1d4ed8' : type === 'feeder' ? '#0e7490' : type === 'drop' ? '#dc2626' : '#f97316';
 }
+function odfRouteColor(odfIdentity) {
+    const value = String(odfIdentity ?? '').trim();
+    if (!value) return routeColor('distribution');
+
+    let hash = 0;
+    for (let index = 0; index < value.length; index++) {
+        hash = ((hash * 31) + value.charCodeAt(index)) >>> 0;
+    }
+
+    return cabinetPalette[hash % cabinetPalette.length];
+}
 function routeWeight(type) {
     return type === 'trench' ? 4 : type === 'drop' ? 2.25 : 4;
 }
@@ -387,10 +398,13 @@ function microductRouteColor(route) {
 }
 function routeLineColor(route) {
     if (route.type === 'trench') return routeColor('trench');
-    const surveyColor = microductRouteColor(route);
-    if (surveyColor && !colorByFibers) return surveyColor;
     const fibers = route.fiber_count || route.fibers;
     if (colorByFibers && fibers) return fiberCountColor(fibers);
+    // Sekundarni krakovi istog ODF-a moraju se citati kao jedna mreza.
+    // Ostali tipovi trasa zadrzavaju svoje postojece seme boja.
+    if (route.type === 'distribution' && route.odf_id) return odfRouteColor(route.odf_id);
+    const surveyColor = microductRouteColor(route);
+    if (surveyColor && !colorByFibers) return surveyColor;
     return surveyColor || (route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type));
 }
 // Vise mikrocijevi dijeli istu putanju rova — svaku crtamo tanju od prethodne

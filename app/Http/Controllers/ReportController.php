@@ -82,17 +82,24 @@ class ReportController extends Controller
             ->where('type', 'boring_fi_130')
             ->sum(fn (ProjectAppendixItem $item) => $item->length_m ?? $item->quantity);
 
+        $aerial = $project->isAerial();
         $segments = [
             ['label' => 'ODF ormari na betonskoj stopi a*b*h / 40*80*100', 'quantity' => $project->odfs->count(), 'unit' => 'KOMADA', 'strong' => true],
-            ['label' => 'FTTH ORMARI na betonskoj stopi fi=30 cm i l=100 cm', 'quantity' => $project->cabinets->count(), 'unit' => 'KOMADA', 'strong' => true],
+            ['label' => $aerial ? 'ODP/NAP PRIKLJUČNE KUTIJE NA STUBU (MAX 4 KUĆE)' : 'FTTH ORMARI na betonskoj stopi fi=30 cm i l=100 cm', 'quantity' => $project->cabinets->count(), 'unit' => 'KOMADA', 'strong' => true],
             ['label' => 'SPLITERI 1/16', 'quantity' => 0, 'unit' => 'KOMADA', 'strong' => true],
             ['label' => 'SPLITERI 1/4 (FTTH*3)', 'quantity' => $splitter14, 'unit' => 'KOMADA', 'strong' => true],
             ['label' => 'PROLAZNI SAHTOVI', 'quantity' => $appendixQuantity('manhole'), 'unit' => 'KOMADA', 'strong' => true],
+            ['label' => 'STUBOVI ZA NADZEMNU ADSS MREZU', 'quantity' => $appendixQuantity('pole'), 'unit' => 'KOMADA', 'strong' => true],
             ['label' => 'BUSENJE PNEUMATSKOM RAKETOM fi 130 ispod ceste', 'quantity' => $boringFi130Length, 'unit' => 'metara', 'strong' => true],
             ['label' => 'BUSENJE PNEUMATSKOM RAKETOM FI 75 ispod ceste', 'quantity' => 0, 'unit' => 'KOMADA', 'strong' => true],
         ];
 
-        $recap = [
+        $recap = $aerial ? [
+            ['label' => 'ADSS OPTIČKI KABL', 'quantity' => $materialRoutes->where('installation_type', 'aerial')->sum('fiber_length_m'), 'unit' => 'metara'],
+            ['label' => 'PRIKLJUČNI STUBOVI', 'quantity' => $appendixQuantity('pole'), 'unit' => 'KOMADA'],
+            ['label' => 'ODP/NAP KUTIJE NA STUBU', 'quantity' => $project->cabinets->count(), 'unit' => 'KOMADA'],
+            ['label' => 'KORISNIČKI ADSS DROP KABL', 'quantity' => $dropRoutes->sum('fiber_length_m'), 'unit' => 'metara'],
+        ] : [
             ['label' => 'GLAVNI ROV', 'quantity' => $totalDuct, 'unit' => 'metara'],
             ['label' => 'ALKATEN PEHD DN 50', 'quantity' => 0, 'unit' => 'metara'],
             ['label' => 'MIKRODUKT 4 phi 10', 'quantity' => $microduct107, 'unit' => 'metara'],
@@ -125,7 +132,7 @@ class ReportController extends Controller
     public function storeAppendixItem(Request $request, Project $project): RedirectResponse
     {
         $data = $request->validate([
-            'type' => ['required', 'in:manhole,boring_fi_130'],
+            'type' => ['required', 'in:manhole,boring_fi_130,pole'],
             'quantity' => ['required', 'numeric', 'min:0'],
             'note' => ['nullable', 'max:255'],
         ]);

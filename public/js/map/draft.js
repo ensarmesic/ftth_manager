@@ -153,7 +153,7 @@ function planPayload() {
     });
     const manualCabinets = draftCabinets.map((item, index) => {
         const p = item.marker.getLatLng();
-        return { name: item.name || defaultDraftName('cabinet', index), address: item.address || 'Sa mape', lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: Number(item.splitter_count || 3), ports_per_splitter: Number(item.ports_per_splitter || 4), odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
+        return { name: item.name || defaultDraftName('cabinet', index), address: item.address || 'Sa mape', lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), splitter_count: window.ftthMapConfig.networkInstallationType === 'aerial' ? 1 : Number(item.splitter_count || 3), ports_per_splitter: Number(item.ports_per_splitter || 4), odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
     });
     const suggestedCabinetPayload = suggestedCabinets.map(cabinet => ({
         name: cabinet.name,
@@ -277,7 +277,7 @@ function draftPayload() {
         }),
         cabinets: draftCabinets.map((item, index) => {
             const p = item.marker.getLatLng();
-            return { name: item.name || defaultDraftName('cabinet', index), address: item.address || '', splitter_count: Number(item.splitter_count || 3), ports_per_splitter: Number(item.ports_per_splitter || 4), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
+            return { name: item.name || defaultDraftName('cabinet', index), address: item.address || '', splitter_count: window.ftthMapConfig.networkInstallationType === 'aerial' ? 1 : Number(item.splitter_count || 3), ports_per_splitter: Number(item.ports_per_splitter || 4), lat: Number(p.lat.toFixed(7)), lng: Number(p.lng.toFixed(7)), odf_index: item.odf_index ?? null, odf_id: item.odf_id ?? null };
         }),
         houses: housePoints.slice(savedHouseCount).map((p, index) => ({
             label: draftHouseMeta[index]?.label || `K-${String(index + 1).padStart(3, '0')}`,
@@ -406,7 +406,7 @@ function restoreDraft(payload) {
         const lat = Array.isArray(point) ? point[0] : point.lat;
         const lng = Array.isArray(point) ? point[1] : point.lng;
         const latLng = L.latLng(lat, lng);
-        const item = { marker: null, name: Array.isArray(point) ? defaultDraftName('cabinet', index) : (point.name || defaultDraftName('cabinet', index)), address: point.address || '', splitter_count: point.splitter_count || 3, ports_per_splitter: point.ports_per_splitter || 4, odf_index: Array.isArray(point) ? (nearestDraftOdf(latLng)?.index ?? null) : (point.odf_index ?? null), odf_id: Array.isArray(point) ? null : (point.odf_id ?? null) };
+        const item = { marker: null, name: Array.isArray(point) ? defaultDraftName('cabinet', index) : (point.name || defaultDraftName('cabinet', index)), address: point.address || '', splitter_count: window.ftthMapConfig.networkInstallationType === 'aerial' ? 1 : (point.splitter_count || 3), ports_per_splitter: point.ports_per_splitter || 4, odf_index: Array.isArray(point) ? (nearestDraftOdf(latLng)?.index ?? null) : (point.odf_index ?? null), odf_id: Array.isArray(point) ? null : (point.odf_id ?? null) };
         const marker = L.marker(latLng, { icon: icon('cabinet', item.name), draggable: true }).bindTooltip('0/12', { direction: 'top', offset: [0, -10] }).addTo(map);
         item.marker = marker;
         marker.on('drag', () => {
@@ -423,17 +423,19 @@ function restoreDraft(payload) {
     (payload.appendix_items || []).forEach(item => {
         const latLng = L.latLng(item.lat, item.lng);
         const isManhole = item.type === 'manhole';
-        const draftItem = isManhole
+        const isPole = item.type === 'pole';
+        const draftItem = isManhole || isPole
             ? { type: item.type, quantity: item.quantity || 1, note: item.note || '', marker: null }
             : createBoringDraft(latLng, item);
-        if (isManhole) {
-            const marker = L.marker(latLng, { icon: icon('manhole', 'S'), draggable: true })
-                .bindTooltip('Prolazni saht', { direction: 'top', offset: [0, -10] })
+        if (isManhole || isPole) {
+            const label = isPole ? 'Stub za ADSS' : 'Prolazni saht';
+            const marker = L.marker(latLng, { icon: icon(isPole ? 'pole' : 'manhole', isPole ? 'ST' : 'S'), draggable: true })
+                .bindTooltip(label, { direction: 'top', offset: [0, -10] })
                 .addTo(map);
             draftItem.marker = marker;
             marker.on('drag', refreshPlanSummary);
         }
-        registerDraftContext(draftItem.marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
+        registerDraftContext(draftItem.marker, isPole ? 'Stub za ADSS' : (isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130'));
         draftAppendixItems.push(draftItem);
         draftElements.push({ type: item.type, marker: draftItem.marker });
     });

@@ -14,6 +14,7 @@ window.ftthMapConfig = {
     },
     projectId: null,
     planningMode: @json($activeProject?->planning_mode),
+    networkInstallationType: @json($activeProject?->network_installation_type ?? 'underground'),
     dataUrl: @json($mapDataUrl),
     endpoints: {
         autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),

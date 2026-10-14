@@ -8,6 +8,7 @@ use App\Models\NetworkBranch;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use App\Models\ProjectAppendixItem;
 use App\Models\ProjectBackgroundTask;
 use App\Models\User;
 use App\Services\FiberPlanService;
@@ -140,6 +141,18 @@ class PlanConfirmationService
                 $odo = $odos->get($odoKey);
                 [$splitters, $ports] = $this->splitterShape((int) $odo['capacity']);
                 $cabinet = Cabinet::create(['project_id' => $project->id, 'odf_id' => $odfId, 'parent_cabinet_id' => $lateral ? $sourceCabinetId : null, 'branch_id' => $branch->id, 'name' => $odo['provisional_name'], 'address' => 'Automatski prijedlog velikog planera', 'splitter_count' => $splitters, 'ports_per_splitter' => $ports, 'latitude' => $odo['point'][0], 'longitude' => $odo['point'][1], 'branch_order' => $order + 1, 'import_batch' => $batch]);
+                if ($project->isAerial()) {
+                    ProjectAppendixItem::create([
+                        'project_id' => $project->id,
+                        'type' => 'pole',
+                        'quantity' => 1,
+                        'unit' => 'KOMADA',
+                        'latitude' => $odo['point'][0],
+                        'longitude' => $odo['point'][1],
+                        'note' => 'Predloženi priključni stub · '.$odo['provisional_name'].' · maksimalno 4 drop kabla',
+                        'import_batch' => $batch,
+                    ]);
+                }
                 $cabinetIds[$odoKey] = $cabinet->id;
                 $branchIds[$odoKey] = $branch->id;
                 if ($odoKey === ($routePreview['terminal_odo_key'] ?? $routePreview['odo_key'])) {
@@ -187,7 +200,27 @@ class PlanConfirmationService
         // Minimalni obračunski metar sprečava nevažeću trasu bez kabla ili mikrocijevi.
         $length = max(1, (int) ceil($preview['length_m'] ?? 0));
 
-        return NetworkRoute::create($attributes + ['project_id' => $project->id, 'installation_type' => 'underground', 'duct_length_m' => $length, 'fiber_length_m' => $length, 'microduct_count' => 1, 'microduct_type' => '14/10', 'status' => 'planned', 'path' => $preview['path']]);
+        $aerial = $project->isAerial();
+
+        $routeAttributes = $attributes + [
+            'project_id' => $project->id,
+            'installation_type' => $aerial ? 'aerial' : 'underground',
+            'duct_length_m' => $length,
+            'fiber_length_m' => $length,
+            'microduct_count' => $aerial ? 0 : 1,
+            'microduct_type' => $aerial ? null : '14/10',
+            'cable_type' => $aerial ? 'ADSS' : null,
+            'status' => 'planned',
+            'path' => $preview['path'],
+        ];
+        if ($aerial) {
+            $routeAttributes['installation_type'] = 'aerial';
+            $routeAttributes['microduct_count'] = 0;
+            $routeAttributes['microduct_type'] = null;
+            $routeAttributes['cable_type'] = 'ADSS';
+        }
+
+        return NetworkRoute::create($routeAttributes);
     }
 
     private function splitterShape(int $capacity): array

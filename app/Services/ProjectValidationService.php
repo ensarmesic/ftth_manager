@@ -19,7 +19,7 @@ class ProjectValidationService
         $items = [];
         $distanceLimit = $project->houseDistanceLimit();
         $configuredLargeCapacity = $project->largePlannerSetting?->odo_capacity;
-        $largePlannerCapacity = $project->planning_mode === 'large_auto' && $configuredLargeCapacity !== null ? (int) $configuredLargeCapacity : null;
+        $largePlannerCapacity = $project->isAerial() ? 4 : ($project->planning_mode === 'large_auto' && $configuredLargeCapacity !== null ? (int) $configuredLargeCapacity : null);
         $project->loadMissing(['odfs.cabinets', 'houses.cabinet', 'cabinets.odf', 'cabinets.houses', 'routes']);
         $branchRoutes = $this->branchRoutes($project);
 
@@ -27,7 +27,7 @@ class ProjectValidationService
             $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mreznog plana.');
         }
         if ($project->cabinets->isEmpty()) {
-            $items[] = $this->validationItem('info', 'Projekat nema ODO ormarice.', 'project', $project->id, 'Pokreni automatsko planiranje ODO ormarica.');
+            $items[] = $this->validationItem('info', $project->isAerial() ? 'Projekat nema ODP/NAP tačke na stubovima.' : 'Projekat nema ODO ormarice.', 'project', $project->id, $project->isAerial() ? 'Postavi priključne stubove i ODP/NAP tačke.' : 'Pokreni automatsko planiranje ODO ormarica.');
         }
         if ($project->houses->isEmpty()) {
             $items[] = $this->validationItem('info', 'Projekat nema kuce.', 'project', $project->id, 'Dodaj kuce iz mape ili liste.');
@@ -124,8 +124,11 @@ class ProjectValidationService
 
                 continue;
             }
-            if (! $route->hasCompleteMicroductData()) {
+            if (! $project->isAerial() && ! $route->hasCompleteMicroductData()) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema kompletne podatke o mikrocijevi.", 'route', $route->id, 'Unesi tip, broj i dužinu mikrocijevi.');
+            }
+            if ($project->isAerial() && ($route->installation_type !== 'aerial' || $route->cable_type !== 'ADSS')) {
+                $items[] = $this->validationItem('error', "{$route->name} nije označena kao nadzemni ADSS.", 'route', $route->id, 'Postavi nadzemno polaganje i ADSS tip kabla.');
             }
             if ($route->hasIncompleteCableData()) {
                 $items[] = $this->validationItem('warning', "{$route->name} ima broj vlakana, ali nema dužinu kabla.", 'route', $route->id, 'Unesi dužinu kabla ili ukloni broj vlakana.');

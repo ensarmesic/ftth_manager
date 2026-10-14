@@ -80,6 +80,10 @@ class CabinetController extends Controller
         $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
         $this->ensureBelongsToProject(NetworkBranch::class, $data['branch_id'] ?? null, $data['project_id'], 'branch_id');
         $this->ensureSecondaryBranch($data['branch_id'] ?? null);
+        if (Project::findOrFail($data['project_id'])->isAerial()) {
+            $data['splitter_count'] = 1;
+            $data['ports_per_splitter'] = 4;
+        }
         $cabinet = Cabinet::create($data);
 
         if ($request->expectsJson()) {
@@ -150,6 +154,10 @@ class CabinetController extends Controller
         $this->ensureBelongsToProject(Cabinet::class, $data['parent_cabinet_id'] ?? null, $data['project_id'], 'parent_cabinet_id');
         $this->ensureBelongsToProject(NetworkBranch::class, $data['branch_id'] ?? null, $data['project_id'], 'branch_id');
         $this->ensureSecondaryBranch($data['branch_id'] ?? null);
+        if ($cabinet->project->isAerial()) {
+            $data['splitter_count'] = 1;
+            $data['ports_per_splitter'] = 4;
+        }
         if ((int) ($data['parent_cabinet_id'] ?? 0) === (int) $cabinet->id) {
             return back()->withErrors(['parent_cabinet_id' => 'Ormaric ne moze napajati sam sebe.'])->withInput();
         }
@@ -210,8 +218,9 @@ class CabinetController extends Controller
         $createdCount = 0;
         $linkedHouseCount = 0;
         $createdRouteCount = 0;
+        $project = Project::findOrFail($projectId);
 
-        DB::transaction(function () use ($data, $projectId, &$createdCount, &$linkedHouseCount, &$createdRouteCount): void {
+        DB::transaction(function () use ($data, $projectId, $project, &$createdCount, &$linkedHouseCount, &$createdRouteCount): void {
             foreach ($data['cabinets'] as $cabinet) {
                 $this->ensureBelongsToProject(Odf::class, $cabinet['odf_id'] ?? null, $projectId, 'odf_id');
                 $houseIds = collect($cabinet['houses'] ?? [])->pluck('id')->filter()->values();
@@ -248,7 +257,7 @@ class CabinetController extends Controller
                     $resultingHouseCount = $createdCabinet->houses()
                         ->whereNotIn('id', $houseIds)
                         ->count() + $houseIds->count();
-                    $capacity = (int) $cabinet['splitter_count'] * 4;
+                    $capacity = $project->isAerial() ? 4 : (int) $cabinet['splitter_count'] * 4;
                     if ($resultingHouseCount > $capacity) {
                         throw ValidationException::withMessages([
                             'cabinets' => "ODO {$cabinetName} ima kapacitet {$capacity}, a raspored bi mu dodijelio {$resultingHouseCount} kuca.",
@@ -257,13 +266,13 @@ class CabinetController extends Controller
                     $createdCabinet->update([
                         'odf_id' => $cabinet['odf_id'] ?? null,
                         'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
-                        'splitter_count' => $cabinet['splitter_count'],
+                        'splitter_count' => $project->isAerial() ? 1 : $cabinet['splitter_count'],
                         'ports_per_splitter' => 4,
                         'latitude' => $cabinet['latitude'],
                         'longitude' => $cabinet['longitude'],
                     ]);
                 } else {
-                    $capacity = (int) $cabinet['splitter_count'] * 4;
+                    $capacity = $project->isAerial() ? 4 : (int) $cabinet['splitter_count'] * 4;
                     if ($houseIds->count() > $capacity) {
                         throw ValidationException::withMessages([
                             'cabinets' => "ODO {$cabinetName} ima kapacitet {$capacity}, a odabrano je {$houseIds->count()} kuca.",
@@ -274,7 +283,7 @@ class CabinetController extends Controller
                         'odf_id' => $cabinet['odf_id'] ?? null,
                         'name' => $this->uniqueProjectName(Cabinet::class, $projectId, $cabinetName),
                         'address' => 'Sa mape - '.$cabinet['latitude'].','.$cabinet['longitude'],
-                        'splitter_count' => $cabinet['splitter_count'],
+                        'splitter_count' => $project->isAerial() ? 1 : $cabinet['splitter_count'],
                         'ports_per_splitter' => 4,
                         'latitude' => $cabinet['latitude'],
                         'longitude' => $cabinet['longitude'],
@@ -318,12 +327,13 @@ class CabinetController extends Controller
                         'to_id' => $house->id,
                         'name' => $dropName,
                         'route_type' => 'drop',
-                        'installation_type' => 'underground',
+                        'installation_type' => $project->isAerial() ? 'aerial' : 'underground',
                         'duct_length_m' => $length,
                         'fiber_length_m' => $length,
                         'fiber_count' => 4,
-                        'microduct_count' => 1,
-                        'microduct_type' => '10/8',
+                        'microduct_count' => $project->isAerial() ? 0 : 1,
+                        'microduct_type' => $project->isAerial() ? null : '10/8',
+                        'cable_type' => $project->isAerial() ? 'ADSS' : null,
                         'status' => 'planned',
                         'path' => $path,
                     ]);

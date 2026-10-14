@@ -8,7 +8,7 @@
     <div class="sidebar-bd grid gap-3">
         <div class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-[11px] leading-5 text-violet-950">
             <b class="block">{{ $project->name }}</b>
-            <span>Poseban workspace za planiranje velikog broja kuća. Postojeći Auto ODO ostaje odvojen.</span>
+            <span>{{ $project->isAerial() ? 'Nadzemni ADSS planer: ODP/NAP tačke na stubovima, najviše 4 kuće po priključnom stubu.' : 'Poseban workspace za planiranje velikog broja kuća. Postojeći Auto ODO ostaje odvojen.' }}</span>
         </div>
         <nav aria-label="Koraci velikog planera" class="grid grid-cols-2 gap-1.5">
             <button type="button" class="step-btn step-violet" data-large-planner-step="inputs"><b>1</b> Ulazni podaci</button>
@@ -25,7 +25,7 @@
             </div>
             <div id="large-planner-readiness" class="grid gap-1 text-[10px] leading-4 text-slate-700">Učitavam checklistu…</div>
             <button id="large-planner-validate-input" type="button" class="sb-btn sb-btn-outline">Provjeri ulazne podatke</button>
-            @can('project.edit')<button id="large-planner-sync-trenches" type="button" class="sb-btn sb-btn-primary">Preuzmi glavne rovove kao koridore</button>@endcan
+            @can('project.edit')<button id="large-planner-sync-trenches" type="button" class="sb-btn sb-btn-primary {{ $project->isAerial() ? 'hidden' : '' }}">Preuzmi glavne rovove kao koridore</button>@endcan
             <div id="large-planner-validation-result" class="text-[10px] leading-4 text-amber-900">Provjera još nije pokrenuta.</div>
             <div id="large-planner-time-estimate" class="rounded border border-amber-200 bg-white px-2 py-1 text-[10px] text-amber-900">Procjena vremena će biti dostupna nakon provjere.</div>
         </div>
@@ -99,8 +99,9 @@
             @method('PATCH')
             <div class="sb-kicker">Tehnička pravila</div>
             <div class="grid grid-cols-2 gap-2">
-                <label class="grid gap-1 text-[10px] font-bold text-slate-600">ODO kapacitet
-                    <input name="odo_capacity" type="number" min="3" max="1152" value="{{ old('odo_capacity', $project->largePlannerSetting?->odo_capacity) }}" class="sb-inp" placeholder="Najmanje 3">
+                <label class="grid gap-1 text-[10px] font-bold text-slate-600">{{ $project->isAerial() ? 'ODP/NAP · kuća po stubu' : 'ODO kapacitet' }}
+                    <input name="odo_capacity" type="number" min="{{ $project->isAerial() ? 4 : 3 }}" max="{{ $project->isAerial() ? 4 : 1152 }}" value="{{ $project->isAerial() ? 4 : old('odo_capacity', $project->largePlannerSetting?->odo_capacity) }}" class="sb-inp" {{ $project->isAerial() ? 'readonly' : '' }} placeholder="{{ $project->isAerial() ? '4 kuke' : 'Najmanje 3' }}">
+                    @if($project->isAerial())<span class="font-normal text-amber-700">Fiksno 4: jedna kuka za svaki drop kabl.</span>@endif
                     @error('odo_capacity')<span class="text-red-600">{{ $message }}</span>@enderror
                 </label>
                 <label class="grid gap-1 text-[10px] font-bold text-slate-600">Maks. drop (m)
@@ -115,7 +116,7 @@
             <label class="grid gap-1 text-[10px] font-bold text-slate-600">Cilj optimizacije
                 <select name="optimization_goal" class="sb-sel">
                     <option value="">Nije određeno</option>
-                    @foreach(['min_trench' => 'Najmanje rova', 'min_cable' => 'Najmanje kabla', 'min_odo' => 'Najmanje ODO-a', 'weighted' => 'Ponderisana kombinacija'] as $value => $label)
+                    @foreach(['min_trench' => ($project->isAerial() ? 'Najkraći ADSS koridor' : 'Najmanje rova'), 'min_cable' => 'Najmanje kabla', 'min_odo' => ($project->isAerial() ? 'Najmanje priključnih stubova' : 'Najmanje ODO-a'), 'weighted' => 'Ponderisana kombinacija'] as $value => $label)
                         <option value="{{ $value }}" @selected(old('optimization_goal', $project->largePlannerSetting?->optimization_goal) === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -126,7 +127,7 @@
                 <input type="checkbox" name="propose_odfs" value="1" @checked(old('propose_odfs', $project->largePlannerSetting?->propose_odfs))>
                 Sistem smije predlagati nove ODF-ove
             </label>
-            <label class="grid gap-1 text-[10px] font-bold text-slate-600">Maks. ODO-a po predloženom ODF-u
+            <label class="grid gap-1 text-[10px] font-bold text-slate-600">Maks. {{ $project->isAerial() ? 'ODP/NAP tačaka' : 'ODO-a' }} po predloženom ODF-u
                 <input name="odf_capacity" type="number" min="1" max="1152" value="{{ old('odf_capacity', $project->largePlannerSetting?->odf_capacity) }}" class="sb-inp" placeholder="Obavezno kada je opcija uključena">
                 @error('odf_capacity')<span class="text-red-600">{{ $message }}</span>@enderror
             </label>
@@ -155,7 +156,7 @@
                 @can('project.edit')<button id="large-planner-reopen" type="button" class="sb-btn sb-btn-outline hidden">Vrati stanje prije potvrde i radi novi proračun</button>@endcan
                 <div id="large-planner-final-status" class="text-[10px] leading-4 text-slate-600">Odaberi varijantu i pokreni završnu provjeru.</div>
             </div>
-            <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Prebaci kuću na drugi ODO</summary><div class="mt-2 grid gap-1.5"><input id="large-planner-house-id" type="number" min="1" class="sb-inp" placeholder="ID kuće"><select id="large-planner-house-odo" class="sb-sel"><option value="">Odaberi ODO</option></select>@can('project.edit')<button id="large-planner-assign-house" type="button" class="sb-btn sb-btn-outline">Provjeri i prebaci</button>@endcan</div></details>
+            <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Prebaci kuću na drugu {{ $project->isAerial() ? 'ODP/NAP tačku' : 'ODO' }}</summary><div class="mt-2 grid gap-1.5"><input id="large-planner-house-id" type="number" min="1" class="sb-inp" placeholder="ID kuće"><select id="large-planner-house-odo" class="sb-sel"><option value="">Odaberi {{ $project->isAerial() ? 'ODP/NAP' : 'ODO' }}</option></select>@can('project.edit')<button id="large-planner-assign-house" type="button" class="sb-btn sb-btn-outline">Provjeri i prebaci</button>@endcan</div></details>
             <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Grupno prebaci kuće</summary><div class="mt-2 grid gap-1.5"><textarea id="large-planner-house-ids" rows="2" class="sb-inp" placeholder="ID kuća odvojeni zarezom, npr. 12, 15, 18"></textarea><select id="large-planner-houses-odo" class="sb-sel"><option value="">Odaberi ODO</option></select>@can('project.edit')<button id="large-planner-assign-houses" type="button" class="sb-btn sb-btn-outline">Provjeri i grupno prebaci</button>@endcan</div></details>
             <details class="rounded border border-cyan-200 bg-white p-2"><summary class="cursor-pointer text-[10px] font-bold text-cyan-900">Poredi dvije varijante</summary><div class="mt-2 grid gap-1.5"><select id="large-planner-compare-first" class="sb-sel"><option value="">Prva varijanta</option></select><select id="large-planner-compare-second" class="sb-sel"><option value="">Druga varijanta</option></select><button id="large-planner-compare" type="button" class="sb-btn sb-btn-outline">Uporedi</button><div id="large-planner-comparison" class="text-[10px]"></div></div></details>
             <p class="text-[9px] leading-4 text-cyan-800">Povuci predloženi ODF/ODO marker za pomjeranje. Klik na marker otvara detalje i zaključavanje.</p>

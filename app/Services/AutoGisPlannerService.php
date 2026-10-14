@@ -132,12 +132,13 @@ class AutoGisPlannerService
                     'project_id' => $project->id,
                     'name' => $name,
                     'route_type' => 'distribution',
-                    'installation_type' => 'underground',
+                    'installation_type' => $project->isAerial() ? 'aerial' : 'underground',
                     'duct_length_m' => (int) $segment['length_m'],
                     'fiber_length_m' => (int) $segment['length_m'],
                     'fiber_count' => $this->fiberCountForLoad((int) $segment['house_count']),
-                    'microduct_count' => 1,
-                    'microduct_type' => '14/10',
+                    'microduct_count' => $project->isAerial() ? 0 : 1,
+                    'microduct_type' => $project->isAerial() ? null : '14/10',
+                    'cable_type' => $project->isAerial() ? 'ADSS' : null,
                     'status' => 'planned',
                     'path' => $segment['path'],
                     'note' => 'Automatski kreirano iz GIS plana. Korisnika: '.(int) $segment['house_count'],
@@ -150,9 +151,9 @@ class AutoGisPlannerService
                 $cabinet = Cabinet::create([
                     'project_id' => $project->id,
                     'odf_id' => $cabinetPlan['odf']['id'] ?? ($plan['summary']['odf']['id'] ?? null),
-                    'name' => $this->uniqueCabinetName($project, 'GIS ODO '.($index + 1)),
+                    'name' => $this->uniqueCabinetName($project, ($project->isAerial() ? 'GIS ODP ' : 'GIS ODO ').($index + 1)),
                     'address' => 'GIS plan',
-                    'splitter_count' => $this->splitterCount(count($cabinetPlan['houses'] ?? [])),
+                    'splitter_count' => $project->isAerial() ? 1 : $this->splitterCount(count($cabinetPlan['houses'] ?? [])),
                     'ports_per_splitter' => 4,
                     'latitude' => $cabinetPlan['lat'],
                     'longitude' => $cabinetPlan['lng'],
@@ -203,6 +204,8 @@ class AutoGisPlannerService
 
     private function cabinetGroups(Project $project, array $routes, int $maxHouses = 12): array
     {
+        $maxHouses = $project->isAerial() ? 4 : $maxHouses;
+
         return collect($routes)
             ->groupBy(fn (array $route) => $route['odf']['id'] ?? 0)
             ->flatMap(function ($odfRoutes) use ($maxHouses) {
@@ -232,14 +235,14 @@ class AutoGisPlannerService
                 })->values()->all();
 
                 return [
-                    'name' => 'GIS ODO '.($index + 1),
+                    'name' => ($project->isAerial() ? 'GIS ODP ' : 'GIS ODO ').($index + 1),
                     'odf' => $median['odf'],
                     'lat' => (float) $point[0],
                     'lng' => (float) $point[1],
                     'house_count' => $items->count(),
-                    'splitter_count' => $this->splitterCount($items->count()),
-                    'capacity' => $this->splitterCount($items->count()) * 4,
-                    'utilization_percent' => (int) round($items->count() / max($this->splitterCount($items->count()) * 4, 1) * 100),
+                    'splitter_count' => $project->isAerial() ? 1 : $this->splitterCount($items->count()),
+                    'capacity' => $project->isAerial() ? 4 : $this->splitterCount($items->count()) * 4,
+                    'utilization_percent' => (int) round($items->count() / max($project->isAerial() ? 4 : $this->splitterCount($items->count()) * 4, 1) * 100),
                     'max_drop_m' => max(array_column($dropPreviews, 'length_m') ?: [0]),
                     'average_drop_m' => count($dropPreviews) ? (int) round(array_sum(array_column($dropPreviews, 'length_m')) / count($dropPreviews)) : 0,
                     'houses' => $houses,

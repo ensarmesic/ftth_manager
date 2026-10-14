@@ -66,7 +66,6 @@ class RouteController extends Controller
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'name' => ['required', 'max:255'],
             'route_type' => ['required', 'in:trench,backbone,feeder,distribution,drop'],
-            'installation_type' => ['required', 'in:aerial,underground'],
             'trench_group' => ['nullable', 'string', 'max:80'],
             'counts_as_trench' => ['nullable', 'boolean'],
             'trench_length_m' => ['nullable', 'integer', 'min:0'],
@@ -74,9 +73,9 @@ class RouteController extends Controller
             'fiber_length_m' => ['required', 'integer', 'min:0'],
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
             'installation_type' => ['required', 'in:underground,aerial'],
-            'microduct_count' => ['nullable', 'integer', 'min:0', 'max:48'],
             'microduct_count' => ['required', 'integer', 'min:0'],
             'microduct_type' => ['nullable', 'in:14/10,10/8'],
+            'cable_type' => ['nullable', 'string', 'max:80'],
             'status' => ['required', 'in:planned,in_progress,built'],
             'path' => ['nullable', 'json'],
             'note' => ['nullable', 'string'],
@@ -88,6 +87,14 @@ class RouteController extends Controller
             $data['microduct_type'] = null;
             $data['fiber_length_m'] = 0;
             $data['fiber_count'] = 4;
+        }
+        $project = Project::findOrFail($data['project_id']);
+        if ($project->isAerial()) {
+            abort_if($data['route_type'] === 'trench', 422, 'Nadzemni projekat nema glavni rov.');
+            $data['installation_type'] = 'aerial';
+            $data['microduct_count'] = 0;
+            $data['microduct_type'] = null;
+            $data['cable_type'] = 'ADSS';
         }
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $data['project_id'], 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $data['project_id'], 'cabinet_id');
@@ -154,6 +161,9 @@ class RouteController extends Controller
             'to_id' => ['nullable', 'integer'],
             'cabinet_id' => ['nullable', 'exists:cabinets,id'],
             'microduct_type' => ['nullable', 'in:14/10,10/8'],
+            'microduct_count' => ['nullable', 'integer', 'min:0', 'max:48'],
+            'installation_type' => ['nullable', 'in:underground,aerial'],
+            'cable_type' => ['nullable', 'string', 'max:80'],
             'fiber_count' => ['required', 'integer', 'in:4,12,24,48'],
             'trench_group' => ['nullable', 'string', 'max:80'],
             'counts_as_trench' => ['nullable', 'boolean'],
@@ -166,6 +176,13 @@ class RouteController extends Controller
             $data['microduct_type'] = null;
             $data['fiber_count'] = 4;
             $data['microduct_count'] = 0;
+        }
+        if ($route->project->isAerial()) {
+            abort_if($data['route_type'] === 'trench', 422, 'Nadzemni projekat nema glavni rov.');
+            $data['installation_type'] = 'aerial';
+            $data['microduct_count'] = 0;
+            $data['microduct_type'] = null;
+            $data['cable_type'] = 'ADSS';
         }
         $this->ensureBelongsToProject(Odf::class, $data['odf_id'] ?? null, $route->project_id, 'odf_id');
         $this->ensureBelongsToProject(Cabinet::class, $data['cabinet_id'] ?? null, $route->project_id, 'cabinet_id');
@@ -395,18 +412,20 @@ class RouteController extends Controller
         }
 
         DB::transaction(function () use ($data, $entities): void {
+            $project = Project::findOrFail($data['project_id']);
             foreach ($entities as $index => $points) {
                 $length = $this->polylineLength($points);
                 NetworkRoute::create([
                     'project_id' => $data['project_id'],
                     'name' => 'DXF trasa '.($index + 1),
                     'route_type' => 'distribution',
-                    'installation_type' => 'underground',
+                    'installation_type' => $project->isAerial() ? 'aerial' : 'underground',
                     'duct_length_m' => $length,
                     'fiber_length_m' => $length,
                     'fiber_count' => 12,
-                    'microduct_count' => 1,
-                    'microduct_type' => '14/10',
+                    'microduct_count' => $project->isAerial() ? 0 : 1,
+                    'microduct_type' => $project->isAerial() ? null : '14/10',
+                    'cable_type' => $project->isAerial() ? 'ADSS' : null,
                     'status' => 'planned',
                     'path' => $points,
                 ]);

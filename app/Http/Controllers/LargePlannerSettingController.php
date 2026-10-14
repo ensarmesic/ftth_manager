@@ -21,6 +21,10 @@ class LargePlannerSettingController extends Controller
             'odf_capacity' => ['nullable', 'required_if:propose_odfs,1', 'integer', 'min:1', 'max:1152'],
         ]);
 
+        if ($project->isAerial()) {
+            $settings['odo_capacity'] = 4;
+        }
+
         $project->largePlannerSetting()->updateOrCreate([], $settings);
 
         return back()->with('success', 'Postavke velikog planera su sačuvane.');

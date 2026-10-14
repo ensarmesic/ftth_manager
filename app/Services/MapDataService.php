@@ -149,7 +149,7 @@ class MapDataService
                 'appendix_items' => $appendixItems->map(fn (ProjectAppendixItem $item) => [
                     'id' => $item->id, 'project_id' => $item->project_id, 'project' => $item->project->name, 'type' => $item->type,
                     'label' => match ($item->type) {
-                        'manhole' => 'Saht', 'boring_fi_130' => 'FI 130', 'splice' => 'Spojnica', 'loop' => 'Rezerva', default => $item->type
+                        'manhole' => 'Saht', 'boring_fi_130' => 'FI 130', 'splice' => 'Spojnica', 'loop' => 'Rezerva', 'pole' => 'Stub', default => $item->type
                     },
                     'quantity' => (float) $item->quantity, 'unit' => $item->unit, 'note' => $item->note,
                     'lat' => (float) $item->latitude, 'lng' => (float) $item->longitude,

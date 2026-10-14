@@ -15,6 +15,8 @@ class LargePlannerReadinessService
         $validation = $this->inputValidator->validate($project);
         $issues = collect($validation['issues'])->keyBy('code');
         $settings = $project->largePlannerSetting;
+        $pointLabel = $project->distributionPointLabel();
+        $effectiveCapacity = $project->distributionPointCapacity($settings?->odo_capacity);
 
         $checks = [
             $this->check('houses', 'Kuće s koordinatama', ! $issues->has('houses_without_coordinates') && $validation['summary']['houses'] > 0,
@@ -25,8 +27,8 @@ class LargePlannerReadinessService
                 $issues->get('disconnected_corridors')['message'] ?? 'Koridori čine jednu povezanu cjelinu.'),
             $this->check('house_distance', 'Dostupnost kuća', ! $issues->has('houses_too_far_from_corridor') && $settings?->max_drop_length_m !== null,
                 $issues->get('houses_too_far_from_corridor')['message'] ?? ($settings?->max_drop_length_m === null ? 'Maksimalni drop nije određen.' : 'Sve kuće su unutar dozvoljene udaljenosti.')),
-            $this->check('odo_capacity', 'ODO kapacitet', $settings?->odo_capacity !== null && $settings->odo_capacity >= 3,
-                $settings?->odo_capacity === null ? 'ODO kapacitet nije određen.' : ($settings->odo_capacity >= 3 ? "Kapacitet: {$settings->odo_capacity}." : 'ODO kapacitet mora biti najmanje 3 zbog minimalnog broja kuća po ormaru.')),
+            $this->check('odo_capacity', $pointLabel.' · kapacitet', $project->isAerial() || ($settings?->odo_capacity !== null && $settings->odo_capacity >= 3),
+                $project->isAerial() ? 'Najviše 4 kuće po priključnom stubu (4 kuke).' : ($settings?->odo_capacity === null ? 'ODO kapacitet nije određen.' : ($settings->odo_capacity >= 3 ? "Kapacitet: {$effectiveCapacity}." : 'ODO kapacitet mora biti najmanje 3 zbog minimalnog broja kuća po ormaru.'))),
             $this->check('fiber_reserve', 'Rezerva vlakana', $settings?->fiber_reserve_percent !== null,
                 $settings?->fiber_reserve_percent !== null ? "Rezerva: {$settings->fiber_reserve_percent}%." : 'Rezerva vlakana nije određena.'),
             $this->check('optimization_goal', 'Cilj optimizacije', $settings?->optimization_goal !== null,

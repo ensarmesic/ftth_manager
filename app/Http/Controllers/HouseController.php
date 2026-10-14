@@ -126,6 +126,7 @@ class HouseController extends Controller
 
         $routes = DB::transaction(function () use ($cabinet, $newHouses) {
             return $newHouses->map(function (House $house) use ($cabinet) {
+                $aerial = $cabinet->project->isAerial();
                 $path = $this->dropPathForHouse($cabinet, $house);
                 $length = $this->polylineLength($path);
                 $house->update(['cabinet_id' => $cabinet->id]);
@@ -134,9 +135,9 @@ class HouseController extends Controller
                 return NetworkRoute::create([
                     'project_id' => $cabinet->project_id, 'cabinet_id' => $cabinet->id,
                     'from_type' => 'cabinet', 'from_id' => $cabinet->id, 'to_type' => 'house', 'to_id' => $house->id,
-                    'name' => $dropName, 'route_type' => 'drop', 'installation_type' => 'underground',
+                    'name' => $dropName, 'route_type' => 'drop', 'installation_type' => $aerial ? 'aerial' : 'underground',
                     'duct_length_m' => $length, 'fiber_length_m' => $length, 'fiber_count' => 4,
-                    'microduct_count' => 1, 'microduct_type' => '10/8', 'status' => 'planned', 'path' => $path,
+                    'microduct_count' => $aerial ? 0 : 1, 'microduct_type' => $aerial ? null : '10/8', 'cable_type' => $aerial ? 'ADSS' : null, 'status' => 'planned', 'path' => $path,
                 ]);
             });
         });

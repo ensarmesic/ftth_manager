@@ -107,6 +107,13 @@
                                         </select>
                                         <span class="text-[10px] font-normal normal-case leading-4 tracking-normal text-slate-500">Standardni režim zadržava postojeći način rada. Veliki projekat će koristiti zasebne alate planera.</span>
                                     </label>
+                                    <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Način izgradnje
+                                        <select name="network_installation_type" class="ftth-input text-[13px] font-normal normal-case tracking-normal">
+                                            <option value="underground" @selected(($project->network_installation_type ?? 'underground') === 'underground')>Podzemno · mikrocijevi</option>
+                                            <option value="aerial" @selected($project->network_installation_type === 'aerial')>Nadzemno · ADSS optika</option>
+                                        </select>
+                                        <span class="text-[10px] font-normal normal-case leading-4 tracking-normal text-slate-500">Nadzemni projekat ne obračunava rov ni mikrocijevi i koristi ADSS kabl.</span>
+                                    </label>
                                     <div class="grid grid-cols-2 gap-2">
                                         <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Početak<input type="date" name="start_date" value="{{ $project->start_date }}" class="ftth-input font-normal normal-case tracking-normal"></label>
                                         <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rok<input type="date" name="deadline" value="{{ $project->deadline }}" class="ftth-input font-normal normal-case tracking-normal"></label>
@@ -256,6 +263,13 @@
                     <option value="large_auto" @selected(old('planning_mode') === 'large_auto')>Veliki projekat · automatsko planiranje</option>
                 </select>
                 <span class="mt-1 block text-xs font-normal leading-5 text-slate-500">Standardni režim koristi postojeći tok. Veliki projekat uključuje zaseban workspace za planiranje velikog broja kuća.</span>
+            </label>
+            <label class="ftth-label">Način izgradnje
+                <select name="network_installation_type" class="ftth-input">
+                    <option value="underground" @selected(old('network_installation_type', 'underground') === 'underground')>Podzemno · mikrocijevi</option>
+                    <option value="aerial" @selected(old('network_installation_type') === 'aerial')>Nadzemno · ADSS optika</option>
+                </select>
+                <span class="mt-1 block text-xs font-normal leading-5 text-slate-500">Za nadzemnu mrežu trase se vode kao ADSS, bez mikrocijevi i glavnog rova.</span>
             </label>
             <div class="grid gap-3 sm:grid-cols-2">
                 <label class="ftth-label">Početak<input type="date" name="start_date" value="{{ old('start_date') }}" class="ftth-input"></label>

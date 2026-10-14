@@ -41,7 +41,7 @@ class LargePlannerService
         $this->report($progress, 30, 'Grupisanje kuća po zonama i kapacitetu.');
         $clustering = $this->clusterer->cluster($project, $graph);
 
-        $this->report($progress, 50, 'Određivanje položaja ODO ormara.');
+        $this->report($progress, 50, $project->isAerial() ? 'Određivanje položaja ODP/NAP tačaka na stubovima.' : 'Određivanje položaja ODO ormara.');
         $placement = $this->odoPlacement->propose($project, $clustering, $graph);
         $this->report($progress, 65, 'Proračun ODF-ova i primarnih krakova.');
         $odfPlan = $this->odfProposals->propose($project, $graph, $placement);

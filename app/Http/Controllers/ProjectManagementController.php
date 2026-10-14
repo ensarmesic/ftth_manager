@@ -117,9 +117,14 @@ class ProjectManagementController extends Controller
         }
 
         $project->largePlannerSetting()->firstOrCreate([], [
+            'odo_capacity' => $project->isAerial() ? 4 : null,
             'propose_odfs' => true,
             'odf_capacity' => 48,
         ]);
+
+        if ($project->isAerial()) {
+            $project->largePlannerSetting()->update(['odo_capacity' => 4]);
+        }
     }
 
     public function destroy(int $id)
@@ -138,6 +143,7 @@ class ProjectManagementController extends Controller
             'investor' => ['nullable', 'max:255'],
             'status' => ['required', 'in:planning,active,paused,completed'],
             'planning_mode' => ['sometimes', 'in:standard,large_auto'],
+            'network_installation_type' => ['sometimes', 'in:underground,aerial'],
             'start_date' => ['nullable', 'date'],
             'deadline' => ['nullable', 'date'],
             'description' => ['nullable', 'max:2000'],

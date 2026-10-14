@@ -130,8 +130,10 @@
             <div class="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Materijalni obračun</div>
             <div class="grid grid-cols-2 gap-1.5">
                 @foreach ([
+                    ...($project->isAerial() ? [['ADSS optika', number_format($materials['adss_cable_m'] ?? 0).' m', '#d97706']] : [
                     ['Mikrocijev 14/10', number_format($materials['microduct_14_10_m'] ?? 0).' m', '#0891b2'],
                     ['Mikrocijev 10/8',  number_format($materials['microduct_10_8_m'] ?? 0).' m',  '#0369a1'],
+                    ]),
                     ['Optika 4 niti',    number_format($materials['fiber_4_m'] ?? 0).' m',          '#7c3aed'],
                     ['Optika 12 niti',   number_format($materials['fiber_12_m'] ?? 0).' m',         '#6d28d9'],
                     ['Splitteri',        number_format($materials['splitter_count'] ?? 0).' kom',    '#059669'],

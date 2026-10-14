@@ -40,6 +40,25 @@ class MediaskyWorkflowTest extends TestCase
         $this->assertDatabaseHas('routes', ['project_id' => $project->id, 'name' => 'DXF trasa 1', 'microduct_type' => '14/10']);
     }
 
+    public function test_dxf_import_for_aerial_project_creates_adss_without_microduct(): void
+    {
+        $project = Project::factory()->create(['network_installation_type' => 'aerial']);
+        $dxf = "0\nSECTION\n2\nENTITIES\n0\nLINE\n10\n18.6498\n20\n44.4493\n11\n18.6508\n21\n44.4503\n0\nENDSEC\n0\nEOF\n";
+
+        $this->post(route('routes.dxf.import'), [
+            'project_id' => $project->id,
+            'dxf' => UploadedFile::fake()->createWithContent('adss.dxf', $dxf),
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('routes', [
+            'project_id' => $project->id,
+            'installation_type' => 'aerial',
+            'microduct_count' => 0,
+            'microduct_type' => null,
+            'cable_type' => 'ADSS',
+        ]);
+    }
+
     public function test_geojson_import_creates_gis_segments_for_auto_routing(): void
     {
         $project = Project::create(['name' => 'GIS', 'code' => 'GIS', 'location' => 'Test', 'status' => 'planning']);

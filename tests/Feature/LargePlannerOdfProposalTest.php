@@ -109,7 +109,7 @@ class LargePlannerOdfProposalTest extends TestCase
         $this->assertNotContains('missing_source_odf', array_column($routes['warnings'], 'code'));
     }
 
-    public function test_a_corridor_is_not_split_between_odfs_when_its_odos_fit_capacity(): void
+    public function test_automatic_odf_zones_keep_neighboring_odos_together(): void
     {
         [$project, $graph, $corridor] = $this->projectWithCorridor(true, 3);
         $placement = $this->placement($corridor->id, 6);
@@ -122,13 +122,13 @@ class LargePlannerOdfProposalTest extends TestCase
 
         $owners = collect($result['odfs'])->flatMap(fn (array $odf) => collect($odf['odo_keys'])
             ->mapWithKeys(fn (string $key) => [$key => $odf['key']]));
-        $corridorOwners = collect($placement['odos'])->groupBy('corridor_id')
-            ->map(fn ($odos) => $odos->map(fn (array $odo) => $owners[$odo['key']])->unique()->values()->all());
 
         $this->assertCount(2, $result['odfs']);
-        $this->assertCount(1, $corridorOwners[101]);
-        $this->assertCount(1, $corridorOwners[202]);
-        $this->assertNotSame($corridorOwners[101][0], $corridorOwners[202][0]);
+        $this->assertSame($owners['odo-0001'], $owners['odo-0002']);
+        $this->assertSame($owners['odo-0002'], $owners['odo-0003']);
+        $this->assertSame($owners['odo-0004'], $owners['odo-0005']);
+        $this->assertSame($owners['odo-0005'], $owners['odo-0006']);
+        $this->assertNotSame($owners['odo-0003'], $owners['odo-0004']);
     }
 
     private function projectWithCorridor(bool $proposeOdfs, ?int $capacity): array

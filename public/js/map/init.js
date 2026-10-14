@@ -1,5 +1,5 @@
 // ── MODE BUTTON LISTENERS ──────────────────────────────────────────────────────
-['pan','select','odf','cabinet','house','draw','manhole','boring-fi-130','ruler','branch-source','trace-branch','connect','connect-houses','trace','join','split'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
+['pan','select','odf','cabinet','house','draw','manhole','pole','boring-fi-130','ruler','branch-source','trace-branch','connect','connect-houses','trace','join','split'].forEach(m => document.getElementById(`mode-${m}`).addEventListener('click', () => {
     setMode(m);
     if (m === 'draw' && document.getElementById('route-draw-type').value === 'trench') {
         document.getElementById('cad-command').textContent = 'GLAVNI ROV: klikni tacke fizickog iskopa. ENTER/desni klik zavrsava rov.';
@@ -51,7 +51,7 @@ document.getElementById('undo-element').addEventListener('click', () => {
         activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
     }
     if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== item.marker);
-    if (item.type === 'manhole' || item.type === 'boring_fi_130') {
+    if (item.type === 'manhole' || item.type === 'boring_fi_130' || item.type === 'pole') {
         draftAppendixItems = draftAppendixItems.filter(entry => entry.marker !== item.marker);
     }
     refreshDraftTooltips();
@@ -247,16 +247,18 @@ map.on('click', e => {
         document.getElementById('house-lat').value=lat; document.getElementById('house-lng').value=lng; refreshStats(); refreshPlanSummary(); selectDraftElement('house', { marker, houseIndex: draftIndex, meta: houseMeta }); return;
     }
     if (mode === 'ruler') { rulerClick(e.latlng); return; }
-    if (mode === 'manhole' || mode === 'boring-fi-130') {
+    if (mode === 'manhole' || mode === 'pole' || mode === 'boring-fi-130') {
         const isManhole = mode === 'manhole';
-        const item = isManhole
-            ? { type: 'manhole', marker: null, quantity: 1, note: '' }
+        const isPole = mode === 'pole';
+        const item = isManhole || isPole
+            ? { type: isPole ? 'pole' : 'manhole', marker: null, quantity: 1, note: '' }
             : createBoringDraft(e.latlng, { length_m: 12, angle_deg: 0, width_m: 1.8 });
-        if (isManhole) {
-            const marker = L.marker(e.latlng, { icon: icon('manhole', 'S'), draggable: true })
+        if (isManhole || isPole) {
+            const label = isPole ? 'Stub za ADSS' : 'Prolazni saht';
+            const marker = L.marker(e.latlng, { icon: icon(isPole ? 'pole' : 'manhole', isPole ? 'ST' : 'S'), draggable: true })
                 .addTo(map)
-                .bindTooltip('Prolazni saht', { direction: 'top', offset: [0, -10] })
-                .bindPopup('Prolazni saht')
+                .bindTooltip(label, { direction: 'top', offset: [0, -10] })
+                .bindPopup(label)
                 .openPopup();
             item.marker = marker;
             marker.on('drag', refreshPlanSummary);
@@ -266,7 +268,7 @@ map.on('click', e => {
         }
         draftAppendixItems.push(item);
         draftElements.push({ type: item.type, marker: item.marker });
-        registerDraftContext(item.marker, isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130');
+        registerDraftContext(item.marker, isPole ? 'Stub za ADSS' : (isManhole ? 'Prolazni saht' : 'Podbusivanje FI 130'));
         refreshPlanSummary();
         return;
     }
@@ -294,7 +296,7 @@ map.on('click', e => {
     if (mode === 'cabinet') {
         draftCabinetCount++;
         const odf = activeOdfPayload(e.latlng);
-        const item = { marker: null, name: defaultDraftName('cabinet', draftCabinetCount - 1), address: '', splitter_count: 3, ports_per_splitter: 4, odf_index: odf.odf_index, odf_id: odf.odf_id };
+        const item = { marker: null, name: defaultDraftName('cabinet', draftCabinetCount - 1), address: '', splitter_count: window.ftthMapConfig.networkInstallationType === 'aerial' ? 1 : 3, ports_per_splitter: 4, odf_index: odf.odf_index, odf_id: odf.odf_id };
         const marker = L.marker(e.latlng, { icon: icon('cabinet', item.name), draggable: true })
             .addTo(map)
             .bindTooltip('0/12', { direction: 'top', offset: [0, -10] })

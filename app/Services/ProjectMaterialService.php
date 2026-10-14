@@ -12,19 +12,21 @@ class ProjectMaterialService
     {
         $routes = $project->routes;
         $cableRoutes = $routes->where('route_type', '!=', 'trench');
+        $aerialRoutes = $cableRoutes->where('installation_type', 'aerial');
         $summary = [
             'odf_count' => $project->odfs->count(),
             'odo_count' => $project->cabinets->count(),
             'house_count' => $project->houses->count(),
             'splitter_count' => $project->cabinets->sum('splitter_count'),
             'route_length_m' => $cableRoutes->sum('duct_length_m'),
+            'adss_cable_m' => $aerialRoutes->sum('fiber_length_m'),
             'microduct_14_10_m' => $cableRoutes->where('microduct_type', '14/10')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
             'microduct_10_8_m' => $cableRoutes->where('microduct_type', '10/8')->sum(fn (NetworkRoute $route) => $route->duct_length_m * $route->microduct_count),
             'fiber_4_m' => $cableRoutes->where('fiber_count', 4)->sum('fiber_length_m'),
             'fiber_12_m' => $cableRoutes->where('fiber_count', 12)->sum('fiber_length_m'),
             'fiber_24_m' => $cableRoutes->where('fiber_count', 24)->sum('fiber_length_m'),
             'fiber_48_m' => $cableRoutes->where('fiber_count', 48)->sum('fiber_length_m'),
-            'unclassified_routes' => $cableRoutes->filter(fn (NetworkRoute $route) => ! $route->hasCompleteMicroductData() || $route->hasIncompleteCableData())->count(),
+            'unclassified_routes' => $cableRoutes->filter(fn (NetworkRoute $route) => ($route->installation_type !== 'aerial' && ! $route->hasCompleteMicroductData()) || $route->hasIncompleteCableData())->count(),
         ];
         $summary['estimated_value'] = (float) $project->materials()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?: 0.0;
         $summary['reserve_percent'] = $reservePercent;

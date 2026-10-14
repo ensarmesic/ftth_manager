@@ -36,7 +36,7 @@ function removeDraftElement(marker) {
         activeDraftOdfIndex = draftOdfs.length ? Math.min(activeDraftOdfIndex ?? 0, draftOdfs.length - 1) : null;
     }
     if (item.type === 'cabinet') draftCabinets = draftCabinets.filter(entry => entry.marker !== marker);
-    if (item.type === 'manhole' || item.type === 'boring_fi_130') {
+    if (item.type === 'manhole' || item.type === 'boring_fi_130' || item.type === 'pole') {
         draftAppendixItems = draftAppendixItems.filter(entry => entry.marker !== marker);
     }
     refreshDraftTooltips();

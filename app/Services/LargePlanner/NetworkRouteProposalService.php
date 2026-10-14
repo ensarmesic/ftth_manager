@@ -40,10 +40,20 @@ class NetworkRouteProposalService
             $warnings[] = ['code' => 'missing_source_odf', 'message' => 'Nije postavljen početni ODF za veliki planer.'];
         }
 
+        $zoneSourceAssignments = $this->zoneSourceAssignments(
+            $placement['odos'],
+            $sources,
+            $graph,
+            $requiredWaypoints,
+        );
+
         foreach ($placement['odos'] as $odo) {
             $bestPath = null;
             $bestOdf = null;
             $assignedSources = collect($sources)->filter(fn (array $source) => in_array($odo['key'], $source['odo_keys'] ?? [], true))->values()->all();
+            if ($assignedSources === [] && isset($zoneSourceAssignments[$odo['key']])) {
+                $assignedSources = [$zoneSourceAssignments[$odo['key']]];
+            }
             $candidateSources = $assignedSources !== [] ? $assignedSources : $sources;
             foreach ($candidateSources as $candidate) {
                 $path = $this->pathThroughRequiredWaypoints($graph, $candidate['point'], $odo['point'], $requiredWaypoints);
@@ -204,6 +214,50 @@ class NetworkRouteProposalService
             })->all();
 
         return [$branches, $named->values()->all()];
+    }
+
+    /**
+     * Keep every explicitly defined planning zone inside one ODF service area.
+     * ODOs without a zone keep the existing nearest-network behaviour.
+     */
+    private function zoneSourceAssignments(array $odos, array $sources, array $graph, array $requiredWaypoints): array
+    {
+        if ($sources === [] || collect($sources)->contains(fn (array $source) => ($source['odo_keys'] ?? []) !== [])) {
+            return [];
+        }
+
+        $assignments = [];
+        $zones = collect($odos)
+            ->filter(fn (array $odo) => filled($odo['zone_id'] ?? null))
+            ->groupBy(fn (array $odo) => (string) $odo['zone_id']);
+
+        foreach ($zones as $zoneOdos) {
+            $bestSource = null;
+            $bestScore = INF;
+            foreach ($sources as $source) {
+                $score = 0.0;
+                foreach ($zoneOdos as $odo) {
+                    $path = $this->pathThroughRequiredWaypoints($graph, $source['point'], $odo['point'], $requiredWaypoints);
+                    if ($path === null) {
+                        $score = INF;
+                        break;
+                    }
+                    $score += $path['length_m'];
+                }
+                if ($score < $bestScore) {
+                    $bestScore = $score;
+                    $bestSource = $source;
+                }
+            }
+
+            if ($bestSource !== null) {
+                foreach ($zoneOdos as $odo) {
+                    $assignments[$odo['key']] = $bestSource;
+                }
+            }
+        }
+
+        return $assignments;
     }
 
     private function branchChunks($chain): array

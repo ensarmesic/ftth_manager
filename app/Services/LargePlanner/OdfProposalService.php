@@ -50,7 +50,7 @@ class OdfProposalService
         $groups = collect($placement['odos'])->groupBy('component')->sortKeys();
         $proposals = [];
         foreach ($groups as $odos) {
-            foreach ($this->packCorridorGroups($odos->values(), $maxOdos) as $chunk) {
+            foreach ($this->packNetworkZones($graph, $odos->values(), $maxOdos) as $chunk) {
                 $items = $chunk->values()->all();
                 $candidate = $items[(int) floor((count($items) - 1) / 2)];
                 $odfLocation = $this->optimizedLocation($graph, $candidate['point'], $items, $placement['odos'], (int) $candidate['component']);
@@ -93,53 +93,197 @@ class OdfProposalService
         ];
     }
 
-    private function packCorridorGroups($odos, int $capacity): array
+    private function packNetworkZones(array $graph, $odos, int $capacity): array
     {
         $requiredOdfs = max(1, (int) ceil($odos->count() / $capacity));
-        $targetOccupancy = (int) ceil($odos->count() / $requiredOdfs);
-        $groups = $odos
-            ->groupBy(fn (array $odo) => $odo['corridor_id'] ?? 'none-'.$odo['key'])
-            ->flatMap(fn ($corridorOdos) => $corridorOdos
-                ->sortBy(fn (array $odo) => [$odo['point'][0], $odo['point'][1], $odo['key']])
-                ->values()
-                ->chunk($capacity))
-            ->map(fn ($group) => $group->values())
-            ->values();
-        $centroids = $groups->map(fn ($group) => $this->groupCentroid($group));
-        $latitudeSpanM = ((float) $centroids->max(fn (array $point) => $point[0]) - (float) $centroids->min(fn (array $point) => $point[0])) * 111_320;
-        $meanLatitude = (float) $centroids->avg(fn (array $point) => $point[0]);
-        $longitudeSpanM = ((float) $centroids->max(fn (array $point) => $point[1]) - (float) $centroids->min(fn (array $point) => $point[1]))
-            * 111_320 * cos(deg2rad($meanLatitude));
-        $axis = $longitudeSpanM >= $latitudeSpanM ? 1 : 0;
-        $groups = $groups->sortBy(fn ($group) => [
-            $this->groupCentroid($group)[$axis],
-            $this->groupCentroid($group)[1 - $axis],
-        ])->values();
-
-        return $this->balancedSequentialBins($groups, $requiredOdfs, $capacity, $targetOccupancy);
-    }
-
-    private function balancedSequentialBins($groups, int $binCount, int $capacity, int $target): array
-    {
-        $ordered = $groups->reduce(fn ($items, $group) => $items->concat($group), collect())->values();
-        $baseSize = intdiv($ordered->count(), $binCount);
-        $largerBins = $ordered->count() % $binCount;
-        $bins = [];
-
-        for ($index = 0; $index < $binCount; $index++) {
-            $size = $baseSize + ($index < $largerBins ? 1 : 0);
-            $bins[] = $ordered->splice(0, min($capacity, $size))->values();
+        if ($requiredOdfs === 1) {
+            return [$odos->values()];
         }
 
-        return $bins;
+        $items = $odos->values()->all();
+        $count = count($items);
+        $distances = array_fill(0, $count, array_fill(0, $count, INF));
+        for ($left = 0; $left < $count; $left++) {
+            $distances[$left][$left] = 0.0;
+            for ($right = $left + 1; $right < $count; $right++) {
+                $path = $this->routes->pathThroughGraph($graph, $items[$left]['point'], $items[$right]['point']);
+                $distance = $path['length_m'] ?? INF;
+                $distances[$left][$right] = $distance;
+                $distances[$right][$left] = $distance;
+            }
+        }
+
+        $medoids = [];
+        $medoids[] = collect(range(0, $count - 1))->sortBy(fn (int $index) => [
+            array_sum(array_filter($distances[$index], 'is_finite')),
+            $items[$index]['key'],
+        ])->first();
+        while (count($medoids) < $requiredOdfs) {
+            $medoids[] = collect(range(0, $count - 1))
+                ->reject(fn (int $index) => in_array($index, $medoids, true))
+                ->sortByDesc(fn (int $index) => min(array_map(fn (int $medoid) => $distances[$index][$medoid], $medoids)))
+                ->first();
+        }
+
+        $clusters = [];
+        for ($iteration = 0; $iteration < 4; $iteration++) {
+            $clusters = $this->assignToNetworkMedoids($items, $distances, $medoids, $capacity);
+            $nextMedoids = collect($clusters)->map(function (array $members) use ($distances, $items): int {
+                return collect($members)->sortBy(fn (int $candidate) => [
+                    array_sum(array_map(fn (int $member) => $distances[$candidate][$member], $members)),
+                    $items[$candidate]['key'],
+                ])->first();
+            })->all();
+            if ($nextMedoids === $medoids) {
+                break;
+            }
+            $medoids = $nextMedoids;
+        }
+
+        return collect($clusters)->map(fn (array $members) => collect($members)
+            ->map(fn (int $index) => $items[$index])->values())->all();
     }
 
-    private function groupCentroid($odos): array
+    private function assignToNetworkMedoids(array $items, array $distances, array $medoids, int $capacity): array
     {
+        $ranked = collect(array_keys($items))->map(function (int $index) use ($distances, $medoids, $items): array {
+            $candidates = collect($medoids)->keys()->map(fn (int $cluster) => [
+                'cluster' => $cluster,
+                'distance_m' => $distances[$index][$medoids[$cluster]],
+            ])->sortBy(fn (array $candidate) => [$candidate['distance_m'], $candidate['cluster']])->values();
+            $best = (float) $candidates[0]['distance_m'];
+            $second = (float) ($candidates[1]['distance_m'] ?? INF);
+
+            return [
+                'index' => $index,
+                'key' => $items[$index]['key'],
+                'candidates' => $candidates,
+                'regret' => is_finite($second) ? $second - $best : PHP_FLOAT_MAX,
+            ];
+        })->sortBy(fn (array $item) => [-$item['regret'], $item['key']]);
+
+        $clusters = array_fill(0, count($medoids), []);
+        $remaining = array_fill(0, count($medoids), $capacity);
+        foreach ($ranked as $item) {
+            $selected = $item['candidates']->first(fn (array $candidate) => $remaining[$candidate['cluster']] > 0);
+            $cluster = $selected['cluster'];
+            $clusters[$cluster][] = $item['index'];
+            $remaining[$cluster]--;
+        }
+
+        return $clusters;
+    }
+
+    /**
+     * Recursively split the service territory on its longest physical axis. This
+     * produces compact, non-interleaved ODF zones while keeping every bin within
+     * capacity and their occupancies as even as possible.
+     */
+    private function spatialBins($odos, int $binCount, int $capacity): array
+    {
+        if ($binCount <= 1 || $odos->count() <= $capacity) {
+            return [$odos->values()];
+        }
+
+        $leftBins = intdiv($binCount, 2);
+        $rightBins = $binCount - $leftBins;
+        $meanLatitude = (float) $odos->avg(fn (array $odo) => $odo['point'][0]);
+        $latitudeSpanM = ((float) $odos->max(fn (array $odo) => $odo['point'][0]) - (float) $odos->min(fn (array $odo) => $odo['point'][0])) * 111_320;
+        $longitudeSpanM = ((float) $odos->max(fn (array $odo) => $odo['point'][1]) - (float) $odos->min(fn (array $odo) => $odo['point'][1]))
+            * 111_320 * cos(deg2rad($meanLatitude));
+        $axis = $longitudeSpanM >= $latitudeSpanM ? 1 : 0;
+        $ordered = $odos->sortBy(fn (array $odo) => [
+            $odo['point'][$axis],
+            $odo['point'][1 - $axis],
+            $odo['key'],
+        ])->values();
+
+        $idealLeftSize = (int) round($ordered->count() * ($leftBins / $binCount));
+        $minimumLeftSize = max($leftBins, $ordered->count() - ($rightBins * $capacity));
+        $maximumLeftSize = min($leftBins * $capacity, $ordered->count() - $rightBins);
+        $leftSize = max($minimumLeftSize, min($maximumLeftSize, $idealLeftSize));
+        $left = $ordered->take($leftSize)->values();
+        $right = $ordered->slice($leftSize)->values();
+
         return [
-            (float) $odos->avg(fn (array $odo) => $odo['point'][0]),
-            (float) $odos->avg(fn (array $odo) => $odo['point'][1]),
+            ...$this->spatialBins($left, $leftBins, $capacity),
+            ...$this->spatialBins($right, $rightBins, $capacity),
         ];
+    }
+
+    /**
+     * Refine the initial geographic partition against real routed distance. ODOs
+     * with a clear preference are assigned first; capacity pressure is therefore
+     * absorbed near zone boundaries instead of creating isolated service islands.
+     */
+    private function refineServiceAreas(array $graph, array $proposals, array $odos, int $capacity): array
+    {
+        if (count($proposals) < 2) {
+            return $proposals;
+        }
+
+        $odoByKey = collect($odos)->keyBy('key');
+        $proposalByKey = collect($proposals)->keyBy('key');
+        $assignments = [];
+
+        foreach ($odoByKey->groupBy('component') as $component => $componentOdos) {
+            $componentOdfs = $proposalByKey->where('component', $component)->values();
+            if ($componentOdfs->count() < 2) {
+                $only = $componentOdfs->first();
+                if ($only) {
+                    foreach ($componentOdos as $odo) {
+                        $assignments[$odo['key']] = $only['key'];
+                    }
+                }
+
+                continue;
+            }
+
+            $ranked = $componentOdos->map(function (array $odo) use ($graph, $componentOdfs): array {
+                $candidates = $componentOdfs->map(function (array $odf) use ($graph, $odo): array {
+                    $path = $this->routes->pathThroughGraph($graph, $odf['point'], $odo['point']);
+
+                    return ['key' => $odf['key'], 'distance_m' => $path['length_m'] ?? INF];
+                })->filter(fn (array $candidate) => is_finite($candidate['distance_m']))
+                    ->sortBy(fn (array $candidate) => [$candidate['distance_m'], $candidate['key']])
+                    ->values();
+                $best = (float) ($candidates->get(0)['distance_m'] ?? INF);
+                $second = (float) ($candidates->get(1)['distance_m'] ?? INF);
+
+                return [
+                    'odo' => $odo,
+                    'candidates' => $candidates,
+                    'regret' => is_finite($second) ? $second - $best : INF,
+                ];
+            })->sortBy(fn (array $item) => [-$item['regret'], $item['odo']['key']]);
+
+            $remaining = $componentOdfs->mapWithKeys(fn (array $odf) => [$odf['key'] => $capacity])->all();
+            foreach ($ranked as $item) {
+                $selected = $item['candidates']->first(fn (array $candidate) => ($remaining[$candidate['key']] ?? 0) > 0);
+                $selectedKey = $selected['key'] ?? null;
+                if ($selectedKey === null) {
+                    $selectedKey = $componentOdfs->sortByDesc(fn (array $odf) => $remaining[$odf['key']] ?? 0)->first()['key'];
+                }
+                $assignments[$item['odo']['key']] = $selectedKey;
+                $remaining[$selectedKey]--;
+            }
+        }
+
+        return collect($proposals)->map(function (array $odf) use ($assignments, $odoByKey, $graph, $odos): array {
+            $assigned = $odoByKey->filter(fn (array $odo) => ($assignments[$odo['key']] ?? null) === $odf['key'])->values();
+            if ($assigned->isEmpty()) {
+                return $odf;
+            }
+            $location = $this->optimizedLocation($graph, $odf['point'], $assigned->all(), $odos, (int) $odf['component']);
+            $odf['point'] = $location['point'];
+            $odf['corridor_id'] = $location['corridor_id'];
+            $odf['occupancy'] = $assigned->count();
+            $odf['odo_keys'] = $assigned->pluck('key')->all();
+            $odf['secondary_cost_m'] = $location['network_cost_m'];
+            $odf['selection_reason'] = 'Kompaktna mrežna zona uz najmanju ukupnu dužinu sekundarnih trasa i poštovanje kapaciteta.';
+
+            return $odf;
+        })->values()->all();
     }
 
     public function reconnect(Project $project, array $graph, array $odfPlan): array
