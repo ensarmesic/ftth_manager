@@ -55,7 +55,7 @@
         <span><b>{{ $contextProject->cabinets_count }}</b><small>ODO</small></span><i>→</i>
         <span><b>{{ $contextProject->houses_count }}</b><small>OBJEKATA</small></span>
     </div>
-    <div class="network-project-metric"><small>MREŽNE TRASE</small><b>{{ number_format($projectContext['route_km'], 2) }} km</b><span>{{ $contextProject->network_routes_count }} segmenata</span></div>
+    <div class="network-project-metric"><small>MREŽNE TRASE</small><b>{{ number_format($projectContext['route_km'], 2, ',', '.') }} km</b><span>{{ $contextProject->network_routes_count }} segmenata</span></div>
     <div class="network-project-capacity">
         <div><small>ISKORIŠTENOST ODO</small><b>{{ $projectContext['used_ports'] }} / {{ $projectContext['capacity'] }}</b><em>{{ $projectContext['utilization'] }}%</em></div>
         <span><i style="width:{{ $projectContext['utilization'] }}%"></i></span>

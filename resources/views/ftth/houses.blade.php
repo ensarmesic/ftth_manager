@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 @section('title', 'Kuće')
 @section('subtitle', 'Evidencija kuća i priključnih tačaka povezanih na projekat i ODO ormarić.')
 @section('content')

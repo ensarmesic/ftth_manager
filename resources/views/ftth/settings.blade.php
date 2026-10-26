@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 @section('title', 'Postavke')
 @section('subtitle', 'Upravljanje prikazom, sigurnošću, GIS podacima i održavanjem sistema.')
 @section('content')
@@ -13,7 +13,7 @@
         <div class="settings-overview-stats">
             <div><b>{{ $projects->count() }}</b><span>projekata</span></div>
             <div><b>{{ $activityLogs->count() }}</b><span>zadnjih izmjena</span></div>
-            <div><b class="text-emerald-600">Aktivan</b><span>{{ app()->environment() }} sistem</span></div>
+            <div><b class="text-emerald-300">Aktivan</b><span>{{ app()->environment() }} sistem</span></div>
         </div>
     </header>
 

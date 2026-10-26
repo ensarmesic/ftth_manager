@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 
 @section('title', 'FTTH Topologija')
 @section('subtitle', 'Tehnicka fiber sema: ODF, magistralni kabl, FTTH ormarici, splitteri i kuce.')
@@ -505,11 +505,11 @@
         <div class="hidden" data-schema-panel="power-budget"><section class="fiber-tool-panel budget-dashboard">
             <div class="budget-hero">
                 <div class="budget-hero-copy"><span class="budget-eyebrow">OPTICAL NETWORK CONTROL</span><h2>Power Budget <em>{{ $fiberPlan['profile']['label'] }}</em></h2><p>{{ $fiberPlan['profile']['standard'] }} · {{ $fiberPlan['profile']['downstream_nm'] }} / {{ $fiberPlan['profile']['upstream_nm'] }} nm · projektna margina {{ $fiberPlan['engineeringMargin'] }} dB</p><div class="budget-hero-state {{ $fiberPlan['assumptionsConfirmed'] ? 'confirmed' : 'draft' }}"><i></i>{{ $fiberPlan['assumptionsConfirmed'] ? 'PARAMETRI POTVRĐENI' : 'INŽENJERSKA PROCJENA' }}</div></div>
-                <div class="signal-orb {{ $fiberPlan['assumptionsConfirmed'] && $budgetPassing === $budgetTotal ? 'is-good' : '' }}"><span>PROSJEČNI ONU Rx</span><strong>{{ $budgetAverageRx !== null ? number_format($budgetAverageRx, 1) : '—' }}</strong><small>dBm</small></div>
+                <div class="signal-orb {{ $fiberPlan['assumptionsConfirmed'] && $budgetPassing === $budgetTotal ? 'is-good' : '' }}"><span>PROSJEČNI ONU Rx</span><strong>{{ $budgetAverageRx !== null ? number_format($budgetAverageRx, 1, ',', '.') : '—' }}</strong><small>dBm</small></div>
                 @can('project.edit')<button type="button" class="budget-config-button" data-budget-setup data-project-id="{{ $project->id }}" data-budget-settings='@json($budgetSettings)'><span>⚙</span>{{ $fiberPlan['assumptionsConfirmed'] ? 'Podesi parametre' : 'Pokreni precizni setup' }}</button>@endcan
             </div>
             <div class="budget-kpis">
-                <article><span>NAJSLABIJI SIGNAL</span><strong>{{ $budgetWorstRx !== null ? number_format($budgetWorstRx, 1).' dBm' : 'Nije unesen Tx' }}</strong><small>kritična krajnja tačka</small></article>
+                <article><span>NAJSLABIJI SIGNAL</span><strong>{{ $budgetWorstRx !== null ? number_format($budgetWorstRx, 1, ',', '.').' dBm' : 'Nije unesen Tx' }}</strong><small>kritična krajnja tačka</small></article>
                 <article><span>PROLAZNOST</span><strong>{{ $fiberPlan['assumptionsConfirmed'] ? $budgetPassing.'/'.$budgetTotal : 'PROCJENA' }}</strong><small>{{ $fiberPlan['assumptionsConfirmed'] ? 'veza unutar klase' : 'čeka potvrdu opreme' }}</small></article>
                 <article><span>ODN KLASA</span><strong>{{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB</strong><small>{{ $fiberPlan['profile']['standard'] }}</small></article>
                 <article><span>FEEDER SPLITTER</span><strong>{{ (int)($project->feeder_splitter_ratio ?? 1) > 1 ? '1:'.$project->feeder_splitter_ratio : 'NEMA' }}</strong><small>prvi optički stepen</small></article>

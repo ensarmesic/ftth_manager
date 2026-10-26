@@ -104,7 +104,7 @@
     <div class="executive">
         <div class="executive-card">
             <h3>Sažetak za investitora</h3>
-            <p>Projekt obuhvata {{ $project->houses->count() }} planiranih priključaka kroz {{ $project->cabinets->count() }} distribucijskih ormarića i {{ $project->odfs->count() }} centralnih ODF tačaka. Ukupno je projektovano {{ number_format($project->routes->sum('duct_length_m')) }} m mrežne trase. Dokument objedinjuje kapacitete, materijalni obračun, trasiranje i kontrolu kvaliteta projekta.</p>
+            <p>Projekt obuhvata {{ $project->houses->count() }} planiranih priključaka kroz {{ $project->cabinets->count() }} distribucijskih ormarića i {{ $project->odfs->count() }} centralnih ODF tačaka. Ukupno je projektovano {{ number_format($project->routes->sum('duct_length_m'), 0, ',', '.') }} m mrežne trase. Dokument objedinjuje kapacitete, materijalni obračun, trasiranje i kontrolu kvaliteta projekta.</p>
         </div>
         <div class="executive-card readiness">
             <div class="readiness-score">{{ $readiness }}%</div>
@@ -151,12 +151,12 @@
         </div>
         <div class="stat-box">
             <b>Dužina trasa</b>
-            <span>{{ number_format($project->routes->where('route_type', '!=', 'trench')->sum('duct_length_m')) }}<small style="font-size:13px;font-weight:700"> m</small></span>
+            <span>{{ number_format($project->routes->where('route_type', '!=', 'trench')->sum('duct_length_m'), 0, ',', '.') }}<small style="font-size:13px;font-weight:700"> m</small></span>
             <small>mikrocijev ukupno</small>
         </div>
         <div class="stat-box">
             <b>Optički kabel</b>
-            <span>{{ number_format($project->routes->where('route_type','!=','trench')->sum('fiber_length_m')) }}<small style="font-size:13px;font-weight:700"> m</small></span>
+            <span>{{ number_format($project->routes->where('route_type','!=','trench')->sum('fiber_length_m'), 0, ',', '.') }}<small style="font-size:13px;font-weight:700"> m</small></span>
             <small>bez rovova</small>
         </div>
     </div>
@@ -169,7 +169,7 @@
             @php
                 $mic1410 = $project->routes->where('microduct_type','14/10')->sum(fn($r) => $r->duct_length_m * $r->microduct_count);
                 $mic1008 = $project->routes->where('microduct_type','10/8')->sum(fn($r) => $r->duct_length_m * $r->microduct_count);
-                $res = fn($v) => number_format((int) ceil($v * 1.1));
+                $res = fn($v) => number_format((int) ceil($v * 1.1), 0, ',', '.');
             @endphp
             <div class="mat-row"><span>14/10 mm</span><span class="val">{{ $res($mic1410) }} m</span></div>
             <div class="mat-row"><span>10/8 mm</span><span class="val">{{ $res($mic1008) }} m</span></div>
@@ -191,7 +191,7 @@
                 $trenchLen = $project->routes->where('route_type','trench')->sum('duct_length_m');
                 $trenchDucts = $project->routes->where('route_type','trench')->groupBy('microduct_type');
             @endphp
-            <div class="mat-row"><span>Rov dužina</span><span class="val">{{ number_format($trenchLen) }} m</span></div>
+            <div class="mat-row"><span>Rov dužina</span><span class="val">{{ number_format($trenchLen, 0, ',', '.') }} m</span></div>
             @foreach($trenchDucts->filter(fn($g,$t) => filled($t)) as $type => $group)
                 <div class="mat-row"><span>Zaštitna cijev {{ $type }}</span><span class="val">{{ $res($group->sum(fn($r) => $r->duct_length_m * ($r->microduct_count ?: 1))) }} m</span></div>
             @endforeach
@@ -202,7 +202,7 @@
             <div class="mat-row"><span>ODO ormarić</span><span class="val">{{ $project->cabinets->count() }} kom</span></div>
             <div class="mat-row"><span>Splitter 1×4</span><span class="val">{{ $project->cabinets->sum('splitter_count') }} kom</span></div>
             @if(isset($materials['estimated_value']) && $materials['estimated_value'] > 0)
-                <div class="mat-row"><span>Procjenjena vrijednost</span><span class="val">{{ number_format((float)$materials['estimated_value'], 2) }} KM</span></div>
+                <div class="mat-row"><span>Procjenjena vrijednost</span><span class="val">{{ number_format((float)$materials['estimated_value'], 2, ',', '.') }} KM</span></div>
             @endif
         </div>
     </div>
@@ -226,7 +226,7 @@
                 <tr>
                     <td>{{ $route->name }}</td>
                     <td><span class="rt rt-{{ $route->route_type }}">{{ strtoupper($route->route_type) }}</span></td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums">{{ number_format((int)$route->duct_length_m) }} m</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums">{{ number_format((int)$route->duct_length_m, 0, ',', '.') }} m</td>
                     <td>{{ $route->fiber_count ? $route->fiber_count.'F' : '-' }}</td>
                     <td>{{ $route->microduct_type ?: '-' }} @if($route->microduct_count && $route->microduct_type)×{{ $route->microduct_count }}@endif</td>
                     <td>{{ $route->installation_type === 'underground' ? 'Podz.' : ($route->installation_type === 'aerial' ? 'Vazduh.' : ($route->installation_type ?: '-')) }}</td>

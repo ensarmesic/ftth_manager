@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 @section('title', $project->name)
 @section('subtitle', $project->code . ' · ' . ($project->location ?? ''))
 @section('content')
@@ -359,20 +359,20 @@
                         <tr>
                             <td class="px-4 py-2.5 font-medium text-slate-700">{{ $routeTypeLabels[$type] ?? $type }}</td>
                             <td class="px-4 py-2.5 text-right text-slate-500">{{ $group->count() }}</td>
-                            <td class="px-4 py-2.5 text-right text-slate-700 font-medium">{{ number_format($group->sum('duct_length_m')) }}</td>
+                            <td class="px-4 py-2.5 text-right text-slate-700 font-medium">{{ number_format($group->sum('duct_length_m'), 0, ',', '.') }}</td>
                         </tr>
                         @endforeach
                         @if($trenchRoutes->count())
                         <tr class="bg-slate-50">
                             <td class="px-4 py-2.5 text-slate-400 italic">Glavni rovovi</td>
                             <td class="px-4 py-2.5 text-right text-slate-400">{{ $trenchRoutes->count() }}</td>
-                            <td class="px-4 py-2.5 text-right text-slate-400">{{ number_format($trenchRoutes->sum('duct_length_m')) }}</td>
+                            <td class="px-4 py-2.5 text-right text-slate-400">{{ number_format($trenchRoutes->sum('duct_length_m'), 0, ',', '.') }}</td>
                         </tr>
                         @endif
                         <tr class="border-t border-slate-200 font-semibold bg-slate-50">
                             <td class="px-4 py-2.5 text-slate-700">Ukupno kablovi</td>
                             <td class="px-4 py-2.5 text-right text-slate-700">{{ $cableRoutes->count() }}</td>
-                            <td class="px-4 py-2.5 text-right text-slate-800">{{ number_format($cableRoutes->sum('duct_length_m')) }}</td>
+                            <td class="px-4 py-2.5 text-right text-slate-800">{{ number_format($cableRoutes->sum('duct_length_m'), 0, ',', '.') }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -443,8 +443,8 @@
                 <div class="flex items-center justify-between px-5 py-2.5">
                     <span class="text-xs text-slate-600">{{ $label }}</span>
                     <div class="text-right">
-                        <span class="text-xs font-semibold text-slate-800">{{ number_format($withRes) }} {{ $unit }}</span>
-                        <span class="ml-1 text-[11px] text-slate-400">({{ number_format($base) }} + rez.)</span>
+                        <span class="text-xs font-semibold text-slate-800">{{ number_format($withRes, 0, ',', '.') }} {{ $unit }}</span>
+                        <span class="ml-1 text-[11px] text-slate-400">({{ number_format($base, 0, ',', '.') }} + rez.)</span>
                     </div>
                 </div>
                 @endif
@@ -464,7 +464,7 @@
                 @if($materials['estimated_value'] > 0)
                 <div class="flex items-center justify-between px-5 py-2.5 border-t border-slate-200">
                     <span class="text-xs font-semibold text-slate-600">Procjenjena vrijednost</span>
-                    <span class="text-xs font-bold text-slate-800">{{ number_format($materials['estimated_value'], 2) }} KM</span>
+                    <span class="text-xs font-bold text-slate-800">{{ number_format($materials['estimated_value'], 2, ',', '.') }} KM</span>
                 </div>
                 @endif
             </div>

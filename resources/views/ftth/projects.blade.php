@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 @section('title', 'Projekti')
 @section('subtitle', 'Kreiranje i praćenje FTTH projekata po lokaciji i statusu.')
 @section('content')

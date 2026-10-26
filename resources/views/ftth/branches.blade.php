@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 @section('title', 'Krakovi mreže')
 @section('subtitle', 'Hijerarhija primarnih, sekundarnih i izvedenih krakova.')
 @section('content')

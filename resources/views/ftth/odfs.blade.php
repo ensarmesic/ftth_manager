@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 @section('title', 'ODF lokacije')
 @section('subtitle', 'Centralne optičke distribucione tačke iz kojih se napaja mreža.')
 @section('content')

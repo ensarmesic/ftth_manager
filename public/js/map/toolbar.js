@@ -463,3 +463,30 @@ document.getElementById('advanced-map-tools-toggle')?.addEventListener('click', 
     event.currentTarget.textContent = expanded ? 'Napredni alati' : 'Sakrij napredne';
     document.querySelectorAll('.advanced-map-tool').forEach(tool => tool.classList.toggle('hidden', expanded));
 });
+
+// ── TOOLBAR SCROLL / STATUS TOOLTIP ───────────────────────────────────────────
+(function () {
+    const toolbar = document.getElementById('map-cad-toolbar');
+    if (toolbar) {
+        const updateFades = () => {
+            toolbar.classList.toggle('can-scroll-left', toolbar.scrollLeft > 2);
+            toolbar.classList.toggle('can-scroll-right', toolbar.scrollLeft + toolbar.clientWidth < toolbar.scrollWidth - 2);
+        };
+        // A vertical mouse wheel scrolls the single-row toolbar sideways.
+        toolbar.addEventListener('wheel', event => {
+            if (toolbar.scrollWidth <= toolbar.clientWidth || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+            toolbar.scrollLeft += event.deltaY;
+            event.preventDefault();
+        }, { passive: false });
+        toolbar.addEventListener('scroll', updateFades, { passive: true });
+        new ResizeObserver(updateFades).observe(toolbar);
+        updateFades();
+    }
+    // Metrics are truncated on narrow maps; keep the full text in a tooltip.
+    const metrics = document.getElementById('cad-metrics');
+    if (metrics) {
+        const syncTitle = () => { metrics.title = metrics.textContent; };
+        new MutationObserver(syncTitle).observe(metrics, { childList: true, characterData: true, subtree: true });
+        syncTitle();
+    }
+})();

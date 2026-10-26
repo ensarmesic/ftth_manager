@@ -1,6 +1,7 @@
 @extends('ftth.layout')
 @section('title', 'Kontrolni centar')
 @section('subtitle', 'Operativni pregled FTTH infrastrukture i projektnih rizika.')
+@section('own_heading', '1')
 @section('content')
 @php
     $current = $projectCards->first();
@@ -31,8 +32,8 @@
         @foreach([
             ['odf','ODF CENTRI',$stats['odfs'],'Projektovano','blue'],
             ['cabinet','ODO ORMARIĆI',$stats['cabinets'],'Projektovano','green'],
-            ['house','KUĆE / OBJEKTI',number_format($stats['houses']),'Obuhvaćeno','violet'],
-            ['route','PROJEKTOVANA TRASA',number_format($stats['route_km'],2).' km','Ukupna dužina','orange'],
+            ['house','KUĆE / OBJEKTI',number_format($stats['houses'], 0, ',', '.'),'Obuhvaćeno','violet'],
+            ['route','PROJEKTOVANA TRASA',number_format($stats['route_km'],2, ',', '.').' km','Ukupna dužina','orange'],
             ['alert','OTVORENE STAVKE',$openIssues,'Zahtijeva pažnju','red'],
         ] as [$icon,$label,$value,$hint,$tone])
             <article class="cc-kpi"><span class="cc-kpi-icon {{ $tone }}">{!! $icons[$icon] !!}</span><div><small>{{ $label }}</small><strong>{{ $value }}</strong><span>{{ $hint }}</span></div></article>

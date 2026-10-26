@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 @section('title', 'Splitteri')
 @section('subtitle', 'Pregled zauzeća splittera i raspoloživih portova po ODO ormariću.')
 @section('content')

@@ -10,8 +10,8 @@
         ['Kuće',             $totals['houses'],                           '#1d4ed8', '#eff6ff', '<path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>'],
         ['Ormarići',         $totals['cabinets'],                         '#0369a1', '#f0f9ff', '<path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>'],
         ['Slobodni portovi', $totals['free_ports'],                       '#b45309', '#fffbeb', '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/>'],
-        ['Mikrocijevi',      number_format($totals['duct']).' m',         '#0f766e', '#f0fdfa', '<path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>'],
-        ['Optički kabl',     number_format($totals['fiber']).' m',        '#1d4ed8', '#eff6ff', '<path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03z" clip-rule="evenodd"/>'],
+        ['Mikrocijevi',      number_format($totals['duct'], 0, ',', '.').' m',         '#0f766e', '#f0fdfa', '<path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>'],
+        ['Optički kabl',     number_format($totals['fiber'], 0, ',', '.').' m',        '#1d4ed8', '#eff6ff', '<path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03z" clip-rule="evenodd"/>'],
     ] as [$label, $value, $accent, $bg, $path])
     <div class="report-kpi-card flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
         <div class="report-kpi-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style="background:{{ $bg }}">
@@ -130,14 +130,14 @@
             <div class="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Materijalni obračun</div>
             <div class="grid grid-cols-2 gap-1.5">
                 @foreach ([
-                    ...($project->isAerial() ? [['ADSS optika', number_format($materials['adss_cable_m'] ?? 0).' m', '#d97706']] : [
-                    ['Mikrocijev 14/10', number_format($materials['microduct_14_10_m'] ?? 0).' m', '#0891b2'],
-                    ['Mikrocijev 10/8',  number_format($materials['microduct_10_8_m'] ?? 0).' m',  '#0369a1'],
+                    ...($project->isAerial() ? [['ADSS optika', number_format($materials['adss_cable_m'] ?? 0, 0, ',', '.').' m', '#d97706']] : [
+                    ['Mikrocijev 14/10', number_format($materials['microduct_14_10_m'] ?? 0, 0, ',', '.').' m', '#0891b2'],
+                    ['Mikrocijev 10/8',  number_format($materials['microduct_10_8_m'] ?? 0, 0, ',', '.').' m',  '#0369a1'],
                     ]),
-                    ['Optika 4 niti',    number_format($materials['fiber_4_m'] ?? 0).' m',          '#7c3aed'],
-                    ['Optika 12 niti',   number_format($materials['fiber_12_m'] ?? 0).' m',         '#6d28d9'],
-                    ['Splitteri',        number_format($materials['splitter_count'] ?? 0).' kom',    '#059669'],
-                    ['Neklas. trasa',    number_format($materials['unclassified_routes'] ?? 0),      '#64748b'],
+                    ['Optika 4 niti',    number_format($materials['fiber_4_m'] ?? 0, 0, ',', '.').' m',          '#7c3aed'],
+                    ['Optika 12 niti',   number_format($materials['fiber_12_m'] ?? 0, 0, ',', '.').' m',         '#6d28d9'],
+                    ['Splitteri',        number_format($materials['splitter_count'] ?? 0, 0, ',', '.').' kom',    '#059669'],
+                    ['Neklas. trasa',    number_format($materials['unclassified_routes'] ?? 0, 0, ',', '.'),      '#64748b'],
                 ] as [$k, $v, $c])
                 <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-xs">
                     <span class="text-slate-500 truncate mr-1">{{ $k }}</span>
@@ -176,18 +176,18 @@
                             <td class="px-3 py-2 font-semibold text-slate-800">{{ $route->name }}</td>
                             <td class="px-3 py-2 text-slate-500">{{ $route->installation_type ?: '—' }}</td>
                             <td class="px-3 py-2 text-slate-500">{{ $route->microduct_type ?: '—' }}{{ $route->microduct_count > 1 ? ' ×'.$route->microduct_count : '' }}</td>
-                            <td class="px-3 py-2 text-right font-semibold text-slate-800">{{ number_format($route->duct_length_m) }} m</td>
-                            <td class="px-3 py-2 text-right text-slate-500">{{ $route->fiber_count }} niti / {{ number_format($route->fiber_length_m) }} m</td>
+                            <td class="px-3 py-2 text-right font-semibold text-slate-800">{{ number_format($route->duct_length_m, 0, ',', '.') }} m</td>
+                            <td class="px-3 py-2 text-right text-slate-500">{{ $route->fiber_count }} niti / {{ number_format($route->fiber_length_m, 0, ',', '.') }} m</td>
                         </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
             <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400">
-                <span>Rov: <b class="text-slate-600">{{ number_format($physTrench) }} m</b></span>
-                <span>Mikrocijevi: <b class="text-slate-600">{{ number_format($duct1410 + $duct108) }} m</b></span>
-                <span>Optički kabl: <b class="text-slate-600">{{ number_format($project->routes->sum('fiber_length_m')) }} m</b></span>
-                <span>Rezerva +10%: <b class="text-slate-600">{{ number_format(ceil($project->routes->sum('fiber_length_m') * 1.1)) }} m</b></span>
+                <span>Rov: <b class="text-slate-600">{{ number_format($physTrench, 0, ',', '.') }} m</b></span>
+                <span>Mikrocijevi: <b class="text-slate-600">{{ number_format($duct1410 + $duct108, 0, ',', '.') }} m</b></span>
+                <span>Optički kabl: <b class="text-slate-600">{{ number_format($project->routes->sum('fiber_length_m'), 0, ',', '.') }} m</b></span>
+                <span>Rezerva +10%: <b class="text-slate-600">{{ number_format(ceil($project->routes->sum('fiber_length_m') * 1.1), 0, ',', '.') }} m</b></span>
             </div>
         </div>
     </details>

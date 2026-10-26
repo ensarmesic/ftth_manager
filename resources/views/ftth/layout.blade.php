@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="bs">
 <head>
     <meta charset="utf-8">
@@ -19,6 +19,8 @@
 @php
     $isWide = trim($__env->yieldContent('wide'));
     $isDashboard = request()->routeIs('map.dashboard');
+    // Pages with their own hero heading (e.g. the dashboard) hide the generic page header.
+    $hasOwnHeading = trim($__env->yieldContent('own_heading')) !== '';
     $sidebarItems = [
         ['dashboard',           'Pregled',            'squares'],
         ['map.dashboard',       'Mapa',               'map'],
@@ -87,7 +89,7 @@
         @if($isDashboard && isset($odfs, $cabinets, $stats, $routes))
             <div class="mx-4 mb-4 mt-1 rounded-xl border border-white/10 p-3 text-[10px] xl:text-[11px]" style="background:rgba(255,255,255,.06)">
                 <b class="mb-2 block text-blue-200 text-[9.5px] uppercase tracking-widest">Brzi pregled</b>
-                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarići', $cabinets->count()], ['Trase', $routes->count()], ['Ukupna dužina', number_format($stats['routes_m'] / 1000, 2).' km']] as $quick)
+                @foreach([['ODF-ovi', $odfs->count()], ['ODO ormarići', $cabinets->count()], ['Trase', $routes->count()], ['Ukupna dužina', number_format($stats['routes_m'] / 1000, 2, ',', '.').' km']] as $quick)
                     <div class="flex justify-between py-1 text-blue-200"><span>{{ $quick[0] }}</span><b class="text-white">{{ $quick[1] }}</b></div>
                 @endforeach
             </div>
@@ -158,7 +160,7 @@
 
             </div>
         </header>
-        @unless($isDashboard)
+        @unless($isDashboard || $hasOwnHeading)
             <div class="ftth-page-header">
                 <div class="ftth-page-header-inner">
                     <h1>@yield('title')</h1>
@@ -171,7 +173,7 @@
             @if ($errors->any())<div class="flash-error"><svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>{{ $errors->first() }}</div>@endif
             @yield('content')
         </div>
-        @if($isDashboard)<footer class="flex min-h-8 shrink-0 flex-wrap items-center justify-center gap-x-3 border-t bg-white px-2 py-1 text-center text-[10px] text-slate-500">&copy; 2026 Mediasky · FTTH Manager <span>v1.0.0</span></footer>@endif
+        @if($isDashboard)<footer class="flex min-h-8 shrink-0 flex-wrap items-center justify-center gap-x-3 border-t bg-white px-2 py-1 text-center text-[10px] text-slate-500">&copy; {{ date('Y') }} Mediasky · FTTH Manager <span>v{{ config('app.version') }}</span></footer>@endif
     </main>
 </div>
 <div id="mobile-sidebar-backdrop" class="fixed inset-0 z-1350 hidden bg-slate-950/50 lg:hidden"></div>

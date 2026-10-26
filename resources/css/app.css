@@ -866,8 +866,8 @@ main > .shrink-0.border-b p {
     font-weight: 850;
 }
 
-.app-content > section.grid.gap-4 article,
-.app-content > section.mb-6.grid article,
+.app-content .stat-card,
+.app-content .stat-card,
 .app-content > section.mt-6.grid article,
 .app-content > section.mt-5,
 .app-content > section.mb-5,
@@ -879,23 +879,23 @@ main > .shrink-0.border-b p {
     box-shadow: var(--app-shadow-soft) !important;
 }
 
-.app-content > section.grid.gap-4 article,
-.app-content > section.mb-6.grid article {
+.app-content .stat-card,
+.app-content .stat-card {
     position: relative;
     overflow: hidden;
     min-height: 7.2rem;
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 
-.app-content > section.grid.gap-4 article:hover,
-.app-content > section.mb-6.grid article:hover {
+.app-content .stat-card:hover,
+.app-content .stat-card:hover {
     border-color: rgb(48 141 204 / .34) !important;
     box-shadow: 0 24px 60px rgb(15 23 42 / .12) !important;
     transform: translateY(-2px);
 }
 
-.app-content > section.grid.gap-4 article::after,
-.app-content > section.mb-6.grid article::after {
+.app-content .stat-card::after,
+.app-content .stat-card::after {
     content: "";
     position: absolute;
     inset: 0 0 auto;
@@ -904,21 +904,21 @@ main > .shrink-0.border-b p {
     opacity: .78;
 }
 
-.app-content > section.grid.gap-4 article::before,
-.app-content > section.mb-6.grid article::before {
+.app-content .stat-card::before,
+.app-content .stat-card::before {
     content: none;
 }
 
-.app-content > section.grid.gap-4 article div:first-child,
-.app-content > section.mb-6.grid article div:first-child {
+.app-content .stat-card .stat-label,
+.app-content .stat-card .stat-label {
     font-size: .72rem !important;
     font-weight: 850 !important;
     letter-spacing: .03em;
     text-transform: uppercase;
 }
 
-.app-content > section.grid.gap-4 article div:nth-child(2),
-.app-content > section.mb-6.grid article div:nth-child(2) {
+.app-content .stat-card .stat-value,
+.app-content .stat-card .stat-value {
     color: #082f49;
     font-size: clamp(1.35rem, 2vw, 1.75rem) !important;
     font-weight: 900 !important;
@@ -985,8 +985,8 @@ main > .shrink-0.border-b p {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-    .app-content > section.grid.gap-4 article,
-    .app-content > section.mb-6.grid article,
+    .app-content .stat-card,
+    .app-content .stat-card,
     .app-content > section.grid.gap-6 > form:first-child,
     .app-content > section.grid.gap-6 > .app-table-card,
     .app-content > section.grid.gap-6 > div.app-table-card,
@@ -995,12 +995,12 @@ main > .shrink-0.border-b p {
         animation: app-rise .32s ease both;
     }
 
-    .app-content > section.grid.gap-4 article:nth-child(2),
-    .app-content > section.mb-6.grid article:nth-child(2) { animation-delay: .04s; }
-    .app-content > section.grid.gap-4 article:nth-child(3),
-    .app-content > section.mb-6.grid article:nth-child(3) { animation-delay: .08s; }
-    .app-content > section.grid.gap-4 article:nth-child(4),
-    .app-content > section.mb-6.grid article:nth-child(4) { animation-delay: .12s; }
+    .app-content .stat-card:nth-child(2),
+    .app-content .stat-card:nth-child(2) { animation-delay: .04s; }
+    .app-content .stat-card:nth-child(3),
+    .app-content .stat-card:nth-child(3) { animation-delay: .08s; }
+    .app-content .stat-card:nth-child(4),
+    .app-content .stat-card:nth-child(4) { animation-delay: .12s; }
 }
 
 @keyframes app-rise {
@@ -1119,14 +1119,14 @@ main > .shrink-0.border-b h1::after {
     transform: translateX(120%);
 }
 
-.app-content > section.grid.gap-4 article,
-.app-content > section.mb-6.grid article,
-.app-content > section.mb-5.grid article {
+.app-content .stat-card,
+.app-content .stat-card,
+.app-content .stat-card {
     background:
         linear-gradient(135deg, rgb(255 255 255 / .98), rgb(248 252 255 / .94)) !important;
 }
 
-.app-content > section.mb-5.grid article div:nth-child(2) {
+.app-content .stat-card .stat-value {
     color: #082f49;
     font-weight: 900 !important;
 }
@@ -1465,9 +1465,9 @@ main > .shrink-0.border-b h1::after {
 }
 
 /* ---- Stat card top bar: wider, more vivid ---- */
-.app-content > section.grid.gap-4 article::after,
-.app-content > section.mb-6.grid article::after,
-.app-content > section.mb-5.grid article::after {
+.app-content .stat-card::after,
+.app-content .stat-card::after,
+.app-content .stat-card::after {
     height: .3rem;
     background: linear-gradient(90deg,
         #1b78b8 0%,
@@ -1478,9 +1478,9 @@ main > .shrink-0.border-b h1::after {
 }
 
 /* Stat values bolder but not oversized */
-.app-content > section.grid.gap-4 article div:nth-child(2),
-.app-content > section.mb-6.grid article div:nth-child(2),
-.app-content > section.mb-5.grid article div:nth-child(2) {
+.app-content .stat-card .stat-value,
+.app-content .stat-card .stat-value,
+.app-content .stat-card .stat-value {
     font-size: clamp(1.05rem, 1.5vw, 1.3rem) !important;
     font-weight: 900 !important;
     letter-spacing: -.03em !important;
@@ -1488,8 +1488,8 @@ main > .shrink-0.border-b h1::after {
 }
 
 /* Stat card hover: stronger shadow */
-.app-content > section.grid.gap-4 article:hover,
-.app-content > section.mb-6.grid article:hover {
+.app-content .stat-card:hover,
+.app-content .stat-card:hover {
     box-shadow: 0 22px 60px rgba(15,23,42,.14) !important;
     border-color: rgba(48,141,204,.28) !important;
 }
