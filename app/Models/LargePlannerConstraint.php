@@ -16,6 +16,7 @@ class LargePlannerConstraint extends Model
         return ['geometry' => 'array'];
     }
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

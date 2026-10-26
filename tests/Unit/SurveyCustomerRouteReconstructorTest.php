@@ -7,7 +7,6 @@ use App\Services\SurveyCustomerRouteReconstructor;
 use App\Services\SurveyImportIdentityService;
 use App\Services\SurveyMainRouteGraphService;
 use App\Services\SurveyPointCodeNormalizer;
-use App\Services\SurveyRouteEntryPointService;
 use App\Services\SurveyTargetZoParser;
 use PHPUnit\Framework\TestCase;
 
@@ -122,7 +121,6 @@ class SurveyCustomerRouteReconstructorTest extends TestCase
         return new SurveyCustomerRouteReconstructor(
             $parser,
             new SurveyMainRouteGraphService($geometry),
-            new SurveyRouteEntryPointService($geometry),
             $geometry,
             new SurveyImportIdentityService($geometry, new SurveyPointCodeNormalizer),
         );

@@ -9,6 +9,7 @@ class Material extends Model
 {
     protected $fillable = ['project_id', 'name', 'unit', 'planned_quantity', 'used_quantity', 'unit_price'];
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

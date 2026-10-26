@@ -7,7 +7,6 @@ class SurveyCustomerRouteReconstructor
     public function __construct(
         private readonly SurveyTargetZoParser $targetParser,
         private readonly SurveyMainRouteGraphService $graphService,
-        private readonly SurveyRouteEntryPointService $entryService,
         private readonly GeometryService $geometry,
         private readonly SurveyImportIdentityService $identity,
     ) {}

@@ -8,7 +8,7 @@
         "dev": "vite",
         "vendor:sync": "node scripts/sync-map-vendor.mjs",
         "check:js": "node scripts/check-js.mjs",
-        "lint": "eslint resources/js scripts e2e public/sw.js",
+        "lint": "eslint resources/js scripts e2e public/sw.js public/js",
         "format:check": "prettier --check resources/js public/sw.js eslint.config.js tests/js",
         "format": "prettier --write resources/js public/sw.js eslint.config.js tests/js",
         "test:js": "node --test tests/js/*.test.mjs",
@@ -22,7 +22,7 @@
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@tailwindcss/vite": "^4.0.0",
-        "concurrently": "^9.0.1",
+        "concurrently": "^10.0.6",
         "eslint": "^10.11.0",
         "globals": "^17.12.0",
         "laravel-vite-plugin": "^3.1",

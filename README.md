@@ -117,7 +117,7 @@ php artisan view:cache
 
 Za produkciju postavi `APP_ENV=production`, `APP_DEBUG=false`, ispravan HTTPS `APP_URL`, `SESSION_SECURE_COOKIE=true` i konfiguraciju baze. Web server mora posluživati isključivo `public/` direktorij.
 
-Produkcijski `.env` treba sadržavati i `APP_VERSION`, `APP_DEPLOYED_AT` te `LOG_CHANNEL=daily`. Laravel scheduler mora biti aktivan svake minute (`php artisan schedule:run`) jer u 02:30 pokreće `ftth:backup-database --keep=14`, a u 03:15 čisti zastarjeli DXF cache. Autentificirani administratorski health-check dostupan je na `/sistem/health`; vraća status baze, verziju, deployment i datum posljednjeg automatskog backupa. Zahtjevi sporiji od `SLOW_REQUEST_MS` zapisuju se u dnevni log.
+Produkcijski `.env` treba sadržavati i `APP_VERSION`, `APP_DEPLOYED_AT` te `LOG_CHANNEL=daily`. Laravel scheduler mora biti aktivan svake minute (`php artisan schedule:run`) jer u 02:30 pokreće `ftth:backup-database --keep=14`, a u 03:15 čisti zastarjeli DXF cache. Autentificirani administratorski health-check dostupan je na `/sistem/health`; vraća status baze, verziju, deployment i datum posljednjeg automatskog backupa. Zahtjevi sporiji od `SLOW_REQUEST_MS` i SQL upiti sporiji od `SLOW_QUERY_MS` zapisuju se u dnevni log (`config/monitoring.php`).
 
 Za slanje linkova za oporavak lozinke u produkciji postavi stvarni mail transport (`MAIL_MAILER=smtp`) i odgovarajuće `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` i `MAIL_FROM_ADDRESS` vrijednosti. Zadani `log` mailer zapisuje link samo u aplikacijski log i namijenjen je lokalnom razvoju.
 
@@ -194,8 +194,11 @@ TXT format, produkciju, sigurnosne kopije i oporavak, nalazi se u
 ### Lokalno
 
 ```bash
-# Formatiranje, JavaScript provjera i kompletan PHP test suite
+# Formatiranje, statička analiza (PHPStan/Larastan), JavaScript provjera i kompletan PHP test suite
 composer check
+
+# Samo statička analiza (poznate lažne uzbune su u phpstan-baseline.neon)
+composer analyse
 
 # Samo PHP testovi
 composer test

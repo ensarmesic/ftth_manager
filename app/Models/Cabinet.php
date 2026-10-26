@@ -13,31 +13,37 @@ class Cabinet extends Model
 
     protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'branch_id', 'branch_order', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude', 'import_batch'];
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
     }
 
+    /** @return BelongsTo<Odf, $this> */
     public function odf(): BelongsTo
     {
         return $this->belongsTo(Odf::class);
     }
 
+    /** @return BelongsTo<Cabinet, $this> */
     public function parentCabinet(): BelongsTo
     {
         return $this->belongsTo(Cabinet::class, 'parent_cabinet_id');
     }
 
+    /** @return BelongsTo<NetworkBranch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(NetworkBranch::class, 'branch_id');
     }
 
+    /** @return HasMany<Cabinet, $this> */
     public function childCabinets(): HasMany
     {
         return $this->hasMany(Cabinet::class, 'parent_cabinet_id');
     }
 
+    /** @return HasMany<House, $this> */
     public function houses(): HasMany
     {
         return $this->hasMany(House::class);

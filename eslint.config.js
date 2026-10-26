@@ -14,6 +14,18 @@ export default [
         rules: { 'no-unused-vars': ['error', { argsIgnorePattern: '^_' }], 'no-undef': 'error' },
     },
     {
+        // Map editor: classic browser scripts that share globals across files
+        // (state.js, layers.js, ...), so cross-file undef/unused checks are off.
+        files: ['public/js/**/*.js'],
+        ...js.configs.recommended,
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'script',
+            globals: { ...globals.browser, L: 'readonly', proj4: 'readonly' },
+        },
+        rules: { 'no-undef': 'off', 'no-unused-vars': 'off', 'no-redeclare': 'off' },
+    },
+    {
         files: ['public/sw.js'],
         ...js.configs.recommended,
         languageOptions: { ecmaVersion: 'latest', globals: { ...globals.serviceworker, indexedDB: 'readonly' } },

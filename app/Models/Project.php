@@ -41,116 +41,139 @@ class Project extends Model
         return ['workflow_changed_at' => 'datetime', 'fiber_schema_locked' => 'boolean', 'fiber_schema_locked_at' => 'datetime', 'fiber_budget_limit_db' => 'float', 'fiber_schema_layout' => 'array', 'fiber_attenuation_1310_db_km' => 'float', 'fiber_attenuation_1490_db_km' => 'float', 'fiber_attenuation_1577_db_km' => 'float', 'connector_loss_db' => 'float', 'splice_allowance_db' => 'float', 'engineering_margin_db' => 'float', 'additional_passive_loss_db' => 'float', 'power_budget_confirmed' => 'boolean', 'olt_tx_power_dbm' => 'float', 'onu_tx_power_dbm' => 'float', 'onu_rx_sensitivity_dbm' => 'float', 'olt_rx_sensitivity_dbm' => 'float'];
     }
 
+    /** @return HasMany<Odf, $this> */
     public function odfs(): HasMany
     {
         return $this->hasMany(Odf::class);
     }
 
+    /** @return HasMany<Cabinet, $this> */
     public function cabinets(): HasMany
     {
         return $this->hasMany(Cabinet::class);
     }
 
+    /** @return HasMany<House, $this> */
     public function houses(): HasMany
     {
         return $this->hasMany(House::class);
     }
 
+    /** @return HasMany<NetworkRoute, $this> */
     public function routes(): HasMany
     {
         return $this->hasMany(NetworkRoute::class);
     }
 
+    /** @return HasMany<NetworkBranch, $this> */
     public function branches(): HasMany
     {
         return $this->hasMany(NetworkBranch::class);
     }
 
+    /** @return HasMany<Material, $this> */
     public function materials(): HasMany
     {
         return $this->hasMany(Material::class);
     }
 
+    /** @return HasMany<ProjectAppendixItem, $this> */
     public function appendixItems(): HasMany
     {
         return $this->hasMany(ProjectAppendixItem::class);
     }
 
+    /** @return HasMany<GisSegment, $this> */
     public function gisSegments(): HasMany
     {
         return $this->hasMany(GisSegment::class);
     }
 
+    /** @return HasMany<GisRestrictedArea, $this> */
     public function gisRestrictedAreas(): HasMany
     {
         return $this->hasMany(GisRestrictedArea::class);
     }
 
+    /** @return HasMany<SurveyPoint, $this> */
     public function surveyPoints(): HasMany
     {
         return $this->hasMany(SurveyPoint::class);
     }
 
+    /** @return HasMany<ProjectSnapshot, $this> */
     public function snapshots(): HasMany
     {
         return $this->hasMany(ProjectSnapshot::class);
     }
 
+    /** @return HasMany<FiberSplice, $this> */
     public function fiberSplices(): HasMany
     {
         return $this->hasMany(FiberSplice::class);
     }
 
+    /** @return HasMany<FiberSchemaVersion, $this> */
     public function fiberSchemaVersions(): HasMany
     {
         return $this->hasMany(FiberSchemaVersion::class);
     }
 
+    /** @return HasMany<ProjectStageHistory, $this> */
     public function stageHistories(): HasMany
     {
         return $this->hasMany(ProjectStageHistory::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function workflowChangedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'workflow_changed_by');
     }
 
+    /** @return HasMany<ProjectWorkItem, $this> */
     public function workItems(): HasMany
     {
         return $this->hasMany(ProjectWorkItem::class);
     }
 
+    /** @return HasMany<ProjectComment, $this> */
     public function comments(): HasMany
     {
         return $this->hasMany(ProjectComment::class);
     }
 
+    /** @return HasMany<MaterialEstimateVersion, $this> */
     public function materialEstimateVersions(): HasMany
     {
         return $this->hasMany(MaterialEstimateVersion::class);
     }
 
+    /** @return HasMany<ProjectBackgroundTask, $this> */
     public function backgroundTasks(): HasMany
     {
         return $this->hasMany(ProjectBackgroundTask::class);
     }
 
+    /** @return HasOne<LargePlannerSetting, $this> */
     public function largePlannerSetting(): HasOne
     {
         return $this->hasOne(LargePlannerSetting::class);
     }
 
+    /** @return HasMany<LargePlannerConstraint, $this> */
     public function largePlannerConstraints(): HasMany
     {
         return $this->hasMany(LargePlannerConstraint::class);
     }
 
+    /** @return HasMany<LargePlannerInputSnapshot, $this> */
     public function largePlannerInputSnapshots(): HasMany
     {
         return $this->hasMany(LargePlannerInputSnapshot::class);
     }
 
+    /** @return HasMany<LargePlannerZone, $this> */
     public function largePlannerZones(): HasMany
     {
         return $this->hasMany(LargePlannerZone::class);

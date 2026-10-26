@@ -1,0 +1,871 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Call to function is_array\(\) with \*NEVER\* will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Console/Commands/AuditFtthIntegrity.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:each\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed, Closure\(App\\Models\\Cabinet\)\: void given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/AuditFtthIntegrity.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:each\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed, Closure\(App\\Models\\House\)\: void given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/AuditFtthIntegrity.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:each\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed, Closure\(App\\Models\\NetworkRoute\)\: void given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/AuditFtthIntegrity.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 7
+			path: app/Console/Commands/AuditFtthIntegrity.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between \*NEVER\* and 2 will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Console/Commands/AuditFtthIntegrity.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/BranchController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/BranchController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/BranchController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/BranchController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CabinetController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CabinetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CabinetController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/CabinetController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Cabinet\:\:\$total_capacity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$incomplete_routes_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Called ''slice'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Empty array passed to foreach\.$#'
+			identifier: foreach.emptyArray
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Offset ''connections'' on array\{\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Offset ''health'' on array\{\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Offset ''issues'' on array\{\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Offset ''plan'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Offset ''settings'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Offset ''splices'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Offset ''usedTo'' on array\{\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Parameter \#1 \$keys of method Illuminate\\Support\\Collection\<\*NEVER\*,\*NEVER\*\>\:\:only\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/FiberManagementController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GisSegment\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/GisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/GisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/GisController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/GisController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/GisController.php
+
+		-
+			message: '#^Parameter \#1 \.\.\.\$values of method Illuminate\\Support\\Collection\<int,array\<string, int\|string\>\>\:\:push\(\) expects array\{type\: string, count\: int, length_m\: int\}, array\{type\: ''restricted_areas'', count\: int\<1, max\>, length_m\: null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/GisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HouseController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HouseController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HouseController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/HouseController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$project_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/LookupController.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: mixed$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Http/Controllers/LookupController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Project\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/LookupController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MapController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MapController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MapController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MapController.php
+
+		-
+			message: '#^Parameter \#1 \$path of closure expects array\|null, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/MapController.php
+
+		-
+			message: '#^Comparison operation "\<" between 0 and 2 is always true\.$#'
+			identifier: smaller.alwaysTrue
+			count: 1
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Comparison operation "\>\=" between 0 and 100000 is always false\.$#'
+			identifier: greaterOrEqual.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\MapLayerController\:\:cleanText\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Offset ''x'' on array\{\} in isset\(\) does not exist\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Offset ''y'' on array\{\} in isset\(\) does not exist\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between null and null will always evaluate to false\.$#'
+			identifier: notIdentical.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Variable \$pts in empty\(\) always exists and is always falsy\.$#'
+			identifier: empty.variable
+			count: 1
+			path: app/Http/Controllers/MapLayerController.php
+
+		-
+			message: '#^Called ''slice'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Http/Controllers/MaterialEstimateVersionController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MissingDropRouteController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MissingDropRouteController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MissingDropRouteController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/MissingDropRouteController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OdfController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OdfController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OdfController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/OdfController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\Cabinet\|App\\Models\\House\|App\\Models\\NetworkRoute\|App\\Models\\Odf\|App\\Models\\Project\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ProjectCommentController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectExportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectExportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectExportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectExportController.php
+
+		-
+			message: '#^Empty array passed to foreach\.$#'
+			identifier: foreach.emptyArray
+			count: 1
+			path: app/Http/Controllers/ProjectExportController.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between float and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Http/Controllers/ProjectExportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,string\>\:\:map\(\) expects callable\(string, 0\)\: array\{float, float\}, Closure\(array\)\: array\{float, float\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ProjectGeoJsonController.php
+
+		-
+			message: '#^Parameter \#1 \$value of function collect expects Illuminate\\Contracts\\Support\\Arrayable\<\(int\|string\), mixed\>\|iterable\<\(int\|string\), mixed\>\|null, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ProjectGeoJsonController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$additional_passive_loss_db\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectManagementController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$power_budget_confirmed\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectManagementController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectManagementController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectManagementController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectManagementController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectManagementController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPlanningController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPlanningController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPlanningController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPlanningController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPrintController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPrintController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPrintController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProjectPrintController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/RouteController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/RouteController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/RouteController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/RouteController.php
+
+		-
+			message: '#^Parameter \#1 \$array of function array_slice expects array, string\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/RouteController.php
+
+		-
+			message: '#^Negated boolean expression is always true\.$#'
+			identifier: booleanNot.alwaysTrue
+			count: 1
+			path: app/Jobs/RunProjectBackgroundTask.php
+
+		-
+			message: '#^Offset ''base_task_id'' on string\|null on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Jobs/RunProjectBackgroundTask.php
+
+		-
+			message: '#^Offset ''filename'' on string\|null on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Jobs/RunProjectBackgroundTask.php
+
+		-
+			message: '#^Offset ''limit'' on string\|null on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Jobs/RunProjectBackgroundTask.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Jobs/RunProjectBackgroundTask.php
+
+		-
+			message: '#^Parameter \#1 \$value of function count expects array\|Countable, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/ProjectSnapshot.php
+
+		-
+			message: '#^Comparison operation "\>\=" between 0 and 2 is always false\.$#'
+			identifier: greaterOrEqual.alwaysFalse
+			count: 1
+			path: app/Services/DXFParserService.php
+
+		-
+			message: '#^Offset ''x'' on array\{\} in isset\(\) does not exist\.$#'
+			identifier: isset.offset
+			count: 2
+			path: app/Services/DXFParserService.php
+
+		-
+			message: '#^Offset ''y'' on array\{\} in isset\(\) does not exist\.$#'
+			identifier: isset.offset
+			count: 2
+			path: app/Services/DXFParserService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$power_budget_confirmed\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FiberPlanService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Support\\HigherOrderCollectionProxy\<string, Illuminate\\Support\\Collection\<\(int\|string\), mixed\>\|null, Illuminate\\Support\\Collection\<int, Illuminate\\Support\\Collection\<\(int\|string\), mixed\>\|null\>\>\:\:isNotEmpty\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/FtthIntelligenceService.php
+
+		-
+			message: '#^Parameter \#1 \$array \(array\{\}\|string\) to function array_values is empty, call has no effect\.$#'
+			identifier: arrayValues.empty
+			count: 1
+			path: app/Services/GeometryService.php
+
+		-
+			message: '#^Argument of an invalid type string supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Services/LargePlanner/CorridorGraphBuilder.php
+
+		-
+			message: '#^Called ''pluck'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Services/LargePlanner/FinalValidationService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 2
+			path: app/Services/LargePlanner/FinalValidationService.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between non\-empty\-list\<string\|null\> and array\{\} will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Services/LargePlannerHouseImportService.php
+
+		-
+			message: '#^Parameter \#2 \$polygon of method App\\Services\\LargePlannerZoneAssignmentService\:\:pointInPolygon\(\) expects array, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/LargePlannerZoneAssignmentService.php
+
+		-
+			message: '#^Cannot call method toISOString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/MapDataService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$additional_passive_loss_db\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ProjectBackupService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$fiber_schema_layout\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ProjectBackupService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Project\:\:\$power_budget_confirmed\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ProjectBackupService.php
+
+		-
+			message: '#^Called ''slice'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Offset ''cabinets'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Offset ''cabinets''\|''fiber_splices''\|''gis_restricted_areas''\|''gis_segments''\|''houses''\|''map_drafts''\|''materials''\|''network_branches''\|''odfs''\|''project_appendix…''\|''routes''\|''survey_points'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Offset ''houses'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Offset ''network_branches'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Offset ''odfs'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Offset ''routes'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between non\-empty\-list and array\{\} will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/ProjectSnapshotService.php
+
+		-
+			message: '#^Comparison operation "\<" between int\<1, max\> and \*NEVER\* results in an error\.$#'
+			identifier: smaller.invalid
+			count: 1
+			path: app/Services/ProjectValidationService.php
+
+		-
+			message: '#^Parameter \#1 \$array \(non\-falsy\-string\) to function array_values is empty, call has no effect\.$#'
+			identifier: arrayValues.empty
+			count: 1
+			path: app/Services/ProjectValidationService.php
+
+		-
+			message: '#^Parameter \#1 \$array of function array_values expects array\<T\>, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ProjectValidationService.php
+
+		-
+			message: '#^Parameter \#1 \$value of function count expects array\|Countable, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ProjectValidationService.php
+
+		-
+			message: '#^Called ''pluck'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Services/RouteGraphService.php
+
+		-
+			message: '#^Offset ''transit'' on array\{count\: int, type\: ''14/10'', color\: string, tag\: string\|null, transit\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/SurveyColoredFlowService.php
+
+		-
+			message: '#^Offset ''kind'' on non\-empty\-array on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/SurveyDropRoutingService.php
+
+		-
+			message: '#^Offset ''type'' on array\{count\: int, type\: string, color\: string\|null, tag\: string\|null, transit\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 4
+			path: app/Services/SurveyDropRoutingService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between non\-empty\-list\<array\> and array\{\} will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 2
+			path: app/Services/SurveyDropRoutingService.php
+
+		-
+			message: '#^Offset ''transit'' on array\{count\: int, type\: string, color\: string\|null, tag\: string\|null, transit\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/SurveyGraphBuilder.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between non\-empty\-string and '''' will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/SurveyImportIdentityService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SurveyPoint\:\:\$points_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/SurveyImportMaintenanceService.php
+
+		-
+			message: '#^Call to function array_key_exists\(\) with ''id'' and array\{id\: int\|string, path\: array\<int, array\{float\|int, float\|int\}\>\} will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/SurveyMainRouteGraphService.php
+
+		-
+			message: '#^Offset ''path'' on array\{id\: int\|string, path\: array\<int, array\{float\|int, float\|int\}\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/SurveyMainRouteGraphService.php
+
+		-
+			message: '#^Comparison operation "\>" between int\<1, max\> and 0 is always true\.$#'
+			identifier: greater.alwaysTrue
+			count: 2
+			path: app/Services/SurveyPointClassifier.php
+
+		-
+			message: '#^Method App\\Services\\SurveyPointImportService\:\:connectColoredCountTransitions\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Services/SurveyPointImportService.php
+
+		-
+			message: '#^Offset ''_routing_source'' on array\{_routing_source\: ''existing'', path\: array, points\: 1, length_m\: 0\.0, code\: ''rov\-kraj''\}\|array\{_routing_source\: ''existing''\|''survey'', path\: array, points\: 2, length_m\: float, code\: ''rov\-spoj'', _routing_only\: true\}\|array\{_routing_source\: ''existing''\|''survey'', path\: mixed, points\: int\<0, max\>, length_m\: int, code\: ''rov'', _routing_only\?\: true\}\|array\{_routing_source\: ''survey'', path\: array, points\: 1, length_m\: 0\.0, code\: ''rov\-kraj'', _routing_only\?\: true\}\|array\{path\: array, _routing_source\: ''existing''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Services/SurveyPointImportService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),mixed\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Services/SurveyPointImportService.php
+
+		-
+			message: '#^Call to function array_key_exists\(\) with ''id'' and array\{id\: int\|string, path\: array\} will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/SurveyRouteEntryPointService.php
+
+		-
+			message: '#^Offset ''path'' on array\{id\: int\|string, path\: array\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/SurveyRouteEntryPointService.php
+
+		-
+			message: '#^Called ''pluck'' on Laravel collection, but could have been retrieved as a query\.$#'
+			identifier: larastan.noUnnecessaryCollectionCall
+			count: 1
+			path: app/Services/SurveyRouteReconciliationService.php

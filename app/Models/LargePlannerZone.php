@@ -19,6 +19,7 @@ class LargePlannerZone extends Model
         return ['geometry' => 'array'];
     }
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
@@ -29,6 +30,7 @@ class LargePlannerZone extends Model
         return $this->status === 'locked';
     }
 
+    /** @return HasMany<House, $this> */
     public function houses(): HasMany
     {
         return $this->hasMany(House::class);

@@ -14,6 +14,7 @@ class ProjectSnapshot extends Model
         return ['payload' => 'array'];
     }
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

@@ -252,23 +252,6 @@ class AutoGisPlannerService
             ->all();
     }
 
-    private function bestRouteFromOdfs(Project $project, $odfs, House $house): ?array
-    {
-        return $odfs
-            ->map(function ($odf) use ($project, $house): ?array {
-                $route = $this->graph->shortestPath(
-                    $project->id,
-                    [(float) $odf->latitude, (float) $odf->longitude],
-                    [(float) $house->latitude, (float) $house->longitude],
-                );
-
-                return $route ? ['odf' => $odf, 'route' => $route, 'length_m' => (int) $route['length_m']] : null;
-            })
-            ->filter()
-            ->sortBy('length_m')
-            ->first();
-    }
-
     private function capacityAwareAssignments(Project $project, $odfs, $houses): array
     {
         $remainingSlots = $this->odfHouseSlots($odfs);

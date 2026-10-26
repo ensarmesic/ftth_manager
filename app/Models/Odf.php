@@ -13,16 +13,19 @@ class Odf extends Model
 
     protected $fillable = ['project_id', 'name', 'address', 'fiber_capacity', 'port_count', 'latitude', 'longitude', 'notes', 'import_batch'];
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
     }
 
+    /** @return HasMany<Cabinet, $this> */
     public function cabinets(): HasMany
     {
         return $this->hasMany(Cabinet::class);
     }
 
+    /** @return HasMany<NetworkBranch, $this> */
     public function branches(): HasMany
     {
         return $this->hasMany(NetworkBranch::class);

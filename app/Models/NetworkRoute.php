@@ -44,26 +44,31 @@ class NetworkRoute extends Model
         ];
     }
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
     }
 
+    /** @return BelongsTo<Odf, $this> */
     public function odf(): BelongsTo
     {
         return $this->belongsTo(Odf::class);
     }
 
+    /** @return BelongsTo<Cabinet, $this> */
     public function cabinet(): BelongsTo
     {
         return $this->belongsTo(Cabinet::class);
     }
 
+    /** @return BelongsTo<House, $this> */
     public function house(): BelongsTo
     {
         return $this->belongsTo(House::class, 'to_id');
     }
 
+    /** @return BelongsTo<Cabinet, $this> */
     public function fromCabinet(): BelongsTo
     {
         return $this->belongsTo(Cabinet::class, 'from_id');

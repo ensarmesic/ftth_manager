@@ -21,6 +21,7 @@ class ProjectAppendixItem extends Model
         'import_batch',
     ];
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

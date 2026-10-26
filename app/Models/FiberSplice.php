@@ -9,11 +9,13 @@ class FiberSplice extends Model
 {
     protected $fillable = ['project_id', 'cabinet_id', 'fiber_number', 'tray', 'position', 'incoming_label', 'outgoing_label', 'loss_db', 'note'];
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
     }
 
+    /** @return BelongsTo<Cabinet, $this> */
     public function cabinet(): BelongsTo
     {
         return $this->belongsTo(Cabinet::class);

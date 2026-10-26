@@ -13,11 +13,13 @@ class NetworkBranch extends Model
 
     protected $fillable = ['project_id', 'odf_id', 'parent_branch_id', 'route_id', 'name', 'code', 'type', 'sort_order'];
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
     }
 
+    /** @return BelongsTo<Odf, $this> */
     public function odf(): BelongsTo
     {
         return $this->belongsTo(Odf::class);
@@ -33,11 +35,13 @@ class NetworkBranch extends Model
         return $this->hasMany(self::class, 'parent_branch_id')->orderBy('sort_order');
     }
 
+    /** @return BelongsTo<NetworkRoute, $this> */
     public function route(): BelongsTo
     {
         return $this->belongsTo(NetworkRoute::class);
     }
 
+    /** @return HasMany<Cabinet, $this> */
     public function cabinets(): HasMany
     {
         return $this->hasMany(Cabinet::class, 'branch_id')->orderBy('branch_order')->orderBy('name');

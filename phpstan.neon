@@ -1,0 +1,17 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
+# Static analysis: `composer analyse`. The baseline holds known false positives
+# (withCount attributes, closures that fill arrays by reference); new code must pass clean.
+parameters:
+    paths:
+        - app
+        - routes
+        - config
+        - database
+    level: 5
+    tmpDir: storage/framework/cache/phpstan
+    ignoreErrors:
+        # `$a?->b ?? x` is redundant but harmless style.
+        - identifier: nullsafe.neverNull
