@@ -7,6 +7,15 @@
     </div>
     <div style="padding:10px 12px">
         @can('project.edit')
+        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Geodetski objekti na karti</div>
+        <input id="survey-object-search" class="sb-inp" placeholder="Traži broj ili originalnu oznaku" style="width:100%;box-sizing:border-box">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+            <select id="survey-label-mode" class="sb-sel" aria-label="Način prikaza oznaka"><option value="auto">Stalna pametna oznaka</option><option value="none">Sakrij oznake</option><option value="number">Samo redni broj</option><option value="original">Originalna TXT oznaka</option><option value="full">Broj + oznaka</option></select>
+            <select id="survey-object-filter" class="sb-sel" aria-label="Filter geodetskih objekata"><option value="all">Svi objekti</option><option value="poles">Samo stubovi</option><option value="other">Ostali objekti</option><option value="unknown_survey_point">Neprepoznato</option></select>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10px;color:#475569"><input id="survey-clustering-toggle" type="checkbox" checked> Grupisanje bliskih objekata na manjem zoomu</label>
+        <div id="survey-object-search-result" style="display:none;margin-top:6px;font-size:10px;color:#475569"></div>
+        <div style="height:1px;background:#e2e8f0;margin:12px 0"></div>
         <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Uvoz geodetskog TXT fajla</div>
         <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Format: <code>broj&nbsp;X&nbsp;Y&nbsp;Z&nbsp;opis</code> (Gauss-Krüger). Rovovi se spajaju u linije, ZO/ODF/šahtovi postaju elementi mreže.</p>
         <button id="survey-choose-btn" type="button" style="width:100%;border-radius:7px;background:#059669;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Odaberi TXT fajl</button>

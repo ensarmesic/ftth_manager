@@ -203,6 +203,22 @@
     .ftth-tag.suggest { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #f59e0b; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.manhole { width: 15px; height: 15px; border: 2px solid #fff; border-radius: 1px; background: #334155; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; }
     .ftth-tag.pole { width: 16px; height: 16px; border: 2px solid #fff; border-radius: 999px; background: #f59e0b; color: #422006; box-shadow: 0 0 0 2px #92400e; font-size: 8px; font-weight: 900; }
+    .survey-object-icon { background: transparent; border: 0; }
+    .survey-object-symbol { display:grid;width:var(--survey-size, 12px);height:var(--survey-size, 12px);place-items:center;box-sizing:border-box;border:1px solid #fff;border-radius:3px;background:var(--survey-color);color:#fff;box-shadow:0 0 0 1px #0f172a;font:900 5px/1 Arial,sans-serif; }
+    .survey-object-label { position:absolute;left:30px;top:5px;white-space:nowrap;border:1px solid #cbd5e1;border-radius:4px;background:rgba(255,255,255,.94);padding:2px 4px;color:#0f172a;font:700 10px/1.2 Arial,sans-serif;box-shadow:0 1px 3px #0003; }
+    /* Geodetski/CAD simbol stuba: kružnica i centar snimljene tačke (isto kao u DXF izvozu). */
+    .survey-pole-shape { position:relative;display:block;width:var(--survey-size);height:var(--survey-size);pointer-events:none; }
+    .survey-pole-shape i { position:absolute;display:block;box-sizing:border-box; }
+    .survey-pole-outer { inset:0;border:1px solid #ff4fc3;border-radius:50%;background:transparent; }
+    .survey-pole-center { left:calc(50% - 2.5px);top:calc(50% - 2.5px);width:5px;height:5px;border-radius:50%;background:#f4e51c;box-shadow:0 0 0 .5px #8f8700; }
+    .survey-pole-shape + .survey-object-label { left:15px;top:.5px;border:0;background:transparent;padding:0;color:#ff4fc3;box-shadow:none;font:600 11px/11px Arial,sans-serif;letter-spacing:0;text-shadow:0 1px 1px rgba(15,23,42,.75); }
+    .survey-category-editor { display:flex;gap:4px;margin-top:6px; }
+    .survey-category-select { flex:1;min-width:0;border:1px solid #cbd5e1;border-radius:5px;padding:3px 4px;font-size:11px; }
+    .survey-category-save { border:1px solid #059669;border-radius:5px;background:#059669;color:#fff;padding:3px 8px;font-weight:700;cursor:pointer; }
+    .survey-object-popup { font:12px/1.55 system-ui,sans-serif;min-width:230px; }
+    .survey-copy-coordinates { margin-top:6px;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;padding:4px 7px;font-weight:700;cursor:pointer; }
+    .survey-cluster-icon { background:transparent;border:0; }
+    .survey-cluster-icon span { display:grid;width:24px;height:24px;place-items:center;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:#db2777;color:#fff;box-shadow:0 0 0 1px #831843,0 2px 5px #0005;font:800 10px/1 Arial,sans-serif; }
     .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
     .ftth-tag.splice { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }
     .ftth-tag.loop { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 2px; background: #0891b2; box-shadow: 0 0 0 1px #0f172a; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
@@ -303,12 +319,11 @@
     .cad-line-sample.dashed { border-top-style: dashed; }
     .cad-point-sample { width: 10px; height: 10px; border: 2px solid #fff; box-shadow: 0 0 0 1px #0f172a; justify-self: start; }
     .cad-point-sample.circle { border-radius: 999px; }
+    .cad-pole-sample { position: relative; width: 12px; height: 12px; box-sizing: border-box; border: 1px solid #ff4fc3; border-radius: 50%; justify-self: start; }
+    .cad-pole-sample::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #f4e51c; }
     @media (max-width: 767px) {
-        .cad-map-legend {
-            transform: scale(.78);
-            transform-origin: bottom right;
-            opacity: .9;
-        }
+        /* On phones the always-on CAD legend covers the map; the "Legenda" button stays. */
+        .cad-map-legend { display: none; }
         #map-stats-bar {
             max-width: calc(100% - 92px);
             gap: 2px !important;
@@ -384,9 +399,26 @@
     .cad-toggle-strip button b { color: #526a83; font-size: 8px; }
     .cad-toggle-strip button.is-on { border-color: rgba(56,189,248,.62); background: rgba(7,89,133,.48); color: #dff6ff; }
     .cad-toggle-strip button.is-on b { color: #38bdf8; }
+    /* Map column is often only ~800px wide (sidebar + right panel), so the status
+       bar wraps instead of letting the command input overlap the metrics. */
+    #map-workspace .cad-status { display: flex; flex-wrap: wrap; align-items: stretch; }
+    #map-workspace .cad-command-line { flex: 1 1 280px; min-width: 0; grid-template-columns: minmax(70px, auto) minmax(120px, 1fr); }
+    #map-workspace #cad-metrics { flex: 1 1 220px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; align-content: center; }
+    #map-workspace #cad-coordinates { flex: 0 0 auto; align-content: center; white-space: nowrap; }
+    #map-workspace .cad-toggle-strip { flex: 0 0 auto; }
+    #map-workspace #cad-command { max-width: 190px; }
     @media (max-width: 900px) {
         .cad-command-line { grid-template-columns: 1fr; }
     }
+    /* Horizontal toolbar: edge fades show that more tools are reachable by scrolling. */
+    #map-workspace .map-toolbar {
+        --fade-left: 0px;
+        --fade-right: 0px;
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left), #000 calc(100% - var(--fade-right)), transparent 100%);
+        mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left), #000 calc(100% - var(--fade-right)), transparent 100%);
+    }
+    #map-workspace .map-toolbar.can-scroll-left { --fade-left: 36px; }
+    #map-workspace .map-toolbar.can-scroll-right { --fade-right: 48px; }
     #map-workspace.gis-view .route-label span,
     #map-workspace.gis-view .ftth-cabinet-text {
         background: rgba(15,23,42,.78);

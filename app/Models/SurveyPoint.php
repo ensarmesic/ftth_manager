@@ -13,6 +13,7 @@ class SurveyPoint extends Model
     protected $fillable = [
         'project_id', 'import_batch', 'source_file', 'point_no',
         'x', 'y', 'z', 'latitude', 'longitude', 'code', 'kind',
+        'survey_category', 'pole_no', 'original_label', 'source_crs', 'imported_at',
         'source', 'session_uuid', 'sequence', 'accuracy_m', 'note', 'photo_path', 'captured_at',
     ];
 
@@ -20,10 +21,13 @@ class SurveyPoint extends Model
     {
         return [
             'captured_at' => 'datetime',
+            'imported_at' => 'datetime',
             'accuracy_m' => 'float',
+            'pole_no' => 'integer',
         ];
     }
 
+    /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

@@ -2,7 +2,13 @@
 const data = window.ftthMapConfig.data;
 const appConfig = window.ftthMapConfig.endpoints;
 const defaultCenter = [44.4493, 18.6498];
-const map = L.map('network-map', { zoomSnap: 0.25 }).setView(defaultCenter, 17);
+const map = L.map('network-map', {
+    zoomSnap: 0.25,
+    // Leaflet normally scales the whole marker pane during animated zoom.
+    // Disabling that animation keeps survey symbols pixel-perfect at all times.
+    zoomAnimation: false,
+    markerZoomAnimation: false,
+}).setView(defaultCenter, 17);
 window.ftthNetworkMap = map;
 // The map's container height depends on sibling panels (branch list, status bar,
 // accordions) that change size as the user works — without this, Leaflet keeps
@@ -67,6 +73,19 @@ let selectedDraftElement = null;
 let preflightIssues = [];
 let keepCurrentDraftOnProjectChange = false;
 let savedRoutePoints = [];
+const surveyObjectMarkers = [];
+// Category presentation (color, symbol, size, CAD label) comes from config/survey.php via the server.
+window.surveyObjectMarkerHtml = item => {
+    const color = String(item.color || '#64748b').replace(/[^#a-zA-Z0-9(),.%\s-]/g, '');
+    const category = String(item.category || 'unknown_survey_point').replace(/[^a-z0-9_-]/gi, '');
+    const symbol = String(item.symbol || '?').replace(/[<>&"']/g, '');
+    const size = Number(item.size) || 12;
+    if (!item.is_pole) {
+        return `<span class="survey-object-symbol survey-object-${category}" style="--survey-color:${color};--survey-size:${size}px">${symbol}</span>`;
+    }
+
+    return `<span class="survey-pole-shape survey-pole-${category}" style="--survey-size:${size}px" aria-hidden="true"><i class="survey-pole-outer"></i><i class="survey-pole-center"></i></span>`;
+};
 const snapPixelTolerance = 30;
 let orthoEnabled = false;
 let snapEnabled = true;
@@ -165,6 +184,7 @@ const layerRegistry = {
     drop: [],
     gis: [],
     dxf: [],
+    survey: [],
     preview: [],
     measure: [],
     trace: [],

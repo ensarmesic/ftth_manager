@@ -1,10 +1,30 @@
 // ── LAYER MANAGEMENT + HISTORY UTILS ─────────────────────────────────────────
+// Layers whose visibility is driven by their own renderer (e.g. clustered survey objects).
+const customLayerRenderers = {};
+const pendingLayerCounts = new Set();
+// Hydration tracks thousands of layers in one go; counting once per batch keeps it linear.
+function scheduleLayerCount(type) {
+    if (!pendingLayerCounts.size) {
+        queueMicrotask(() => {
+            pendingLayerCounts.forEach(updateLayerCount);
+            pendingLayerCounts.clear();
+        });
+    }
+    pendingLayerCounts.add(type);
+}
 function trackLayer(layer, type) {
     if (layerRegistry[type]) layerRegistry[type].push(layer);
     layer._ftthLayerType = type;
     if (layerOpacity[type] !== undefined) setLayerOpacity(layer, layerOpacity[type]);
-    applyLayerVisibility(type);
-    updateLayerCount(type);
+    // Only the new layer needs syncing; the rest of the type is already in sync.
+    if (!customLayerRenderers[type]) {
+        if (layerVisible(type)) {
+            if (!map.hasLayer(layer)) layer.addTo(map);
+        } else if (map.hasLayer(layer)) {
+            map.removeLayer(layer);
+        }
+    }
+    scheduleLayerCount(type);
     return layer;
 }
 function untrackLayer(layer, type = null) {
@@ -21,6 +41,10 @@ function layerVisible(type) {
     return document.querySelector(`[data-layer-toggle="${type}"]`)?.checked !== false;
 }
 function applyLayerVisibility(type) {
+    if (customLayerRenderers[type]) {
+        customLayerRenderers[type]();
+        return;
+    }
     (layerRegistry[type] || []).forEach(layer => {
         if (layerVisible(type)) {
             if (!map.hasLayer(layer)) layer.addTo(map);
@@ -127,6 +151,7 @@ function updateLayerCount(type) {
         distribution: () => data.routes.filter(route => !['trench', 'backbone', 'drop'].includes(route.type)).length + branchMeta.filter(route => !['trench', 'backbone', 'drop'].includes(route.route_type)).length,
         drop: () => data.routes.filter(route => route.type === 'drop').length,
         dxf: () => 0,
+        survey: () => data.survey_objects?.length || 0,
     };
     count.textContent = objectCounts[type] ? objectCounts[type]() : (layerRegistry[type]?.length || 0);
 }

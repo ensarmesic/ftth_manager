@@ -20,6 +20,26 @@ class SurveyPointClassifier
 
     public function classify(string $code): array
     {
+        if ($category = $this->surveyObjectCategory($code)) {
+            return [
+                'kind' => 'survey_object',
+                'survey_category' => $category,
+                'microduct_type' => null,
+                'microduct_count' => 0,
+                'colors' => [],
+                'color_counts' => [],
+                'zo_tag' => null,
+                'raw_description' => $code,
+                'target_zo' => null,
+                'target_zo_match' => null,
+                'target_zo_explicit' => false,
+                'duct_identities' => [],
+                'prepared_sling' => false,
+                'house_ref' => null,
+                'transit' => false,
+            ];
+        }
+
         $n = mb_strtolower(trim($code));
         $n = strtr($n, ['š' => 's', 'ž' => 'z', 'č' => 'c', 'ć' => 'c', 'đ' => 'dj']);
 
@@ -118,6 +138,7 @@ class SurveyPointClassifier
 
         return [
             'kind' => $kind,
+            'survey_category' => $kind === 'other' && filled($code) ? 'unknown_survey_point' : null,
             'microduct_type' => $microductType,
             'microduct_count' => $microductCount,
             'colors' => $colors,
@@ -132,6 +153,27 @@ class SurveyPointClassifier
             'house_ref' => $houseRef,
             'transit' => (bool) preg_match('/\btranzit\b/', $n),
         ];
+    }
+
+    public function surveyObjectCategory(string $label): ?string
+    {
+        $normalized = mb_strtoupper(trim($label));
+        $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
+        $normalized = rtrim($normalized, " \t\n\r\0\x0B,");
+
+        return match (true) {
+            preg_match('/^S\.E\+R-DRVENI$/u', $normalized) === 1 => 'wooden_electric_lighting_pole',
+            preg_match('/^STUB DRVENI-TELEMACH$/u', $normalized) === 1 => 'telemach_wooden_pole',
+            preg_match('/^STUB PRAZAN TEK UGRADJEN$/u', $normalized) === 1 => 'empty_pole',
+            preg_match('/^S\.E-V\.N\+R$/u', $normalized) === 1 => 'high_voltage_lighting_pole',
+            preg_match('/^S\.E-V\.N$/u', $normalized) === 1 => 'high_voltage_pole',
+            preg_match('/^S\.E(?:-|\+)R$/u', $normalized) === 1 => 'electric_lighting_pole',
+            preg_match('/^S\.R\.?$/u', $normalized) === 1 => 'lighting_pole',
+            $normalized === 'S.E' => 'electric_pole',
+            $normalized === 'ODF' => 'odf',
+            preg_match('/^Z\.P\.-?$/u', $normalized) === 1 => 'green_area_point',
+            default => null,
+        };
     }
 
     /**

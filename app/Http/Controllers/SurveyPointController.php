@@ -11,6 +11,7 @@ use App\Models\SurveyPoint;
 use App\Services\ProjectSnapshotService;
 use App\Services\SurveyImportMaintenanceService;
 use App\Services\SurveyPointImportService;
+use App\Support\SurveyCategories;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,6 +47,22 @@ class SurveyPointController extends Controller
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
+    }
+
+    public function updateObject(Request $request, Project $project, SurveyPoint $point): JsonResponse
+    {
+        abort_unless($point->project_id === $project->id && $point->survey_category !== null, 404);
+        $data = $request->validate([
+            'survey_category' => ['required', Rule::in(array_keys(SurveyCategories::all()))],
+        ]);
+        $attributes = ['survey_category' => $data['survey_category'], 'kind' => 'survey_object'];
+        // A point reclassified as a pole needs its own pole number for the map/DXF label.
+        if (SurveyCategories::isPole($data['survey_category']) && $point->pole_no === null) {
+            $attributes['pole_no'] = (int) SurveyPoint::where('project_id', $project->id)->max('pole_no') + 1;
+        }
+        $point->update($attributes);
+
+        return response()->json(['message' => 'Kategorija geodetskog objekta je sačuvana.']);
     }
 
     public function previewReport(Request $request, Project $project, string $format): Response

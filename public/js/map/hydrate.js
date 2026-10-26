@@ -199,5 +199,50 @@ data.appendix_items?.forEach(item => {
     }
     bounds.push([item.lat, item.lng]);
 });
+const surveyCategoryOptions = Object.entries(window.ftthMapConfig.surveyCategories || {});
+const canEditSurveyObjects = Boolean(window.ftthMapConfig.permissions?.edit);
+data.survey_objects?.forEach(item => {
+    const markerSize = item.size || 12;
+    const label = `${item.point_no} – ${item.original_label}`;
+    const categoryEditor = canEditSurveyObjects
+        ? `<div class="survey-category-editor"><select class="survey-category-select" aria-label="Kategorija objekta">${surveyCategoryOptions.map(([key, name]) => `<option value="${escapeHtml(key)}"${key === item.category ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select><button type="button" class="survey-category-save">Sačuvaj</button></div>`
+        : '';
+    const marker = L.marker([item.lat, item.lng], {
+        icon: L.divIcon({
+            className: 'survey-object-icon',
+            iconSize: [markerSize, markerSize],
+            iconAnchor: [markerSize / 2, markerSize / 2],
+            popupAnchor: [0, -(markerSize / 2 + 4)],
+            html: `${window.surveyObjectMarkerHtml(item)}<b class="survey-object-label" data-survey-label>${escapeHtml(item.is_pole ? item.cad_label : label)}</b>`,
+        }),
+    }).bindTooltip(label, { direction: 'top', offset: [0, -12] })
+        .bindPopup(`<div class="survey-object-popup"><b>GEODETSKA TAČKA ${escapeHtml(item.point_no)}</b><br><b>Objekat:</b> ${escapeHtml(item.category_label)}<br><b>Originalna oznaka:</b> ${escapeHtml(item.original_label)}<br><b>Koordinate:</b> ${item.x.toFixed(3)}, ${item.y.toFixed(3)}<br><b>Visina:</b> ${item.z === null ? '—' : `${item.z.toFixed(3)} m`}<br><b>CRS:</b> ${escapeHtml(item.source_crs || '—')}<br><b>Izvor:</b> ${escapeHtml(item.source_file || 'terenski unos')}<br><b>Projekat:</b> ${escapeHtml(item.project)}<br><button type="button" class="survey-copy-coordinates" data-value="${item.lat}, ${item.lng}">Kopiraj WGS84</button>${categoryEditor}</div>`);
+    marker._surveyObject = item;
+    marker.on('popupopen', event => {
+        const popup = event.popup.getElement();
+        popup?.querySelector('.survey-copy-coordinates')?.addEventListener('click', buttonEvent => {
+            navigator.clipboard?.writeText(buttonEvent.currentTarget.dataset.value || '');
+            window.ftthToast?.('Koordinate su kopirane.', 'success');
+        });
+        popup?.querySelector('.survey-category-save')?.addEventListener('click', async () => {
+            const category = popup.querySelector('.survey-category-select')?.value;
+            if (!category || category === item.category) return;
+            const response = await fetch(`/projekti/${item.project_id}/tacke/${item.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+                body: JSON.stringify({ survey_category: category }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) return window.ftthToast?.(payload.message || 'Kategorija nije sačuvana.', 'error');
+            window.location.reload();
+        });
+    });
+    // Not added to the map here: survey-objects.js shows only what is in view (with clustering).
+    surveyObjectMarkers.push(marker);
+    layerRegistry.survey.push(marker);
+    marker._ftthLayerType = 'survey';
+    bounds.push([item.lat, item.lng]);
+});
+scheduleLayerCount('survey');
 savedHouseCount = housePoints.length;
 if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 }); else map.setView(defaultCenter, 17);

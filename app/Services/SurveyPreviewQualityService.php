@@ -9,7 +9,7 @@ class SurveyPreviewQualityService
     public function analyze(array $points, array $ducts): array
     {
         $duplicatePointNumbers = collect($points)->countBy('point_no')->filter(fn (int $count) => $count > 1)->keys()->values();
-        $unrecognizedCodes = collect($points)->where('kind', 'other')->pluck('code')->filter()->unique()->values();
+        $unrecognizedCodes = collect($points)->where('kind', 'other')->whereNull('survey_category')->pluck('code')->filter()->unique()->values();
         $customerPointsWithoutCabinet = collect($points)->filter(fn (array $point) => ($point['microduct_type'] ?? null) === '10/8'
             && in_array($point['kind'], ['trench', 'sling'], true)
             && blank($point['zo_tag'] ?? null)
@@ -26,6 +26,7 @@ class SurveyPreviewQualityService
             ->when($strictUnreachableDucts->isNotEmpty(), fn (Collection $items) => $items->push($strictUnreachableDucts->count().' korisnickih linija nema dokazanu mreznu putanju do ciljnog ODO-a.'))
             ->values();
         $warnings = collect()
+            ->when(collect($points)->where('survey_category', 'unknown_survey_point')->isNotEmpty(), fn (Collection $items) => $items->push(collect($points)->where('survey_category', 'unknown_survey_point')->count().' geodetskih tačaka je označeno kao neprepoznato; kategoriju možeš naknadno urediti.'))
             ->when($unreachableDucts->isNotEmpty(), fn (Collection $items) => $items->push($unreachableDucts->count().' korisničkih linija nema dokazanu putanju kroz rov do ODO-a; možeš je ručno ispraviti prije uvoza.'))
             ->values();
 
@@ -38,7 +39,7 @@ class SurveyPreviewQualityService
             'duplicate_point_numbers' => $duplicatePointNumbers->all(),
             'customer_points_without_cabinet' => $customerPointsWithoutCabinet->all(),
             'unrecognized_codes' => $unrecognizedCodes->all(),
-            'issue_points' => collect($points)->filter(fn (array $point) => $point['kind'] === 'other'
+            'issue_points' => collect($points)->filter(fn (array $point) => ($point['kind'] === 'other' && empty($point['survey_category']))
                 || $duplicatePointNumbers->contains($point['point_no'])
                 || $customerPointsWithoutCabinet->contains($point['point_no'])
             )->map(fn (array $point) => [

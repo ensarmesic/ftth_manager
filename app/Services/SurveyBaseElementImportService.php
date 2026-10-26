@@ -7,6 +7,8 @@ use App\Models\House;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\SurveyPoint;
+use App\Support\NearbyPointIndex;
+use App\Support\SurveyCategories;
 use Illuminate\Support\Collection;
 
 class SurveyBaseElementImportService
@@ -20,12 +22,28 @@ class SurveyBaseElementImportService
     public function import(Project $project, array $points, string $batch, string $filename, float $elementToleranceM, float $odfMergeM): array
     {
         $counts = ['points' => 0, 'cabinets' => 0, 'odfs' => 0, 'houses' => 0];
+        $nextPoleNumber = (int) SurveyPoint::where('project_id', $project->id)->max('pole_no') + 1;
+        // Survey objects already stored in the project are not imported twice.
+        $surveyIndex = new NearbyPointIndex(SurveyCategories::duplicateDistance());
+        foreach (SurveyPoint::where('project_id', $project->id)->whereNotNull('survey_category')->get(['x', 'y', 'source_crs']) as $existing) {
+            $surveyIndex->add((float) $existing->x, (float) $existing->y, true, $existing->source_crs ?: 'unknown');
+        }
 
         foreach ($points as $point) {
+            $isPole = SurveyCategories::isPole($point['survey_category'] ?? null);
+            if (! empty($point['survey_category'])
+                && ! $surveyIndex->addIfFree($point['x'], $point['y'], $point['source_crs'] ?? 'unknown')) {
+                continue;
+            }
             SurveyPoint::create([
                 'project_id' => $project->id, 'import_batch' => $batch, 'source_file' => $filename ?: null,
                 'point_no' => $point['point_no'], 'x' => $point['x'], 'y' => $point['y'], 'z' => $point['z'],
                 'latitude' => $point['lat'], 'longitude' => $point['lng'], 'code' => $point['code'], 'kind' => $point['kind'],
+                'survey_category' => $point['survey_category'] ?? null,
+                'pole_no' => $isPole ? $nextPoleNumber++ : null,
+                'original_label' => $point['code'],
+                'source_crs' => $point['source_crs'] ?? null,
+                'imported_at' => now(),
             ]);
             $counts['points']++;
         }

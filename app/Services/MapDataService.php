@@ -12,6 +12,9 @@ use App\Models\MapDraft;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\ProjectAppendixItem;
+use App\Models\SurveyPoint;
+use App\Support\NearbyPointIndex;
+use App\Support\SurveyCategories;
 
 class MapDataService
 {
@@ -60,6 +63,14 @@ class MapDataService
         if ($bbox) {
             $appendixItems = $appendixItems->filter(fn (ProjectAppendixItem $item) => $this->pointInBbox((float) $item->latitude, (float) $item->longitude, $bbox))->values();
         }
+        // Survey points can number in the thousands, so the bbox is applied in SQL.
+        $surveyIndex = new NearbyPointIndex(SurveyCategories::duplicateDistance());
+        $surveyObjects = SurveyPoint::with('project:id,name')->when($scope, fn ($query) => $query->where('project_id', $projectId))
+            ->whereNotNull('survey_category')->whereNotNull('latitude')->whereNotNull('longitude')
+            ->when($bbox, fn ($query) => $query->whereBetween('latitude', [$bbox[0], $bbox[2]])->whereBetween('longitude', [$bbox[1], $bbox[3]]))
+            ->orderBy('id')->get()
+            ->filter(fn (SurveyPoint $point) => $surveyIndex->addIfFree((float) $point->x, (float) $point->y, $point->source_crs ?: 'unknown'))
+            ->values();
         $gisSegments = GisSegment::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->where('is_allowed', true)->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])->get();
         if ($bbox) {
@@ -156,6 +167,25 @@ class MapDataService
                     'length_m' => $item->length_m === null ? null : (float) $item->length_m,
                     'angle_deg' => $item->angle_deg === null ? null : (float) $item->angle_deg,
                     'width_m' => $item->width_m === null ? null : (float) $item->width_m,
+                ]),
+                'survey_objects' => $surveyObjects->map(fn (SurveyPoint $point) => [
+                    'id' => $point->id,
+                    'project_id' => $point->project_id,
+                    'project' => $point->project->name,
+                    'point_no' => $point->point_no,
+                    'pole_no' => $point->pole_no,
+                    'x' => (float) $point->x,
+                    'y' => (float) $point->y,
+                    'z' => $point->z === null ? null : (float) $point->z,
+                    'lat' => (float) $point->latitude,
+                    'lng' => (float) $point->longitude,
+                    'original_label' => $point->original_label ?: $point->code,
+                    'category' => $point->survey_category,
+                    'cad_label' => SurveyCategories::cadLabel($point->survey_category, (int) ($point->pole_no ?: $point->point_no)),
+                    ...SurveyCategories::presentation($point->survey_category),
+                    'source_file' => $point->source_file,
+                    'source_crs' => $point->source_crs,
+                    'imported_at' => $point->imported_at?->toISOString(),
                 ]),
             ],
         ];

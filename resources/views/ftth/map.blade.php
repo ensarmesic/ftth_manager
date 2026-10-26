@@ -1,4 +1,4 @@
-﻿@extends('ftth.layout')
+@extends('ftth.layout')
 
 @section('title', 'Mapa mreže')
 @section('subtitle', 'Satelitski projektantski prikaz za ODF, ODO ormariće, kuće i trase.')
@@ -230,6 +230,7 @@
                         <div style="border-top:1px solid #f1f5f9;margin:3px 0"></div>
                         <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background:#64748b;margin-left:6px"></span><span style="color:#334155">Šaht</span></div>
                         <div style="display:flex;align-items:center;gap:7px"><span style="flex-shrink:0;width:10px;height:10px;background:#ef4444;transform:rotate(45deg);margin-left:6px"></span><span style="color:#334155">Raketa FI 130</span></div>
+                        <div style="display:flex;align-items:center;gap:7px"><span class="cad-pole-sample" style="flex-shrink:0;margin-left:5px"></span><span style="color:#334155">Geodetski stub (SE, SR…)</span></div>
                     </div>
                 </div>
             </div>
@@ -536,7 +537,7 @@
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-0.5 py-2">
-                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'gis' => ['GIS ceste','#0284c7'], 'dxf' => ['DXF','#9333ea'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
+                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'gis' => ['GIS ceste','#0284c7'], 'dxf' => ['DXF','#9333ea'], 'survey' => ['Geodetski objekti','#f59e0b'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
                 <div class="layer-row">
                     <label class="flex flex-1 items-center gap-2 cursor-pointer select-none min-w-0">
                         <input type="checkbox" data-layer-toggle="{{ $layer }}" checked>
@@ -675,4 +676,5 @@
 <script src="{{ asset('js/ftth-dxf-layer.js') }}?v={{ filemtime(public_path('js/ftth-dxf-layer.js')) }}"></script>
 {{-- survey.js mora doci NAKON #survey-panel HTML-a da bi dugmad postojala pri bindanju --}}
 <script src="{{ asset('js/map/survey.js') }}?v={{ filemtime(public_path('js/map/survey.js')) }}"></script>
+<script src="{{ asset('js/map/survey-objects.js') }}?v={{ filemtime(public_path('js/map/survey-objects.js')) }}"></script>
 @endsection

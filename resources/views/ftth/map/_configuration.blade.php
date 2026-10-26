@@ -1,4 +1,4 @@
-﻿<script nonce="{{ Vite::cspNonce() }}">
+<script nonce="{{ Vite::cspNonce() }}">
 window.MapEditor = window.MapEditor || {};
 if (window.MapEditor.initialized) {
     throw new Error('MapEditor already initialized.');
@@ -16,6 +16,7 @@ window.ftthMapConfig = {
     planningMode: @json($activeProject?->planning_mode),
     networkInstallationType: @json($activeProject?->network_installation_type ?? 'underground'),
     dataUrl: @json($mapDataUrl),
+    surveyCategories: @json(collect(config('survey.categories'))->map(fn ($category) => $category['label'])),
     endpoints: {
         autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),
         autoOdoConfirmBaseUrl: @json(url('/projekti/__ID__/odo-plan/confirm')),

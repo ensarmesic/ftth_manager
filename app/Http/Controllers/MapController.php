@@ -68,7 +68,7 @@ class MapController extends Controller
 
     private function emptyMapData(): array
     {
-        return array_fill_keys(['drafts', 'odfs', 'cabinets', 'houses', 'routes', 'gis_segments', 'gis_restricted_areas', 'large_planner_constraints', 'large_planner_zones', 'appendix_items'], []);
+        return array_fill_keys(['drafts', 'odfs', 'cabinets', 'houses', 'routes', 'gis_segments', 'gis_restricted_areas', 'large_planner_constraints', 'large_planner_zones', 'appendix_items', 'survey_objects'], []);
     }
 
     public function storePlan(Request $request)

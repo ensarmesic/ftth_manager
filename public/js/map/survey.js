@@ -269,15 +269,17 @@
         previewDropLines.forEach(line => line.bringToFront());
         (data.quality?.issue_points || []).forEach(point => add(L.circleMarker([point.lat, point.lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip(`Tačka ${point.point_no}: ${escapeHtml(point.code)}`)));
         (data.survey_points || []).forEach(point => {
+            const markerSize = point.size || 12;
             const marker = add(L.marker([point.lat, point.lng], {
                 interactive: true,
                 draggable: false,
                 keyboard: false,
                 icon: L.divIcon({
-                    className: '',
-                    iconSize: [64, 20],
-                    iconAnchor: [6, 10],
-                    html: `<div style="display:flex;align-items:center;gap:3px;white-space:nowrap;pointer-events:none"><span style="display:block;width:9px;height:9px;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:#f59e0b;box-shadow:0 0 0 1px #92400e,0 1px 3px #0008"></span><b style="display:block;padding:1px 3px;border:1px solid #cbd5e1;border-radius:3px;background:rgba(255,255,255,.92);box-shadow:0 1px 3px #0004;color:#0f172a;font:700 10px/12px Arial,sans-serif">${escapeHtml(point.point_no)}</b></div>`,
+                    className: 'survey-object-icon',
+                    iconSize: [markerSize, markerSize],
+                    iconAnchor: [markerSize / 2, markerSize / 2],
+                    popupAnchor: [0, -(markerSize / 2 + 4)],
+                    html: `${window.surveyObjectMarkerHtml(point)}<b class="survey-object-label">${escapeHtml(point.cad_label || point.point_no)}</b>`,
                 }),
             }).bindTooltip(`Tačka ${escapeHtml(point.point_no)} — ${escapeHtml(point.code)}`, { direction: 'top' }));
             const entry = { marker, point, original: L.latLng(point.lat, point.lng), current: L.latLng(point.lat, point.lng), dragging: false };
@@ -573,10 +575,27 @@
             const qualityPanel = data.quality
                 ? `<div style="margin:8px 0;padding:9px;border:1px solid ${qualityErrors.length ? '#fecaca' : '#a7f3d0'};border-radius:7px;background:${qualityErrors.length ? '#fef2f2' : '#ecfdf5'};color:${qualityErrors.length ? '#991b1b' : '#065f46'}"><b>${qualityErrors.length ? 'UVOZ BLOKIRAN' : 'KONTROLA PROŠLA'}</b><br>${qualityErrors.length ? qualityErrors.map(escapeHtml).join('<br>') : `${data.quality.complete_drop_routes} korisničkih ruta ima dokazanu vezu kroz rov do ODO-a.`}</div>`
                 : '';
+            const objectSummary = data.object_summary || {};
+            const invalidRows = data.invalid_rows || [];
+            const duplicateRows = data.possible_duplicates || [];
+            const objectRows = (data.survey_points || []).map(point => `<tr><td>${escapeHtml(point.point_no)}</td><td>${Number(point.x).toFixed(3)}</td><td>${Number(point.y).toFixed(3)}</td><td>${Number(point.z).toFixed(3)}</td><td>${escapeHtml(point.original_label)}</td><td>${escapeHtml(point.category_label || point.category || 'Mrežna tačka')}</td></tr>`).join('');
+            const importWarnings = invalidRows.length || duplicateRows.length
+                ? `<div style="margin:8px 0;padding:8px;border:1px solid #fcd34d;border-radius:7px;background:#fffbeb;color:#92400e"><b>Upozorenja TXT kontrole</b><br>${invalidRows.map(row => `Linija ${row.line}: ${escapeHtml(row.reason)}`).join('<br>')}${invalidRows.length && duplicateRows.length ? '<br>' : ''}${duplicateRows.map(pair => `Tačke ${pair.first} i ${pair.second}: razmak ${pair.distance_m} m`).join('<br>')}</div>`
+                : '';
 
             summaryBox.innerHTML = `
                 <p style="margin:0"><b>${escapeHtml(data.filename)}</b> - ${data.total_points} tacaka</p>
                 <p style="margin:4px 0 0">${kinds}</p>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:8px 0">
+                    ${previewStat('Stubovi', Number(objectSummary.poles || 0), 'blue')}
+                    ${previewStat('Geo ODF', Number(objectSummary.odfs || 0), 'violet')}
+                    ${previewStat('Zelene tačke', Number(objectSummary.green_area_points || 0), 'emerald')}
+                    ${previewStat('Nepoznato', Number(objectSummary.unknown || 0), objectSummary.unknown ? 'amber' : 'slate')}
+                    ${previewStat('Neispravni redovi', Number(objectSummary.invalid || 0), objectSummary.invalid ? 'red' : 'emerald')}
+                    ${previewStat('Bliski duplikati', Number(objectSummary.duplicates || 0), objectSummary.duplicates ? 'amber' : 'emerald')}
+                </div>
+                ${importWarnings}
+                <details style="margin:8px 0"><summary style="cursor:pointer;font-weight:800">Tabela TXT tačaka (${(data.survey_points || []).length})</summary><div style="overflow:auto;max-height:220px;margin-top:5px"><table style="width:100%;border-collapse:collapse;font-size:9px"><thead><tr><th>Br.</th><th>X</th><th>Y</th><th>Z</th><th>Original</th><th>Kategorija</th></tr></thead><tbody>${objectRows}</tbody></table></div></details>
                 <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:8px 0">
                     ${previewStat('Rovovi', Number(data.trench_network_count || 0), 'slate')}
                     ${previewStat('Glavne MC', mainDucts, 'blue')}

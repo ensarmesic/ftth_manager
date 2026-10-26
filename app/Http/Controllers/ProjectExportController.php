@@ -7,6 +7,8 @@ use App\Http\Controllers\Concerns\WritesDxfEntities;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
+use App\Support\NearbyPointIndex;
+use App\Support\SurveyCategories;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -19,11 +21,12 @@ class ProjectExportController extends Controller
     {
         ini_set('memory_limit', '1G');
         set_time_limit(180);
-        $project->load(['odfs', 'cabinets', 'houses', 'routes', 'appendixItems']);
+        $project->load(['odfs', 'cabinets', 'houses', 'routes', 'appendixItems', 'surveyPoints' => fn ($query) => $query->whereNotNull('survey_category')]);
 
         // Zona — koristimo ODF, ormarice i prvu točku prve trase
         $lngs = collect($project->odfs)->pluck('longitude')
             ->merge(collect($project->cabinets)->pluck('longitude'))
+            ->merge(collect($project->surveyPoints)->pluck('longitude'))
             ->filter()->values();
         if ($lngs->isEmpty()) {
             foreach ($project->routes as $r) {
@@ -75,6 +78,11 @@ class ProjectExportController extends Controller
         foreach ($project->houses as $h) {
             if ($h->latitude !== null) {
                 $expandBbox((float) $h->latitude, (float) $h->longitude);
+            }
+        }
+        foreach ($project->surveyPoints as $point) {
+            if ($point->latitude !== null && $point->survey_category !== null) {
+                $expandBbox((float) $point->latitude, (float) $point->longitude);
             }
         }
         foreach ($project->routes as $r) {
@@ -201,8 +209,8 @@ class ProjectExportController extends Controller
             '0', 'LTYPE', '2', 'DASHED',     '70', '64', '3', '_ _ _ _ _ _', '72', '65', '73', '2', '40', '3.0', '49', '2.0', '49', '-1.0',
             '0', 'ENDTAB',
 
-            // Layeri (11 FTTH + dinamički background)
-            '0', 'TABLE', '2', 'LAYER', '70', (string) (11 + count($bgLayerNames)),
+            // Layeri (12 FTTH + dinamički background)
+            '0', 'TABLE', '2', 'LAYER', '70', (string) (12 + count($bgLayerNames)),
             '0', 'LAYER', '2', '0',              '70', '64', '62',  '7', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_PRIMARY',   '70', '64', '62',  '5', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_SECONDARY', '70', '64', '62',  '3', '6', 'CONTINUOUS',
@@ -214,6 +222,7 @@ class ProjectExportController extends Controller
             '0', 'LAYER', '2', 'FTTH_MANHOLES',  '70', '64', '62',  '8', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_CABINETS',  '70', '64', '62',  '6', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_HOUSES',    '70', '64', '62',  '4', '6', 'CONTINUOUS',
+            '0', 'LAYER', '2', 'FTTH_SURVEY_POLES', '70', '64', '62', '6', '6', 'CONTINUOUS',
         ];
         // Dodaj background layer definicije
         array_push($lines, ...$bgLayerDefs);
@@ -496,6 +505,22 @@ class ProjectExportController extends Controller
                     }
                 }
             }
+        }
+
+        // Geodetski stubovi — na originalnoj GK koordinati, bez duplikata ponovno snimljenih stubova.
+        $poleIndex = new NearbyPointIndex(SurveyCategories::duplicateDistance());
+        foreach ($project->surveyPoints->whereIn('survey_category', SurveyCategories::poleKeys())->sortBy('id') as $point) {
+            $x = (float) $point->x;
+            $y = (float) $point->y;
+            if (! $poleIndex->addIfFree($x, $y)) {
+                continue;
+            }
+
+            // Magenta double circle, yellow surveyed center and compact pole code.
+            array_push($lines, ...$this->dxfCircle($x, $y, 1.30, 'FTTH_SURVEY_POLES', 6));
+            array_push($lines, ...$this->dxfCircle($x, $y, 0.65, 'FTTH_SURVEY_POLES', 6));
+            array_push($lines, ...$this->dxfFilledCircle($x, $y, 0.28, 'FTTH_SURVEY_POLES', 2));
+            array_push($lines, ...$this->dxfText($x + 1.7, $y - 0.35, SurveyCategories::cadLabel($point->survey_category, (int) ($point->pole_no ?: $point->point_no)), 'FTTH_SURVEY_POLES', 6, 1.35));
         }
 
         // ODF — simbol + naziv u pravokutniku ispod zone (žuta boja = 2, kao u ručnim projektima)

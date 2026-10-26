@@ -7,6 +7,8 @@ use App\Models\House;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\SurveyPoint;
+use App\Support\NearbyPointIndex;
+use App\Support\SurveyCategories;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -50,7 +52,6 @@ class SurveyPointImportService
     private const CUSTOMER_SPUR_TO_TRENCH_M = self::TRENCH_GAP_M;
 
     public function __construct(
-        private readonly GeoTransformService $transform,
         private readonly GeometryService $geometry,
         private readonly SurveyPointParser $parser,
         private readonly SurveyPointClassifier $classifier,
@@ -83,6 +84,11 @@ class SurveyPointImportService
     public function parse(string $contents): array
     {
         return $this->parser->parse($contents, fn (string $code): array => $this->classify($code));
+    }
+
+    public function parseDetailed(string $contents): array
+    {
+        return $this->parser->parseDetailed($contents, fn (string $code): array => $this->classify($code));
     }
 
     /**
@@ -607,7 +613,8 @@ class SurveyPointImportService
 
     public function preview(Project $project, string $contents, string $filename = ''): array
     {
-        $points = $this->parse($contents);
+        $parsed = $this->parseDetailed($contents);
+        $points = $parsed['points'];
         if (count($points) < 1) {
             throw new InvalidArgumentException('Fajl ne sadrzi nijednu prepoznatljivu tacku (broj X Y Z opis).');
         }
@@ -651,21 +658,54 @@ class SurveyPointImportService
             );
 
         $quality = $this->previewQuality->analyze($points, $network['ducts']);
+        $duplicatePairs = $this->nearDuplicatePairs($points, SurveyCategories::duplicateDistance());
+        $displayPoints = $this->withoutNearbySurveyDuplicates($points);
+        $categories = collect($displayPoints)->groupBy(fn (array $point) => $point['survey_category'] ?? 'network_point')->map->count();
+        $poleCategories = SurveyCategories::poleKeys();
+        $nextPoleNumber = (int) SurveyPoint::where('project_id', $project->id)->max('pole_no') + 1;
 
         return [
             'batch' => $batch,
             'filename' => $filename,
             'already_imported' => $alreadyImported,
-            'total_points' => count($points),
-            'survey_points' => collect($points)->map(fn (array $point) => [
-                'point_no' => $point['point_no'],
-                'x' => $point['x'],
-                'y' => $point['y'],
-                'z' => $point['z'],
-                'lat' => $point['lat'],
-                'lng' => $point['lng'],
-                'code' => $point['code'],
-            ])->values()->all(),
+            'total_points' => count($displayPoints),
+            'total_rows' => $parsed['total_rows'],
+            'invalid_rows' => $parsed['errors'],
+            'possible_duplicates' => $duplicatePairs,
+            'object_summary' => [
+                'poles' => $categories->only($poleCategories)->sum(),
+                'odfs' => (int) $categories->get('odf', 0),
+                'green_area_points' => (int) $categories->get('green_area_point', 0),
+                'unknown' => (int) $categories->get('unknown_survey_point', 0),
+                'invalid' => count($parsed['errors']),
+                'duplicates' => count($duplicatePairs),
+                'skipped_duplicates' => count($points) - count($displayPoints),
+                'by_category' => $categories->all(),
+            ],
+            'survey_points' => collect($displayPoints)->map(function (array $point) use (&$nextPoleNumber) {
+                $category = $point['survey_category'] ?? null;
+                $poleNo = SurveyCategories::isPole($category) ? $nextPoleNumber++ : null;
+                // Plain network points (trench, ZO, ...) keep the orange preview marker.
+                $presentation = $category === null
+                    ? ['category_label' => null, 'color' => '#f59e0b', 'symbol' => 'T', 'size' => 12, 'is_pole' => false]
+                    : SurveyCategories::presentation($category);
+
+                return [
+                    'point_no' => $point['point_no'],
+                    'pole_no' => $poleNo,
+                    'cad_label' => $poleNo === null ? null : SurveyCategories::cadLabel($category, $poleNo),
+                    'x' => $point['x'],
+                    'y' => $point['y'],
+                    'z' => $point['z'],
+                    'lat' => $point['lat'],
+                    'lng' => $point['lng'],
+                    'code' => $point['code'],
+                    'original_label' => $point['code'],
+                    'category' => $category,
+                    ...$presentation,
+                    'source_crs' => $point['source_crs'] ?? null,
+                ];
+            })->values()->all(),
             'by_kind' => collect($points)->groupBy('kind')->map->count()->all(),
             'trench_runs' => collect($network['trenches'])->reject(fn (array $chain) => $chain['_routing_only'] ?? false)->map(fn (array $chain) => [
                 'trench_group' => 'Geodetski rov',
@@ -762,7 +802,7 @@ class SurveyPointImportService
             throw new InvalidArgumentException('Ovaj fajl je vec uvezen u ovaj projekat.');
         }
 
-        $points = $this->parse($contents);
+        $points = $this->withoutNearbySurveyDuplicates($this->parse($contents));
         if (count($points) < 1) {
             throw new InvalidArgumentException('Fajl ne sadrzi nijednu prepoznatljivu tacku.');
         }
@@ -861,6 +901,38 @@ class SurveyPointImportService
         });
 
         return $created;
+    }
+
+    private function nearDuplicatePairs(array $points, float $thresholdM): array
+    {
+        $pairs = [];
+        usort($points, fn (array $left, array $right) => $left['x'] <=> $right['x']);
+        $count = count($points);
+        for ($left = 0; $left < $count; $left++) {
+            for ($right = $left + 1; $right < $count; $right++) {
+                if ($points[$right]['x'] - $points[$left]['x'] > $thresholdM) {
+                    break;
+                }
+                if (abs($points[$left]['y'] - $points[$right]['y']) > $thresholdM) {
+                    continue;
+                }
+                $distance = hypot($points[$left]['x'] - $points[$right]['x'], $points[$left]['y'] - $points[$right]['y']);
+                if ($distance <= $thresholdM) {
+                    $pairs[] = ['first' => $points[$left]['point_no'], 'second' => $points[$right]['point_no'], 'distance_m' => round($distance, 3)];
+                }
+            }
+        }
+
+        return $pairs;
+    }
+
+    /** Drops survey objects (poles, ODF, Z.P.) re-measured at the same spot; network points are kept. */
+    private function withoutNearbySurveyDuplicates(array $points): array
+    {
+        $index = new NearbyPointIndex(SurveyCategories::duplicateDistance());
+
+        return array_values(array_filter($points, fn (array $point) => empty($point['survey_category'])
+            || $index->addIfFree($point['x'], $point['y'], $point['source_crs'] ?? 'unknown')));
     }
 
     private function pathEndpoints(array $path): array

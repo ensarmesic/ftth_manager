@@ -25,6 +25,24 @@ trait WritesDxfEntities
         ];
     }
 
+    private function dxfFilledCircle(float $x, float $y, float $radius, string $layer, int $color, int $segments = 16): array
+    {
+        $entities = [];
+        $segments = max(12, $segments);
+        for ($index = 0; $index < $segments; $index++) {
+            $start = 2 * M_PI * $index / $segments;
+            $end = 2 * M_PI * ($index + 1) / $segments;
+            $x1 = $x + cos($start) * $radius;
+            $y1 = $y + sin($start) * $radius;
+            $x2 = $x + cos($end) * $radius;
+            $y2 = $y + sin($end) * $radius;
+            array_push($entities, ...$this->dxfSolid($x, $y, $x1, $y1, $x2, $y2, $x2, $y2, $layer, $color));
+        }
+        array_push($entities, ...$this->dxfCircle($x, $y, $radius, $layer, $color));
+
+        return $entities;
+    }
+
     private function dxfRect(float $x1, float $y1, float $x2, float $y2, string $layer, int $color): array
     {
         return [
