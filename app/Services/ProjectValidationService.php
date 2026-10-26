@@ -65,19 +65,17 @@ class ProjectValidationService
                 }
             }
             if ($branchRoutes->isNotEmpty() && $house->latitude && $house->longitude) {
-                $nearest = $this->nearestBranch((float) $house->latitude, (float) $house->longitude, $branchRoutes);
-                if ($nearest && $nearest['distance_m'] > $distanceLimit) {
-                    $branchDistanceLabel = number_format($nearest['distance_m'], 1, ',', '.');
+                $nearestDistance = $this->nearestBranchDistance((float) $house->latitude, (float) $house->longitude, $branchRoutes, $distanceLimit);
+                if ($nearestDistance > $distanceLimit) {
+                    $branchDistanceLabel = number_format($nearestDistance, 1, ',', '.');
                     $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, "Udaljenost do najblizeg kraka: {$branchDistanceLabel} m (prag {$distanceLimit} m). Dodaj krak blize objektu ili provjeri polozaj kuce.");
                 }
-                if ($house->cabinet && $nearest) {
-                    $cabinetNearest = $this->nearestBranch((float) $house->cabinet->latitude, (float) $house->cabinet->longitude, $branchRoutes);
-                    $hasExplicitBranchMismatch = $house->branch_id
-                        && $house->cabinet->branch_id
-                        && (int) $house->branch_id !== (int) $house->cabinet->branch_id;
-                    if ($cabinetNearest && $hasExplicitBranchMismatch) {
-                        $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili rucno ispravi vezu.');
-                    }
+                $hasExplicitBranchMismatch = $house->cabinet
+                    && $house->branch_id
+                    && $house->cabinet->branch_id
+                    && (int) $house->branch_id !== (int) $house->cabinet->branch_id;
+                if ($hasExplicitBranchMismatch) {
+                    $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili rucno ispravi vezu.');
                 }
             }
         }
@@ -107,14 +105,15 @@ class ProjectValidationService
                 $items[] = $this->validationItem('error', "{$cabinet->name} nema dovoljno splittera.", 'cabinet', $cabinet->id, "Postavi {$neededSplitters} splittera.");
             }
             if ($branchRoutes->isNotEmpty() && $cabinet->latitude && $cabinet->longitude) {
-                $nearest = $this->nearestBranch((float) $cabinet->latitude, (float) $cabinet->longitude, $branchRoutes);
-                if ($nearest && $nearest['distance_m'] > 10) {
+                if ($this->nearestBranchDistance((float) $cabinet->latitude, (float) $cabinet->longitude, $branchRoutes, 10) > 10) {
                     $items[] = $this->validationItem('warning', "{$cabinet->name} nije na trasi/kraku.", 'cabinet', $cabinet->id, 'Pomjeri ODO na najblizu tacku trase.');
                 }
             }
         }
 
         $housesPerCabinet = $project->cabinets->mapWithKeys(fn ($cab) => [$cab->id => $cab->houses->count()])->all();
+        $housesById = $project->houses->keyBy('id');
+        $cabinetsById = $project->cabinets->keyBy('id');
 
         foreach ($project->routes as $route) {
             if ($route->route_type === 'trench') {
@@ -172,8 +171,8 @@ class ProjectValidationService
                 }
 
                 if ($route->route_type === 'drop') {
-                    $house = $route->to_type === 'house' ? $project->houses->firstWhere('id', $route->to_id) : null;
-                    $cabinet = $route->cabinet_id ? $project->cabinets->firstWhere('id', $route->cabinet_id) : null;
+                    $house = $route->to_type === 'house' ? $housesById->get($route->to_id) : null;
+                    $cabinet = $route->cabinet_id ? $cabinetsById->get($route->cabinet_id) : null;
                     $endpoints = [$path[0], $path[count($path) - 1]];
                     if ($house && $house->latitude !== null && $house->longitude !== null && ! $this->endpointTouches($endpoints, (float) $house->latitude, (float) $house->longitude)) {
                         $items[] = $this->validationItem('error', "{$route->name} ne završava na povezanoj kući {$house->label}.", 'route', $route->id, 'Ponovo rutiraj drop od tačne koordinate kuće.');
@@ -224,12 +223,23 @@ class ProjectValidationService
             ->values();
     }
 
-    private function nearestBranch(float $lat, float $lng, Collection $routes): ?array
+    /**
+     * Distance to the nearest branch route. Stops early once a route within
+     * $acceptableM is found, because callers only need the exact minimum
+     * when it exceeds that limit (to report it).
+     */
+    private function nearestBranchDistance(float $lat, float $lng, Collection $routes, float $acceptableM): float
     {
-        return $routes
-            ->map(fn (NetworkRoute $route) => ['route' => $route] + $this->geometry->projectPointToRoute($lat, $lng, $route))
-            ->sortBy('distance_m')
-            ->first();
+        $best = INF;
+        foreach ($routes as $route) {
+            $distance = $this->geometry->projectPointToRoute($lat, $lng, $route)['distance_m'];
+            if ($distance <= $acceptableM) {
+                return $distance;
+            }
+            $best = min($best, $distance);
+        }
+
+        return $best;
     }
 
     private function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float

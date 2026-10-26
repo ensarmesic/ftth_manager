@@ -27,6 +27,7 @@ class ReportController extends Controller
                 'materials',
                 'routes',
                 'appendixItems',
+                'largePlannerSetting',
                 'odfs.cabinets',
                 'houses.cabinet',
                 'cabinets' => fn ($q) => $q->withCount('houses')->with(['odf', 'houses']),
