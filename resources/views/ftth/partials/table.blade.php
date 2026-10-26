@@ -1,3 +1,24 @@
+@php
+    // Human-readable cell values: optional code => label maps per column, and
+    // Bosnian number formatting (1.234,5) for numeric values.
+    $valueLabels ??= [];
+    $displayValue = function (string $key, mixed $value) use ($valueLabels): string {
+        if (is_bool($value)) {
+            return $value ? 'Da' : 'Ne';
+        }
+        if ($value === null || $value === '') {
+            return '-';
+        }
+        if (isset($valueLabels[$key]) && array_key_exists((string) $value, $valueLabels[$key])) {
+            return $valueLabels[$key][(string) $value];
+        }
+        if (is_int($value) || is_float($value)) {
+            return number_format($value, floor($value) == $value ? 0 : 1, ',', '.');
+        }
+
+        return (string) $value;
+    };
+@endphp
 <div class="app-table-card">
     <div class="overflow-x-auto">
         <table class="w-full text-left">
@@ -18,16 +39,14 @@
                             <td>
                                 @if (str_contains((string) $key, 'status'))
                                     @include('ftth.partials.badge', ['value' => data_get($row, $key)])
-                                @elseif (is_bool(data_get($row, $key)))
-                                    {{ data_get($row, $key) ? 'Da' : 'Ne' }}
                                 @else
-                                    {{ data_get($row, $key) ?? '-' }}
+                                    {{ $displayValue($key, data_get($row, $key)) }}
                                 @endif
                             </td>
                         @endforeach
                         @if (isset($deleteRoute) || isset($editRoute))
                             <td>
-                                <div class="flex items-center gap-1.5 flex-wrap">
+                                <div class="flex items-center gap-1.5 flex-nowrap">
                                     <details class="relative inline-block">
                                         <summary class="tbl-btn tbl-btn-view list-none cursor-pointer">
                                             <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M8 9.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path d="M1.38 8a6.985 6.985 0 0113.24 0A6.985 6.985 0 018 13c-2.87 0-5.356-1.74-6.62-4.323-.015-.024-.015-.024 0 0z"/></svg>
@@ -38,7 +57,7 @@
                                                 @php $value = data_get($row, $key); @endphp
                                                 <div class="grid grid-cols-[110px_1fr] gap-2 py-0.5">
                                                     <b class="text-slate-400 font-semibold">{{ $label }}</b>
-                                                    <span class="text-slate-800">{{ is_bool($value) ? ($value ? 'Da' : 'Ne') : ($value ?? '-') }}</span>
+                                                    <span class="text-slate-800">{{ $displayValue($key, $value) }}</span>
                                                 </div>
                                             @endforeach
                                         </div>
@@ -57,6 +76,12 @@
                                                         $label = is_array($config) ? ($config['label'] ?? $field) : $config;
                                                         $type = is_array($config) ? ($config['type'] ?? 'text') : 'text';
                                                         $options = is_array($config) ? ($config['options'] ?? []) : [];
+                                                        // Keep the current value selectable; otherwise the browser
+                                                        // picks the first option and saving silently overwrites it.
+                                                        $current = data_get($row, $field);
+                                                        if ($type === 'select' && ! in_array((string) $current, array_map('strval', array_keys($options)), true)) {
+                                                            $options = [(string) $current => $current === null || $current === '' ? '—' : $displayValue($field, $current)] + $options;
+                                                        }
                                                     @endphp
                                                     <label class="grid gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                                                         {{ $label }}

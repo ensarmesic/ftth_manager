@@ -36,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
 
         DB::listen(function (QueryExecuted $query): void {
             app(RequestPerformanceMetrics::class)->recordQuery((float) $query->time);
-            $threshold = (float) env('SLOW_QUERY_MS', 250);
+            $threshold = (float) config('monitoring.slow_query_ms');
             if ($query->time < $threshold) {
                 return;
             }

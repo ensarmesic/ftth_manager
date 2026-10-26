@@ -22,7 +22,7 @@ class MonitorPerformance
         $databaseDurationMs = $this->metrics->databaseDurationMs();
         $responseContent = method_exists($response, 'getContent') ? $response->getContent() : false;
 
-        if ($durationMs >= (float) env('SLOW_REQUEST_MS', 1500)) {
+        if ($durationMs >= (float) config('monitoring.slow_request_ms')) {
             Log::warning('Spor HTTP zahtjev', [
                 'method' => $request->method(),
                 'route' => $request->route()?->getName(),

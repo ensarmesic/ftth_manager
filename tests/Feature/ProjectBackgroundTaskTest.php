@@ -157,6 +157,21 @@ class ProjectBackgroundTaskTest extends TestCase
         $this->assertSame([43.856, 18.416], $replanned['odo_placement']['odos'][0]['point']);
     }
 
+    public function test_invalid_planning_input_fails_once_without_queue_retry(): void
+    {
+        // An empty large project is not ready, so the planner rejects the input.
+        $project = Project::factory()->create(['planning_mode' => 'large_auto']);
+        $task = $project->backgroundTasks()->create(['type' => 'large_plan', 'status' => 'queued', 'progress' => 0]);
+
+        // Must not throw: a rethrown exception would make the queue retry the same bad input.
+        (new RunProjectBackgroundTask($task->id))->handle();
+
+        $task->refresh();
+        $this->assertSame('failed', $task->status);
+        $this->assertSame('Ulazni podaci nisu spremni za proračun.', $task->error);
+        $this->assertSame(1, $task->attempt_count);
+    }
+
     public function test_exhausted_queue_job_is_marked_failed_instead_of_remaining_running(): void
     {
         $project = Project::factory()->create(['planning_mode' => 'large_auto']);

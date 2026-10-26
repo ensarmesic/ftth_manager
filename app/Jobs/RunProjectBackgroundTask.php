@@ -64,6 +64,11 @@ class RunProjectBackgroundTask implements ShouldQueue
                 return;
             }
             $task->update(['status' => 'failed', 'status_message' => 'Proračun nije završen.', 'finished_at' => now(), 'error' => mb_substr($exception->getMessage(), 0, 2000)]);
+            // Invalid planning input fails the same way on every retry: report it
+            // to the user once instead of retrying and logging it as a crash.
+            if ($exception instanceof \DomainException || $exception instanceof \InvalidArgumentException) {
+                return;
+            }
             throw $exception;
         }
     }
