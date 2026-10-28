@@ -205,20 +205,6 @@
             });
         }
     });
-    links
-        .filter((link) => link.type === 'cut')
-        .forEach((link) => {
-            const line = L.polyline(
-                [
-                    [link.from.lat, link.from.lng],
-                    [link.to.lat, link.to.lng],
-                ],
-                { color: '#991b1b', weight: 2, dashArray: '2 6', opacity: 0.9 },
-            ).bindTooltip(`Ručno prekinuto: ${escapeHtml(link.from.label)} – ${escapeHtml(link.to.label)}`, {
-                sticky: true,
-            });
-            trackLayer(line, 'pole_branches');
-        });
 
     let pickFrom = null;
 
