@@ -25,6 +25,13 @@ class SurveyObjectImportTest extends TestCase
             'S.E+R-Drveni' => 'wooden_electric_lighting_pole',
             'Stub drveni-Telemach' => 'telemach_wooden_pole',
             'Stub prazan tek ugradjen' => 'empty_pole',
+            '"Stub prazan tek ugradjen"' => 'empty_pole',
+            'S.E.' => 'electric_pole',
+            'S.R. + S.E.' => 'electric_lighting_pole',
+            'drveni s.r.' => 'wooden_lighting_pole',
+            'drveni s.r. + s.e.' => 'wooden_electric_lighting_pole',
+            'novi stub' => 'empty_pole',
+            'stub sa optikom' => 'fiber_pole',
             'ODF' => 'odf',
             'Z.P.-' => 'green_area_point',
         ];

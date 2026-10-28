@@ -157,11 +157,29 @@ class SurveyPointClassifier
 
     public function surveyObjectCategory(string $label): ?string
     {
-        $normalized = mb_strtoupper(trim($label));
+        $normalized = mb_strtoupper(trim(trim($label), '"\''));
         $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
         $normalized = rtrim($normalized, " \t\n\r\0\x0B,");
 
+        // Crews write the same pole in many ways ("S.R. + S.E.", "drveni s.r.", "S.E."):
+        // compare a compact form without dots and spaces.
+        $compact = str_replace(['.', ' ', 'Š', 'Ž', 'Č', 'Ć', 'Đ'], ['', '', 'S', 'Z', 'C', 'C', 'DJ'], $normalized);
+        $wooden = str_contains($compact, 'DRVEN');
+        $parts = array_values(array_filter(preg_split('/[+\-\/]/', str_replace(['DRVENI', 'DRVENA', 'DRVEN', '(', ')'], '', $compact)) ?: []));
+        sort($parts);
+        $poleKind = match ($parts) {
+            ['SE'] => $wooden ? null : 'electric_pole',
+            ['SR'] => $wooden ? 'wooden_lighting_pole' : 'lighting_pole',
+            ['R', 'SE'], ['SE', 'SR'] => $wooden ? 'wooden_electric_lighting_pole' : 'electric_lighting_pole',
+            default => null,
+        };
+        if ($poleKind !== null) {
+            return $poleKind;
+        }
+
         return match (true) {
+            preg_match('/^NOVI STUB$/u', $normalized) === 1 => 'empty_pole',
+            preg_match('/^STUB SA OPTIKOM$/u', $normalized) === 1 => 'fiber_pole',
             preg_match('/^S\.E\+R-DRVENI$/u', $normalized) === 1 => 'wooden_electric_lighting_pole',
             preg_match('/^STUB DRVENI-TELEMACH$/u', $normalized) === 1 => 'telemach_wooden_pole',
             preg_match('/^STUB PRAZAN TEK UGRADJEN$/u', $normalized) === 1 => 'empty_pole',
