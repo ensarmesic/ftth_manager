@@ -152,6 +152,7 @@ function updateLayerCount(type) {
         drop: () => data.routes.filter(route => route.type === 'drop').length,
         dxf: () => 0,
         survey: () => data.survey_objects?.length || 0,
+        pole_branches: () => data.pole_branches?.length || 0,
     };
     count.textContent = objectCounts[type] ? objectCounts[type]() : (layerRegistry[type]?.length || 0);
 }

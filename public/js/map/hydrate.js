@@ -204,6 +204,12 @@ const canEditSurveyObjects = Boolean(window.ftthMapConfig.permissions?.edit);
 data.survey_objects?.forEach(item => {
     const markerSize = item.size || 12;
     const label = `${item.point_no} – ${item.original_label}`;
+    const branchInfo = item.branch_code
+        ? `<br><b>Krak:</b> ${escapeHtml(item.branch_code)}, stub ${escapeHtml(item.branch_position)}. po redu`
+        : '';
+    const branchStart = canEditSurveyObjects && item.is_pole
+        ? '<button type="button" class="survey-branch-start">Počni krakove odavde</button><div class="pole-link-tools"></div>'
+        : '';
     const categoryEditor = canEditSurveyObjects
         ? `<div class="survey-category-editor"><select class="survey-category-select" aria-label="Kategorija objekta">${surveyCategoryOptions.map(([key, name]) => `<option value="${escapeHtml(key)}"${key === item.category ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select><button type="button" class="survey-category-save">Sačuvaj</button></div>`
         : '';
@@ -216,7 +222,7 @@ data.survey_objects?.forEach(item => {
             html: `${window.surveyObjectMarkerHtml(item)}<b class="survey-object-label" data-survey-label>${escapeHtml(item.is_pole ? item.cad_label : label)}</b>`,
         }),
     }).bindTooltip(label, { direction: 'top', offset: [0, -12] })
-        .bindPopup(`<div class="survey-object-popup"><b>GEODETSKA TAČKA ${escapeHtml(item.point_no)}</b><br><b>Objekat:</b> ${escapeHtml(item.category_label)}<br><b>Originalna oznaka:</b> ${escapeHtml(item.original_label)}<br><b>Koordinate:</b> ${item.x.toFixed(3)}, ${item.y.toFixed(3)}<br><b>Visina:</b> ${item.z === null ? '—' : `${item.z.toFixed(3)} m`}<br><b>CRS:</b> ${escapeHtml(item.source_crs || '—')}<br><b>Izvor:</b> ${escapeHtml(item.source_file || 'terenski unos')}<br><b>Projekat:</b> ${escapeHtml(item.project)}<br><button type="button" class="survey-copy-coordinates" data-value="${item.lat}, ${item.lng}">Kopiraj WGS84</button>${categoryEditor}</div>`);
+        .bindPopup(`<div class="survey-object-popup"><b>GEODETSKA TAČKA ${escapeHtml(item.point_no)}</b><br><b>Objekat:</b> ${escapeHtml(item.category_label)}<br><b>Originalna oznaka:</b> ${escapeHtml(item.original_label)}${branchInfo}<br><b>Koordinate:</b> ${item.x.toFixed(3)}, ${item.y.toFixed(3)}<br><b>Visina:</b> ${item.z === null ? '—' : `${item.z.toFixed(3)} m`}<br><b>CRS:</b> ${escapeHtml(item.source_crs || '—')}<br><b>Izvor:</b> ${escapeHtml(item.source_file || 'terenski unos')}<br><b>Projekat:</b> ${escapeHtml(item.project)}<br><button type="button" class="survey-copy-coordinates" data-value="${item.lat}, ${item.lng}">Kopiraj WGS84</button>${branchStart}${categoryEditor}</div>`);
     marker._surveyObject = item;
     marker.on('popupopen', event => {
         const popup = event.popup.getElement();
@@ -224,6 +230,10 @@ data.survey_objects?.forEach(item => {
             navigator.clipboard?.writeText(buttonEvent.currentTarget.dataset.value || '');
             window.ftthToast?.('Koordinate su kopirane.', 'success');
         });
+        popup?.querySelector('.survey-branch-start')?.addEventListener('click', () => {
+            window.ftthPoleBranches?.generate(item.project_id, item.id);
+        });
+        window.ftthPoleBranches?.renderPoleTools(popup?.querySelector('.pole-link-tools'), item);
         popup?.querySelector('.survey-category-save')?.addEventListener('click', async () => {
             const category = popup.querySelector('.survey-category-select')?.value;
             if (!category || category === item.category) return;

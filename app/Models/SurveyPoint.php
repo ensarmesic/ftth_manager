@@ -13,7 +13,7 @@ class SurveyPoint extends Model
     protected $fillable = [
         'project_id', 'import_batch', 'source_file', 'point_no',
         'x', 'y', 'z', 'latitude', 'longitude', 'code', 'kind',
-        'survey_category', 'pole_no', 'original_label', 'source_crs', 'imported_at',
+        'survey_category', 'pole_no', 'pole_branch_id', 'branch_position', 'original_label', 'source_crs', 'imported_at',
         'source', 'session_uuid', 'sequence', 'accuracy_m', 'note', 'photo_path', 'captured_at',
     ];
 
@@ -24,7 +24,14 @@ class SurveyPoint extends Model
             'imported_at' => 'datetime',
             'accuracy_m' => 'float',
             'pole_no' => 'integer',
+            'branch_position' => 'integer',
         ];
+    }
+
+    /** @return BelongsTo<PoleBranch, $this> */
+    public function poleBranch(): BelongsTo
+    {
+        return $this->belongsTo(PoleBranch::class);
     }
 
     /** @return BelongsTo<Project, $this> */

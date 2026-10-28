@@ -13,7 +13,7 @@ class ProjectSnapshotService
     private const TABLES = [
         'odfs', 'routes', 'cabinets', 'houses', 'network_branches', 'materials',
         'project_appendix_items', 'gis_segments', 'gis_restricted_areas',
-        'survey_points', 'map_drafts', 'fiber_splices',
+        'survey_points', 'pole_branches', 'pole_branch_links', 'map_drafts', 'fiber_splices',
     ];
 
     public function create(Project $project, string $label): ProjectSnapshot

@@ -709,7 +709,7 @@ parameters:
 			path: app/Services/ProjectSnapshotService.php
 
 		-
-			message: '#^Offset ''cabinets''\|''fiber_splices''\|''gis_restricted_areas''\|''gis_segments''\|''houses''\|''map_drafts''\|''materials''\|''network_branches''\|''odfs''\|''project_appendix…''\|''routes''\|''survey_points'' on string on left side of \?\? does not exist\.$#'
+			message: '#^Offset ''cabinets''\|''fiber_splices''\|''gis_restricted_areas''\|''gis_segments''\|''houses''\|''map_drafts''\|''materials''\|''network_branches''\|''odfs''\|''pole_branch_links''\|''pole_branches''\|''project_appendix…''\|''routes''\|''survey_points'' on string on left side of \?\? does not exist\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
 			path: app/Services/ProjectSnapshotService.php

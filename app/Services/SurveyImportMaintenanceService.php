@@ -14,7 +14,10 @@ use InvalidArgumentException;
 
 class SurveyImportMaintenanceService
 {
-    public function __construct(private readonly BranchSyncService $branchSync) {}
+    public function __construct(
+        private readonly BranchSyncService $branchSync,
+        private readonly PoleBranchService $poleBranches,
+    ) {}
 
     /**
      * Remove everything a geodetic survey import created in this project — routes,
@@ -61,6 +64,8 @@ class SurveyImportMaintenanceService
 
             $txtPoints = SurveyPoint::where('project_id', $project->id)->where('source', '!=', 'gps');
             $removed['points'] = (clone $txtPoints)->count();
+            // Branches are built from the poles, so they go with them.
+            $this->poleBranches->clear($project);
             $txtPoints->delete();
         });
 
@@ -130,6 +135,9 @@ class SurveyImportMaintenanceService
 
             $points = SurveyPoint::where('project_id', $project->id)->where('import_batch', $batch);
             $removed['points'] = (clone $points)->count();
+            if ((clone $points)->whereNotNull('pole_branch_id')->exists()) {
+                $this->poleBranches->clear($project);
+            }
             $points->delete();
         });
 

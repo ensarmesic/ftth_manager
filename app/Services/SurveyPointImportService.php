@@ -71,6 +71,7 @@ class SurveyPointImportService
         private readonly SurveyMainRouteGraphService $mainRouteGraph,
         private readonly SurveyRouteEntryPointService $routeEntryPoint,
         private readonly SurveyCustomerRouteReconstructor $customerRouteReconstructor,
+        private readonly PoleBranchService $poleBranches,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -899,6 +900,10 @@ class SurveyPointImportService
             // because they happen to touch at a shared point. It only exists to continue a
             // route from an EARLIER, separate import, so freshly-created ids are excluded.
         });
+
+        // New poles change the branches, so they are rebuilt right away.
+        $hasPoles = collect($points)->contains(fn (array $point) => SurveyCategories::isPole($point['survey_category'] ?? null));
+        $created['pole_branches'] = $hasPoles ? ($this->poleBranches->refresh($project)['branches'] ?? 0) : 0;
 
         return $created;
     }

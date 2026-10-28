@@ -358,6 +358,9 @@ class ProjectBackupService
                     if ($table === 'survey_points') {
                         // The JSON backup does not contain photo binaries.
                         $row['photo_path'] = null;
+                        // Point ids change on restore; pole branches are regenerated from the map.
+                        $row['pole_branch_id'] = null;
+                        $row['branch_position'] = null;
                     }
 
                     return $row;

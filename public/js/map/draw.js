@@ -77,11 +77,12 @@ function currentRouteDraftMeta() {
     const [fromType, fromId] = startSource ? startSource.split(':') : [null, null];
     const sourceCabinet = fromType === 'cabinet' ? data.cabinets.find(cabinet => Number(cabinet.id) === Number(fromId)) : null;
     const isTrench = type === 'trench';
-    const isAerial = window.ftthMapConfig.networkInstallationType === 'aerial';
+    // Mješovita mreža: i u nadzemnom projektu glavna linija može ići podzemno.
+    const isAerial = document.getElementById('route-draw-installation').value === 'aerial';
     return {
         name: manualName || nextRouteName(type),
         route_type: type,
-        installation_type: isAerial ? 'aerial' : document.getElementById('route-draw-installation').value,
+        installation_type: isAerial ? 'aerial' : 'underground',
         counts_as_trench: isTrench,
         trench_length_m: null,
         microduct_type: isTrench || isAerial ? null : document.getElementById('route-draw-microduct-type').value,
@@ -619,3 +620,8 @@ function handleTraceBranchClick(latlng) {
 function nearestOdf(point) {
     return data.odfs.map(o => ({...o, distance: Math.round(map.distance(point, L.latLng(o.lat, o.lng)))})).sort((a,b) => a.distance-b.distance)[0] || null;
 }
+
+// Polja za mikrocijevi samo kad se linija polaže podzemno.
+document.getElementById('route-draw-installation')?.addEventListener('change', event => {
+    document.querySelectorAll('[data-underground-only]').forEach(field => field.classList.toggle('hidden', event.target.value === 'aerial'));
+});

@@ -218,6 +218,24 @@
     .survey-object-popup { font:12px/1.55 system-ui,sans-serif;min-width:230px; }
     .survey-copy-coordinates { margin-top:6px;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;padding:4px 7px;font-weight:700;cursor:pointer; }
     .survey-cluster-icon { background:transparent;border:0; }
+    .survey-branch-start { margin:6px 0 0 4px;border:1px solid #c4b5fd;border-radius:5px;background:#f5f3ff;color:#6d28d9;padding:4px 7px;font-weight:700;cursor:pointer; }
+    .pole-branch-label { background:transparent;border:0; }
+    .pole-branch-label span { display:inline-block;transform:translate(-50%,-140%);padding:1px 5px;border-radius:4px;background:var(--branch-color);color:#fff;font:800 10px/1.3 Arial,sans-serif;white-space:nowrap;box-shadow:0 0 0 1px #fff,0 1px 3px #0004; }
+    .pole-branch-order { margin-top:5px;max-height:110px;overflow:auto;font-size:10.5px;color:#475569;line-height:1.45; }
+    .pole-branch-row { display:flex;width:100%;align-items:center;gap:6px;border:0;border-bottom:1px solid #f1f5f9;background:transparent;padding:4px 6px;font-family:inherit;font-size:11px;line-height:1.3;color:#334155;cursor:pointer;text-align:left; }
+    .pole-branch-row:hover { background:#f5f3ff; }
+    .pole-branch-row i { width:8px;height:8px;border-radius:50%;flex:none; }
+    .pole-branch-row b { font-weight:750; }
+    .pole-branch-warn { color:#dc2626;font-style:normal; }
+    .pole-link-tools { margin:6px 0 0 4px;padding-top:6px;border-top:1px solid #e2e8f0; }
+    .pole-link-tools:empty { display:none; }
+    .pole-link-title { margin-bottom:4px;color:#475569;font-size:10px;font-weight:800;text-transform:uppercase; }
+    .pole-link-tools button { display:block;width:100%;margin:3px 0 0;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;color:#1e293b;padding:4px 7px;font:inherit;font-weight:700;text-align:left;cursor:pointer; }
+    .pole-link-tools button[data-act="connect-confirm"] { border-color:#86efac;background:#f0fdf4;color:#166534; }
+    .pole-link-tools button[data-act="cut"] { border-color:#fecaca;background:#fef2f2;color:#991b1b; }
+    .pole-branch-riser { color:#78350f;font-style:normal;font-weight:800; }
+    .pole-branch-odf { margin:6px 0 2px;color:#0f172a;font-size:11px;font-weight:800;text-transform:uppercase; }
+    .pole-branch-meta { margin-left:auto;color:#64748b;font-size:10px;font-weight:600; }
     .survey-cluster-icon span { display:grid;width:24px;height:24px;place-items:center;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:#db2777;color:#fff;box-shadow:0 0 0 1px #831843,0 2px 5px #0005;font:800 10px/1 Arial,sans-serif; }
     .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
     .ftth-tag.splice { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }

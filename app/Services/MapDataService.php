@@ -11,10 +11,13 @@ use App\Models\LargePlannerZone;
 use App\Models\MapDraft;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
+use App\Models\PoleBranch;
+use App\Models\PoleBranchLink;
 use App\Models\ProjectAppendixItem;
 use App\Models\SurveyPoint;
 use App\Support\NearbyPointIndex;
 use App\Support\SurveyCategories;
+use Illuminate\Support\Collection;
 
 class MapDataService
 {
@@ -71,6 +74,8 @@ class MapDataService
             ->orderBy('id')->get()
             ->filter(fn (SurveyPoint $point) => $surveyIndex->addIfFree((float) $point->x, (float) $point->y, $point->source_crs ?: 'unknown'))
             ->values();
+        $poleBranches = $this->poleBranches($scope ? $projectId : null, $bbox);
+        $branchCodes = $poleBranches->pluck('code', 'id');
         $gisSegments = GisSegment::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->where('is_allowed', true)->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])->get();
         if ($bbox) {
@@ -183,11 +188,70 @@ class MapDataService
                     'category' => $point->survey_category,
                     'cad_label' => SurveyCategories::cadLabel($point->survey_category, (int) ($point->pole_no ?: $point->point_no)),
                     ...SurveyCategories::presentation($point->survey_category),
+                    'branch_code' => $branchCodes[$point->pole_branch_id] ?? null,
+                    'branch_position' => $point->branch_position,
                     'source_file' => $point->source_file,
                     'source_crs' => $point->source_crs,
                     'imported_at' => $point->imported_at?->toISOString(),
                 ]),
+                'pole_branches' => $poleBranches->values(),
+                'pole_branch_links' => PoleBranchLink::with(['fromPoint', 'toPoint'])
+                    ->when($scope, fn ($query) => $query->where('project_id', $projectId))->get()
+                    ->filter(fn (PoleBranchLink $link) => $link->fromPoint && $link->toPoint)
+                    ->map(fn (PoleBranchLink $link) => [
+                        'id' => $link->id,
+                        'project_id' => $link->project_id,
+                        'type' => $link->type,
+                        'from' => $this->poleSummary($link->fromPoint),
+                        'to' => $this->poleSummary($link->toPoint),
+                    ])->values(),
             ],
+        ];
+    }
+
+    /** Pole branches with their line: the pole they hang from, then their own poles in order. */
+    private function poleBranches(?int $projectId, ?array $bbox): Collection
+    {
+        $branches = PoleBranch::with(['fromPoint', 'poles', 'parent:id,code', 'odf:id,name'])
+            ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
+            ->orderBy('project_id')->orderBy('sort_order')->get();
+        $describe = fn (SurveyPoint $pole) => $this->poleSummary($pole);
+
+        return $branches->map(function (PoleBranch $branch) use ($describe): array {
+            // A re-measured pole shares its position with the original; draw it once.
+            $poles = $branch->poles->unique('branch_position')->map($describe)->values();
+            $from = $branch->fromPoint ? $describe($branch->fromPoint) : null;
+            $longSpanTargets = collect($branch->long_spans ?? [])->pluck('length_m', 'to_id');
+
+            return [
+                'id' => $branch->id,
+                'project_id' => $branch->project_id,
+                'code' => $branch->code,
+                'parent_code' => $branch->parent?->code,
+                'depth' => $branch->depth,
+                'pole_count' => $branch->pole_count,
+                'length_m' => $branch->length_m,
+                'max_span_m' => $branch->max_span_m,
+                'from' => $from,
+                'poles' => $poles,
+                'path' => collect($from ? [$from, ...$poles] : $poles)->map(fn (array $pole) => [$pole['lat'], $pole['lng']])->all(),
+                'long_spans' => $longSpanTargets->map(fn ($length, $toId) => ['to_id' => (int) $toId, 'length_m' => (float) $length])->values(),
+                'odf_name' => $branch->odf?->name,
+                // Where the cable leaves the underground line and climbs the first pole.
+                'entry' => $branch->entry_lat === null ? null : ['lat' => $branch->entry_lat, 'lng' => $branch->entry_lng, 'length_m' => $branch->entry_length_m],
+            ];
+        })->filter(fn (array $branch) => ! $bbox || $this->pathIntersectsBbox($branch['path'], $bbox))
+            ->values();
+    }
+
+    /** @return array{id: int, label: string, lat: float, lng: float} */
+    private function poleSummary(SurveyPoint $pole): array
+    {
+        return [
+            'id' => $pole->id,
+            'label' => SurveyCategories::cadLabel($pole->survey_category, (int) ($pole->pole_no ?: $pole->point_no)),
+            'lat' => (float) $pole->latitude,
+            'lng' => (float) $pole->longitude,
         ];
     }
 

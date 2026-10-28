@@ -101,6 +101,12 @@ class Project extends Model
         return $this->hasMany(SurveyPoint::class);
     }
 
+    /** @return HasMany<PoleBranch, $this> */
+    public function poleBranches(): HasMany
+    {
+        return $this->hasMany(PoleBranch::class)->orderBy('sort_order');
+    }
+
     /** @return HasMany<ProjectSnapshot, $this> */
     public function snapshots(): HasMany
     {

@@ -16,6 +16,19 @@
         <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10px;color:#475569"><input id="survey-clustering-toggle" type="checkbox" checked> Grupisanje bliskih objekata na manjem zoomu</label>
         <div id="survey-object-search-result" style="display:none;margin-top:6px;font-size:10px;color:#475569"></div>
         <div style="height:1px;background:#e2e8f0;margin:12px 0"></div>
+        <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Krakovi stubova</div>
+        <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Stubovi se spajaju u krakove po ulicama, a ne po redoslijedu snimanja. Ako postoji podzemna linija, krakovi kreću sa nje (⤒ prelaz na stub najbliži liniji), a stubovi uz liniju se preskaču. Bez podzemne linije kreću od stuba najbližeg ODF-u.</p>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center">
+            <label for="pole-branch-max-span" style="font-size:10.5px;color:#475569">Najveći raspon (m)</label>
+            <input id="pole-branch-max-span" class="sb-inp" type="number" min="10" max="300" step="5" value="80">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:6px">
+            <button id="pole-branch-generate" type="button" style="border-radius:7px;background:#7c3aed;color:#fff;padding:8px;font-size:11.5px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Spoji stubove u krakove</button>
+            <button id="pole-branch-clear" type="button" style="border-radius:7px;background:#fff;color:#b91c1c;padding:8px 10px;font-size:11px;font-weight:700;border:1px solid #fecaca;cursor:pointer;font-family:inherit">Obriši</button>
+        </div>
+        <div id="pole-branch-status" style="display:none;margin-top:6px;font-size:10.5px;color:#475569;line-height:1.4"></div>
+        <div id="pole-branch-list" style="margin-top:6px;max-height:180px;overflow:auto"></div>
+        <div style="height:1px;background:#e2e8f0;margin:12px 0"></div>
         <div style="font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:7px">Uvoz geodetskog TXT fajla</div>
         <p style="margin:0 0 8px;font-size:10.5px;color:#64748b;line-height:1.4">Format: <code>broj&nbsp;X&nbsp;Y&nbsp;Z&nbsp;opis</code> (Gauss-Krüger). Rovovi se spajaju u linije, ZO/ODF/šahtovi postaju elementi mreže.</p>
         <button id="survey-choose-btn" type="button" style="width:100%;border-radius:7px;background:#059669;color:#fff;padding:9px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit">Odaberi TXT fajl</button>

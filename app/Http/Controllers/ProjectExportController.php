@@ -6,7 +6,9 @@ use App\Http\Controllers\Concerns\ManagesFtthData;
 use App\Http\Controllers\Concerns\WritesDxfEntities;
 use App\Models\NetworkRoute;
 use App\Models\Odf;
+use App\Models\PoleBranch;
 use App\Models\Project;
+use App\Models\SurveyPoint;
 use App\Support\NearbyPointIndex;
 use App\Support\SurveyCategories;
 use Illuminate\Http\Request;
@@ -209,8 +211,8 @@ class ProjectExportController extends Controller
             '0', 'LTYPE', '2', 'DASHED',     '70', '64', '3', '_ _ _ _ _ _', '72', '65', '73', '2', '40', '3.0', '49', '2.0', '49', '-1.0',
             '0', 'ENDTAB',
 
-            // Layeri (12 FTTH + dinamički background)
-            '0', 'TABLE', '2', 'LAYER', '70', (string) (12 + count($bgLayerNames)),
+            // Layeri (13 FTTH + dinamički background)
+            '0', 'TABLE', '2', 'LAYER', '70', (string) (13 + count($bgLayerNames)),
             '0', 'LAYER', '2', '0',              '70', '64', '62',  '7', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_PRIMARY',   '70', '64', '62',  '5', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_SECONDARY', '70', '64', '62',  '3', '6', 'CONTINUOUS',
@@ -223,6 +225,7 @@ class ProjectExportController extends Controller
             '0', 'LAYER', '2', 'FTTH_CABINETS',  '70', '64', '62',  '6', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_HOUSES',    '70', '64', '62',  '4', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_SURVEY_POLES', '70', '64', '62', '6', '6', 'CONTINUOUS',
+            '0', 'LAYER', '2', 'FTTH_POLE_BRANCHES', '70', '64', '62', '6', '6', 'CONTINUOUS',
         ];
         // Dodaj background layer definicije
         array_push($lines, ...$bgLayerDefs);
@@ -507,6 +510,8 @@ class ProjectExportController extends Controller
             }
         }
 
+        array_push($lines, ...$this->dxfPoleBranches($project));
+
         // Geodetski stubovi — na originalnoj GK koordinati, bez duplikata ponovno snimljenih stubova.
         $poleIndex = new NearbyPointIndex(SurveyCategories::duplicateDistance());
         foreach ($project->surveyPoints->whereIn('survey_category', SurveyCategories::poleKeys())->sortBy('id') as $point) {
@@ -606,6 +611,42 @@ class ProjectExportController extends Controller
         return response()->download($tmpPath, $filename, [
             'Content-Type' => 'application/dxf',
         ])->deleteFileAfterSend(true);
+    }
+
+    /** Krakovi stubova: linija od stuba do stuba na GK koordinatama, oznaka kraka, predugi rasponi crveno. */
+    private function dxfPoleBranches(Project $project): array
+    {
+        $colors = [6, 4, 30, 3, 5, 200, 2, 140, 1, 160];
+        $lines = [];
+        $branches = PoleBranch::with(['fromPoint', 'poles'])->where('project_id', $project->id)->orderBy('sort_order')->get();
+        foreach ($branches as $branch) {
+            $poles = $branch->poles->unique('branch_position')->values();
+            $points = collect($branch->fromPoint ? [$branch->fromPoint, ...$poles] : $poles)
+                ->filter(fn (SurveyPoint $pole) => (float) $pole->x != 0.0 && (float) $pole->y != 0.0)->values();
+            if ($points->isEmpty()) {
+                continue;
+            }
+            $color = $colors[(max(1, (int) substr(strtok($branch->code, '.'), 1)) - 1) % count($colors)];
+            if ($points->count() > 1) {
+                array_push($lines, ...$this->dxfPolylineGk($points->map(fn (SurveyPoint $pole) => [(float) $pole->x, (float) $pole->y])->all(), 'FTTH_POLE_BRANCHES', $color));
+            }
+            $longSpanTargets = collect($branch->long_spans ?? [])->pluck('to_id')->all();
+            foreach ($points as $index => $pole) {
+                if ($index > 0 && in_array($pole->id, $longSpanTargets, true)) {
+                    $previous = $points[$index - 1];
+                    array_push($lines, ...$this->dxfLine((float) $previous->x, (float) $previous->y, (float) $pole->x, (float) $pole->y, 'FTTH_POLE_BRANCHES', 1));
+                }
+            }
+            if ($branch->entry_lat !== null && $poles->isNotEmpty()) {
+                // Riser: the cable leaves the underground line and climbs this pole.
+                $riser = $poles->first();
+                array_push($lines, ...$this->dxfText((float) $riser->x + 1.7, (float) $riser->y - 3.2, 'PRELAZ PZ-NZ', 'FTTH_POLE_BRANCHES', 1, 1.4));
+            }
+            $middle = $poles[intdiv(max($poles->count() - 1, 0), 2)] ?? $points->first();
+            array_push($lines, ...$this->dxfText((float) $middle->x + 1.7, (float) $middle->y + 1.6, $branch->code, 'FTTH_POLE_BRANCHES', $color, 1.8));
+        }
+
+        return $lines;
     }
 
     private function dxfPolylineGk(array $gkPath, string $layer, int $color): array

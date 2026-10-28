@@ -134,7 +134,7 @@ class SurveyPointController extends Controller
         }
 
         return response()->json([
-            'message' => "Uvezeno: {$created['points']} tacaka, {$created['trenches']} rovova, {$created['cabinets']} ZO, {$created['odfs']} ODF, {$created['manholes']} sahtova, {$created['splices']} spojnica, {$created['borings']} busenja, {$created['loops']} rezervi.",
+            'message' => "Uvezeno: {$created['points']} tacaka, {$created['trenches']} rovova, {$created['cabinets']} ZO, {$created['odfs']} ODF, {$created['manholes']} sahtova, {$created['splices']} spojnica, {$created['borings']} busenja, {$created['loops']} rezervi.".($created['pole_branches'] ? " Stubovi spojeni u krakove: {$created['pole_branches']}." : ''),
             'created' => $created,
         ], 201);
     }

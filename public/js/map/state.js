@@ -185,6 +185,7 @@ const layerRegistry = {
     gis: [],
     dxf: [],
     survey: [],
+    pole_branches: [],
     preview: [],
     measure: [],
     trace: [],

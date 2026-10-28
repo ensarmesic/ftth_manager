@@ -32,6 +32,7 @@ use App\Http\Controllers\MapLayerController;
 use App\Http\Controllers\MaterialEstimateVersionController;
 use App\Http\Controllers\MissingDropRouteController;
 use App\Http\Controllers\OdfController;
+use App\Http\Controllers\PoleBranchController;
 use App\Http\Controllers\ProjectBackgroundTaskController;
 use App\Http\Controllers\ProjectBackupController;
 use App\Http\Controllers\ProjectCommentController;
@@ -174,6 +175,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/tacke/preview-izvjestaj/{format}', [SurveyPointController::class, 'previewReport'])->middleware(['can:project.edit', 'throttle:heavy'])->where('format', 'csv|pdf')->name('projects.survey-points.preview-report');
     Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.survey-points.import');
     Route::get('/projekti/{project}/tacke/importi', [SurveyPointController::class, 'imports'])->name('projects.survey-points.imports');
+    Route::post('/projekti/{project}/stubovi/krakovi', [PoleBranchController::class, 'generate'])->middleware('can:project.edit')->name('projects.pole-branches.generate');
+    Route::delete('/projekti/{project}/stubovi/krakovi', [PoleBranchController::class, 'destroy'])->middleware('can:project.edit')->name('projects.pole-branches.destroy');
+    Route::post('/projekti/{project}/stubovi/krakovi/veze', [PoleBranchController::class, 'link'])->middleware('can:project.edit')->name('projects.pole-branches.link');
+    Route::delete('/projekti/{project}/stubovi/krakovi/veze', [PoleBranchController::class, 'unlink'])->middleware('can:project.edit')->name('projects.pole-branches.unlink');
     Route::patch('/projekti/{project}/tacke/{point}', [SurveyPointController::class, 'updateObject'])->middleware('can:project.edit')->name('projects.survey-points.update');
     Route::delete('/projekti/{project}/tacke/importi/{batch}', [SurveyPointController::class, 'destroyImport'])->middleware('can:destructive')->where('batch', '[a-f0-9]{40}')->name('projects.survey-points.imports.destroy');
     Route::post('/projekti/{project}/teren/tacke', [SurveyPointController::class, 'storeFieldPoint'])->middleware('can:field.capture')->name('projects.field-points.store');

@@ -371,7 +371,7 @@
                                     <option value="distribution">Sekundarni</option>
                                 </select>
                             </div>
-                            <div class="sb-kicker {{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 'hidden' : '' }}">Mikrocijevi
+                            <div data-underground-only class="sb-kicker {{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 'hidden' : '' }}">Mikrocijevi
                                 <input id="route-draw-microducts" type="number" min="1" value="1" class="sb-inp mt-1">
                             </div>
                         </div>
@@ -379,7 +379,7 @@
                             <div class="sb-kicker">Polaganje
                                 <select id="route-draw-installation" class="sb-sel mt-1 font-normal"><option value="underground" @selected(($activeProject?->network_installation_type ?? 'underground') !== 'aerial')>Podzemna</option><option value="aerial" @selected(($activeProject?->network_installation_type ?? 'underground') === 'aerial')>Nadzemna · ADSS</option></select>
                             </div>
-                            <div class="sb-kicker {{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 'hidden' : '' }}">Mikrocijev
+                            <div data-underground-only class="sb-kicker {{ ($activeProject?->network_installation_type ?? 'underground') === 'aerial' ? 'hidden' : '' }}">Mikrocijev
                                 <select id="route-draw-microduct-type" class="sb-sel mt-1 font-normal"><option value="14/10">14/10</option><option value="10/8">10/8</option></select>
                             </div>
                             <div class="sb-kicker">Niti
@@ -537,7 +537,7 @@
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-0.5 py-2">
-                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'gis' => ['GIS ceste','#0284c7'], 'dxf' => ['DXF','#9333ea'], 'survey' => ['Geodetski objekti','#f59e0b'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
+                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'gis' => ['GIS ceste','#0284c7'], 'dxf' => ['DXF','#9333ea'], 'survey' => ['Geodetski objekti','#f59e0b'], 'pole_branches' => ['Krakovi stubova','#7c3aed'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
                 <div class="layer-row">
                     <label class="flex flex-1 items-center gap-2 cursor-pointer select-none min-w-0">
                         <input type="checkbox" data-layer-toggle="{{ $layer }}" checked>
@@ -677,4 +677,5 @@
 {{-- survey.js mora doci NAKON #survey-panel HTML-a da bi dugmad postojala pri bindanju --}}
 <script src="{{ asset('js/map/survey.js') }}?v={{ filemtime(public_path('js/map/survey.js')) }}"></script>
 <script src="{{ asset('js/map/survey-objects.js') }}?v={{ filemtime(public_path('js/map/survey-objects.js')) }}"></script>
+<script src="{{ asset('js/map/pole-branches.js') }}?v={{ filemtime(public_path('js/map/pole-branches.js')) }}"></script>
 @endsection
