@@ -10,6 +10,7 @@ use App\Models\PoleBranch;
 use App\Models\Project;
 use App\Models\SurveyPoint;
 use App\Support\NearbyPointIndex;
+use App\Support\PoleBranchNames;
 use App\Support\SurveyCategories;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -618,7 +619,8 @@ class ProjectExportController extends Controller
     {
         $colors = [6, 4, 30, 3, 5, 200, 2, 140, 1, 160];
         $lines = [];
-        $branches = PoleBranch::with(['fromPoint', 'poles'])->where('project_id', $project->id)->orderBy('sort_order')->get();
+        $branches = PoleBranch::with(['fromPoint', 'poles', 'odf:id,name'])->where('project_id', $project->id)->orderBy('sort_order')->get();
+        $names = PoleBranchNames::for($branches);
         foreach ($branches as $branch) {
             $poles = $branch->poles->unique('branch_position')->values();
             $points = collect($branch->fromPoint ? [$branch->fromPoint, ...$poles] : $poles)
@@ -643,7 +645,7 @@ class ProjectExportController extends Controller
                 array_push($lines, ...$this->dxfText((float) $riser->x + 1.7, (float) $riser->y - 3.2, 'PRELAZ PZ-NZ', 'FTTH_POLE_BRANCHES', 1, 1.4));
             }
             $middle = $poles[intdiv(max($poles->count() - 1, 0), 2)] ?? $points->first();
-            array_push($lines, ...$this->dxfText((float) $middle->x + 1.7, (float) $middle->y + 1.6, $branch->code, 'FTTH_POLE_BRANCHES', $color, 1.8));
+            array_push($lines, ...$this->dxfText((float) $middle->x + 1.7, (float) $middle->y + 1.6, $names[$branch->id]['name'], 'FTTH_POLE_BRANCHES', $color, 1.8));
         }
 
         return $lines;

@@ -90,7 +90,7 @@ class PoleBranchTest extends TestCase
             $this->pole($project, $number + 5, $x, 0);
         }
         $remeasured = $this->pole($project, 9, 200.6, 0.4);
-        Odf::factory()->create(['project_id' => $project->id, 'latitude' => self::LAT0, 'longitude' => self::LNG0 - 0.0002]);
+        Odf::factory()->create(['project_id' => $project->id, 'name' => 'ODF-03-CENTAR', 'latitude' => self::LAT0, 'longitude' => self::LNG0 - 0.0002]);
 
         $this->postJson(route('projects.pole-branches.generate', $project), ['max_span_m' => 60])
             ->assertOk()->assertJsonPath('summary.branches', 2)->assertJsonPath('summary.poles', 8);
@@ -107,7 +107,9 @@ class PoleBranchTest extends TestCase
         $payload = app(MapDataService::class)->build($project->id)['data'];
         $this->assertSame(['K1', 'K1.1'], collect($payload['pole_branches'])->pluck('code')->all());
         $this->assertCount(3, collect($payload['pole_branches'])->firstWhere('code', 'K1.1')['path']);
-        $this->assertSame('K1.1', collect($payload['survey_objects'])->firstWhere('id', $side->id)['branch_code']);
+        $this->assertSame(['SEKUNDARNI KRAK III-1', 'SEKUNDARNI KRAK III-1.1'], collect($payload['pole_branches'])->pluck('name')->all());
+        $this->assertSame('SEKUNDARNI KRAK III-1', collect($payload['pole_branches'])->firstWhere('code', 'K1.1')['parent_name']);
+        $this->assertSame('SEKUNDARNI KRAK III-1.1', collect($payload['survey_objects'])->firstWhere('id', $side->id)['branch_code']);
     }
 
     public function test_generate_from_chosen_pole_and_regenerate_replaces_branches(): void
@@ -292,7 +294,34 @@ class PoleBranchTest extends TestCase
         $contents = file_get_contents($response->baseResponse->getFile()->getPathname());
         $this->assertStringContainsString("POLYLINE\r\n8\r\nFTTH_POLE_BRANCHES", $contents);
         $this->assertSame(3, substr_count($contents, "VERTEX\r\n8\r\nFTTH_POLE_BRANCHES"));
-        $this->assertMatchesRegularExpression('/TEXT\r\n8\r\nFTTH_POLE_BRANCHES(?:\r\n[^\r\n]*)*?\r\n1\r\nK1\r\n/', $contents);
+        $this->assertMatchesRegularExpression('/TEXT\r\n8\r\nFTTH_POLE_BRANCHES(?:\r\n[^\r\n]*)*?\r\n1\r\nSEKUNDARNI KRAK 1\r\n/', $contents);
+    }
+
+    public function test_branches_are_numbered_per_odf(): void
+    {
+        $project = Project::factory()->create();
+        $first = Odf::factory()->create(['project_id' => $project->id, 'name' => 'ODF-01-BIKODZE']);
+        $second = Odf::factory()->create(['project_id' => $project->id, 'name' => 'ODF RUDINE']);
+        $branch = fn (string $code, int $order, Odf $odf, ?PoleBranch $parent = null) => PoleBranch::create([
+            'project_id' => $project->id, 'parent_id' => $parent?->id, 'code' => $code, 'depth' => $parent ? 1 : 0,
+            'sort_order' => $order, 'max_span_m' => 80, 'odf_id' => $odf->id,
+        ]);
+        $k1 = $branch('K1', 1, $first);
+        $branch('K1.1', 2, $first, $k1);
+        $k2 = $branch('K2', 3, $second);
+        $branch('K2.1', 4, $second, $k2);
+        $branch('K3', 5, $second);
+
+        $names = collect(app(MapDataService::class)->build($project->id)['data']['pole_branches'])->pluck('name', 'code')->all();
+
+        // ODF without a number in its name gets its order in the project.
+        $this->assertSame([
+            'K1' => 'SEKUNDARNI KRAK I-1',
+            'K1.1' => 'SEKUNDARNI KRAK I-1.1',
+            'K2' => 'SEKUNDARNI KRAK II-1',
+            'K2.1' => 'SEKUNDARNI KRAK II-1.1',
+            'K3' => 'SEKUNDARNI KRAK II-2',
+        ], $names);
     }
 
     /** @return array{0: float, 1: float} */

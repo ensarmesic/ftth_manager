@@ -75,6 +75,12 @@ class PoleBranchService
             $plan = $this->planner->plan($metric, $root, $maxSpan) + ['skipped_ids' => []];
             $rootPole = $byId[$root];
             $rootLabel = SurveyCategories::cadLabel($rootPole->survey_category, (int) ($rootPole->pole_no ?: $rootPole->point_no));
+            // The whole tree hangs from one pole, so the ODF nearest that pole feeds every branch (and names them).
+            $odfId = $this->odfNearest($project, $rootPole);
+            foreach ($plan['branches'] as &$branch) {
+                $branch['odf_id'] = $odfId;
+            }
+            unset($branch);
         }
 
         DB::transaction(function () use ($project, $plan, $sameAs, $maxSpan): void {
@@ -268,6 +274,19 @@ class PoleBranchService
         }
 
         return $nearest;
+    }
+
+    private function odfNearest(Project $project, SurveyPoint $pole): ?int
+    {
+        $origin = (float) $pole->latitude;
+        [$px, $py] = $this->toMetric((float) $pole->latitude, (float) $pole->longitude, $origin);
+
+        return Odf::where('project_id', $project->id)->whereNotNull('latitude')->whereNotNull('longitude')->orderBy('id')->get()
+            ->sortBy(function (Odf $odf) use ($px, $py, $origin): float {
+                [$x, $y] = $this->toMetric((float) $odf->latitude, (float) $odf->longitude, $origin);
+
+                return hypot($x - $px, $y - $py);
+            })->first()?->id;
     }
 
     /** @return array{0: float, 1: float} [lat, lng] */

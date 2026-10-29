@@ -16,6 +16,7 @@ use App\Models\PoleBranchLink;
 use App\Models\ProjectAppendixItem;
 use App\Models\SurveyPoint;
 use App\Support\NearbyPointIndex;
+use App\Support\PoleBranchNames;
 use App\Support\SurveyCategories;
 use Illuminate\Support\Collection;
 
@@ -75,7 +76,7 @@ class MapDataService
             ->filter(fn (SurveyPoint $point) => $surveyIndex->addIfFree((float) $point->x, (float) $point->y, $point->source_crs ?: 'unknown'))
             ->values();
         $poleBranches = $this->poleBranches($scope ? $projectId : null, $bbox);
-        $branchCodes = $poleBranches->pluck('code', 'id');
+        $branchNames = $poleBranches->pluck('name', 'id');
         $gisSegments = GisSegment::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))
             ->where('is_allowed', true)->whereIn('segment_type', ['road', 'corridor', 'sidewalk'])->get();
         if ($bbox) {
@@ -188,7 +189,7 @@ class MapDataService
                     'category' => $point->survey_category,
                     'cad_label' => SurveyCategories::cadLabel($point->survey_category, (int) ($point->pole_no ?: $point->point_no)),
                     ...SurveyCategories::presentation($point->survey_category),
-                    'branch_code' => $branchCodes[$point->pole_branch_id] ?? null,
+                    'branch_code' => $branchNames[$point->pole_branch_id] ?? null,
                     'branch_position' => $point->branch_position,
                     'source_file' => $point->source_file,
                     'source_crs' => $point->source_crs,
@@ -216,8 +217,9 @@ class MapDataService
             ->when($projectId, fn ($query) => $query->where('project_id', $projectId))
             ->orderBy('project_id')->orderBy('sort_order')->get();
         $describe = fn (SurveyPoint $pole) => $this->poleSummary($pole);
+        $names = PoleBranchNames::for($branches);
 
-        return $branches->map(function (PoleBranch $branch) use ($describe): array {
+        return $branches->map(function (PoleBranch $branch) use ($describe, $names): array {
             // A re-measured pole shares its position with the original; draw it once.
             $poles = $branch->poles->unique('branch_position')->map($describe)->values();
             $from = $branch->fromPoint ? $describe($branch->fromPoint) : null;
@@ -228,6 +230,9 @@ class MapDataService
                 'project_id' => $branch->project_id,
                 'code' => $branch->code,
                 'parent_code' => $branch->parent?->code,
+                'name' => $names[$branch->id]['name'],
+                'short_name' => $names[$branch->id]['short'],
+                'parent_name' => $branch->parent_id === null ? null : ($names[$branch->parent_id]['name'] ?? null),
                 'depth' => $branch->depth,
                 'pole_count' => $branch->pole_count,
                 'length_m' => $branch->length_m,

@@ -225,7 +225,7 @@
     .pole-branch-row { display:flex;width:100%;align-items:center;gap:6px;border:0;border-bottom:1px solid #f1f5f9;background:transparent;padding:4px 6px;font-family:inherit;font-size:11px;line-height:1.3;color:#334155;cursor:pointer;text-align:left; }
     .pole-branch-row:hover { background:#f5f3ff; }
     .pole-branch-row i { width:8px;height:8px;border-radius:50%;flex:none; }
-    .pole-branch-row b { font-weight:750; }
+    .pole-branch-row b { min-width:0;overflow:hidden;font-weight:750;text-overflow:ellipsis;white-space:nowrap; }
     .pole-branch-warn { color:#dc2626;font-style:normal; }
     .pole-link-tools { margin:6px 0 0 4px;padding-top:6px;border-top:1px solid #e2e8f0; }
     .pole-link-tools:empty { display:none; }
@@ -235,7 +235,7 @@
     .pole-link-tools button[data-act="cut"] { border-color:#fecaca;background:#fef2f2;color:#991b1b; }
     .pole-branch-riser { color:#78350f;font-style:normal;font-weight:800; }
     .pole-branch-odf { margin:6px 0 2px;color:#0f172a;font-size:11px;font-weight:800;text-transform:uppercase; }
-    .pole-branch-meta { margin-left:auto;color:#64748b;font-size:10px;font-weight:600; }
+    .pole-branch-meta { flex:none;margin-left:auto;white-space:nowrap;color:#64748b;font-size:10px;font-weight:600; }
     .survey-cluster-icon span { display:grid;width:24px;height:24px;place-items:center;box-sizing:border-box;border:2px solid #fff;border-radius:50%;background:#db2777;color:#fff;box-shadow:0 0 0 1px #831843,0 2px 5px #0005;font:800 10px/1 Arial,sans-serif; }
     .ftth-tag.boring { width: 10px; height: 10px; border-radius: 2px; background: #dc2626; font-size: 0; transform: translate(-50%, -50%) rotate(45deg); }
     .ftth-tag.splice { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 0 1px #0f172a; font-size: 0; }

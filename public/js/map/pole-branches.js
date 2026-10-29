@@ -33,7 +33,7 @@
         if (branch.entry && firstPole) {
             start = `izlazi iz podzemne linije na stub <b>${escapeHtml(firstPole.label)}</b> (podzemno ${formatMeters(branch.entry.length_m)})`;
         } else if (branch.from) {
-            start = `odvaja se ${branch.parent_code ? `od kraka <b>${escapeHtml(branch.parent_code)}</b> ` : ''}na stubu <b>${escapeHtml(branch.from.label)}</b>`;
+            start = `odvaja se ${branch.parent_name ? `od kraka <b>${escapeHtml(branch.parent_name)}</b> ` : ''}na stubu <b>${escapeHtml(branch.from.label)}</b>`;
         }
         const odf = branch.odf_name ? `<b>ODF:</b> ${escapeHtml(branch.odf_name)}<br>` : '';
         const longSpans = (branch.long_spans || []).map((span) => `${formatMeters(span.length_m)}`).join(', ');
@@ -43,7 +43,7 @@
             .join(' → ');
 
         return (
-            `<div class="pole-branch-popup"><b>KRAK ${escapeHtml(branch.code)}</b><br>${start}<br>${odf}` +
+            `<div class="pole-branch-popup"><b>${escapeHtml(branch.name || `KRAK ${branch.code}`)}</b><br>${start}<br>${odf}` +
             `<b>Stubova u kraku:</b> ${branch.pole_count}<br><b>Dužina:</b> ${formatMeters(branch.length_m)}` +
             (longSpans
                 ? `<br><b style="color:#b91c1c">Predug raspon:</b> ${longSpans} (dozvoljeno ${formatMeters(branch.max_span_m)})`
@@ -72,7 +72,7 @@
         // Prelaz: kabl izlazi iz podzemne linije i penje se na prvi stub kraka.
         const riserPole = branch.poles[0];
         if (branch.entry && riserPole) {
-            const tooltip = `Prelaz podzemno → nadzemno na ${escapeHtml(riserPole.label)} (${escapeHtml(branch.code)})`;
+            const tooltip = `Prelaz podzemno → nadzemno na ${escapeHtml(riserPole.label)} (${escapeHtml(branch.name || branch.code)})`;
             if (branch.entry.length_m >= 1) {
                 layers.push(
                     L.polyline(
@@ -120,7 +120,7 @@
                 icon: L.divIcon({
                     className: 'pole-branch-label',
                     iconSize: null,
-                    html: `<span style="--branch-color:${color}">${escapeHtml(branch.code)}</span>`,
+                    html: `<span style="--branch-color:${color}">${escapeHtml(branch.short_name || branch.code)}</span>`,
                 }),
             });
             labelMarkers.push(label);
@@ -131,7 +131,7 @@
 
     // Oznake krakova samo na bližem zoomu, da ne zatrpaju kartu.
     function syncLabels() {
-        const show = map.getZoom() >= 16 && layerVisible('pole_branches');
+        const show = map.getZoom() >= 15 && layerVisible('pole_branches');
         labelMarkers.forEach((marker) => {
             if (show !== map.hasLayer(marker)) show ? marker.addTo(map) : map.removeLayer(marker);
         });
@@ -347,7 +347,7 @@
                 return (
                     odfHeader +
                     `<button type="button" class="pole-branch-row" data-branch-id="${branch.id}" style="padding-left:${6 + branch.depth * 12}px">` +
-                    `<i style="background:${color}"></i><b>${escapeHtml(branch.code)}</b>${riser}${warn}<span class="pole-branch-meta">${branch.pole_count} st. · ${formatMeters(branch.length_m)}</span></button>`
+                    `<i style="background:${color}"></i><b title="${escapeHtml(branch.name || branch.code)}">${escapeHtml(branch.name || branch.code)}</b>${riser}${warn}<span class="pole-branch-meta">${branch.pole_count} st. · ${formatMeters(branch.length_m)}</span></button>`
                 );
             })
             .join('');
