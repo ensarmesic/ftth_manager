@@ -2,52 +2,34 @@
 
 namespace App\Console\Commands;
 
+use App\Services\DatabaseDumper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
-use PDO;
 use Throwable;
 
 class BackupDatabase extends Command
 {
     protected $signature = 'ftth:backup-database {--keep=14 : Broj dnevnih kopija koje se čuvaju}';
 
-    protected $description = 'Napravi sigurnosnu kopiju SQLite baze i ukloni zastarjele kopije';
+    protected $description = 'Napravi MySQL dump baze i ukloni zastarjele kopije';
 
-    public function handle(): int
+    public function handle(DatabaseDumper $dumper): int
     {
-        if (config('database.default') !== 'sqlite') {
-            $this->error('Automatski backup trenutno podržava SQLite bazu.');
-
-            return self::FAILURE;
-        }
-
-        $source = (string) config('database.connections.sqlite.database');
-        if (! File::isFile($source)) {
-            $this->error("Baza nije pronađena: {$source}");
+        if (! $dumper->isSupported()) {
+            $this->error('Automatski backup podržava samo MySQL bazu.');
 
             return self::FAILURE;
         }
 
         $directory = (string) config('database.backup_directory', storage_path('app/private/backups'));
         File::ensureDirectoryExists($directory);
-        $destination = $directory.'/database-'.now()->format('Y-m-d_His_u').'.sqlite';
-        $partial = $destination.'.partial';
+        $extension = DatabaseDumper::EXTENSION;
+        $destination = $directory.'/database-'.now()->format('Y-m-d_His_u').'.'.$extension;
+        $partial = $directory.'/partial-'.basename($destination);
 
         try {
-            $sourceConnection = new PDO('sqlite:'.$source, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-            $sourceConnection->exec('PRAGMA busy_timeout = 5000');
-            $quotedDestination = str_replace("'", "''", $partial);
-            $sourceConnection->exec("VACUUM INTO '{$quotedDestination}'");
-            $sourceConnection = null;
-
-            $backupConnection = new PDO('sqlite:'.$partial, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-            $integrity = $backupConnection->query('PRAGMA quick_check')->fetchColumn();
-            if ($integrity !== 'ok') {
-                throw new \RuntimeException('SQLite quick_check nije prošao: '.(string) $integrity);
-            }
-            $backupConnection = null;
-
+            $dumper->dump($partial);
             File::move($partial, $destination);
             File::put($destination.'.sha256', hash_file('sha256', $destination).'  '.basename($destination).PHP_EOL);
             $this->uploadEncryptedCopy($destination);
@@ -60,7 +42,7 @@ class BackupDatabase extends Command
         }
 
         collect(File::files($directory))
-            ->filter(fn ($file): bool => str_starts_with($file->getFilename(), 'database-') && $file->getExtension() === 'sqlite')
+            ->filter(fn ($file): bool => str_starts_with($file->getFilename(), 'database-') && $file->getExtension() === $extension)
             ->sortByDesc(fn ($file): int => $file->getMTime())
             ->slice(max(1, (int) $this->option('keep')))
             ->each(fn ($file) => File::delete([$file->getPathname(), $file->getPathname().'.sha256']));
@@ -116,5 +98,12 @@ class BackupDatabase extends Command
             File::delete($encrypted);
         }
         $this->line("Enkriptovana udaljena kopija: {$disk}:{$remoteName}");
+
+        // Same rotation as the local copies; names start with a sortable timestamp.
+        collect(Storage::disk($disk)->files($directory))
+            ->filter(fn (string $file): bool => str_starts_with(basename($file), 'database-') && str_ends_with($file, '.enc'))
+            ->sortDesc()->values()
+            ->slice(max(1, (int) $this->option('keep')))
+            ->each(fn (string $file) => Storage::disk($disk)->delete([$file, $file.'.sha256']));
     }
 }

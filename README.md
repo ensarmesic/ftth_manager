@@ -7,7 +7,7 @@ Aplikacija za planiranje i upravljanje FTTH (Fiber To The Home) mrežnom infrast
 - **Laravel 13.25+** i **PHP 8.4+**
 - **Vite 8.2+**, **Tailwind CSS 4.3+** i **Node.js 24+**
 - **Leaflet**, **Proj4** i lokalno sinhronizovani map vendor asseti
-- **SQLite** po zadanim postavkama; podržani su i MySQL/PostgreSQL
+- **MySQL 8** baza (i za aplikaciju i za testove)
 
 ## Zahtjevi
 
@@ -16,14 +16,14 @@ Aplikacija za planiranje i upravljanje FTTH (Fiber To The Home) mrežnom infrast
 - **PHP** 8.4+
 - **Node.js** 24+ (sa npm)
 - **Composer** 2.0+
-- **SQLite** 3.x (automatski u PHP-u)
+- **MySQL** 8.0+ (`pdo_mysql` ekstenzija u PHP-u)
 - **Git** (za verzioniranje koda)
 
 ### Produkcija
 
-- **PHP** 8.4+ sa extensionima: `mbstring`, `pdo_sqlite` (ili `pdo_mysql`/`pdo_postgresql`)
+- **PHP** 8.4+ sa extensionima: `mbstring`, `pdo_mysql`
 - **Node.js** 24+ (samo za build, ne trebaj runtime)
-- **SQLite** (preporučeno) ili MySQL/PostgreSQL
+- **MySQL** 8.0+ (backup koristi `mysqldump`)
 - **Web server** (Apache, Nginx, itd.)
 
 ## Instalacija
@@ -62,8 +62,10 @@ npm install
 ### 4. Baza podataka
 
 ```bash
-# Kreiraj SQLite datoteku
-touch database/database.sqlite
+# Napravi bazu i korisnika (jednom, kao MySQL root)
+mysql -uroot -p -e "CREATE DATABASE ftth_manager CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER 'ftth'@'localhost' IDENTIFIED BY 'lozinka'; GRANT ALL ON ftth_manager.* TO 'ftth'@'localhost';"
+
+# U .env upiši DB_DATABASE=ftth_manager, DB_USERNAME=ftth i DB_PASSWORD
 
 # Pokreni migracije
 php artisan migrate
@@ -185,7 +187,7 @@ TXT format, produkciju, sigurnosne kopije i oporavak, nalazi se u
 - ✅ CSRF zaštita na svim POST/PATCH/DELETE zahtjevima
 - ✅ Validacija ulaza na frontend i backend
 - ✅ Sigurnosni HTTP headeri i audit zapis izmjena
-- ✅ SQLite baza (ili MySQL/PostgreSQL sa odgovarajućim dozvolama)
+- ✅ MySQL baza sa posebnim korisnikom aplikacije (bez root pristupa)
 - ✅ Eksplicitne uloge i dozvole: administrator, projektant, teren i pregled
 - ✅ TOTP dvofaktorska autentifikacija za administratorske račune (Postavke → Sigurnost računa)
 
@@ -233,8 +235,8 @@ GitHub Actions automatski pokreće testove pri push-u na `main` branch. Vidi `.g
 
 ### "Baza podataka je read-only"
 
-- **Uzrok**: Datoteka `database.sqlite` nema write permissiona
-- **Rješenje**: `chmod 666 database/database.sqlite` ili provjeri ownership
+- **Uzrok**: MySQL korisnik iz `.env` nema prava pisanja na bazu
+- **Rješenje**: `GRANT ALL ON ftth_manager.* TO 'ftth'@'localhost';` kao MySQL root
 
 ### "npm run dev ne radi"
 
@@ -259,7 +261,7 @@ GitHub Actions automatski pokreće testove pri push-u na `main` branch. Vidi `.g
 
 - **Laravel 13** - PHP framework
 - **PHP 8.4** - Verzija
-- **SQLite/MySQL/PostgreSQL** - Baza podataka
+- **MySQL 8** - Baza podataka
 
 ### Struktura foldera
 

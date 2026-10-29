@@ -32,7 +32,7 @@ return new class extends Migration
         });
 
         Schema::table('survey_points', function (Blueprint $table): void {
-            // No foreign key: on SQLite that would rebuild the whole table. PoleBranchService clears it.
+            // No foreign key: PoleBranchService clears these columns itself when branches are rebuilt.
             $table->unsignedBigInteger('pole_branch_id')->nullable()->after('pole_no')->index();
             $table->unsignedInteger('branch_position')->nullable()->after('pole_branch_id');
         });

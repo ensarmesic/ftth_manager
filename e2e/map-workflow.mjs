@@ -614,10 +614,10 @@ try {
         exports.backup.status !== 200 ||
         !exports.backup.type.includes("application/octet-stream") ||
         exports.backup.size < 1000 ||
-        !exports.backup.prefix.startsWith("SQLite format 3")
+        !exports.backup.prefix.startsWith("-- MySQL dump")
     ) {
         throw new Error(
-            `SQLite backup nije validan: ${JSON.stringify(exports.backup)}.`,
+            `MySQL backup nije validan: ${JSON.stringify(exports.backup)}.`,
         );
     }
     if (
@@ -634,7 +634,7 @@ try {
     }
 
     process.stdout.write(
-        "✓ Mapa, Auto ODO, validacija, svi izvozi i SQLite backup rade.\n",
+        "✓ Mapa, Auto ODO, validacija, svi izvozi i MySQL backup rade.\n",
     );
 } catch (error) {
     process.stderr.write(`✗ Map workflow nije prošao: ${error.message}\n`);

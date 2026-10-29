@@ -7,10 +7,27 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 
 class Project extends Model
 {
     use HasFactory;
+
+    /**
+     * Network elements reference each other with SET NULL keys (house → ODO, ODO → ODF ...).
+     * MySQL rejects such an update while the project row itself is being deleted, so they are
+     * removed first, children before parents, while the project still exists.
+     */
+    private const DELETE_FIRST = ['fiber_splices', 'houses', 'routes', 'cabinets', 'network_branches', 'pole_branch_links', 'pole_branches', 'survey_points', 'odfs'];
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Project $project): void {
+            foreach (self::DELETE_FIRST as $table) {
+                DB::table($table)->where('project_id', $project->id)->delete();
+            }
+        });
+    }
 
     public function houseDistanceLimit(): int
     {

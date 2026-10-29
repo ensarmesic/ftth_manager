@@ -37,7 +37,7 @@ Ovaj dokument je radna checklista. Projektne dozvole nisu dio plana: mali tim na
 - [x] Mjerenje broja elemenata, veličine payload-a i vremena izgradnje map podataka
 - [x] Viewport `bbox` API za ograničeno učitavanje velikih map slojeva
 - [x] Queue background poslovi sa statusom i rezultatom za DXF, PDF, velike importe i auto-planiranje
-- [~] PostgreSQL/PostGIS profil — odgođeno po dogovoru; trenutna SQLite baza ostaje
+- [~] PostgreSQL/PostGIS profil — odgođeno po dogovoru; aplikacija koristi MySQL 8
 
 ## Faza 5 — kvalitet koda i CI
 

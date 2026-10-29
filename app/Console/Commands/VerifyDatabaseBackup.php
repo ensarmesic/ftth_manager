@@ -2,22 +2,24 @@
 
 namespace App\Console\Commands;
 
+use App\Services\DatabaseDumper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use PDO;
 use Throwable;
 
 class VerifyDatabaseBackup extends Command
 {
-    protected $signature = 'ftth:verify-backup {path? : Putanja do SQLite kopije; zadana je najnovija} {--output= : Sačuvaj dekriptovanu SQLite kopiju na ovu putanju}';
+    protected $signature = 'ftth:verify-backup {path? : Putanja do kopije (.sql ili .sql.enc); zadana je najnovija} {--output= : Sačuvaj dekriptovanu kopiju na ovu putanju}';
 
-    protected $description = 'Provjeri checksum, SQLite integritet i probno otvaranje sigurnosne kopije';
+    protected $description = 'Provjeri checksum i da li je MySQL dump potpun i spreman za vraćanje';
 
-    public function handle(): int
+    public function handle(DatabaseDumper $dumper): int
     {
         $path = $this->argument('path');
         if (! is_string($path) || $path === '') {
-            $path = collect(File::glob(config('database.backup_directory').'/database-*.sqlite'))->sortDesc()->first();
+            $directory = config('database.backup_directory');
+            $path = collect(File::glob($directory.'/database-*.sql'))
+                ->sortByDesc(fn (string $file): int => File::lastModified($file))->first();
         }
         if (! is_string($path) || ! File::isFile($path)) {
             $this->error('Nije pronađena sigurnosna kopija za provjeru.');
@@ -40,18 +42,12 @@ class VerifyDatabaseBackup extends Command
                 $requestedOutput = $this->option('output');
                 $databasePath = is_string($requestedOutput) && $requestedOutput !== ''
                     ? $requestedOutput
-                    : storage_path('framework/cache/backup-verify-'.bin2hex(random_bytes(8)).'.sqlite');
+                    : storage_path('framework/cache/backup-verify-'.bin2hex(random_bytes(8)).'.'.pathinfo(substr($path, 0, -4), PATHINFO_EXTENSION));
                 File::ensureDirectoryExists(dirname($databasePath));
                 $this->decrypt($path, $databasePath);
                 $temporary = $requestedOutput ? null : $databasePath;
             }
-            $database = new PDO('sqlite:'.$databasePath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-            $result = $database->query('PRAGMA quick_check')->fetchColumn();
-            if ($result !== 'ok') {
-                throw new \RuntimeException('SQLite quick_check: '.(string) $result);
-            }
-            $database->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll();
-            $database = null;
+            $dumper->verify($databasePath);
         } catch (Throwable $exception) {
             report($exception);
             $this->error('Backup nije upotrebljiv: '.$exception->getMessage());

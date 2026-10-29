@@ -51,7 +51,7 @@ Kod trajnog brisanja projekta dijalog navodi broj ODF-ova, ODO ormarića, kuća 
 
 ## Produkcijska kontrola i sigurnosne kopije
 
-Produkcijska instalacija mora koristiti `APP_DEBUG=false`, dnevnu rotaciju logova i aktivan Laravel scheduler. Svaki dan u 02:30 lokalna SQLite baza kopira se u privatni `storage/app/private/backups` direktorij; čuva se posljednjih 14 kopija. Komanda `php artisan ftth:backup-database --keep=14` može se pokrenuti i ručno. Backup direktorij ne smije biti javno dostupan i mora se dodatno kopirati na odvojeni server ili medij.
+Produkcijska instalacija mora koristiti `APP_DEBUG=false`, dnevnu rotaciju logova i aktivan Laravel scheduler. Svaki dan u 02:30 MySQL baza se izvozi (`mysqldump`) u privatni `storage/app/private/backups` direktorij; čuva se posljednjih 14 kopija. Komanda `php artisan ftth:backup-database --keep=14` može se pokrenuti i ručno. Backup direktorij ne smije biti javno dostupan i mora se dodatno kopirati na odvojeni server ili medij.
 
 Autentificirani health-check `/sistem/health` potvrđuje rad aplikacije i baze, verziju, okruženje, deployment datum i vrijeme posljednjeg backupa. Spori HTTP zahtjevi bilježe se u dnevni Laravel log zajedno s rutom, trajanjem i korisnikom. Health-check ne zamjenjuje vanjski monitoring dostupnosti i prostora na disku.
 

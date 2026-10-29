@@ -38,6 +38,14 @@ return [
             'report' => false,
         ],
 
+        // Encrypted off-site backup copies: a folder another program syncs away from this disk (Dropbox, NAS share ...).
+        'offsite' => [
+            'driver' => 'local',
+            'root' => env('FTTH_BACKUP_OFFSITE_PATH', storage_path('app/offsite-backups')),
+            'throw' => true,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

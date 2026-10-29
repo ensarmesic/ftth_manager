@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\AsBuiltComparisonService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ProjectManagementController extends Controller
@@ -129,7 +130,8 @@ class ProjectManagementController extends Controller
 
     public function destroy(int $id)
     {
-        Project::findOrFail($id)->delete();
+        $project = Project::findOrFail($id);
+        DB::transaction(fn () => $project->delete());
 
         return back()->with('success', 'Projekat je obrisan.');
     }

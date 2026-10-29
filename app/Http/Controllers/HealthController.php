@@ -11,7 +11,8 @@ class HealthController extends Controller
     public function __invoke(): JsonResponse
     {
         DB::select('select 1');
-        $latestBackup = collect(File::glob(storage_path('app/private/backups/database-*.sqlite')))
+        $directory = config('database.backup_directory');
+        $latestBackup = collect(File::glob($directory.'/database-*.sql'))
             ->sortByDesc(fn (string $file): int => File::lastModified($file))
             ->first();
         $backupAgeHours = $latestBackup ? round((time() - File::lastModified($latestBackup)) / 3600, 1) : null;

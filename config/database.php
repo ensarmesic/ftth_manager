@@ -9,6 +9,7 @@ return [
     'backup_disk' => env('FTTH_BACKUP_DISK'),
     'backup_remote_directory' => env('FTTH_BACKUP_REMOTE_DIRECTORY', 'ftth-backups'),
     'backup_encryption_key' => env('FTTH_BACKUP_ENCRYPTION_KEY'),
+    'mysqldump_path' => env('FTTH_MYSQLDUMP_PATH'),
 
     /*
     |--------------------------------------------------------------------------
@@ -22,7 +23,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -36,18 +37,6 @@ return [
     */
 
     'connections' => [
-
-        'sqlite' => [
-            'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
-            'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-            'transaction_mode' => 'DEFERRED',
-        ],
 
         'mysql' => [
             'driver' => 'mysql',
