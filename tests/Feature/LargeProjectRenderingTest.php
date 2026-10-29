@@ -41,6 +41,8 @@ class LargeProjectRenderingTest extends TestCase
         }
         NetworkRoute::factory()->count(120)->create(['project_id' => $project->id]);
 
+        // The first visit runs the project check once; later visits reuse it until the project changes.
+        $this->actingAs($user)->get(route('dashboard'))->assertOk();
         DB::flushQueryLog();
         DB::enableQueryLog();
         $this->actingAs($user)->get(route('dashboard'))->assertOk();

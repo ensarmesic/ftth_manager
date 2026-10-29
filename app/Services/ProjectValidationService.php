@@ -24,13 +24,13 @@ class ProjectValidationService
         $branchRoutes = $this->branchRoutes($project);
 
         if ($project->odfs->isEmpty()) {
-            $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mreznog plana.');
+            $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mrežnog plana.');
         }
         if ($project->cabinets->isEmpty()) {
-            $items[] = $this->validationItem('info', $project->isAerial() ? 'Projekat nema ODP/NAP tačke na stubovima.' : 'Projekat nema ODO ormarice.', 'project', $project->id, $project->isAerial() ? 'Postavi priključne stubove i ODP/NAP tačke.' : 'Pokreni automatsko planiranje ODO ormarica.');
+            $items[] = $this->validationItem('info', $project->isAerial() ? 'Projekat nema ODP/NAP tačke na stubovima.' : 'Projekat nema ODO ormariće.', 'project', $project->id, $project->isAerial() ? 'Postavi priključne stubove i ODP/NAP tačke.' : 'Pokreni automatsko planiranje ODO ormarića.');
         }
         if ($project->houses->isEmpty()) {
-            $items[] = $this->validationItem('info', 'Projekat nema kuce.', 'project', $project->id, 'Dodaj kuce iz mape ili liste.');
+            $items[] = $this->validationItem('info', 'Projekat nema kuće.', 'project', $project->id, 'Dodaj kuće iz mape ili liste.');
         }
         foreach ($project->odfs as $odf) {
             if ($odf->latitude === null || $odf->longitude === null) {
@@ -55,27 +55,27 @@ class ProjectValidationService
                 $items[] = $this->validationItem('error', "{$house->label} nema koordinate.", 'house', $house->id, 'Postavi kuću na mapi.');
             }
             if (! $house->cabinet_id) {
-                $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kucu ODO ormaricu.');
+                $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kuću ODO ormariću.');
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
                 $distance = $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $house->cabinet->latitude, (float) $house->cabinet->longitude);
                 if ($distance > $distanceLimit) {
                     $distanceLabel = number_format($distance, 1, ',', '.');
-                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od ODO.", 'house', $house->id, "Udaljenost do dodijeljenog ODO {$house->cabinet->name}: {$distanceLabel} m (prag {$distanceLimit} m). Pomjeri taj ODO blize ili promijeni dodjelu kuce.");
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od ODO.", 'house', $house->id, "Udaljenost do dodijeljenog ODO {$house->cabinet->name}: {$distanceLabel} m (prag {$distanceLimit} m). Pomjeri taj ODO bliže ili promijeni dodjelu kuće.");
                 }
             }
             if ($branchRoutes->isNotEmpty() && $house->latitude && $house->longitude) {
                 $nearestDistance = $this->nearestBranchDistance((float) $house->latitude, (float) $house->longitude, $branchRoutes, $distanceLimit);
                 if ($nearestDistance > $distanceLimit) {
                     $branchDistanceLabel = number_format($nearestDistance, 1, ',', '.');
-                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, "Udaljenost do najblizeg kraka: {$branchDistanceLabel} m (prag {$distanceLimit} m). Dodaj krak blize objektu ili provjeri polozaj kuce.");
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, "Udaljenost do najbližeg kraka: {$branchDistanceLabel} m (prag {$distanceLimit} m). Dodaj krak bliže objektu ili provjeri položaj kuće.");
                 }
                 $hasExplicitBranchMismatch = $house->cabinet
                     && $house->branch_id
                     && $house->cabinet->branch_id
                     && (int) $house->branch_id !== (int) $house->cabinet->branch_id;
                 if ($hasExplicitBranchMismatch) {
-                    $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili rucno ispravi vezu.');
+                    $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili ručno ispravi vezu.');
                 }
             }
         }
@@ -84,7 +84,7 @@ class ProjectValidationService
             $houseCount = $cabinet->houses->count();
             $neededSplitters = $this->splitterCount($houseCount);
             if (! $cabinet->odf_id && ! $cabinet->parent_cabinet_id) {
-                $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Povezi ODO sa najblizim ODF-om.');
+                $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Poveži ODO sa najbližim ODF-om.');
             }
             if ($cabinet->latitude === null || $cabinet->longitude === null) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} nema koordinate.", 'cabinet', $cabinet->id, 'Postavi ODO na mapi.');
@@ -96,7 +96,7 @@ class ProjectValidationService
                 $items[] = $this->validationItem('info', "{$cabinet->name} nema povezanih kuća.", 'cabinet', $cabinet->id, 'Poveži kuće na ODO.');
             }
             if ($largePlannerCapacity === null && $houseCount > 12) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} ima vise od 12 kuca.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
+                $items[] = $this->validationItem('error', "{$cabinet->name} ima više od 12 kuća.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
             }
             if ($largePlannerCapacity !== null && ($houseCount > $largePlannerCapacity || $houseCount > $cabinet->capacity)) {
                 $items[] = $this->validationItem('error', "{$cabinet->name} ima više kuća od dozvoljenog kapaciteta.", 'cabinet', $cabinet->id, "Smanji broj kuća ili povećaj kapacitet iznad {$houseCount} portova.");
@@ -106,7 +106,7 @@ class ProjectValidationService
             }
             if ($branchRoutes->isNotEmpty() && $cabinet->latitude && $cabinet->longitude) {
                 if ($this->nearestBranchDistance((float) $cabinet->latitude, (float) $cabinet->longitude, $branchRoutes, 10) > 10) {
-                    $items[] = $this->validationItem('warning', "{$cabinet->name} nije na trasi/kraku.", 'cabinet', $cabinet->id, 'Pomjeri ODO na najblizu tacku trase.');
+                    $items[] = $this->validationItem('warning', "{$cabinet->name} nije na trasi/kraku.", 'cabinet', $cabinet->id, 'Pomjeri ODO na najblizu tačku trase.');
                 }
             }
         }
@@ -153,7 +153,7 @@ class ProjectValidationService
             if (! $route->path) {
                 $items[] = $this->validationItem('warning', "{$route->name} nema geometriju.", 'route', $route->id, 'Uredi geometriju trase na mapi.');
             } elseif (count($route->path) < 2) {
-                $items[] = $this->validationItem('error', "{$route->name} ima manje od dvije tacke.", 'route', $route->id, 'Dodaj najmanje dvije tacke trase.');
+                $items[] = $this->validationItem('error', "{$route->name} ima manje od dvije tačke.", 'route', $route->id, 'Dodaj najmanje dvije tačke trase.');
             } else {
                 $path = array_values($route->path);
                 $actualLength = $this->geometry->polylineLength($path);

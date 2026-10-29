@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
-use PDO;
 use Tests\TestCase;
 
 class SystemOperationsTest extends TestCase
@@ -31,56 +30,55 @@ class SystemOperationsTest extends TestCase
 
     public function test_database_backup_command_creates_a_rotatable_copy(): void
     {
-        $source = storage_path('framework/testing/backup-source.sqlite');
         $backupDirectory = storage_path('framework/testing/database-backups');
-        File::ensureDirectoryExists(dirname($source));
-        File::delete($source);
         File::deleteDirectory($backupDirectory);
-        $database = new PDO('sqlite:'.$source);
-        $database->exec('CREATE TABLE restore_probe (id INTEGER PRIMARY KEY, value TEXT NOT NULL)');
-        $database->exec("INSERT INTO restore_probe (value) VALUES ('ftth-test-database')");
-        $database = null;
-        config()->set('database.default', 'sqlite');
-        config()->set('database.connections.sqlite.database', $source);
         config()->set('database.backup_directory', $backupDirectory);
 
         $this->artisan('ftth:backup-database --keep=1')->assertSuccessful();
+        $this->artisan('ftth:backup-database --keep=1')->assertSuccessful();
 
-        $copies = File::glob($backupDirectory.'/database-*.sqlite');
-        $this->assertNotEmpty($copies);
-        $copy = collect($copies)->sortDesc()->first();
+        // --keep=1 leaves only the newest dump.
+        $copies = File::glob($backupDirectory.'/database-*.sql');
+        $this->assertCount(1, $copies);
+        $copy = $copies[0];
         $this->assertFileExists($copy.'.sha256');
         $this->assertStringStartsWith(hash_file('sha256', $copy), File::get($copy.'.sha256'));
-
-        // Probno vraćanje ne koristi aktivnu konekciju: kopija se otvara kao
-        // zasebna baza i iz nje se čita zapis koji postoji samo u izvoru.
-        $restored = new PDO('sqlite:'.$copy);
-        $this->assertSame('ok', $restored->query('PRAGMA quick_check')->fetchColumn());
-        $this->assertSame('ftth-test-database', $restored->query('SELECT value FROM restore_probe')->fetchColumn());
-        $restored = null;
+        $dump = File::get($copy);
+        $this->assertStringContainsString('CREATE TABLE `projects`', $dump);
+        $this->assertStringContainsString('-- Dump completed', $dump);
 
         $this->artisan('ftth:verify-backup', ['path' => $copy])->assertSuccessful();
 
-        File::delete($source);
         File::deleteDirectory($backupDirectory);
     }
 
-    public function test_database_backup_download_supports_relative_ci_database_path(): void
+    public function test_verify_backup_rejects_an_incomplete_dump(): void
     {
-        $relativePath = 'storage/framework/testing/relative-ci-database.sqlite';
-        $absolutePath = base_path($relativePath);
-        File::ensureDirectoryExists(dirname($absolutePath));
-        File::copy(database_path('database.sqlite'), $absolutePath);
-        config()->set('database.connections.sqlite.database', $relativePath);
+        $backupDirectory = storage_path('framework/testing/broken-backups');
+        File::deleteDirectory($backupDirectory);
+        File::ensureDirectoryExists($backupDirectory);
+        $broken = $backupDirectory.'/database-broken.sql';
+        File::put($broken, '-- MySQL dump 10.13
+CREATE TABLE `projects` (
+');
+        File::put($broken.'.sha256', hash_file('sha256', $broken).'  database-broken.sql'.PHP_EOL);
 
-        $response = $this->actingAs(User::factory()->create())
-            ->get(route('settings.backup'));
+        $this->artisan('ftth:verify-backup', ['path' => $broken])->assertFailed();
+
+        File::deleteDirectory($backupDirectory);
+    }
+
+    public function test_database_backup_download_is_a_mysql_dump(): void
+    {
+        $response = $this->actingAs(User::factory()->create())->get(route('settings.backup'));
 
         $response->assertOk()->assertDownload();
         $this->assertSame('application/octet-stream', $response->headers->get('content-type'));
-        $this->assertSame('SQLite format 3', substr((string) File::get($absolutePath), 0, 15));
+        $download = $response->baseResponse->getFile()->getPathname();
+        $this->assertStringEndsWith('.sql', $response->headers->get('content-disposition'));
+        $this->assertStringStartsWith('-- MySQL dump', (string) File::get($download));
 
-        File::delete($absolutePath);
+        File::delete($download);
     }
 
     public function test_responses_expose_server_timing_for_diagnostics(): void
@@ -107,18 +105,10 @@ class SystemOperationsTest extends TestCase
         if (! function_exists('sodium_crypto_secretstream_xchacha20poly1305_init_push')) {
             $this->markTestSkipped('Sodium nije dostupan.');
         }
-        $source = storage_path('framework/testing/encrypted-backup-source.sqlite');
         $localDirectory = storage_path('framework/testing/encrypted-local');
         $remoteDirectory = storage_path('framework/testing/encrypted-remote');
-        File::delete($source);
         File::deleteDirectory($localDirectory);
         File::deleteDirectory($remoteDirectory);
-        $database = new PDO('sqlite:'.$source);
-        $database->exec('CREATE TABLE secret_probe (value TEXT)');
-        $database->exec("INSERT INTO secret_probe VALUES ('not-visible-remotely')");
-        $database = null;
-        config()->set('database.default', 'sqlite');
-        config()->set('database.connections.sqlite.database', $source);
         config()->set('database.backup_directory', $localDirectory);
         config()->set('database.backup_disk', 'backup-test');
         config()->set('database.backup_remote_directory', 'copies');
@@ -131,10 +121,9 @@ class SystemOperationsTest extends TestCase
         $this->assertNotNull($encrypted);
         $contents = File::get($encrypted);
         $this->assertStringStartsWith('FTTHENC1', $contents);
-        $this->assertStringNotContainsString('not-visible-remotely', $contents);
+        $this->assertStringNotContainsString('CREATE TABLE', $contents);
         $this->assertFileExists($encrypted.'.sha256');
 
-        File::delete($source);
         File::deleteDirectory($localDirectory);
         File::deleteDirectory($remoteDirectory);
     }

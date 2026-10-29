@@ -166,7 +166,7 @@
                 <article class="settings-panel">
                     <x-settings-heading title="Status sistema" description="Tehničke informacije trenutne instalacije." icon="system" />
                     <div class="settings-panel-body"><dl class="settings-facts">
-                        @foreach ([['Aplikacija', 'FTTH Manager'], ['Verzija', '1.8.0'], ['Mapa', 'Leaflet + Esri / OSM'], ['Baza', 'SQLite'], ['Okruženje', app()->environment()], ['PHP', PHP_VERSION], ['Laravel', app()->version()]] as [$key, $value])
+                        @foreach ([['Aplikacija', 'FTTH Manager'], ['Verzija', config('app.version')], ['Mapa', 'Leaflet + Esri / OSM'], ['Baza', $databaseInfo['engine']], ['Okruženje', app()->environment()], ['PHP', PHP_VERSION], ['Laravel', app()->version()]] as [$key, $value])
                             <div><dt>{{ $key }}</dt><dd>{{ $value }}</dd></div>
                         @endforeach
                     </dl></div>
@@ -174,7 +174,7 @@
                 <article class="settings-panel settings-backup-panel">
                     <x-settings-heading title="Sigurnosna kopija" description="Preuzmi kompletnu kopiju baze podataka." icon="backup" />
                     <div class="settings-panel-body">
-                        <div class="settings-backup-visual"><span>DB</span><div><b>database.sqlite</b><small>{{ $databaseInfo['exists'] ? number_format($databaseInfo['size'] / 1024, 0, ',', '.') . ' KB' : 'Baza nije pronađena' }}</small></div></div>
+                        <div class="settings-backup-visual"><span>DB</span><div><b>{{ $databaseInfo['label'] }}</b><small>{{ $databaseInfo['exists'] ? number_format($databaseInfo['size'] / 1024, 0, ',', '.') . ' KB' : 'Baza nije pronađena' }}</small></div></div>
                         @if($databaseInfo['modifiedAt'])<p>Zadnja izmjena: <b>{{ date('d.m.Y. H:i', $databaseInfo['modifiedAt']) }}</b></p>@endif
                         <a href="{{ route('settings.backup') }}" class="btn-save {{ $databaseInfo['exists'] ? '' : 'pointer-events-none opacity-50' }}">Preuzmi backup</a>
                     </div>

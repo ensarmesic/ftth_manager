@@ -61,7 +61,7 @@
         <span><i style="width:{{ $projectContext['utilization'] }}%"></i></span>
     </div>
     <a class="network-project-health {{ $projectContext['issues'] ? 'has-issues' : 'is-clear' }}" href="{{ route('project-check.index', ['project' => $contextProject->id]) }}">
-        <small>PROVJERA</small><b>{{ $projectContext['issues'] ?: 'Uredno' }}</b><span>{{ $projectContext['issues'] ? 'nepovezanih elemenata' : 'Nema osnovnih grešaka' }}</span>
+        <small>PROVJERA</small><b>{{ $projectContext['issues'] ?: 'Uredno' }}</b><span>{{ $projectContext['issues'] ? 'grešaka i upozorenja' : 'Nema grešaka ni upozorenja' }}</span>
     </a>
 </section>
 @endif

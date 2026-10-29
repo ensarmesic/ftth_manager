@@ -12,6 +12,7 @@ use App\Services\BranchSyncService;
 use App\Services\DXFParserService;
 use App\Services\FtthIntelligenceService;
 use App\Services\GeometryService;
+use App\Services\ProjectHealthService;
 use App\Services\ProjectMaterialService;
 use App\Services\ProjectValidationService;
 use Illuminate\Database\Eloquent\Model;
@@ -54,7 +55,8 @@ trait ManagesFtthData
         $capacity = (int) Cabinet::query()->where('project_id', $projectId)
             ->selectRaw('COALESCE(SUM(splitter_count * ports_per_splitter), 0) AS total')->value('total');
         $usedPorts = (int) House::query()->where('project_id', $projectId)->whereNotNull('cabinet_id')->count();
-        $issues = (int) $project->unassigned_houses_count + (int) $project->unlinked_cabinets_count;
+        // Same count as Provjera projekta, Izvještaji and the dashboard.
+        $issues = app(ProjectHealthService::class)->forProject($project)['issues'];
 
         return [
             'project' => $project,

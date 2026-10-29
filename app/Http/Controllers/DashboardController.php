@@ -8,6 +8,7 @@ use App\Models\House;
 use App\Models\NetworkRoute;
 use App\Models\Project;
 use App\Models\ProjectSnapshot;
+use App\Services\ProjectHealthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -16,16 +17,12 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(ProjectHealthService $health): View
     {
         $projects = Project::query()
             ->withCount([
                 'odfs', 'cabinets', 'houses', 'routes',
                 'houses as unassigned_houses_count' => fn ($query) => $query->whereNull('cabinet_id'),
-                'cabinets as unlinked_cabinets_count' => fn ($query) => $query->whereNull('odf_id'),
-                'routes as incomplete_routes_count' => fn ($query) => $query
-                    ->where('route_type', '!=', 'trench')
-                    ->where(fn ($route) => $route->whereNull('microduct_type')->orWhereNull('fiber_count')),
             ])
             ->latest('updated_at')
             ->get();
@@ -42,7 +39,8 @@ class DashboardController extends Controller
         $connectedHouses = $usedPorts;
         $totalHouses = (int) $projects->sum('houses_count');
 
-        $projectCards = $projects->map(function (Project $project) use ($capacityByProject): array {
+        $healthByProject = $health->forProjects($projects);
+        $projectCards = $projects->map(function (Project $project) use ($capacityByProject, $healthByProject): array {
             $projectCapacity = (int) ($capacityByProject[$project->id] ?? 0);
             $projectUsed = (int) ($project->houses_count - $project->unassigned_houses_count);
 
@@ -51,7 +49,9 @@ class DashboardController extends Controller
                 'capacity' => $projectCapacity,
                 'used' => $projectUsed,
                 'utilization' => $projectCapacity > 0 ? min((int) round($projectUsed / $projectCapacity * 100), 100) : 0,
-                'issues' => $project->unassigned_houses_count + $project->unlinked_cabinets_count + $project->incomplete_routes_count,
+                // Same errors + warnings as Provjera projekta and Izvještaji.
+                'issues' => $healthByProject[$project->id]['issues'],
+                'errors' => $healthByProject[$project->id]['errors'],
             ];
         });
 
@@ -76,7 +76,9 @@ class DashboardController extends Controller
             'projectCards' => $projectCards,
             'attentionProjects' => $projectCards->where('issues', '>', 0)->sortByDesc('issues')->take(5),
             'recentActivity' => ActivityLog::query()->with('user')->latest()->limit(8)->get(),
-            'latestSnapshots' => ProjectSnapshot::query()->with('project')->latest()->limit(5)->get(),
+            // Without the payload: sorting whole snapshots runs MySQL out of sort memory.
+            'latestSnapshots' => ProjectSnapshot::query()->select(['id', 'project_id', 'label', 'created_at'])
+                ->with('project:id,name')->latest()->limit(5)->get(),
         ]);
     }
 

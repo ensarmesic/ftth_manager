@@ -10,10 +10,12 @@ use App\Models\NetworkRoute;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
 use App\Services\FiberPlanService;
+use App\Services\ProjectHealthService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ReportController extends Controller
@@ -35,17 +37,22 @@ class ReportController extends Controller
             ->orderBy('name')
             ->get();
 
+        $health = app(ProjectHealthService::class)->forProjects($projects);
+
         return view('ftth.reports', [
             'projects' => $projects,
             'projectInsights' => $projects->mapWithKeys(fn (Project $project) => [$project->id => [
-                'validation' => $this->projectValidation->validateProject($project),
+                'validation' => $health[$project->id]['items'],
                 'materials' => $this->projectMaterials->summary($project),
             ]]),
             'totals' => [
                 'projects' => Project::count(),
                 'houses' => House::count(),
                 'cabinets' => Cabinet::count(),
-                'free_ports' => (int) Cabinet::selectRaw('SUM(MAX((splitter_count * ports_per_splitter) - (SELECT COUNT(*) FROM houses WHERE cabinet_id = cabinets.id), 0)) as total')->value('total'),
+                // Cabinets with more houses than ports count as 0 free ports, not negative.
+                'free_ports' => (int) DB::query()->selectRaw('SUM(CASE WHEN free > 0 THEN free ELSE 0 END) as total')
+                    ->fromSub(Cabinet::selectRaw('(splitter_count * ports_per_splitter) - (SELECT COUNT(*) FROM houses WHERE houses.cabinet_id = cabinets.id) as free'), 'cabinet_free')
+                    ->value('total'),
                 'duct' => NetworkRoute::where('route_type', '!=', 'trench')->sum('duct_length_m'),
                 'fiber' => NetworkRoute::where('route_type', '!=', 'trench')->sum('fiber_length_m'),
                 'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,

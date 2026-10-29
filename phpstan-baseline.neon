@@ -37,18 +37,6 @@ parameters:
 			path: app/Console/Commands/AuditFtthIntegrity.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/BranchController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/BranchController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
 			identifier: property.notFound
 			count: 1
@@ -59,18 +47,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/BranchController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/CabinetController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/CabinetController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
@@ -91,21 +67,9 @@ parameters:
 			path: app/Http/Controllers/DashboardController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$incomplete_routes_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/DashboardController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
 			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/DashboardController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
+			count: 2
 			path: app/Http/Controllers/DashboardController.php
 
 		-
@@ -175,18 +139,6 @@ parameters:
 			path: app/Http/Controllers/GisController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/GisController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/GisController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
 			identifier: property.notFound
 			count: 1
@@ -203,18 +155,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/GisController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/HouseController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/HouseController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
@@ -245,18 +185,6 @@ parameters:
 			identifier: argument.unresolvableType
 			count: 1
 			path: app/Http/Controllers/LookupController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MapController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MapController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
@@ -331,18 +259,6 @@ parameters:
 			path: app/Http/Controllers/MaterialEstimateVersionController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MissingDropRouteController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MissingDropRouteController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
 			identifier: property.notFound
 			count: 1
@@ -353,18 +269,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/MissingDropRouteController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/OdfController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/OdfController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
@@ -383,18 +287,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/ProjectCommentController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectExportController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectExportController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
@@ -445,18 +337,6 @@ parameters:
 			path: app/Http/Controllers/ProjectManagementController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectManagementController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectManagementController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
 			identifier: property.notFound
 			count: 1
@@ -467,18 +347,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/ProjectManagementController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectPlanningController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectPlanningController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
@@ -493,18 +361,6 @@ parameters:
 			path: app/Http/Controllers/ProjectPlanningController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectPrintController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProjectPrintController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
 			identifier: property.notFound
 			count: 1
@@ -517,18 +373,6 @@ parameters:
 			path: app/Http/Controllers/ProjectPrintController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ReportController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ReportController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
 			identifier: property.notFound
 			count: 1
@@ -539,18 +383,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/ReportController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unassigned_houses_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/RouteController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Project\:\:\$unlinked_cabinets_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/RouteController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
