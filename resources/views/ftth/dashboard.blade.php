@@ -30,13 +30,13 @@
 
     <section class="cc-kpis">
         @foreach([
-            ['odf','ODF CENTRI',$stats['odfs'],'Projektovano','blue'],
-            ['cabinet','ODO ORMARIĆI',$stats['cabinets'],'Projektovano','green'],
-            ['house','KUĆE / OBJEKTI',number_format($stats['houses'], 0, ',', '.'),'Obuhvaćeno','violet'],
-            ['route','PROJEKTOVANA TRASA',number_format($stats['route_km'],2, ',', '.').' km','Ukupna dužina','orange'],
-            ['alert','OTVORENE STAVKE',$openIssues,'Zahtijeva pažnju','red'],
-        ] as [$icon,$label,$value,$hint,$tone])
-            <article class="cc-kpi"><span class="cc-kpi-icon {{ $tone }}">{!! $icons[$icon] !!}</span><div><small>{{ $label }}</small><strong>{{ $value }}</strong><span>{{ $hint }}</span></div></article>
+            ['odf','ODF CENTRI',$stats['odfs'],'Projektovano','blue',''],
+            ['cabinet','ODO ORMARIĆI',$stats['cabinets'],'Projektovano','green',''],
+            ['house','KUĆE / OBJEKTI',number_format($stats['houses'], 0, ',', '.'),'Obuhvaćeno','violet',''],
+            ['route','PROJEKTOVANA TRASA',number_format($stats['route_km'],2, ',', '.'),'Ukupna dužina','orange','km'],
+            ['alert','OTVORENE STAVKE',number_format($openIssues, 0, ',', '.'),'Zahtijeva pažnju','red',''],
+        ] as [$icon,$label,$value,$hint,$tone,$unit])
+            <article class="cc-kpi"><span class="cc-kpi-icon {{ $tone }}">{!! $icons[$icon] !!}</span><div><small>{{ $label }}</small><strong>{{ $value }}@if($unit)<em class="cc-kpi-unit"> {{ $unit }}</em>@endif</strong><span>{{ $hint }}</span></div></article>
         @endforeach
     </section>
 

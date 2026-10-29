@@ -62,8 +62,6 @@ strong,
     font-variant-numeric: tabular-nums;
 }
 
-.bg-blue-600,
-.bg-sky-600,
 .bg-sky-700 {
     background-color: var(--ms-blue) !important;
 }
@@ -73,15 +71,12 @@ strong,
     background-color: var(--ms-blue-dark) !important;
 }
 
-.text-blue-600,
 .text-blue-700,
 .text-sky-700 {
     color: var(--ms-blue-dark) !important;
 }
 
-.border-blue-100,
 .border-blue-200,
-.border-sky-100,
 .border-sky-200 {
     border-color: var(--ms-blue-light) !important;
 }
@@ -92,8 +87,7 @@ strong,
 }
 
 .bg-emerald-600,
-.bg-emerald-700,
-.bg-green-600 {
+.bg-emerald-700 {
     background-color: var(--ms-green-dark) !important;
 }
 
@@ -104,9 +98,7 @@ strong,
 
 .text-emerald-700,
 .text-emerald-800,
-.text-emerald-900,
-.text-green-600,
-.text-green-700 {
+.text-emerald-900 {
     color: var(--ms-green-dark) !important;
 }
 
@@ -116,13 +108,11 @@ strong,
     border-color: var(--ms-green-light) !important;
 }
 
-.bg-emerald-50,
-.bg-green-50 {
+.bg-emerald-50 {
     background-color: var(--ms-green-bg) !important;
 }
 
-.bg-emerald-100,
-.bg-green-100 {
+.bg-emerald-100 {
     background-color: var(--ms-green-light) !important;
 }
 
@@ -184,14 +174,6 @@ body > div > aside nav a:hover,
     border-color: rgb(255 255 255 / .12);
     background: rgb(255 255 255 / .09) !important;
     color: #fff !important;
-}
-
-body > div > aside nav a.bg-blue-600,
-#mobile-sidebar nav a.bg-blue-600 {
-    border-color: rgb(255 255 255 / .22);
-    background: linear-gradient(135deg, #ffffff, #dcefff) !important;
-    color: #063f66 !important;
-    box-shadow: 0 10px 24px rgb(0 0 0 / .18);
 }
 
 body > div > aside nav a span,
@@ -477,18 +459,15 @@ main > .shrink-0.border-b p {
 
 .app-content .border,
 .app-content .border-t,
-.app-content .border-b,
-.app-content .border-y {
+.app-content .border-b {
     border-color: var(--app-border) !important;
 }
 
-.app-content .text-slate-500,
-.app-content .text-zinc-500 {
+.app-content .text-slate-500 {
     color: #64748b !important;
 }
 
-.app-content .text-slate-700,
-.app-content .text-zinc-700 {
+.app-content .text-slate-700 {
     color: #263445 !important;
 }
 
@@ -684,195 +663,22 @@ main > .shrink-0.border-b p {
 }
 
 /* Network planning navigation */
-.app-navigation .nav-network-item,
-#mobile-sidebar .nav-network-item {
-    position: relative;
-    min-height: 3.05rem;
-    gap: .7rem !important;
-    padding-top: .42rem !important;
-    padding-bottom: .42rem !important;
-}
-.app-navigation .nav-network-item > span:first-child,
-#mobile-sidebar .nav-network-item > span:first-child {
-    z-index: 1;
-    width: 1.75rem;
-    height: 1.75rem;
-    min-width: 1.75rem;
-    border: 1px solid rgb(255 255 255 / .08);
-}
-.nav-network-copy {
-    display: grid !important;
-    min-width: 0;
-    height: auto !important;
-    gap: .18rem;
-    border-radius: 0 !important;
-    background: transparent !important;
-}
-.nav-network-copy b {
-    overflow: hidden;
-    color: #eff8ff;
-    font-size: .72rem;
-    font-weight: 800;
-    line-height: 1.05;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.nav-network-copy small {
-    overflow: hidden;
-    color: rgb(169 197 218 / .72);
-    font-size: .55rem;
-    font-weight: 600;
-    line-height: 1.05;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.nav-network-item.nav-tone-blue > span:first-child { color: #70c8ff; background: rgb(14 128 196 / .17) !important; }
-.nav-network-item.nav-tone-green > span:first-child { color: #8fdf70; background: rgb(75 155 58 / .17) !important; }
-.nav-network-item.nav-tone-violet > span:first-child { color: #c4a0ff; background: rgb(126 78 203 / .17) !important; }
-.nav-network-item.nav-tone-orange > span:first-child { color: #ffbe64; background: rgb(207 124 22 / .17) !important; }
-.nav-network-item.nav-tone-cyan > span:first-child { color: #67d8d0; background: rgb(27 151 145 / .17) !important; }
-.nav-network-item.sidebar-active .nav-network-copy b { color: #fff; }
-.nav-network-item.sidebar-active .nav-network-copy small { color: rgb(220 240 255 / .82); }
 @media (min-width: 1024px) { .app-sidebar { width: 14.5rem !important; } }
 
 /* Full page application surfaces */
-.app-content > section.grid.gap-6 {
-    align-items: start;
-    gap: 1.1rem !important;
-}
 
 .app-content > section.grid.gap-4 {
     gap: .9rem !important;
-}
-
-.app-content > section.mb-6 {
-    margin-bottom: 1rem !important;
 }
 
 .app-content > section.mb-5 {
     margin-bottom: .9rem !important;
 }
 
-@media (min-width: 1280px) {
-    .app-content > section.grid.gap-6.xl\:grid-cols-\[420px_1fr\] {
-        grid-template-columns: minmax(340px, 390px) minmax(0, 1fr) !important;
-        gap: 1.25rem !important;
-    }
-}
-
-.app-content > section.grid.gap-6 > form:first-child {
-    position: sticky;
-    top: 1rem;
-    overflow: hidden;
-    border: 1px solid rgb(219 231 243 / .95) !important;
-    background:
-        linear-gradient(180deg, rgb(255 255 255 / .98), rgb(249 252 255 / .95)) !important;
-    box-shadow: 0 24px 70px rgb(15 23 42 / .10) !important;
-}
-
-.app-content > section.grid.gap-6 > form:first-child::before {
-    content: "";
-    display: block;
-    height: .28rem;
-    margin: -1.25rem -1.25rem 1rem;
-    background: linear-gradient(90deg, var(--ms-blue), var(--ms-green));
-}
-
-.app-content > section.grid.gap-6 > form:first-child::after {
-    content: none;
-}
-
-.app-content > section.grid.gap-6 > form:first-child h2 {
-    display: flex;
-    align-items: center;
-    gap: .6rem;
-    margin-bottom: 1.1rem !important;
-    color: #082f49;
-    font-size: .98rem;
-}
-
-.app-content > section.grid.gap-6 > form:first-child h2::before {
-    content: "";
-    width: .75rem;
-    height: .75rem;
-    border-radius: .22rem;
-    background: linear-gradient(135deg, var(--ms-blue), var(--ms-green));
-    box-shadow: 0 5px 14px rgb(48 141 204 / .3);
-}
-
-.app-content > section.grid.gap-6 > form:first-child .grid.gap-4 {
-    gap: .9rem !important;
-}
-
-.app-content > section.grid.gap-6 > form:first-child label {
-    gap: .38rem !important;
-}
-
-.app-content > section.grid.gap-6 > form:first-child input,
-.app-content > section.grid.gap-6 > form:first-child select,
-.app-content > section.grid.gap-6 > form:first-child textarea {
-    min-height: 2.45rem;
-    border-color: #d8e4f0 !important;
-    background: linear-gradient(180deg, #fff, #fbfdff);
-    font-size: .82rem;
-}
-
-.app-content > section.grid.gap-6 > form:first-child button[type='submit'],
-.app-content > section.grid.gap-6 > form:first-child button:not([type]) {
-    min-height: 2.55rem;
-    background: linear-gradient(135deg, var(--ms-green-dark), #4f8934) !important;
-}
-
-.app-content > section.grid.gap-6 > .app-table-card,
-.app-content > section.grid.gap-6 > div.app-table-card {
-    min-width: 0;
-    align-self: stretch;
-}
-
-.app-content > section.grid.gap-6 > .app-table-card::before,
-.app-content > section.grid.gap-6 > div.app-table-card::before {
-    content: "Pregled podataka";
-    display: flex;
-    align-items: center;
-    min-height: 3.25rem;
-    border-bottom: 1px solid var(--app-border);
-    background:
-        linear-gradient(90deg, rgb(48 141 204 / .09), transparent 32%),
-        linear-gradient(180deg, #fff, #f7faff);
-    padding: 0 1rem;
-    color: #082f49;
-    font-size: .82rem;
-    font-weight: 900;
-    letter-spacing: .01em;
-    text-transform: uppercase;
-}
-
-.app-content > section.grid.gap-6 > .app-table-card table,
-.app-content > section.grid.gap-6 > div.app-table-card table {
-    min-width: 860px;
-}
-
-.app-content > section.grid.gap-6 > .app-table-card th,
-.app-content > section.grid.gap-6 > div.app-table-card th,
-.app-content > section.grid.gap-6 > .app-table-card td,
-.app-content > section.grid.gap-6 > div.app-table-card td {
-    padding-top: .82rem !important;
-    padding-bottom: .82rem !important;
-}
-
-.app-content > section.grid.gap-6 > .app-table-card tbody td:first-child,
-.app-content > section.grid.gap-6 > div.app-table-card tbody td:first-child {
-    color: #0f2f4a;
-    font-weight: 850;
-}
-
 .app-content .stat-card,
 .app-content .stat-card,
-.app-content > section.mt-6.grid article,
 .app-content > section.mt-5,
-.app-content > section.mb-5,
-.app-content > details.mb-6,
-.app-content > section.mb-6.rounded-md {
+.app-content > section.mb-5 {
     border-color: var(--app-border) !important;
     border-radius: var(--app-radius) !important;
     background: rgb(255 255 255 / .96) !important;
@@ -978,19 +784,9 @@ main > .shrink-0.border-b p {
     box-shadow: 0 18px 48px rgb(15 23 42 / .08) !important;
 }
 
-@media (max-width: 1279px) {
-    .app-content > section.grid.gap-6 > form:first-child {
-        position: static;
-    }
-}
-
 @media (prefers-reduced-motion: no-preference) {
     .app-content .stat-card,
     .app-content .stat-card,
-    .app-content > section.grid.gap-6 > form:first-child,
-    .app-content > section.grid.gap-6 > .app-table-card,
-    .app-content > section.grid.gap-6 > div.app-table-card,
-    .app-content > section.mt-6.grid > article,
     .app-content > section.mt-5 {
         animation: app-rise .32s ease both;
     }
@@ -1041,12 +837,6 @@ body > div > aside::before {
 
 body > div > aside > * {
     position: relative;
-}
-
-body > div > aside nav a.bg-blue-600 span,
-#mobile-sidebar nav a.bg-blue-600 span {
-    background: linear-gradient(135deg, var(--ms-blue), var(--ms-blue-dark)) !important;
-    color: #fff !important;
 }
 
 main > header {
@@ -1101,24 +891,6 @@ main > .shrink-0.border-b h1::after {
     font-size: .82rem;
 }
 
-.app-content > section.grid.gap-6 > form:first-child button {
-    position: relative;
-    overflow: hidden;
-}
-
-.app-content > section.grid.gap-6 > form:first-child button::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(110deg, transparent, rgb(255 255 255 / .28), transparent);
-    transform: translateX(-120%);
-    transition: transform .45s ease;
-}
-
-.app-content > section.grid.gap-6 > form:first-child button:hover::after {
-    transform: translateX(120%);
-}
-
 .app-content .stat-card,
 .app-content .stat-card,
 .app-content .stat-card {
@@ -1142,11 +914,6 @@ main > .shrink-0.border-b h1::after {
 .app-content .app-table-card [class*='bg-blue-50'] {
     border: 1px solid rgb(255 255 255 / .7);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / .75);
-}
-
-.app-content > section.grid.gap-6 > .app-table-card,
-.app-content > section.grid.gap-6 > div.app-table-card {
-    box-shadow: 0 28px 78px rgb(15 23 42 / .11) !important;
 }
 
 /* Professional cleanup */
@@ -1177,10 +944,6 @@ main > header {
 
 main > header [data-header-action] {
     min-height: 1.85rem;
-}
-
-.app-content > section.grid.gap-6 > form:first-child {
-    top: 1.25rem;
 }
 
 .app-content input,
@@ -1270,7 +1033,6 @@ main > header [data-header-action] {
 /* Stat cards, flash messages, toolbar: natural height, don't grow */
 .app-content > .flash-success,
 .app-content > .flash-error,
-.app-content > section.mb-6.grid,
 .app-content > section.mb-5.grid,
 .app-content > section.mb-3.grid,
 .app-content > section.mt-5.grid,
@@ -1286,12 +1048,6 @@ main > header [data-header-action] {
 }
 
 /* Form+table section: FILLS remaining vertical space */
-.app-content > section.grid.gap-6 {
-    flex: 1 !important;
-    min-height: 0 !important;
-    align-items: stretch !important;
-    overflow: hidden !important;
-}
 
 /* Single table card as direct child also fills remaining space */
 .app-content > .app-table-card {
@@ -1300,24 +1056,8 @@ main > header [data-header-action] {
 }
 
 /* 2-column grid at lg (1024px+) so form and table are ALWAYS side-by-side */
-@media (min-width: 1024px) {
-    .app-content > section.grid.gap-6 {
-        grid-template-columns: minmax(270px, 340px) minmax(0, 1fr) !important;
-    }
-}
 
 /* Form (left column): fills column height, internal hidden scroll if needed */
-.app-content > section.grid.gap-6 > form:first-child {
-    position: relative !important;
-    top: auto !important;
-    overflow-y: auto !important;
-    max-height: 100% !important;
-    scrollbar-width: none !important;
-    align-self: stretch !important;
-}
-.app-content > section.grid.gap-6 > form:first-child::-webkit-scrollbar {
-    display: none !important;
-}
 
 /* Table card (right column): flex column, fills height */
 .app-content .app-table-card {
@@ -1496,8 +1236,7 @@ main > .shrink-0.border-b h1::after {
 
 /* ---- Table: stronger row hover (only on dedicated table cards, not inline tables) ---- */
 .app-table-card > .overflow-x-auto tbody tr:hover,
-.app-content > .app-table-card tbody tr:hover,
-.app-content > section.grid.gap-6 .app-table-card tbody tr:hover {
+.app-content > .app-table-card tbody tr:hover {
     background: linear-gradient(90deg, #eaf4ff 0%, #f4f9ff 100%) !important;
     box-shadow: inset 4px 0 0 #308dcc !important;
 }
@@ -1542,17 +1281,8 @@ main > header .rounded-full {
 }
 
 /* ---- Submit buttons in forms: stronger ---- */
-.app-content > section.grid.gap-6 > form:first-child button[type='submit'],
-.app-content > section.grid.gap-6 > form:first-child button:not([type]) {
-    background: linear-gradient(135deg, #16a34a, #15803d) !important;
-    box-shadow: 0 4px 16px rgba(21,128,61,.34) !important;
-}
 
 /* ---- Form panel accent bar: vivid ---- */
-.app-content > section.grid.gap-6 > form:first-child::before {
-    height: .3rem;
-    background: linear-gradient(90deg, #308dcc, #65a845);
-}
 
 /* ---- Reports: all table rows forced white (no grey alternating) ---- */
 .app-content > section.grid.gap-5 article table tbody tr {

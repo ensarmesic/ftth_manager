@@ -524,6 +524,25 @@ document.querySelectorAll('.app-table-card').forEach((card, index) => {
         header.addEventListener('click', sort); header.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); sort(); } });
     });
 });
+// Forms with a project picker offer only ODF/ODO options of the chosen project (options carry data-project).
+document.querySelectorAll('form').forEach(form => {
+    const projectSelect = form.querySelector('select[name="project_id"]');
+    const dependent = [...form.querySelectorAll('select')].filter(select => select.querySelector('option[data-project]'));
+    if (!projectSelect || !dependent.length) return;
+    const apply = () => {
+        const project = projectSelect.value;
+        dependent.forEach(select => {
+            [...select.options].forEach(option => {
+                if (!option.dataset.project) return;
+                const fits = !project || option.dataset.project === project;
+                option.hidden = !fits;
+                if (!fits && option.selected) select.value = '';
+            });
+        });
+    };
+    projectSelect.addEventListener('change', apply);
+    apply();
+});
 const savedFtthSettings = JSON.parse(localStorage.getItem('ftthSettings') || '{}');
 document.documentElement.classList.toggle('compact-tables', Boolean(savedFtthSettings.compactTables));
 document.documentElement.classList.toggle('small-markers', savedFtthSettings.smallMarkers !== false);

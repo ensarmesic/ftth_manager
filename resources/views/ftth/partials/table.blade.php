@@ -28,7 +28,7 @@
                         <th>{{ $label }}</th>
                     @endforeach
                     @if (isset($deleteRoute) || isset($editRoute))
-                        <th>Akcije</th>
+                        <th class="tbl-actions">Akcije</th>
                     @endif
                 </tr>
             </thead>
@@ -45,14 +45,14 @@
                             </td>
                         @endforeach
                         @if (isset($deleteRoute) || isset($editRoute))
-                            <td>
+                            <td class="tbl-actions">
                                 <div class="flex items-center gap-1.5 flex-nowrap">
                                     <details class="relative inline-block">
                                         <summary class="tbl-btn tbl-btn-view list-none cursor-pointer">
                                             <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M8 9.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path d="M1.38 8a6.985 6.985 0 0113.24 0A6.985 6.985 0 018 13c-2.87 0-5.356-1.74-6.62-4.323-.015-.024-.015-.024 0 0z"/></svg>
                                             Pregled
                                         </summary>
-                                        <div class="absolute left-0 z-20 mt-1.5 grid min-w-64 gap-1 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-2xl">
+                                        <div class="absolute right-0 z-20 mt-1.5 grid min-w-64 gap-1 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-2xl">
                                             @foreach ($columns as $key => $label)
                                                 @php $value = data_get($row, $key); @endphp
                                                 <div class="grid grid-cols-[110px_1fr] gap-2 py-0.5">
@@ -68,7 +68,7 @@
                                                 <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3"><path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61z"/></svg>
                                                 Uredi
                                             </summary>
-                                            <form method="POST" action="{{ $editRoute($row->id) }}" class="absolute left-0 z-20 mt-1.5 grid min-w-72 gap-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
+                                            <form method="POST" action="{{ $editRoute($row->id) }}" class="absolute right-0 z-20 mt-1.5 grid min-w-72 gap-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
                                                 @csrf
                                                 @method('PATCH')
                                                 @foreach ($editFields as $field => $config)
@@ -76,6 +76,10 @@
                                                         $label = is_array($config) ? ($config['label'] ?? $field) : $config;
                                                         $type = is_array($config) ? ($config['type'] ?? 'text') : 'text';
                                                         $options = is_array($config) ? ($config['options'] ?? []) : [];
+                                                        // A closure lists only what fits this row (e.g. ODO-i of the row's own project).
+                                                        if ($options instanceof \Closure) {
+                                                            $options = $options($row);
+                                                        }
                                                         // Keep the current value selectable; otherwise the browser
                                                         // picks the first option and saving silently overwrites it.
                                                         $current = data_get($row, $field);
@@ -87,9 +91,9 @@
                                                         {{ $label }}
                                                         @if ($type === 'select')
                                                             <select name="{{ $field }}" class="ftth-input text-[13px] font-normal normal-case tracking-normal">
-                                                                @foreach ($options as $value => $optionLabel)
-                                                                    <option value="{{ $value }}" @selected((string) data_get($row, $field) === (string) $value)>{{ $optionLabel }}</option>
-                                                                @endforeach
+                                                                {{-- One line: every row repeats these options, indentation alone doubled the page size. --}}
+                                                                @php($currentValue = (string) data_get($row, $field))
+                                                                @foreach ($options as $value => $optionLabel)<option value="{{ $value }}" @selected($currentValue === (string) $value)>{{ $optionLabel }}</option>@endforeach
                                                             </select>
                                                         @elseif ($type === 'checkbox')
                                                             <input type="hidden" name="{{ $field }}" value="0">

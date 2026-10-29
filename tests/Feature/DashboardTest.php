@@ -47,8 +47,8 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee('AKTIVNI PROJEKAT')
             ->assertSee('Banovici FTTH')
-            ->assertSee('1,50 km')
-            ->assertSee('2 problema')
+            ->assertSee('1,50<em class="cc-kpi-unit"> km</em>', false)
+            ->assertSee('4 problema')
             ->assertSee('1 / 12 portova');
     }
 

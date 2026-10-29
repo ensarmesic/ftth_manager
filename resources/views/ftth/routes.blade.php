@@ -26,7 +26,7 @@
     </article>
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Ormarići / Splitteri</div><div class="stat-value">{{ $routeStats['planned_cabinets'] }}<span class="text-slate-300 mx-1">/</span>{{ $routeStats['planned_splitters'] }}</div></div>
+            <div><div class="stat-label">Ormarići / Splitteri</div><div class="stat-value">{{ number_format($routeStats['planned_cabinets'], 0, ',', '.') }}<span class="text-slate-300 mx-1">/</span>{{ $routeStats['planned_splitters'] }}</div></div>
             <div class="stat-icon green"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/></svg></div>
         </div>
     </article>
@@ -59,9 +59,9 @@
         'name' => 'Trasa',
         'route_type' => ['label' => 'Tip', 'type' => 'select', 'options' => ['trench' => 'Glavni rov', 'backbone' => 'Backbone', 'feeder' => 'Primarni (feeder)', 'distribution' => 'Distribucija', 'drop' => 'Drop']],
         'from_type' => ['label' => 'Početak', 'type' => 'select', 'options' => ['' => 'Bez početka', 'odf' => 'ODF', 'cabinet' => 'ODO/FTTH']],
-        'odf_id' => ['label' => 'Početni ODF', 'type' => 'select', 'options' => ['' => 'Bez ODF veze'] + $odfs->pluck('name', 'id')->all()],
-        'from_id' => ['label' => 'Početni ODO', 'type' => 'select', 'options' => ['' => 'Bez ODO početka'] + $cabinets->pluck('name', 'id')->all()],
-        'cabinet_id' => ['label' => 'Do ODO', 'type' => 'select', 'options' => ['' => 'Bez ormarića'] + $cabinets->pluck('name', 'id')->all()],
+        'odf_id' => ['label' => 'Početni ODF', 'type' => 'select', 'options' => fn ($row) => ['' => 'Bez ODF veze'] + $odfs->where('project_id', $row->project_id)->pluck('name', 'id')->all()],
+        'from_id' => ['label' => 'Početni ODO', 'type' => 'select', 'options' => fn ($row) => ['' => 'Bez ODO početka'] + $cabinets->where('project_id', $row->project_id)->pluck('name', 'id')->all()],
+        'cabinet_id' => ['label' => 'Do ODO', 'type' => 'select', 'options' => fn ($row) => ['' => 'Bez ormarića'] + $cabinets->where('project_id', $row->project_id)->pluck('name', 'id')->all()],
         'microduct_type' => ['label' => 'Mikrocijev', 'type' => 'select', 'options' => ['14/10' => '14/10', '10/8' => '10/8']],
         'fiber_count' => ['label' => 'Niti', 'type' => 'select', 'options' => [0 => 'Bez kabla', 4 => '4', 12 => '12', 24 => '24', 48 => '48']],
         'note' => 'Napomena',
@@ -97,19 +97,19 @@
             <label class="ftth-label">Početni ODF
                 <select name="odf_id" class="ftth-input">
                     <option value="">Bez ODF veze</option>
-                    @foreach($odfs as $odf)<option value="{{ $odf->id }}">{{ $odf->name }}</option>@endforeach
+                    @foreach($odfs as $odf)<option value="{{ $odf->id }}" data-project="{{ $odf->project_id }}">{{ $odf->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Početni ODO
                 <select name="from_id" class="ftth-input">
                     <option value="">Bez ODO početka</option>
-                    @foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}">{{ $cabinet->name }}</option>@endforeach
+                    @foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}" data-project="{{ $cabinet->project_id }}">{{ $cabinet->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Krajnji ormarić
                 <select name="cabinet_id" class="ftth-input">
                     <option value="">Bez ormarića</option>
-                    @foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}">{{ $cabinet->name }}</option>@endforeach
+                    @foreach($cabinets as $cabinet)<option value="{{ $cabinet->id }}" data-project="{{ $cabinet->project_id }}">{{ $cabinet->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Naziv trase<input name="name" value="{{ old('name') }}" class="ftth-input" required></label>

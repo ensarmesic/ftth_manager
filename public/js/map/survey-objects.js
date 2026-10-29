@@ -85,6 +85,8 @@
         const layerOn = layerVisible('survey');
         const view = map.getBounds().pad(0.25);
         const lowZoom = map.getZoom() <= 15;
+        // Poles already drawn as a branch line need no cluster bubble on a far zoom.
+        const hideBranchPoles = lowZoom && layerVisible('pole_branches') && !query;
         let matchCount = 0;
         const groups = new Map();
         surveyObjectMarkers.forEach(marker => {
@@ -92,6 +94,7 @@
             matchCount++;
             const latLng = marker.getLatLng();
             if (!view.contains(latLng)) return;
+            if (hideBranchPoles && marker._surveyObject?.branch_code) return;
             // Na manjem zoomu grupišemo po ekranskoj ćeliji, inače samo tačke na istoj poziciji.
             const pixel = lowZoom ? map.latLngToContainerPoint(latLng) : null;
             const key = lowZoom ? `${Math.floor(pixel.x / 38)}:${Math.floor(pixel.y / 38)}` : `${latLng.lat.toFixed(7)}:${latLng.lng.toFixed(7)}`;
@@ -136,5 +139,6 @@
     clusteringToggle?.addEventListener('change', () => { savePreferences(); render(); });
     customLayerRenderers.survey = render;
     map.on('zoomend moveend', render);
+    document.querySelector('[data-layer-toggle="pole_branches"]')?.addEventListener('change', () => requestAnimationFrame(render));
     render();
 })();

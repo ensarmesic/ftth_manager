@@ -13,7 +13,7 @@
         <div class="flex items-start justify-between gap-3">
             <div>
                 <div class="stat-label">ODO ormarići</div>
-                <div class="stat-value">{{ $cabinets->count() }}</div>
+                <div class="stat-value">{{ number_format($cabinets->count(), 0, ',', '.') }}</div>
             </div>
             <div class="stat-icon blue">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/></svg>
@@ -24,7 +24,7 @@
         <div class="flex items-start justify-between gap-3">
             <div>
                 <div class="stat-label">Splitteri 1:4</div>
-                <div class="stat-value">{{ $cabinets->sum('splitter_count') }}</div>
+                <div class="stat-value">{{ number_format($cabinets->sum('splitter_count'), 0, ',', '.') }}</div>
             </div>
             <div class="stat-icon violet">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clip-rule="evenodd"/></svg>
@@ -35,7 +35,7 @@
         <div class="flex items-start justify-between gap-3">
             <div>
                 <div class="stat-label">Ukupno portova</div>
-                <div class="stat-value">{{ $capacity }}</div>
+                <div class="stat-value">{{ number_format($capacity, 0, ',', '.') }}</div>
             </div>
             <div class="stat-icon sky">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clip-rule="evenodd"/></svg>
@@ -46,7 +46,7 @@
         <div class="flex items-start justify-between gap-3">
             <div>
                 <div class="stat-label">Slobodni portovi</div>
-                <div class="stat-value">{{ max($capacity - $used, 0) }}</div>
+                <div class="stat-value">{{ number_format(max($capacity - $used, 0), 0, ',', '.') }}</div>
             </div>
             <div class="stat-icon green">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/></svg>

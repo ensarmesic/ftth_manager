@@ -8,31 +8,31 @@
 <section class="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Krakovi ukupno</div><div class="stat-value">{{ $branchStats['total'] }}</div></div>
+            <div><div class="stat-label">Krakovi ukupno</div><div class="stat-value">{{ number_format($branchStats['total'], 0, ',', '.') }}</div></div>
             <div class="stat-icon blue"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></div>
         </div>
     </article>
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Primarni</div><div class="stat-value">{{ $branchStats['primary'] }}</div></div>
+            <div><div class="stat-label">Primarni</div><div class="stat-value">{{ number_format($branchStats['primary'], 0, ',', '.') }}</div></div>
             <div class="stat-icon violet"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/></svg></div>
         </div>
     </article>
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Sekundarni</div><div class="stat-value">{{ $branchStats['secondary'] }}</div></div>
+            <div><div class="stat-label">Sekundarni</div><div class="stat-value">{{ number_format($branchStats['secondary'], 0, ',', '.') }}</div></div>
             <div class="stat-icon sky"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clip-rule="evenodd"/></svg></div>
         </div>
     </article>
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Glavni rovovi</div><div class="stat-value">{{ $branchStats['rov'] }}</div></div>
+            <div><div class="stat-label">Glavni rovovi</div><div class="stat-value">{{ number_format($branchStats['rov'], 0, ',', '.') }}</div></div>
             <div class="stat-icon amber"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 7l2.55 2.4A1 1 0 0116 11H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"/></svg></div>
         </div>
     </article>
     <article class="stat-card">
         <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">ODO na krakovima</div><div class="stat-value">{{ $branchStats['cabinets'] }}</div></div>
+            <div><div class="stat-label">ODO na krakovima</div><div class="stat-value">{{ number_format($branchStats['cabinets'], 0, ',', '.') }}</div></div>
             <div class="stat-icon green"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/></svg></div>
         </div>
     </article>
@@ -54,9 +54,9 @@
     'deleteRoute' => fn($id) => route('branches.delete', $id),
     'editFields'  => [
         'project_id'       => ['label' => 'Projekat', 'type' => 'select', 'options' => $projects->pluck('name', 'id')->all()],
-        'odf_id'           => ['label' => 'ODF', 'type' => 'select', 'options' => ['' => '—'] + $odfs->mapWithKeys(fn($o) => [$o->id => $o->project->name.' / '.$o->name])->all()],
-        'parent_branch_id' => ['label' => 'Roditeljski krak', 'type' => 'select', 'options' => ['' => 'Glavni krak'] + $parentBranches->mapWithKeys(fn($b) => [$b->id => $b->project->name.' / '.$b->name])->all()],
-        'route_id'         => ['label' => 'Vezana trasa', 'type' => 'select', 'options' => ['' => '—'] + $routes->mapWithKeys(fn($r) => [$r->id => $r->project->name.' / '.$r->name])->all()],
+        'odf_id'           => ['label' => 'ODF', 'type' => 'select', 'options' => fn ($row) => ['' => '—'] + $odfs->where('project_id', $row->project_id)->pluck('name', 'id')->all()],
+        'parent_branch_id' => ['label' => 'Roditeljski krak', 'type' => 'select', 'options' => fn ($row) => ['' => 'Glavni krak'] + $parentBranches->where('project_id', $row->project_id)->where('id', '!=', $row->id)->pluck('name', 'id')->all()],
+        'route_id'         => ['label' => 'Vezana trasa', 'type' => 'select', 'options' => fn ($row) => ['' => '—'] + $routes->where('project_id', $row->project_id)->pluck('name', 'id')->all()],
         'name'             => 'Naziv', 'code' => 'Kod',
         'sort_order'       => ['label' => 'Redoslijed', 'type' => 'number'],
         'type'             => ['label' => 'Tip', 'type' => 'select', 'options' => ['secondary' => 'Sekundarni', 'primary' => 'Primarni', 'rov' => 'Glavni rov']],
@@ -85,19 +85,19 @@
             <label class="ftth-label">ODF
                 <select name="odf_id" class="ftth-input">
                     <option value="">ODF nije odabran</option>
-                    @foreach($odfs as $odf)<option value="{{ $odf->id }}">{{ $odf->project->name }} / {{ $odf->name }}</option>@endforeach
+                    @foreach($odfs as $odf)<option value="{{ $odf->id }}" data-project="{{ $odf->project_id }}">{{ $odf->project->name }} / {{ $odf->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Roditeljski krak
                 <select name="parent_branch_id" class="ftth-input">
                     <option value="">Glavni krak</option>
-                    @foreach($parentBranches as $branch)<option value="{{ $branch->id }}">{{ $branch->project->name }} / {{ $branch->name }}</option>@endforeach
+                    @foreach($parentBranches as $branch)<option value="{{ $branch->id }}" data-project="{{ $branch->project_id }}">{{ $branch->project->name }} / {{ $branch->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Vezana trasa
                 <select name="route_id" class="ftth-input">
                     <option value="">Bez vezane trase</option>
-                    @foreach($routes as $route)<option value="{{ $route->id }}">{{ $route->project->name }} / {{ $route->name }}</option>@endforeach
+                    @foreach($routes as $route)<option value="{{ $route->id }}" data-project="{{ $route->project_id }}">{{ $route->project->name }} / {{ $route->name }}</option>@endforeach
                 </select>
             </label>
             <label class="ftth-label">Naziv kraka<input name="name" class="ftth-input" placeholder="Sekundarni krak 1.1" required></label>
@@ -129,6 +129,15 @@
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
     let dragSrc = null;
+
+    // Every row gets a drag-handle cell, so the header needs a matching empty one or all columns shift.
+    const headRow = wrap.querySelector('thead tr');
+    if (headRow && tbody.querySelector('tr[data-id]')) {
+        const handleHead = document.createElement('th');
+        handleHead.setAttribute('aria-label', 'Redoslijed');
+        handleHead.style.width = '2rem';
+        headRow.insertBefore(handleHead, headRow.firstChild);
+    }
 
     tbody.querySelectorAll('tr[data-id]').forEach(row => {
         const handle = document.createElement('td');
