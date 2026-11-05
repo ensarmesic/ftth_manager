@@ -17,6 +17,7 @@ window.ftthMapConfig = {
     networkInstallationType: @json($activeProject?->network_installation_type ?? 'underground'),
     dataUrl: @json($mapDataUrl),
     surveyCategories: @json(collect(config('survey.categories'))->map(fn ($category) => $category['label'])),
+    surveyPoleStyles: @json(collect(config('survey.categories'))->filter(fn ($category) => $category['is_pole'] ?? false)->map(fn ($category) => ['label' => $category['label'], 'color' => $category['color'], 'prefix' => $category['cad_prefix'] ?? ''])),
     endpoints: {
         autoOdoPreviewBaseUrl: @json(url('/projekti/__ID__/odo-plan/preview')),
         autoOdoConfirmBaseUrl: @json(url('/projekti/__ID__/odo-plan/confirm')),

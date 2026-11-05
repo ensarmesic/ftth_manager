@@ -38,7 +38,8 @@ mapLegend.onAdd = () => {
         <div><span class="cad-point-sample" style="background:#0f5fa8"></span><span>ODF</span></div>
         <div><span class="cad-point-sample" style="background:#16a34a"></span><span>FTTH</span></div>
         <div><span class="cad-point-sample circle" style="background:#16a34a"></span><span>Kuća</span></div>
-        <div><span class="cad-pole-sample"></span><span>Geodetski stub</span></div>
+        <b style="margin-top:4px">STUBOVI</b>
+        ${Object.values(window.ftthMapConfig?.surveyPoleStyles || {}).map(pole => `<div><span class="cad-pole-sample" style="--survey-color:${String(pole.color).replace(/[^#a-zA-Z0-9]/g, '')}"></span><span>${escapeHtml(pole.prefix)} – ${escapeHtml(pole.label)}</span></div>`).join('')}
         <b style="margin-top:4px">VLAKNA</b>
         <div style="color:#f59e0b"><span class="cad-line-sample"></span><span>≤4F</span></div>
         <div style="color:#16a34a"><span class="cad-line-sample"></span><span>12F</span></div>

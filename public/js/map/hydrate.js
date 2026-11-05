@@ -219,7 +219,7 @@ data.survey_objects?.forEach(item => {
             iconSize: [markerSize, markerSize],
             iconAnchor: [markerSize / 2, markerSize / 2],
             popupAnchor: [0, -(markerSize / 2 + 4)],
-            html: `${window.surveyObjectMarkerHtml(item)}<b class="survey-object-label" data-survey-label>${escapeHtml(item.is_pole ? item.cad_label : label)}</b>`,
+            html: `${window.surveyObjectMarkerHtml(item)}<b class="survey-object-label" data-survey-label style="--survey-color:${window.surveyObjectColor(item)}">${escapeHtml(item.is_pole ? item.cad_label : label)}</b>`,
         }),
     }).bindTooltip(label, { direction: 'top', offset: [0, -12] })
         .bindPopup(`<div class="survey-object-popup"><b>GEODETSKA TAČKA ${escapeHtml(item.point_no)}</b><br><b>Objekat:</b> ${escapeHtml(item.category_label)}<br><b>Originalna oznaka:</b> ${escapeHtml(item.original_label)}${branchInfo}<br><b>Koordinate:</b> ${item.x.toFixed(3)}, ${item.y.toFixed(3)}<br><b>Visina:</b> ${item.z === null ? '—' : `${item.z.toFixed(3)} m`}<br><b>CRS:</b> ${escapeHtml(item.source_crs || '—')}<br><b>Izvor:</b> ${escapeHtml(item.source_file || 'terenski unos')}<br><b>Projekat:</b> ${escapeHtml(item.project)}<br><button type="button" class="survey-copy-coordinates" data-value="${item.lat}, ${item.lng}">Kopiraj WGS84</button>${branchStart}${categoryEditor}</div>`);

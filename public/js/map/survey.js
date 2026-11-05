@@ -279,7 +279,7 @@
                     iconSize: [markerSize, markerSize],
                     iconAnchor: [markerSize / 2, markerSize / 2],
                     popupAnchor: [0, -(markerSize / 2 + 4)],
-                    html: `${window.surveyObjectMarkerHtml(point)}<b class="survey-object-label">${escapeHtml(point.cad_label || point.point_no)}</b>`,
+                    html: `${window.surveyObjectMarkerHtml(point)}<b class="survey-object-label" style="--survey-color:${window.surveyObjectColor(point)}">${escapeHtml(point.cad_label || point.point_no)}</b>`,
                 }),
             }).bindTooltip(`Tačka ${escapeHtml(point.point_no)} — ${escapeHtml(point.code)}`, { direction: 'top' }));
             const entry = { marker, point, original: L.latLng(point.lat, point.lng), current: L.latLng(point.lat, point.lng), dragging: false };

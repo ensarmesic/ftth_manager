@@ -209,9 +209,9 @@
     /* Geodetski/CAD simbol stuba: kružnica i centar snimljene tačke (isto kao u DXF izvozu). */
     .survey-pole-shape { position:relative;display:block;width:var(--survey-size);height:var(--survey-size);pointer-events:none; }
     .survey-pole-shape i { position:absolute;display:block;box-sizing:border-box; }
-    .survey-pole-outer { inset:0;border:1px solid #ff4fc3;border-radius:50%;background:transparent; }
-    .survey-pole-center { left:calc(50% - 2.5px);top:calc(50% - 2.5px);width:5px;height:5px;border-radius:50%;background:#f4e51c;box-shadow:0 0 0 .5px #8f8700; }
-    .survey-pole-shape + .survey-object-label { left:15px;top:.5px;border:0;background:transparent;padding:0;color:#ff4fc3;box-shadow:none;font:600 11px/11px Arial,sans-serif;letter-spacing:0;text-shadow:0 1px 1px rgba(15,23,42,.75); }
+    .survey-pole-outer { inset:0;border:2px solid var(--survey-color, #ff4fc3);border-radius:50%;background:transparent;box-shadow:0 0 0 .5px #fff; }
+    .survey-pole-center { left:calc(50% - 2.5px);top:calc(50% - 2.5px);width:5px;height:5px;border-radius:50%;background:var(--survey-color, #f4e51c);box-shadow:0 0 0 .5px #fff; }
+    .survey-pole-shape + .survey-object-label { left:15px;top:.5px;border:0;background:transparent;padding:0;color:var(--survey-color, #ff4fc3);box-shadow:none;font:600 11px/11px Arial,sans-serif;letter-spacing:0;text-shadow:0 1px 1px rgba(15,23,42,.75); }
     .survey-category-editor { display:flex;gap:4px;margin-top:6px; }
     .survey-category-select { flex:1;min-width:0;border:1px solid #cbd5e1;border-radius:5px;padding:3px 4px;font-size:11px; }
     .survey-category-save { border:1px solid #059669;border-radius:5px;background:#059669;color:#fff;padding:3px 8px;font-weight:700;cursor:pointer; }
@@ -337,8 +337,8 @@
     .cad-line-sample.dashed { border-top-style: dashed; }
     .cad-point-sample { width: 10px; height: 10px; border: 2px solid #fff; box-shadow: 0 0 0 1px #0f172a; justify-self: start; }
     .cad-point-sample.circle { border-radius: 999px; }
-    .cad-pole-sample { position: relative; width: 12px; height: 12px; box-sizing: border-box; border: 1px solid #ff4fc3; border-radius: 50%; justify-self: start; }
-    .cad-pole-sample::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: #f4e51c; }
+    .cad-pole-sample { position: relative; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid var(--survey-color, #ff4fc3); border-radius: 50%; justify-self: start; }
+    .cad-pole-sample::after { content: ''; position: absolute; inset: 2px; border-radius: 50%; background: var(--survey-color, #f4e51c); }
     @media (max-width: 767px) {
         /* On phones the always-on CAD legend covers the map; the "Legenda" button stays. */
         .cad-map-legend { display: none; }

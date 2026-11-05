@@ -75,8 +75,9 @@ let keepCurrentDraftOnProjectChange = false;
 let savedRoutePoints = [];
 const surveyObjectMarkers = [];
 // Category presentation (color, symbol, size, CAD label) comes from config/survey.php via the server.
+window.surveyObjectColor = item => String(item.color || '#64748b').replace(/[^#a-zA-Z0-9(),.%\s-]/g, '');
 window.surveyObjectMarkerHtml = item => {
-    const color = String(item.color || '#64748b').replace(/[^#a-zA-Z0-9(),.%\s-]/g, '');
+    const color = window.surveyObjectColor(item);
     const category = String(item.category || 'unknown_survey_point').replace(/[^a-z0-9_-]/gi, '');
     const symbol = String(item.symbol || '?').replace(/[<>&"']/g, '');
     const size = Number(item.size) || 12;
@@ -84,7 +85,7 @@ window.surveyObjectMarkerHtml = item => {
         return `<span class="survey-object-symbol survey-object-${category}" style="--survey-color:${color};--survey-size:${size}px">${symbol}</span>`;
     }
 
-    return `<span class="survey-pole-shape survey-pole-${category}" style="--survey-size:${size}px" aria-hidden="true"><i class="survey-pole-outer"></i><i class="survey-pole-center"></i></span>`;
+    return `<span class="survey-pole-shape survey-pole-${category}" style="--survey-size:${size}px;--survey-color:${color}" aria-hidden="true"><i class="survey-pole-outer"></i><i class="survey-pole-center"></i></span>`;
 };
 const snapPixelTolerance = 30;
 let orthoEnabled = false;
