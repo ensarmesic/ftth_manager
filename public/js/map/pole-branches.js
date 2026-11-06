@@ -231,6 +231,7 @@
         if (pickFrom && pickFrom.id !== item.id) {
             buttons.push(
                 `<button type="button" data-act="connect-confirm">Spoji ${escapeHtml(pickFrom.label)} ↔ ${escapeHtml(label)}</button>`,
+                `<button type="button" data-act="feed-confirm">${escapeHtml(label)} se napaja sa ${escapeHtml(pickFrom.label)}</button>`,
                 '<button type="button" data-act="pick-cancel">Odustani od spajanja</button>',
             );
         } else {
@@ -244,7 +245,7 @@
         links
             .filter((link) => link.from.id === item.id || link.to.id === item.id)
             .forEach((link) => {
-                const what = link.type === 'cut' ? 'prekid' : 'spoj';
+                const what = { cut: 'prekid', feed: 'napajanje' }[link.type] || 'spoj';
                 buttons.push(
                     `<button type="button" data-act="unlink" data-link="${link.id}">↺ Poništi ručni ${what} ${escapeHtml(link.from.label)} – ${escapeHtml(link.to.label)}</button>`,
                 );
@@ -265,6 +266,10 @@
                 const from = pickFrom;
                 pickFrom = null;
                 sendLink(item.project_id, 'POST', { from_point_id: from.id, to_point_id: item.id, type: 'connect' });
+            } else if (act === 'feed-confirm') {
+                const from = pickFrom;
+                pickFrom = null;
+                sendLink(item.project_id, 'POST', { from_point_id: from.id, to_point_id: item.id, type: 'feed' });
             } else if (act === 'cut') {
                 sendLink(item.project_id, 'POST', {
                     from_point_id: item.id,

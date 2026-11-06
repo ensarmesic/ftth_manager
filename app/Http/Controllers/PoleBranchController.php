@@ -33,13 +33,13 @@ class PoleBranchController extends Controller
         return response()->json(['message' => $this->summaryMessage($summary), 'summary' => $summary]);
     }
 
-    /** Manual correction: always use ("connect") or never use ("cut") the span between two poles. */
+    /** Manual correction: always use ("connect"), never use ("cut") or feed from ("feed") a span between two poles. */
     public function link(Request $request, Project $project): JsonResponse
     {
         $data = $request->validate([
             'from_point_id' => ['required', 'integer'],
             'to_point_id' => ['required', 'integer'],
-            'type' => ['required', 'in:'.PoleBranchLink::CONNECT.','.PoleBranchLink::CUT],
+            'type' => ['required', 'in:'.PoleBranchLink::CONNECT.','.PoleBranchLink::CUT.','.PoleBranchLink::FEED],
         ]);
 
         try {
@@ -47,7 +47,11 @@ class PoleBranchController extends Controller
         } catch (InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
-        $action = $data['type'] === PoleBranchLink::CUT ? 'Veza prekinuta' : 'Stubovi spojeni';
+        $action = match ($data['type']) {
+            PoleBranchLink::CUT => 'Veza prekinuta',
+            PoleBranchLink::FEED => 'Napajanje postavljeno',
+            default => 'Stubovi spojeni',
+        };
 
         return response()->json(['message' => $action.'. '.($summary ? $this->summaryMessage($summary) : ''), 'summary' => $summary]);
     }

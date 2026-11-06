@@ -13,6 +13,7 @@ use App\Support\NearbyPointIndex;
 use App\Support\PoleBranchNames;
 use App\Support\SurveyCategories;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 class ProjectExportController extends Controller
@@ -644,8 +645,96 @@ class ProjectExportController extends Controller
                 $riser = $poles->first();
                 array_push($lines, ...$this->dxfText((float) $riser->x + 1.7, (float) $riser->y - 3.2, 'PRELAZ PZ-NZ', 'FTTH_POLE_BRANCHES', 1, 1.4));
             }
-            $middle = $poles[intdiv(max($poles->count() - 1, 0), 2)] ?? $points->first();
-            array_push($lines, ...$this->dxfText((float) $middle->x + 1.7, (float) $middle->y + 1.6, $names[$branch->id]['name'], 'FTTH_POLE_BRANCHES', $color, 1.8));
+            array_push($lines, ...$this->dxfPoleBranchLabels($branch, $points, $names[$branch->id]['name'], $color));
+        }
+
+        return $lines;
+    }
+
+    private function polesWord(int $count): string
+    {
+        $tens = $count % 100;
+
+        return match (true) {
+            $count % 10 === 1 && $tens !== 11 => 'stub',
+            in_array($count % 10, [2, 3, 4], true) && ($tens < 12 || $tens > 14) => 'stuba',
+            default => 'stubova',
+        };
+    }
+
+    /** Metres of branch per name label: a long branch is named again further along, a short one once. */
+    private const POLE_BRANCH_LABEL_EVERY_M = 180.0;
+
+    private const POLE_BRANCH_MAX_LABELS = 6;
+
+    /**
+     * Branch name along the line, in the middle of a span (pole labels sit on the poles), repeated in
+     * proportion to the branch length. The middle label also gets a short description under the line.
+     *
+     * @param  Collection<int, SurveyPoint>  $points  the branch path, starting at the pole it hangs from
+     */
+    private function dxfPoleBranchLabels(PoleBranch $branch, Collection $points, string $name, int $color): array
+    {
+        $segments = [];
+        $total = 0.0;
+        for ($i = 1; $i < $points->count(); $i++) {
+            [$ax, $ay, $bx, $by] = [(float) $points[$i - 1]->x, (float) $points[$i - 1]->y, (float) $points[$i]->x, (float) $points[$i]->y];
+            $length = hypot($bx - $ax, $by - $ay);
+            if ($length > 0.01) {
+                $segments[] = ['start' => $total, 'length' => $length, 'ax' => $ax, 'ay' => $ay, 'bx' => $bx, 'by' => $by];
+                $total += $length;
+            }
+        }
+        $poleCount = $branch->poles->unique('branch_position')->count();
+        $parts = [number_format($total, 0, ',', '.').' m', $poleCount.' '.$this->polesWord($poleCount)];
+        if ($branch->fromPoint) {
+            $parts[] = 'od '.SurveyCategories::cadLabel($branch->fromPoint->survey_category, (int) $branch->fromPoint->pole_no);
+        } elseif ($branch->odf) {
+            $parts[] = 'iz '.$branch->odf->name;
+        }
+        $description = implode(' | ', $parts);
+
+        if ($segments === []) {
+            $pole = $points->first();
+
+            return [
+                ...$this->dxfText((float) $pole->x + 1.7, (float) $pole->y + 1.6, $name, 'FTTH_POLE_BRANCHES', $color, 1.8),
+                ...$this->dxfText((float) $pole->x + 1.7, (float) $pole->y - 1.4, $description, 'FTTH_POLE_BRANCHES', $color, 1.2),
+            ];
+        }
+
+        // Evenly spaced along the branch, each moved to the middle of the span it falls in.
+        $count = max(1, min(self::POLE_BRANCH_MAX_LABELS, (int) round($total / self::POLE_BRANCH_LABEL_EVERY_M)));
+        $chosen = [];
+        for ($k = 0; $k < $count; $k++) {
+            $target = ($k + 0.5) * $total / $count;
+            foreach ($segments as $index => $segment) {
+                if ($target <= $segment['start'] + $segment['length'] || $index === array_key_last($segments)) {
+                    $chosen[$index] = true;
+                    break;
+                }
+            }
+        }
+        $chosen = array_keys($chosen);
+        $describedAt = $chosen[intdiv(count($chosen) - 1, 2)];
+
+        $lines = [];
+        foreach ($chosen as $index) {
+            $segment = $segments[$index];
+            $dx = ($segment['bx'] - $segment['ax']) / $segment['length'];
+            $dy = ($segment['by'] - $segment['ay']) / $segment['length'];
+            if ($dx < 0 || ($dx == 0.0 && $dy < 0)) {
+                // Keep the text readable (left to right, never upside down).
+                [$dx, $dy] = [-$dx, -$dy];
+            }
+            $angle = rad2deg(atan2($dy, $dx));
+            $mx = ($segment['ax'] + $segment['bx']) / 2;
+            $my = ($segment['ay'] + $segment['by']) / 2;
+            // (-dy, dx) points to the side above the text.
+            array_push($lines, ...$this->dxfTextAligned($mx - $dy * 0.8, $my + $dx * 0.8, $name, 'FTTH_POLE_BRANCHES', $color, 1.8, $angle, 1));
+            if ($index === $describedAt) {
+                array_push($lines, ...$this->dxfTextAligned($mx + $dy * 0.8, $my - $dx * 0.8, $description, 'FTTH_POLE_BRANCHES', $color, 1.2, $angle, 3));
+            }
         }
 
         return $lines;

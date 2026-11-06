@@ -65,6 +65,22 @@ trait WritesDxfEntities
         ];
     }
 
+    /** Text centred on (x, y) along $angle; $valign 1 = sits on the point, 3 = hangs below it. */
+    private function dxfTextAligned(float $x, float $y, string $text, string $layer, int $color, float $height, float $angle, int $valign): array
+    {
+        return [
+            '0', 'TEXT', '8', $layer, '62', (string) $color,
+            '7', 'FTTH',
+            '10', (string) $x, '20', (string) $y, '30', '0',
+            '40', (string) $height,
+            '50', (string) round($angle, 3),
+            '1', $this->dxfSafeText($text),
+            '72', '1',
+            '11', (string) $x, '21', (string) $y, '31', '0',
+            '73', (string) $valign,
+        ];
+    }
+
     private function dxfLine(float $x1, float $y1, float $x2, float $y2, string $layer, int $color): array
     {
         return ['0', 'LINE', '8', $layer, '62', (string) $color, '10', (string) $x1, '20', (string) $y1, '30', '0', '11', (string) $x2, '21', (string) $y2, '31', '0'];

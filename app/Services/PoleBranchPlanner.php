@@ -28,7 +28,8 @@ use SplPriorityQueue;
  *
  * Manual corrections win over everything: a "connect" span is always used (even
  * when longer than the max span) and a branch keeps going along it; a "cut" span
- * is never used.
+ * is never used; a "feed" makes a pole hang only from the given pole (the cable
+ * comes from there), so it never gets its own riser or another parent.
  */
 final class PoleBranchPlanner
 {
@@ -83,14 +84,27 @@ final class PoleBranchPlanner
     /** @var array<string, true> forbidden spans, keyed "a|b" */
     private array $cut = [];
 
+    /** @var array<int|string, int|string> pole => the only pole it may be fed from */
+    private array $feed = [];
+
+    /** @var array<int|string, list<int|string>> pole => poles it must feed */
+    private array $feeds = [];
+
     /**
      * @param  list<array{0: int|string, 1: int|string}>  $connect  spans that must be used
      * @param  list<array{0: int|string, 1: int|string}>  $cut  spans that must not be used
+     * @param  list<array{0: int|string, 1: int|string}>  $feed  [feeder, fed]: the second pole hangs only from the first
      */
-    public function withLinks(array $connect, array $cut): self
+    public function withLinks(array $connect, array $cut, array $feed = []): self
     {
         $this->connect = [];
         $this->cut = [];
+        $this->feed = [];
+        $this->feeds = [];
+        foreach ($feed as [$from, $to]) {
+            $this->feed[$to] = $from;
+            $this->feeds[$from][] = $to;
+        }
         foreach ($connect as [$a, $b]) {
             $this->connect[$a][] = $b;
             $this->connect[$b][] = $a;
@@ -124,7 +138,7 @@ final class PoleBranchPlanner
         $this->reset($points);
         $this->pathWeight = self::PATH_WEIGHT;
         $entries = array_map(fn (array $point) => $this->nearestOnLines($point, $lines), $points);
-        $covered = array_filter($entries, fn (array $entry, $id) => $entry['distance'] <= self::LINE_CORRIDOR_M && ! isset($this->connect[$id]), ARRAY_FILTER_USE_BOTH);
+        $covered = array_filter($entries, fn (array $entry, $id) => $entry['distance'] <= self::LINE_CORRIDOR_M && ! isset($this->connect[$id]) && ! isset($this->feed[$id]) && ! isset($this->feeds[$id]), ARRAY_FILTER_USE_BOTH);
         $open = array_diff_key($points, $covered);
         $grid = $this->grid($maxSpan, $open);
         $warnings = [];
@@ -132,16 +146,25 @@ final class PoleBranchPlanner
         $remaining = $open;
         $queue = $this->queue();
         foreach (array_keys($open) as $id) {
-            if ($entries[$id]['distance'] <= $maxSpan) {
+            if ($entries[$id]['distance'] <= $maxSpan && ! isset($this->feed[$id])) {
                 $queue->insert([null, $id, $entries[$id]['distance']], -($entries[$id]['distance'] + self::RISER_PENALTY_M));
             }
         }
         $this->drain($queue, $grid, $maxSpan, $remaining);
         while ($remaining !== []) {
             [$next, $attach, $gap] = $this->nearestRemaining($remaining);
-            $nearLine = array_reduce(array_keys($remaining), fn ($best, $id) => $best === null || $entries[$id]['distance'] < $entries[$best]['distance'] ? $id : $best);
+            $nearLine = array_reduce(array_keys($remaining), fn ($best, $id) => isset($this->feed[$id]) ? $best : ($best === null || $entries[$id]['distance'] < $entries[$best]['distance'] ? $id : $best));
+            if ($next === null && $nearLine === null) {
+                // Only fed poles are left and their feeders are not in the network: drop those feeds.
+                $warnings[] = 'Neki stubovi se napajaju sa stuba koji nije u kraku — ručno napajanje zanemareno.';
+                foreach (array_keys($remaining) as $id) {
+                    unset($this->feed[$id]);
+                }
+
+                continue;
+            }
             $queue = $this->queue();
-            if ($next === null || $entries[$nearLine]['distance'] <= $gap) {
+            if ($next === null || ($nearLine !== null && $entries[$nearLine]['distance'] <= $gap)) {
                 $warnings[] = sprintf('Grupa stubova je %.0f m od podzemne linije — provjeriti prelaz.', $entries[$nearLine]['distance']);
                 $queue->insert([null, $nearLine, $entries[$nearLine]['distance']], 0);
             } else {
@@ -203,7 +226,8 @@ final class PoleBranchPlanner
         foreach ($this->roots as $root) {
             $best = null;
             $bestCost = INF;
-            foreach (array_keys($covered) as $candidate) {
+            // A pole chosen to feed others keeps the riser itself.
+            foreach (isset($this->feeds[$root]) ? [] : array_keys($covered) as $candidate) {
                 if (isset($this->cut[$candidate.'|'.$root])) {
                     continue;
                 }
@@ -303,6 +327,12 @@ final class PoleBranchPlanner
         while ($next !== null) {
             $this->growTree($next, $grid, $maxSpan, $remaining);
             [$next, $attach, $gap] = $this->nearestRemaining($remaining);
+            if ($next === null && $remaining !== []) {
+                foreach (array_keys($remaining) as $id) {
+                    unset($this->feed[$id]);
+                }
+                [$next, $attach, $gap] = $this->nearestRemaining($remaining);
+            }
             if ($next !== null) {
                 $this->parent[$next] = $attach;
                 $this->children[$attach][] = $next;
@@ -369,7 +399,7 @@ final class PoleBranchPlanner
         for ($gx = $cellX - 1; $gx <= $cellX + 1; $gx++) {
             for ($gy = $cellY - 1; $gy <= $cellY + 1; $gy++) {
                 foreach ($grid[$gx][$gy] ?? [] as $to) {
-                    if (! isset($remaining[$to]) || isset($this->cut[$from.'|'.$to])) {
+                    if (! isset($remaining[$to]) || ! $this->allowed($from, $to)) {
                         continue;
                     }
                     $distance = $this->distance($from, $to);
@@ -385,10 +415,22 @@ final class PoleBranchPlanner
         }
         // A forced span is taken as soon as one of its poles is connected.
         foreach ($this->connect[$from] ?? [] as $to) {
-            if (isset($remaining[$to])) {
+            if (isset($remaining[$to]) && $this->allowed($from, $to)) {
                 $queue->insert([$from, $to], -($this->pathWeight * ($this->reach[$from] ?? 0.0)));
             }
         }
+        // A fed pole is taken right away, before anything else can reach it.
+        foreach ($this->feeds[$from] ?? [] as $to) {
+            if (isset($remaining[$to])) {
+                $queue->insert([$from, $to], INF);
+            }
+        }
+    }
+
+    /** Whether $to may hang from $from. */
+    private function allowed(int|string $from, int|string $to): bool
+    {
+        return ! isset($this->cut[$from.'|'.$to]) && (! isset($this->feed[$to]) || $this->feed[$to] === $from);
     }
 
     /** @return array{0: int|string|null, 1: int|string|null, 2: float|null} */
@@ -398,7 +440,7 @@ final class PoleBranchPlanner
         $bestDistance = INF;
         foreach (array_keys($remaining) as $candidate) {
             foreach (array_keys($this->parent) as $connected) {
-                if (isset($this->cut[$candidate.'|'.$connected])) {
+                if (! $this->allowed($connected, $candidate)) {
                     continue;
                 }
                 $distance = $this->distance($candidate, $connected);

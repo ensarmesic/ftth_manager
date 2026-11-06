@@ -133,7 +133,8 @@ class PoleBranchService
     }
 
     /**
-     * Forces ("connect") or forbids ("cut") the span between two poles and rebuilds the branches.
+     * Forces ("connect") or forbids ("cut") the span between two poles, or feeds the second pole
+     * only from the first ("feed"), and rebuilds the branches.
      *
      * @return array{branches: int, poles: int, length_m: float, long_spans: int, root_label: string, warnings: list<string>, risers: int, skipped: int}|null
      */
@@ -147,10 +148,15 @@ class PoleBranchService
         if ($poles !== 2) {
             throw new InvalidArgumentException('Oba stuba moraju pripadati ovom projektu.');
         }
-        PoleBranchLink::updateOrCreate(
-            ['project_id' => $project->id, 'from_point_id' => min($firstPointId, $secondPointId), 'to_point_id' => max($firstPointId, $secondPointId)],
-            ['type' => $type],
-        );
+        // One correction per pair of poles; a feed keeps its direction (feeder first).
+        PoleBranchLink::where('project_id', $project->id)
+            ->where(fn ($query) => $query->where(['from_point_id' => $firstPointId, 'to_point_id' => $secondPointId])
+                ->orWhere(fn ($query) => $query->where(['from_point_id' => $secondPointId, 'to_point_id' => $firstPointId])))
+            ->delete();
+        [$from, $to] = $type === PoleBranchLink::FEED
+            ? [$firstPointId, $secondPointId]
+            : [min($firstPointId, $secondPointId), max($firstPointId, $secondPointId)];
+        PoleBranchLink::create(['project_id' => $project->id, 'from_point_id' => $from, 'to_point_id' => $to, 'type' => $type]);
 
         return $this->refresh($project);
     }
@@ -168,6 +174,7 @@ class PoleBranchService
     {
         $connect = [];
         $cut = [];
+        $feed = [];
         foreach (PoleBranchLink::where('project_id', $project->id)->get() as $link) {
             $a = $sameAs[$link->from_point_id] ?? $link->from_point_id;
             $b = $sameAs[$link->to_point_id] ?? $link->to_point_id;
@@ -176,11 +183,13 @@ class PoleBranchService
             }
             if ($link->type === PoleBranchLink::CUT) {
                 $cut[] = [$a, $b];
+            } elseif ($link->type === PoleBranchLink::FEED) {
+                $feed[] = [$a, $b];
             } else {
                 $connect[] = [$a, $b];
             }
         }
-        $this->planner->withLinks($connect, $cut);
+        $this->planner->withLinks($connect, $cut, $feed);
     }
 
     /** Underground routes the aerial branches start from. */

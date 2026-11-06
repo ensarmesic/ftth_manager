@@ -190,6 +190,35 @@ class PoleBranchTest extends TestCase
         $this->assertCount(9, $result['skipped_ids']);
     }
 
+    public function test_manual_feed_runs_the_cable_from_the_chosen_pole_only(): void
+    {
+        // Two streets go north from the line (x=160 and x=360) and meet along y=120.
+        $points = [];
+        foreach (range(0, 10) as $i) {
+            $points["l{$i}"] = [$i * 40.0, 3.0];
+        }
+        foreach (range(1, 3) as $i) {
+            $points["s{$i}"] = [160.0, $i * 40.0];
+            $points["t{$i}"] = [360.0, $i * 40.0];
+        }
+        foreach (range(1, 4) as $i) {
+            $points["u{$i}"] = [160.0 + $i * 40.0, 120.0];
+        }
+        // The engineer wants it all fed from l9: up t, across u, down s.
+        $chain = ['l9', 't1', 't2', 't3', 'u4', 'u3', 'u2', 'u1', 's3', 's2', 's1'];
+        $feed = [];
+        for ($i = 1; $i < count($chain); $i++) {
+            $feed[] = [$chain[$i - 1], $chain[$i]];
+        }
+
+        $result = (new PoleBranchPlanner)->withLinks([], [], $feed)->planFromLines($points, [[[0.0, 0.0], [400.0, 0.0]]], [], 80);
+
+        $this->assertSame([], $result['warnings']);
+        $this->assertCount(1, $result['branches']);
+        $this->assertSame($chain, $result['branches'][0]['pole_ids']);
+        $this->assertArrayHasKey('entry', $result['branches'][0]);
+    }
+
     public function test_planner_feeds_a_street_from_its_near_end_and_follows_survey_numbers(): void
     {
         // A loop: up from the line at x=0, across the top, and back down to 60 m above the line.
