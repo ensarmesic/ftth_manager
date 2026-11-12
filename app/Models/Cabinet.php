@@ -11,7 +11,7 @@ class Cabinet extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'branch_id', 'branch_order', 'name', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude', 'import_batch'];
+    protected $fillable = ['project_id', 'odf_id', 'parent_cabinet_id', 'branch_id', 'branch_order', 'name', 'kind', 'survey_point_id', 'address', 'splitter_count', 'ports_per_splitter', 'latitude', 'longitude', 'import_batch'];
 
     /** @return BelongsTo<Project, $this> */
     public function project(): BelongsTo
@@ -29,6 +29,21 @@ class Cabinet extends Model
     public function parentCabinet(): BelongsTo
     {
         return $this->belongsTo(Cabinet::class, 'parent_cabinet_id');
+    }
+
+    /**
+     * The surveyed pole a box hangs on (kind "box").
+     *
+     * @return BelongsTo<SurveyPoint, $this>
+     */
+    public function surveyPoint(): BelongsTo
+    {
+        return $this->belongsTo(SurveyPoint::class);
+    }
+
+    public function isBox(): bool
+    {
+        return $this->kind === 'box';
     }
 
     /** @return BelongsTo<NetworkBranch, $this> */

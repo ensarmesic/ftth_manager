@@ -530,6 +530,69 @@
         }
     }
 
+    // Snimak sastava rova (MD + 14/10 boje, ZO-S-ODF): mreža se preračunava iz svih snimaka projekta.
+    function drawDuctSurveyPreview(data) {
+        clearMapPreview();
+        const add = layer => { previewLayers.push(layer); trackLayer(layer, 'preview'); return layer.addTo(map); };
+        const bounds = [];
+        (data.geometry?.lines || []).forEach(line => {
+            if (!line.path || line.path.length < 2) return;
+            bounds.push(...line.path);
+            add(line.kind === 'trench'
+                ? L.polyline(line.path, { color: '#0f172a', weight: 7, opacity: .35, interactive: false })
+                : L.polyline(line.path, { color: tubeColorFromText(line.color === 'md' ? 'MD' : line.color), weight: 3, opacity: .95, interactive: false }));
+        });
+        (data.geometry?.points || []).forEach(point => {
+            const style = { odf: ['#0f5fa8', 9], zo: ['#16a34a', 7], box: ['#0e7490', 6], splice: [tubeColorFromText(point.label), 4], izvod: ['#ef4444', 4], slinga: ['#ef4444', 4] }[point.kind] || ['#64748b', 3];
+            const marker = add(L.circleMarker([point.lat, point.lng], { radius: style[1], color: '#0f172a', weight: 1, fillColor: style[0], fillOpacity: 1 }));
+            marker.bindPopup(`<b>${escapeHtml(point.label)}</b><br>Tačka ${escapeHtml(point.point_no)}: ${escapeHtml(point.code)}`);
+            if (['odf', 'zo'].includes(point.kind)) marker.bindTooltip(escapeHtml(point.label), { permanent: true, direction: 'right', className: 'survey-preview-label' });
+        });
+        if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
+    }
+
+    // 3723 -> "3.723" (bs format, ne zavisi od jezika preglednika)
+    const formatMeters = value => String(Math.round(Number(value) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+    function renderDuctSurveyPreview(data) {
+        drawDuctSurveyPreview(data);
+        const s = data.summary || {};
+        const levelStyle = { greska: ['#fef2f2', '#991b1b', 'GREŠKA'], upozorenje: ['#fffbeb', '#92400e', 'PROVJERI'], info: ['#f8fafc', '#334155', 'INFO'] };
+        const checks = data.checks || [];
+        const errors = checks.filter(c => c.level === 'greska').length;
+        const warnings = checks.filter(c => c.level === 'upozorenje').length;
+        const checkRows = checks.map(c => {
+            const [bg, fg, label] = levelStyle[c.level] || levelStyle.info;
+            return `<li style="margin:0 0 3px;padding:4px 6px;border-radius:5px;background:${bg};color:${fg}"><b>${label}</b> ${c.point_no ? `#${escapeHtml(c.point_no)} ` : ''}${escapeHtml(c.message)}</li>`;
+        }).join('');
+        const secondaries = (data.secondaries || []).map(sec => `
+            <details style="margin:3px 0"><summary style="cursor:pointer"><b>${escapeHtml(sec.name)}</b> – ${sec.closures.length} ZO${sec.assigned ? ' <span style="color:#b45309">(broj kraka dodijeljen automatski)</span>' : ''}${sec.closures.some(z => !z.reached) ? ' <span style="color:#b91c1c">⚠ nepovezan ZO</span>' : ''}</summary>
+            <ul style="margin:3px 0 0;padding-left:16px">${sec.closures.map(z => `<li>${escapeHtml(z.label)} <span style="color:#64748b">#${escapeHtml(z.point_no)}</span> – ${z.reached ? `${Math.round(z.distance_m)} m od ODF-a${z.parent ? `, iza ${escapeHtml(z.parent)}` : ''}` : '<b style="color:#b91c1c">nije povezan s ODF-om</b>'}</li>`).join('')}</ul></details>`).join('');
+        const tubes = (s.tubes || []).map(t => `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0"><i style="display:inline-block;width:16px;height:4px;border-radius:2px;background:${tubeColorFromText(t.color === 'md' ? 'MD' : t.color)}"></i>${escapeHtml(t.tube)} <b>${formatMeters(t.length_m)} m</b></span>`).join('');
+        const already = data.already_imported ? '<p style="margin:6px 0 0;color:#b45309;font-weight:700">Ovaj fajl je već uvezen – uvoz ga zamjenjuje istim sadržajem.</p>' : '';
+
+        summaryBox.innerHTML = `
+            <p style="margin:0"><b>${escapeHtml(data.filename)}</b> – ${data.new_points} novih tačaka</p>
+            <p style="margin:3px 0 0;color:#475569">Snimak sastava rova. Mreža se računa iz ${data.files.length} ${data.files.length === 1 ? 'snimka' : 'snimaka'} projekta zajedno (${data.total_points} tačaka): ${data.files.map(escapeHtml).join(', ')}</p>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:8px 0">
+                ${previewStat('ODF', s.odfs, 'violet')}
+                ${previewStat('ZO', s.closures, 'emerald')}
+                ${previewStat('Box na stubu', s.boxes, 'blue')}
+                ${previewStat('Spojnice', s.splices, 'slate')}
+                ${previewStat('Rov (m)', formatMeters(s.trench_m), 'slate')}
+                ${previewStat('Za provjeru', errors + warnings, errors ? 'red' : warnings ? 'amber' : 'emerald')}
+            </div>
+            <p style="margin:6px 0 2px"><b>Cijevi</b></p><div>${tubes || 'nema'}</div>
+            <p style="margin:8px 0 2px"><b>Kraci i ZO</b></p>${secondaries || '<p>nema ZO</p>'}
+            <p style="margin:8px 0 2px"><b>Provjera snimka</b> (${checks.length})</p>
+            <ul style="margin:0;padding:0;list-style:none;max-height:220px;overflow-y:auto;font-size:11px">${checkRows || '<li style="color:#065f46">Sve je u redu.</li>'}</ul>
+            ${already}`;
+        confirmBtn.disabled = false;
+        setStatus(errors
+            ? `Pregled spreman – ${errors} ${errors === 1 ? 'greška' : 'greške'} u snimku. Možeš uvesti, ali provjeri označeno.`
+            : 'Pregled spreman. Klikni "Uvezi u projekat" za potvrdu.', errors > 0);
+    }
+
     async function previewFile(file) {
         if (!projectId()) {
             setStatus('Prvo odaberi projekat (filter gore desno).', true);
@@ -545,6 +608,11 @@
         try {
             const data = await requestJson(`/projekti/${projectId()}/tacke/preview`, file);
             selectedFile = file;
+            if (data.format === 'duct_survey') {
+                currentPreviewData = data;
+                renderDuctSurveyPreview(data);
+                return;
+            }
             originalPreviewData = JSON.parse(JSON.stringify(data));
             currentPreviewData = data;
             drawMapPreview(data);

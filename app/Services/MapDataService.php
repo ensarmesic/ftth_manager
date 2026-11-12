@@ -19,6 +19,7 @@ use App\Support\NearbyPointIndex;
 use App\Support\PoleBranchNames;
 use App\Support\SurveyCategories;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class MapDataService
 {
@@ -38,7 +39,7 @@ class MapDataService
         $allOdfs = Odf::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))->get();
         $odfs = $allOdfs->filter(fn (Odf $odf) => $odf->latitude !== null && $odf->longitude !== null && $this->pointInBbox((float) $odf->latitude, (float) $odf->longitude, $bbox))->values();
 
-        $allCabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch'])->withCount('houses')
+        $allCabinets = Cabinet::with(['project', 'odf', 'parentCabinet', 'branch', 'surveyPoint'])->withCount('houses')
             ->when($scope, fn ($query) => $query->where('project_id', $projectId))->get();
         $cabinets = $allCabinets->filter(fn (Cabinet $cabinet) => $cabinet->latitude !== null && $cabinet->longitude !== null && $this->pointInBbox((float) $cabinet->latitude, (float) $cabinet->longitude, $bbox))->values();
 
@@ -75,6 +76,7 @@ class MapDataService
             ->orderBy('id')->get()
             ->filter(fn (SurveyPoint $point) => $surveyIndex->addIfFree((float) $point->x, (float) $point->y, $point->source_crs ?: 'unknown'))
             ->values();
+        $boxByPole = $allCabinets->where('kind', 'box')->whereNotNull('survey_point_id')->pluck('id', 'survey_point_id');
         $poleBranches = $this->poleBranches($scope ? $projectId : null, $bbox);
         $branchNames = $poleBranches->pluck('name', 'id');
         $gisSegments = GisSegment::with('project')->when($scope, fn ($query) => $query->where('project_id', $projectId))
@@ -110,6 +112,9 @@ class MapDataService
                 ]),
                 'cabinets' => $cabinets->map(fn (Cabinet $cabinet) => [
                     'id' => $cabinet->id, 'project_id' => $cabinet->project_id, 'name' => $cabinet->name, 'project' => $cabinet->project->name,
+                    'kind' => $cabinet->kind ?? 'zo',
+                    'pole_label' => $cabinet->surveyPoint === null ? null
+                        : SurveyCategories::cadLabel($cabinet->surveyPoint->survey_category, (int) ($cabinet->surveyPoint->pole_no ?: $cabinet->surveyPoint->point_no)),
                     'odf_id' => $cabinet->odf_id, 'parent_cabinet_id' => $cabinet->parent_cabinet_id, 'branch_id' => $cabinet->branch_id,
                     'branch_name' => $cabinet->branch?->name, 'branch_code' => $cabinet->branch?->code,
                     'odf' => $cabinet->odf->name ?? 'Nije povezano', 'parent_cabinet' => $cabinet->parentCabinet?->name,
@@ -165,6 +170,8 @@ class MapDataService
                 ]),
                 'appendix_items' => $appendixItems->map(fn (ProjectAppendixItem $item) => [
                     'id' => $item->id, 'project_id' => $item->project_id, 'project' => $item->project->name, 'type' => $item->type,
+                    // Imported splices carry their name before " | " ("SP 5 · 14/10 plava · S3 | Tačka …").
+                    'title' => str_contains((string) $item->note, ' | ') ? Str::before((string) $item->note, ' | ') : null,
                     'label' => match ($item->type) {
                         'manhole' => 'Saht', 'boring_fi_130' => 'FI 130', 'splice' => 'Spojnica', 'loop' => 'Rezerva', 'pole' => 'Stub', default => $item->type
                     },
@@ -176,6 +183,8 @@ class MapDataService
                 ]),
                 'survey_objects' => $surveyObjects->map(fn (SurveyPoint $point) => [
                     'id' => $point->id,
+                    // A pole carrying a box is drawn by the box symbol itself.
+                    'box_id' => $boxByPole[$point->id] ?? null,
                     'project_id' => $point->project_id,
                     'project' => $point->project->name,
                     'point_no' => $point->point_no,

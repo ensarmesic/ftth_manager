@@ -195,6 +195,34 @@
     .ftth-cabinet-text { display: inline-flex; align-items: center; gap: 2px; padding: 1px 3px; background: rgba(255,255,255,.86); color: #0f172a; text-shadow: 0 1px 0 #fff; border: 1px solid rgba(15,23,42,.28); white-space: nowrap; }
     .ftth-cabinet-title { display: block; font-size: 7px; font-weight: 900; line-height: 1; letter-spacing: 0; opacity: .75; }
     .ftth-cabinet-code { display: block; font-size: 9px; font-weight: 900; line-height: 1.05; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    /* Box na stubu: stub (krug) + ruka + kutija sa splitterom + natpis */
+    .ftth-box-marker { position: relative; width: 14px; height: 14px; transform-origin: 7px 7px; }
+    .ftth-box-pole { position: absolute; inset: 0; border-radius: 999px; background: radial-gradient(circle, #0f172a 0 2px, #fff 2.5px); border: 2.5px solid #0f172a; box-shadow: 0 0 0 1.5px rgba(255,255,255,.95); box-sizing: border-box; }
+    .ftth-box-arm { position: absolute; left: 13px; top: 6px; width: 5px; height: 2px; background: #0f172a; }
+    .ftth-box-body { position: absolute; left: 17px; top: -2px; width: 19px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #0e7490; border: 1.5px solid #fff; box-shadow: 0 0 0 1px #0f172a; box-sizing: border-box; }
+    .ftth-box-body svg { width: 13px; height: 10px; fill: none; stroke: #fff; stroke-width: 1.7; stroke-linecap: round; }
+    .ftth-box-label { position: absolute; left: 40px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 1px; padding: 1px 4px 1px 3px; white-space: nowrap; background: rgba(255,255,255,.92); border: 1px solid rgba(14,116,144,.55); border-left: 3px solid #0e7490; color: #0f172a; text-shadow: 0 1px 0 #fff; }
+    .ftth-box-label b { font: 900 9px/1.05 system-ui, sans-serif; letter-spacing: 0; }
+    .ftth-box-label small { font: 700 7.5px/1 system-ui, sans-serif; color: #155e75; font-variant-numeric: tabular-nums; }
+    /* Spojnica iz snimka: tačka u boji cijevi + natpis */
+    .ftth-splice-marker { position: relative; width: 10px; height: 10px; transform-origin: 5px 5px; }
+    .ftth-splice-dot { position: absolute; inset: 0; border-radius: 999px; border: 2px solid #fff; box-shadow: 0 0 0 1px #0f172a; box-sizing: border-box; }
+    .ftth-splice-dot::after { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1.5px; transform: translateX(-50%); background: #0f172a; }
+    .ftth-splice-label { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); padding: 0 3px; white-space: nowrap; background: rgba(255,255,255,.88); border: 1px solid rgba(15,23,42,.25); font: 700 7.5px/1.35 system-ui, sans-serif; color: #334155; }
+    .ftth-splice-label b { font-weight: 900; color: #0f172a; }
+    #map-workspace.zoom-far .ftth-splice-marker, #map-workspace.zoom-low .ftth-splice-label { display: none; }
+    #map-workspace.z20 .ftth-splice-marker { transform: scale(1.5); }
+    #map-workspace.z21 .ftth-splice-marker { transform: scale(2); }
+    #map-workspace.z22 .ftth-splice-marker { transform: scale(2.5); }
+    .survey-preview-label { padding: 0 4px; border: 1px solid rgba(15,23,42,.35); border-radius: 3px; background: rgba(255,255,255,.9); box-shadow: none; font: 800 9px/1.4 system-ui, sans-serif; color: #0f172a; }
+    .survey-preview-label::before { display: none; }
+    .cad-box-sample { position: relative; display: inline-block; width: 24px; height: 12px; flex: 0 0 auto; }
+    .cad-box-sample::before { content: ''; position: absolute; left: 0; top: 1px; width: 10px; height: 10px; border-radius: 999px; border: 2px solid #0f172a; background: #fff; box-sizing: border-box; }
+    .cad-box-sample::after { content: ''; position: absolute; left: 12px; top: 0; width: 12px; height: 12px; border-radius: 2px; background: #0e7490; border: 1px solid #fff; box-shadow: 0 0 0 1px #0f172a; box-sizing: border-box; }
+    #map-workspace.zoom-far .ftth-box-label, #map-workspace.zoom-low .ftth-box-label small { display: none; }
+    #map-workspace.z20 .ftth-box-marker { transform: scale(1.6); }
+    #map-workspace.z21 .ftth-box-marker { transform: scale(2.2); }
+    #map-workspace.z22 .ftth-box-marker { transform: scale(2.8); }
     .ftth-tag.house { width: 14px; height: 14px; border: 2px solid #fff; border-radius: 999px; background: #16a34a; box-shadow: 0 0 0 1px #0f172a; font-size: 8px; font-weight: 900; }
     .ftth-route-drop {
         filter: drop-shadow(0 0 1px rgba(255,255,255,.98)) drop-shadow(0 0 1px rgba(15,23,42,.45));

@@ -38,6 +38,13 @@ mapLegend.onAdd = () => {
         <div><span class="cad-point-sample" style="background:#0f5fa8"></span><span>ODF</span></div>
         <div><span class="cad-point-sample" style="background:#16a34a"></span><span>FTTH</span></div>
         <div><span class="cad-point-sample circle" style="background:#16a34a"></span><span>Kuća</span></div>
+        <div><span class="cad-box-sample"></span><span>Box na stubu (splitter)</span></div>
+        <b style="margin-top:4px">MIKROCIJEVI</b>
+        <div style="color:#f97316"><span class="cad-line-sample"></span><span style="color:#0f172a">MD (4×12/10)</span></div>
+        <div style="color:#dc2626"><span class="cad-line-sample"></span><span style="color:#0f172a">14/10 crvena</span></div>
+        <div style="color:#facc15"><span class="cad-line-sample"></span><span style="color:#0f172a">14/10 žuta</span></div>
+        <div style="color:#2563eb"><span class="cad-line-sample"></span><span style="color:#0f172a">14/10 plava</span></div>
+        <div style="color:#16a34a"><span class="cad-line-sample"></span><span style="color:#0f172a">14/10 zelena</span></div>
         <b style="margin-top:4px">STUBOVI</b>
         ${Object.values(window.ftthMapConfig?.surveyPoleStyles || {}).map(pole => `<div><span class="cad-pole-sample" style="--survey-color:${String(pole.color).replace(/[^#a-zA-Z0-9]/g, '')}"></span><span>${escapeHtml(pole.prefix)} – ${escapeHtml(pole.label)}</span></div>`).join('')}
         <b style="margin-top:4px">VLAKNA</b>

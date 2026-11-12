@@ -8,6 +8,7 @@ use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\SurveyPoint;
+use App\Services\DuctSurveyImportService;
 use App\Services\ProjectSnapshotService;
 use App\Services\SurveyImportMaintenanceService;
 use App\Services\SurveyPointImportService;
@@ -30,6 +31,7 @@ class SurveyPointController extends Controller
         private readonly SurveyPointImportService $importer,
         private readonly SurveyImportMaintenanceService $maintenance,
         private readonly ProjectSnapshotService $snapshots,
+        private readonly DuctSurveyImportService $ductSurvey,
     ) {}
 
     public function preview(Request $request, Project $project): JsonResponse
@@ -39,6 +41,13 @@ class SurveyPointController extends Controller
         ]);
 
         try {
+            $contents = $data['points_file']->get();
+            // Duct-composition survey (ZO-S-ODF, MD + 14/10 colours): the whole
+            // network is rebuilt from all of the project's files plus this one.
+            if (DuctSurveyImportService::looksLikeDuctSurvey($contents, $project)) {
+                return response()->json($this->ductSurvey->preview($project, $contents, $data['points_file']->getClientOriginalName()));
+            }
+
             return response()->json($this->previewPayload(
                 $project,
                 $data['points_file']->get(),
@@ -120,6 +129,23 @@ class SurveyPointController extends Controller
             $routeCorrections = $decoded;
         }
 
+        $contents = $data['points_file']->get();
+        $filename = $data['points_file']->getClientOriginalName();
+        if (DuctSurveyImportService::looksLikeDuctSurvey($contents, $project)) {
+            try {
+                $this->snapshots->create($project, 'Automatski: prije TXT uvoza '.$filename);
+                $outcome = $this->ductSurvey->importFile($project, $contents, $filename);
+            } catch (InvalidArgumentException $exception) {
+                return response()->json(['message' => $exception->getMessage()], 422);
+            }
+            $c = $outcome['created'];
+
+            return response()->json([
+                'message' => "Mreža preračunata iz svih snimaka projekta: {$c['odfs']} ODF, {$c['cabinets']} ZO, {$c['boxes']} boxova, {$c['trenches']} dionica rova, {$c['ducts']} cijevi, {$c['points']} tačaka.",
+                'created' => $c,
+            ], 201);
+        }
+
         try {
             $this->snapshots->create($project, 'Automatski: prije TXT uvoza '.$data['points_file']->getClientOriginalName());
             $created = $this->importer->confirm(
@@ -157,6 +183,21 @@ class SurveyPointController extends Controller
 
     public function destroyImport(Project $project, string $batch): JsonResponse
     {
+        if (DuctSurveyImportService::projectUsesDuctSurvey($project)) {
+            if (! SurveyPoint::where('project_id', $project->id)->where('import_batch', $batch)->exists()) {
+                return response()->json(['message' => 'Taj TXT uvoz ne postoji u ovom projektu.'], 404);
+            }
+            $this->snapshots->create($project, 'Automatski: prije brisanja TXT uvoza');
+            $outcome = $this->ductSurvey->removeFile($project, $batch);
+
+            return response()->json([
+                'message' => $outcome['result'] === null
+                    ? 'Obrisan je posljednji snimak – uklonjena je i mreža nacrtana iz njega.'
+                    : 'Snimak je uklonjen, a mreža je preračunata iz preostalih snimaka.',
+                'removed' => $outcome['removed'],
+            ]);
+        }
+
         try {
             $this->snapshots->create($project, 'Automatski: prije brisanja TXT uvoza');
             $removed = $this->maintenance->clearImportedBatch($project, $batch);

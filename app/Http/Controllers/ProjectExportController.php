@@ -15,6 +15,7 @@ use App\Support\SurveyCategories;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ProjectExportController extends Controller
 {
@@ -25,7 +26,7 @@ class ProjectExportController extends Controller
     {
         ini_set('memory_limit', '1G');
         set_time_limit(180);
-        $project->load(['odfs', 'cabinets', 'houses', 'routes', 'appendixItems', 'surveyPoints' => fn ($query) => $query->whereNotNull('survey_category')]);
+        $project->load(['odfs', 'cabinets.surveyPoint', 'houses', 'routes', 'appendixItems', 'surveyPoints' => fn ($query) => $query->whereNotNull('survey_category')]);
 
         // Zona — koristimo ODF, ormarice i prvu točku prve trase
         $lngs = collect($project->odfs)->pluck('longitude')
@@ -214,7 +215,7 @@ class ProjectExportController extends Controller
             '0', 'ENDTAB',
 
             // Layeri (13 FTTH + dinamički background)
-            '0', 'TABLE', '2', 'LAYER', '70', (string) (13 + count($bgLayerNames)),
+            '0', 'TABLE', '2', 'LAYER', '70', (string) (15 + count($bgLayerNames)),
             '0', 'LAYER', '2', '0',              '70', '64', '62',  '7', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_PRIMARY',   '70', '64', '62',  '5', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_SECONDARY', '70', '64', '62',  '3', '6', 'CONTINUOUS',
@@ -226,6 +227,8 @@ class ProjectExportController extends Controller
             '0', 'LAYER', '2', 'FTTH_MANHOLES',  '70', '64', '62',  '8', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_CABINETS',  '70', '64', '62',  '6', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_HOUSES',    '70', '64', '62',  '4', '6', 'CONTINUOUS',
+            '0', 'LAYER', '2', 'FTTH_BOXES',     '70', '64', '62',  '4', '6', 'CONTINUOUS',
+            '0', 'LAYER', '2', 'FTTH_SPLICES',   '70', '64', '62',  '6', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_SURVEY_POLES', '70', '64', '62', '6', '6', 'CONTINUOUS',
             '0', 'LAYER', '2', 'FTTH_POLE_BRANCHES', '70', '64', '62', '6', '6', 'CONTINUOUS',
         ];
@@ -558,6 +561,19 @@ class ProjectExportController extends Controller
                 continue;
             }
             [$x, $y] = $this->wgs84ToGaussKruger((float) $cabinet->latitude, (float) $cabinet->longitude, $zone);
+            if ($cabinet->isBox()) {
+                $pole = $cabinet->surveyPoint;
+                // DXF tekst je bez UTF-8 (dxfSafeText), pa razdvajač mora biti ASCII.
+                $label = implode(' - ', array_filter([
+                    $cabinet->name,
+                    $pole ? SurveyCategories::cadLabel($pole->survey_category, (int) ($pole->pole_no ?: $pole->point_no)) : null,
+                    ($cabinet->splitter_count > 1 ? $cabinet->splitter_count.'x' : '').'1:'.$cabinet->ports_per_splitter,
+                ]));
+                array_push($lines, ...$this->dxfSymbolPoleBox($x, $y, 'FTTH_BOXES', 4));
+                array_push($lines, ...$this->dxfText($x + 5.2, $y - 0.6, $label, 'FTTH_BOXES', 4, 1.4));
+
+                continue;
+            }
             $color = $cabinetColor[$cabinet->id];
             array_push($lines, ...$this->dxfSymbolCabinet($x, $y, 'FTTH_CABINETS', $color));
             array_push($lines, ...$this->dxfText($x + 4.0, $y, $cabinet->name, 'FTTH_LABELS', $color, 2.5));
@@ -584,6 +600,19 @@ class ProjectExportController extends Controller
             [$cx, $cy] = $this->wgs84ToGaussKruger((float) $item->latitude, (float) $item->longitude, $zone);
             array_push($lines, ...$this->dxfCircle($cx, $cy, 2.0, 'FTTH_MANHOLES', 8));
             array_push($lines, ...$this->dxfText($cx + 3.0, $cy, 'Saht', 'FTTH_MANHOLES', 8, 2.0));
+        }
+
+        // Spojnice — u boji cijevi koju spajaju, s nazivom iz snimka ("SP 5 · 14/10 plava · S3")
+        foreach ($project->appendixItems as $item) {
+            if ($item->type !== 'splice' || $item->latitude === null || $item->longitude === null) {
+                continue;
+            }
+            [$cx, $cy] = $this->wgs84ToGaussKruger((float) $item->latitude, (float) $item->longitude, $zone);
+            $title = str_contains((string) $item->note, ' | ') ? Str::before((string) $item->note, ' | ') : 'Spojnica';
+            $color = $this->dxfTubeColor($title) ?? 6;
+            array_push($lines, ...$this->dxfCircle($cx, $cy, 0.6, 'FTTH_SPLICES', $color));
+            array_push($lines, ...$this->dxfLine($cx, $cy - 1.0, $cx, $cy + 1.0, 'FTTH_SPLICES', $color));
+            array_push($lines, ...$this->dxfText($cx + 1.2, $cy - 0.5, str_replace(' · ', ' ', $title), 'FTTH_SPLICES', $color, 1.0));
         }
 
         // ── Streaming u temp fajl — izbjegava $lines + implode peak memorije ────
@@ -847,6 +876,33 @@ class ProjectExportController extends Controller
         ];
     }
 
+    /**
+     * Box na stubu: krug stuba, kratka ruka i kutija sa simbolom splittera
+     * (jedan ulaz koji se grana na četiri izlaza), desno od stuba.
+     */
+    private function dxfSymbolPoleBox(float $x, float $y, string $layer, int $color): array
+    {
+        $r = 0.9;
+        [$bx1, $bx2, $by1, $by2] = [$x + 2.0, $x + 4.6, $y - 1.3, $y + 1.3];
+        $split = $x + 3.0;
+        $out = $x + 4.2;
+
+        return [
+            ...$this->dxfCircle($x, $y, $r, $layer, $color),
+            ...$this->dxfCircle($x, $y, 0.25, $layer, $color),
+            ...$this->dxfLine($x + $r, $y, $bx1, $y, $layer, $color),
+            ...$this->dxfLine($bx1, $by1, $bx2, $by1, $layer, $color),
+            ...$this->dxfLine($bx2, $by1, $bx2, $by2, $layer, $color),
+            ...$this->dxfLine($bx2, $by2, $bx1, $by2, $layer, $color),
+            ...$this->dxfLine($bx1, $by2, $bx1, $by1, $layer, $color),
+            ...$this->dxfLine($bx1 + 0.3, $y, $split, $y, $layer, $color),
+            ...$this->dxfLine($split, $y, $out, $y + 0.9, $layer, $color),
+            ...$this->dxfLine($split, $y, $out, $y + 0.3, $layer, $color),
+            ...$this->dxfLine($split, $y, $out, $y - 0.3, $layer, $color),
+            ...$this->dxfLine($split, $y, $out, $y - 0.9, $layer, $color),
+        ];
+    }
+
     // ODF: žuti isprekidani krug (zona) + žuti mali krug + pravougaonik žuti okvir/plavi ispun
     private function dxfSymbolOdf(float $x, float $y, string $layer, int $color): array
     {
@@ -1071,8 +1127,29 @@ class ProjectExportController extends Controller
         };
     }
 
+    /** AutoCAD boja (ACI) cijevi iz teksta: MD narandžasta, 14/10 po boji; null ako boja nije navedena. */
+    private function dxfTubeColor(string $text): ?int
+    {
+        $lower = strtr(mb_strtolower($text), ['ž' => 'z', 'č' => 'c', 'ć' => 'c', 'đ' => 'dj']);
+        if (preg_match('/\bmd\b/', $lower)) {
+            return 30;
+        }
+        foreach (['crven' => 1, 'zut' => 2, 'zelen' => 3, 'plav' => 5, 'ljubic' => 6, 'narand' => 30, 'siv' => 8, 'bijel' => 7, 'bjel' => 7] as $word => $aci) {
+            if (str_contains($lower, $word)) {
+                return $aci;
+            }
+        }
+
+        return null;
+    }
+
     private function dxfColorForRoute(NetworkRoute $route): int
     {
+        // Snimljene mikrocijevi ("MC 14/10 Plava", "MC MD 4x12/10") u stvarnoj boji, kao na karti.
+        if (str_starts_with((string) $route->name, 'MC ') && ($aci = $this->dxfTubeColor((string) $route->name)) !== null) {
+            return $aci;
+        }
+
         return match ($route->route_type) {
             'trench' => 7,
             'drop' => 30,

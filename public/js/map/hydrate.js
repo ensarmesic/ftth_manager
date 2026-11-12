@@ -101,9 +101,13 @@ data.cabinets.forEach(c => {
     const p = L.latLng(c.lat, c.lng);
     const color = cabinetColor(c.id);
     const pct = Math.round((Number(c.used_ports) || 0) / Math.max(Number(c.capacity) || 1, 1) * 100);
-    const marker = L.marker(p, { icon: icon('cabinet', c.name || `FTTH ${c.id}`, color), draggable: false })
+    const isBox = c.kind === 'box';
+    const popup = isBox
+        ? `<b>${escapeHtml(c.name)}</b><br>Box na stubu${c.pole_label ? ` ${escapeHtml(c.pole_label)}` : ''}<br>Splitter ${Number(c.splitter_count) || 1} × 1:${Number(c.ports_per_splitter) || 4}<br>${c.used_ports}/${c.capacity} kuća (${pct}%)<br>Napaja se iz: ${escapeHtml(c.fed_from)}<br><a href="/fiber-sema?project=${c.project_id}&cabinet=${c.id}">Otvori fiber šemu</a>`
+        : `<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova (${pct}%)<br>ODF: ${c.odf}<br><a href="/fiber-sema?project=${c.project_id}&cabinet=${c.id}">Otvori fiber šemu</a>`;
+    const marker = L.marker(p, { icon: isBox ? boxIcon(c) : icon('cabinet', c.name || `FTTH ${c.id}`, color), draggable: false })
         .bindTooltip(`${c.used_ports}/${c.capacity} (${pct}%)`, { direction: 'top', offset: [0, -10] })
-        .bindPopup(`<b>${c.name}</b><br>${c.used_ports}/${c.capacity} portova (${pct}%)<br>ODF: ${c.odf}<br><a href="/fiber-sema?project=${c.project_id}&cabinet=${c.id}">Otvori fiber šemu</a>`)
+        .bindPopup(popup)
         .addTo(map);
     marker.on('click', event => {
         if (layerLocked('odo')) return document.getElementById('cad-command').textContent = 'Layer ODO je zaključan.';
@@ -173,9 +177,10 @@ data.appendix_items?.forEach(item => {
     if (item.type === 'boring_fi_130') {
         drawSavedBoring(item);
     } else if (item.type === 'splice') {
-        const marker = L.marker(p, { icon: icon('splice', 'S'), draggable: false })
-            .bindTooltip('Spojnica', { direction: 'top', offset: [0, -10] })
-            .bindPopup(`<b>Spojnica</b>${item.note ? `<br>${item.note}` : ''}`)
+        const detail = item.title ? String(item.note || '').split(' | ').slice(1).join(' | ') : item.note;
+        const marker = L.marker(p, { icon: item.title ? spliceIcon(item.title) : icon('splice', 'S'), draggable: false })
+            .bindTooltip(item.title ? escapeHtml(item.title) : 'Spojnica', { direction: 'top', offset: [0, -10] })
+            .bindPopup(`<b>${item.title ? `Spojnica ${escapeHtml(item.title)}` : 'Spojnica'}</b>${detail ? `<br>${escapeHtml(detail)}` : ''}`)
             .addTo(map);
         trackLayer(marker, 'preview');
     } else if (item.type === 'loop') {
@@ -202,6 +207,8 @@ data.appendix_items?.forEach(item => {
 const surveyCategoryOptions = Object.entries(window.ftthMapConfig.surveyCategories || {});
 const canEditSurveyObjects = Boolean(window.ftthMapConfig.permissions?.edit);
 data.survey_objects?.forEach(item => {
+    if (item.box_id) return; // stub s boxom crta oznaka boxa
+
     const markerSize = item.size || 12;
     const label = `${item.point_no} – ${item.original_label}`;
     const branchInfo = item.branch_code

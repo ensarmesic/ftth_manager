@@ -105,6 +105,38 @@ function icon(type, text = '', color = null) {
     const markerText = type === 'odf' ? 'ODF' : text;
     return L.divIcon({ className: 'ftth-label', html: `<div class="ftth-tag ${cls}"${style}>${escapeHtml(markerText)}</div>`, iconSize: [2, 2], iconAnchor: [1, 1] });
 }
+// Boja cijevi iz teksta ("MD", "14/10 plava"...) — ista paleta kao za linije mikrocijevi.
+function tubeColorFromText(text) {
+    const lower = String(text || '').toLowerCase().replace(/ž/g, 'z').replace(/č|ć/g, 'c').replace(/đ/g, 'dj');
+    if (/\bmd\b/.test(lower)) return microductColorWords['mc md'];
+    for (const word in microductColorWords) {
+        if (word !== 'mc md' && lower.includes(word)) return microductColorWords[word];
+    }
+    return '#7c3aed';
+}
+// Spojnica sa nazivom iz snimka: tačka u boji cijevi + natpis "SP 5 · 14/10 plava · S3".
+function spliceIcon(title) {
+    const [number, ...rest] = String(title || '').split(' · ');
+    const html = `<div class="ftth-splice-marker"><span class="ftth-splice-dot" style="background:${tubeColorFromText(title)}"></span>`
+        + `<span class="ftth-splice-label"><b>${escapeHtml(number)}</b>${rest.length ? ` ${escapeHtml(rest.join(' · '))}` : ''}</span></div>`;
+    return L.divIcon({ className: 'ftth-label ftth-splice-icon', html, iconSize: [10, 10], iconAnchor: [5, 5] });
+}
+// Box na stubu: krug stuba + kutija sa splitterom 1:N, jedna oznaka (ne ODO ormar).
+function boxIcon(cabinet) {
+    const name = String(cabinet.name || 'BOX').trim();
+    const short = escapeHtml(name.replace(/-ODF\s+\S+$/i, ''));
+    const ports = Number(cabinet.ports_per_splitter) || 4;
+    const splitters = Number(cabinet.splitter_count) || 1;
+    const ratio = splitters > 1 ? `${splitters}×1:${ports}` : `1:${ports}`;
+    const meta = [cabinet.pole_label, ratio, `${Number(cabinet.used_ports) || 0}/${Number(cabinet.capacity) || ports * splitters}`]
+        .filter(Boolean).map(escapeHtml).join(' · ');
+    const splitter = '<svg viewBox="0 0 16 12" aria-hidden="true"><path d="M1 6h4M5 6l9-4.5M5 6l9-1.5M5 6l9 1.5M5 6l9 4.5" /></svg>';
+    const html = `<div class="ftth-box-marker" title="${escapeHtml(name)}">`
+        + '<span class="ftth-box-pole"></span><span class="ftth-box-arm"></span>'
+        + `<span class="ftth-box-body">${splitter}</span>`
+        + `<span class="ftth-box-label"><b>${short}</b><small>${meta}</small></span></div>`;
+    return L.divIcon({ className: 'ftth-label ftth-box-icon', html, iconSize: [14, 14], iconAnchor: [7, 7] });
+}
 function houseIconText(house) {
     return house?.is_sling ? 'Š' : 'K';
 }
@@ -385,7 +417,8 @@ function routeLineStyle(type, color = routeColor(type)) {
 }
 // Stvarne boje mikrocijevi iz geodetskog snimka (naziv rute "MC 14/10 Zelena"...)
 const microductColorWords = {
-    zelena: '#16a34a', crvena: '#dc2626', plava: '#2563eb', zuta: '#ca8a04',
+    'mc md': '#f97316',
+    zelena: '#16a34a', crvena: '#dc2626', plava: '#2563eb', zuta: '#facc15',
     bjela: '#94a3b8', bijela: '#94a3b8', narandzasta: '#ea580c', ljubicasta: '#7c3aed', siva: '#64748b',
 };
 function microductRouteColor(route) {
@@ -400,11 +433,12 @@ function routeLineColor(route) {
     if (route.type === 'trench') return routeColor('trench');
     const fibers = route.fiber_count || route.fibers;
     if (colorByFibers && fibers) return fiberCountColor(fibers);
+    // Snimljena mikrocijev ima stvarnu boju na terenu — ona ima prednost.
+    const surveyColor = microductRouteColor(route);
+    if (surveyColor && !colorByFibers) return surveyColor;
     // Sekundarni krakovi istog ODF-a moraju se citati kao jedna mreza.
     // Ostali tipovi trasa zadrzavaju svoje postojece seme boja.
     if (route.type === 'distribution' && route.odf_id) return odfRouteColor(route.odf_id);
-    const surveyColor = microductRouteColor(route);
-    if (surveyColor && !colorByFibers) return surveyColor;
     return surveyColor || (route.cabinet_id ? cabinetColor(route.cabinet_id) : routeColor(route.type));
 }
 // Vise mikrocijevi dijeli istu putanju rova — svaku crtamo tanju od prethodne
