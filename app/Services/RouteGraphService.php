@@ -10,9 +10,26 @@ use SplPriorityQueue;
 
 class RouteGraphService
 {
+    private const JOIN_TOLERANCE_M = 2.0;
+
+    private const GRID_CELL_M = 50.0;
+
+    private const MAX_CELLS_PER_PIECE = 4096;
+
     public function __construct(private readonly GeometryService $geometry) {}
 
     public function shortestPath(int $projectId, array $from, array $to, bool $preferSurveyedRoutes = false, bool $preferNetworkRouteAtDestination = false): ?array
+    {
+        $network = $this->network($projectId, $preferSurveyedRoutes, $preferNetworkRouteAtDestination);
+
+        return $network ? $this->routesFrom($network, $from, ['to' => $to])['to'] : null;
+    }
+
+    /**
+     * Load a project's routable lines and build the graph once. Pass the result
+     * to routesFrom() to route many destinations without rebuilding it.
+     */
+    public function network(int $projectId, bool $preferSurveyedRoutes = false, bool $preferNetworkRouteAtDestination = false): ?array
     {
         $segments = collect();
         $source = $preferSurveyedRoutes ? 'routes' : 'gis';
@@ -53,52 +70,81 @@ class RouteGraphService
                 ->all()
             : [];
 
-        $graph = $this->buildGraph($segments, $restrictedAreas, $preferNetworkRouteAtDestination);
-        $start = $this->attachPoint($graph, $segments, $from, '__start', $restrictedAreas);
-        $destinationSegments = $preferNetworkRouteAtDestination
-            ? $segments->filter(fn ($segment) => ($segment->route_type ?? null) !== 'trench')->values()
-            : $segments;
-        $end = $this->attachPoint(
-            $graph,
-            $destinationSegments->isNotEmpty() ? $destinationSegments : $segments,
-            $to,
-            '__end',
-            $restrictedAreas,
-        );
-
-        if (! $start || ! $end) {
-            return null;
-        }
-
-        $keys = $this->dijkstra($graph['edges'], $start, $end);
-        if (! $keys) {
-            return null;
-        }
-
-        $path = array_map(fn (string $key) => $graph['nodes'][$key], $keys);
-
         return [
-            'path' => $this->geometry->compactPath($path),
-            'length_m' => $this->geometry->polylineLength($path),
-            'graph' => [
-                'source' => $source,
-                'nodes' => count($graph['nodes']),
-                'edges' => array_sum(array_map('count', $graph['edges'])),
-                'segments' => $segments->count(),
-                'restricted_areas' => count($restrictedAreas),
-                'nearby_comparisons' => $graph['nearby_comparisons'],
-            ],
+            'source' => $source,
+            'segments' => $segments->count(),
+            'restricted_areas' => count($restrictedAreas),
+            'prefer_network_route_at_destination' => $preferNetworkRouteAtDestination,
+            'graph' => $this->buildGraph($segments, $restrictedAreas, $preferNetworkRouteAtDestination),
         ];
+    }
+
+    /**
+     * Shortest routes from one point to many targets over a prepared network.
+     * One graph search serves every target. Returns [targetKey => route|null].
+     */
+    public function routesFrom(array $network, array $from, array $targets): array
+    {
+        $results = array_fill_keys(array_keys($targets), null);
+        $graph = $network['graph'];
+        $start = $this->attachPoint($graph, $from, '__start');
+        if (! $start || $targets === []) {
+            return $results;
+        }
+
+        $attached = [];
+        $single = count($targets) === 1;
+        foreach ($targets as $targetKey => $point) {
+            $nodeKey = $single ? '__end' : '__end:'.$targetKey;
+            $attachment = $this->attachPoint($graph, $point, $nodeKey, $network['prefer_network_route_at_destination'] ?? false);
+            if ($attachment) {
+                $attached[$targetKey] = $attachment;
+            }
+        }
+        if ($attached === []) {
+            return $results;
+        }
+
+        $previous = $this->dijkstra($graph['edges'], $start['key'], $single ? array_values($attached)[0]['key'] : null);
+        $meta = [
+            'source' => $network['source'],
+            'nodes' => count($graph['nodes']),
+            'edges' => array_sum(array_map('count', $graph['edges'])),
+            'segments' => $network['segments'],
+            'restricted_areas' => $network['restricted_areas'],
+            'nearby_comparisons' => $graph['nearby_comparisons'],
+        ];
+
+        foreach ($attached as $targetKey => $attachment) {
+            $keys = $this->pathKeys($previous, $start['key'], $attachment['key']);
+            if (! $keys) {
+                continue;
+            }
+            $path = array_map(fn (string $key) => $graph['nodes'][$key], $keys);
+            $results[$targetKey] = [
+                'path' => $this->geometry->compactPath($path),
+                'length_m' => $this->geometry->polylineLength($path),
+                'access_point' => $attachment['projection'],
+                'access_distance_m' => $attachment['distance_m'],
+                'graph' => $meta,
+            ];
+        }
+
+        return $results;
     }
 
     private function buildGraph(Collection $routes, array $restrictedAreas = [], bool $preferNetworkRoutes = false): array
     {
         $nodes = [];
         $edges = [];
-        $routeSegments = [];
+        $pieces = [];
 
         foreach ($routes as $route) {
             $path = $route->path ?? [];
+            $isTrench = ($route->route_type ?? null) === 'trench';
+            // The physical trench is the access corridor. Once a connected
+            // distribution/feeder route exists, prefer following it to ODO.
+            $factor = $preferNetworkRoutes && $isTrench ? 1.15 : 1.0;
             for ($i = 0; $i < count($path); $i++) {
                 $key = $this->nodeKey($path[$i]);
                 $nodes[$key] = $this->normalizedPoint($path[$i]);
@@ -108,65 +154,203 @@ class RouteGraphService
                 }
 
                 $prevKey = $this->nodeKey($path[$i - 1]);
-                if ($this->segmentBlockedByRestrictedArea($path[$i - 1], $path[$i], $restrictedAreas)) {
+                if ($prevKey === $key || $this->segmentBlockedByRestrictedArea($path[$i - 1], $path[$i], $restrictedAreas)) {
                     continue;
                 }
 
-                $weight = $this->geometry->distanceBetweenPoints($path[$i - 1], $path[$i]);
-                if ($preferNetworkRoutes && ($route->route_type ?? null) === 'trench') {
-                    // The physical trench is the access corridor. Once a connected
-                    // distribution/feeder route exists, prefer following it to ODO.
-                    $weight *= 1.15;
-                }
-                $edges[$prevKey][$key] = min($edges[$prevKey][$key] ?? INF, $weight);
-                $edges[$key][$prevKey] = min($edges[$key][$prevKey] ?? INF, $weight);
-                $routeSegments[] = [
+                $this->connect($edges, $prevKey, $key, $this->geometry->distanceBetweenPoints($path[$i - 1], $path[$i]) * $factor);
+                $pieces[] = [
                     'route_id' => $route->id,
-                    'a' => $this->normalizedPoint($path[$i - 1]),
-                    'b' => $this->normalizedPoint($path[$i]),
+                    'a' => $nodes[$prevKey],
+                    'b' => $nodes[$key],
                     'a_key' => $prevKey,
                     'b_key' => $key,
+                    'factor' => $factor,
+                    'trench' => $isTrench,
+                    'splits' => [],
                 ];
             }
         }
 
-        $intersectionComparisons = $this->connectSegmentIntersections($routeSegments, $nodes, $edges);
+        $vertexKeys = array_keys($nodes);
+        $index = $this->pieceIndex($pieces, $nodes);
+        $intersectionComparisons = $this->splitAtCrossings($pieces, $nodes, $index);
+        $this->splitAtTouchingVertices($pieces, $nodes, $vertexKeys, $index);
+        foreach ($pieces as $piece) {
+            $this->chainPiece($piece, $nodes, $edges);
+        }
         $nearbyComparisons = $this->connectNearbyNodes($nodes, $edges);
 
-        return ['nodes' => $nodes, 'edges' => $edges, 'nearby_comparisons' => $nearbyComparisons + $intersectionComparisons];
+        return [
+            'nodes' => $nodes,
+            'edges' => $edges,
+            'pieces' => $pieces,
+            'nearby_comparisons' => $nearbyComparisons + $intersectionComparisons,
+        ];
     }
 
-    private function connectSegmentIntersections(array $segments, array &$nodes, array &$edges): int
+    private function connect(array &$edges, string $a, string $b, float $weight): void
+    {
+        if ($a === $b) {
+            return;
+        }
+        $edges[$a][$b] = min($edges[$a][$b] ?? INF, $weight);
+        $edges[$b][$a] = min($edges[$b][$a] ?? INF, $weight);
+    }
+
+    /**
+     * Spatial grid over the line pieces, so crossings and touching vertices are
+     * found by looking at neighbours instead of comparing every pair.
+     */
+    private function pieceIndex(array $pieces, array $nodes): array
+    {
+        $referenceLatitude = $nodes === [] ? 0.0 : array_sum(array_column($nodes, 0)) / count($nodes);
+        $latCell = self::GRID_CELL_M / 111320;
+        $lngCell = self::GRID_CELL_M / (111320 * max(cos(deg2rad($referenceLatitude)), 0.00001));
+        $latPad = self::JOIN_TOLERANCE_M / 111320;
+        $lngPad = $latPad * ($lngCell / $latCell);
+        $cells = [];
+        $oversized = [];
+
+        foreach ($pieces as $i => $piece) {
+            $minY = (int) floor((min($piece['a'][0], $piece['b'][0]) - $latPad) / $latCell);
+            $maxY = (int) floor((max($piece['a'][0], $piece['b'][0]) + $latPad) / $latCell);
+            $minX = (int) floor((min($piece['a'][1], $piece['b'][1]) - $lngPad) / $lngCell);
+            $maxX = (int) floor((max($piece['a'][1], $piece['b'][1]) + $lngPad) / $lngCell);
+            if (($maxX - $minX + 1) * ($maxY - $minY + 1) > self::MAX_CELLS_PER_PIECE) {
+                $oversized[] = $i;
+
+                continue;
+            }
+            for ($x = $minX; $x <= $maxX; $x++) {
+                for ($y = $minY; $y <= $maxY; $y++) {
+                    $cells[$x.':'.$y][] = $i;
+                }
+            }
+        }
+
+        return ['cells' => $cells, 'oversized' => $oversized, 'lat_cell' => $latCell, 'lng_cell' => $lngCell];
+    }
+
+    private function cellKey(array $index, float $lat, float $lng): string
+    {
+        return ((int) floor($lng / $index['lng_cell'])).':'.((int) floor($lat / $index['lat_cell']));
+    }
+
+    /**
+     * Where two lines cross without a shared vertex, add the crossing as a
+     * split point on both of them.
+     */
+    private function splitAtCrossings(array &$pieces, array &$nodes, array $index): int
     {
         $comparisons = 0;
-        $count = count($segments);
-
-        for ($i = 0; $i < $count; $i++) {
-            for ($j = $i + 1; $j < $count; $j++) {
-                $first = $segments[$i];
-                $second = $segments[$j];
-                if ($first['route_id'] === $second['route_id'] || ! $this->segmentBoundsOverlap($first, $second)) {
-                    continue;
+        $compare = function (int $i, int $j, ?string $cell) use (&$pieces, &$nodes, &$comparisons, $index): void {
+            $first = $pieces[$i];
+            $second = $pieces[$j];
+            if ($first['route_id'] === $second['route_id'] || ! $this->segmentBoundsOverlap($first, $second)) {
+                return;
+            }
+            if ($cell !== null) {
+                // A pair can share several cells; handle it only in the cell
+                // holding the corner of the area where their bounds overlap.
+                $lat = max(min($first['a'][0], $first['b'][0]), min($second['a'][0], $second['b'][0]));
+                $lng = max(min($first['a'][1], $first['b'][1]), min($second['a'][1], $second['b'][1]));
+                if ($this->cellKey($index, $lat, $lng) !== $cell) {
+                    return;
                 }
-                $comparisons++;
-                $intersection = $this->segmentIntersection($first['a'], $first['b'], $second['a'], $second['b']);
-                if (! $intersection) {
-                    continue;
-                }
+            }
+            $comparisons++;
+            $intersection = $this->segmentIntersection($first['a'], $first['b'], $second['a'], $second['b']);
+            if (! $intersection) {
+                return;
+            }
+            $key = $this->nodeKey($intersection);
+            $nodes[$key] ??= $this->normalizedPoint($intersection);
+            foreach ([$i, $j] as $pieceIndex) {
+                $this->addSplit($pieces[$pieceIndex], $key, $nodes[$key]);
+            }
+        };
 
-                $intersectionKey = $this->nodeKey($intersection);
-                $nodes[$intersectionKey] = $intersection;
-                foreach ([$first, $second] as $segment) {
-                    foreach ([['key' => $segment['a_key'], 'point' => $segment['a']], ['key' => $segment['b_key'], 'point' => $segment['b']]] as $endpoint) {
-                        $weight = $this->geometry->distanceBetweenPoints($intersection, $endpoint['point']);
-                        $edges[$intersectionKey][$endpoint['key']] = min($edges[$intersectionKey][$endpoint['key']] ?? INF, $weight);
-                        $edges[$endpoint['key']][$intersectionKey] = min($edges[$endpoint['key']][$intersectionKey] ?? INF, $weight);
-                    }
+        foreach ($index['cells'] as $cell => $members) {
+            $count = count($members);
+            for ($m = 0; $m < $count; $m++) {
+                for ($n = $m + 1; $n < $count; $n++) {
+                    $compare($members[$m], $members[$n], (string) $cell);
+                }
+            }
+        }
+        $oversized = array_flip($index['oversized']);
+        foreach ($index['oversized'] as $i) {
+            foreach (array_keys($pieces) as $j) {
+                if ($i !== $j && ! (isset($oversized[$j]) && $j < $i)) {
+                    $compare($i, $j, null);
                 }
             }
         }
 
         return $comparisons;
+    }
+
+    /**
+     * Join a line vertex that lands on the middle of another line. Drawn
+     * branches commonly end on an existing line without adding a vertex to
+     * it, so comparing vertices alone leaves a false gap.
+     */
+    private function splitAtTouchingVertices(array &$pieces, array $nodes, array $vertexKeys, array $index): void
+    {
+        foreach ($vertexKeys as $key) {
+            $key = (string) $key;
+            $point = $nodes[$key];
+            $candidates = array_merge($index['cells'][$this->cellKey($index, $point[0], $point[1])] ?? [], $index['oversized']);
+            foreach ($candidates as $i) {
+                $piece = $pieces[$i];
+                if ($key === $piece['a_key'] || $key === $piece['b_key']) {
+                    continue;
+                }
+                $projection = $this->projectOnPiece($point, $piece['a'], $piece['b']);
+                if ($projection['distance_m'] <= self::JOIN_TOLERANCE_M && $projection['t'] > 0.0 && $projection['t'] < 1.0) {
+                    $this->addSplit($pieces[$i], $key, $point, $projection['t']);
+                }
+            }
+        }
+    }
+
+    private function addSplit(array &$piece, string $key, array $point, ?float $t = null): void
+    {
+        if ($key === $piece['a_key'] || $key === $piece['b_key'] || isset($piece['splits'][$key])) {
+            return;
+        }
+        $piece['splits'][$key] = $t ?? $this->parameterOn($point, $piece['a'], $piece['b']);
+    }
+
+    /**
+     * Position of a point along a piece: 0 at its start, 1 at its end.
+     */
+    private function parameterOn(array $point, array $a, array $b): float
+    {
+        $dy = $b[0] - $a[0];
+        $dx = $b[1] - $a[1];
+        $length = ($dx ** 2) + ($dy ** 2);
+
+        return $length <= 0.0 ? 0.0 : max(0.0, min(1.0, ((($point[1] - $a[1]) * $dx) + (($point[0] - $a[0]) * $dy)) / $length));
+    }
+
+    /**
+     * Link a piece's split points in order along it, so a route can move from
+     * one to the next without detouring through the piece's ends.
+     */
+    private function chainPiece(array $piece, array $nodes, array &$edges): void
+    {
+        if ($piece['splits'] === []) {
+            return;
+        }
+        asort($piece['splits']);
+        $previous = $piece['a_key'];
+        foreach ([...array_keys($piece['splits']), $piece['b_key']] as $key) {
+            $key = (string) $key;
+            $this->connect($edges, $previous, $key, $this->geometry->distanceBetweenPoints($nodes[$previous], $nodes[$key]) * $piece['factor']);
+            $previous = $key;
+        }
     }
 
     private function segmentBoundsOverlap(array $first, array $second): bool
@@ -200,7 +384,7 @@ class RouteGraphService
             && $point[1] >= min($a[1], $b[1]) - $epsilon && $point[1] <= max($a[1], $b[1]) + $epsilon;
     }
 
-    private function connectNearbyNodes(array $nodes, array &$edges, float $toleranceMeters = 2.0): int
+    private function connectNearbyNodes(array $nodes, array &$edges, float $toleranceMeters = self::JOIN_TOLERANCE_M): int
     {
         if (count($nodes) < 2 || $toleranceMeters <= 0) {
             return 0;
@@ -234,56 +418,82 @@ class RouteGraphService
         return $comparisons;
     }
 
-    private function attachPoint(array &$graph, Collection $routes, array $point, string $key, array $restrictedAreas = []): ?string
+    /**
+     * Hang a free point (ODF, house, cabinet) on the nearest line piece and
+     * link its projection to the closest split points on either side.
+     *
+     * @return array{key:string,projection:array,distance_m:float}|null
+     */
+    private function attachPoint(array &$graph, array $point, string $key, bool $avoidTrench = false): ?array
     {
         $nearest = null;
-
-        foreach ($routes as $route) {
-            $projection = $this->projectPointToPath((float) $point[0], (float) $point[1], $route->path ?? []);
-            $path = $route->path ?? [];
-            $segmentIndex = (int) ($projection['segment_index'] ?? 0);
-            $a = $path[$segmentIndex - 1] ?? null;
-            $b = $path[$segmentIndex] ?? null;
-            if (! $a || ! $b || $this->segmentBlockedByRestrictedArea($a, $b, $restrictedAreas)) {
-                continue;
+        foreach ([$avoidTrench, false] as $skipTrench) {
+            foreach ($graph['pieces'] as $i => $piece) {
+                if ($skipTrench && $piece['trench']) {
+                    continue;
+                }
+                $projection = $this->projectOnPiece($point, $piece['a'], $piece['b']);
+                if (! $nearest || $projection['distance_m'] < $nearest['distance_m']) {
+                    $nearest = $projection + ['piece' => $i];
+                }
             }
-
-            if (! $nearest || $projection['distance_m'] < $nearest['distance_m']) {
-                $nearest = $projection + ['route' => $route];
+            if ($nearest || ! $skipTrench) {
+                break;
             }
         }
 
-        if (! $nearest || ! isset($nearest['segment_index'])) {
+        if (! $nearest) {
             return null;
         }
 
-        $path = $nearest['route']->path ?? [];
-        $segmentIndex = (int) $nearest['segment_index'];
-        $a = $path[$segmentIndex - 1] ?? null;
-        $b = $path[$segmentIndex] ?? null;
-
-        if (! $a || ! $b) {
-            return null;
-        }
-
+        $piece = $graph['pieces'][$nearest['piece']];
         $original = [(float) $point[0], (float) $point[1]];
         $projected = [(float) $nearest['lat'], (float) $nearest['lng']];
         $projectionKey = $key.'__projection';
         $graph['nodes'][$key] = $original;
         $graph['nodes'][$projectionKey] = $projected;
+        $this->connect($graph['edges'], $key, $projectionKey, $nearest['distance_m']);
 
-        $spurWeight = $this->geometry->distanceBetweenPoints($original, $projected);
-        $graph['edges'][$key][$projectionKey] = $spurWeight;
-        $graph['edges'][$projectionKey][$key] = $spurWeight;
-
-        foreach ([$a, $b] as $endpoint) {
-            $endpointKey = $this->nodeKey($endpoint);
-            $weight = $this->geometry->distanceBetweenPoints($projected, $endpoint);
-            $graph['edges'][$projectionKey][$endpointKey] = $weight;
-            $graph['edges'][$endpointKey][$projectionKey] = $weight;
+        $before = ['key' => $piece['a_key'], 't' => 0.0];
+        $after = ['key' => $piece['b_key'], 't' => 1.0];
+        foreach ($piece['splits'] as $splitKey => $t) {
+            if ($t <= $nearest['t'] && $t >= $before['t']) {
+                $before = ['key' => (string) $splitKey, 't' => $t];
+            }
+            if ($t >= $nearest['t'] && $t <= $after['t']) {
+                $after = ['key' => (string) $splitKey, 't' => $t];
+            }
         }
+        foreach ([$before['key'], $after['key']] as $neighbour) {
+            $weight = $this->geometry->distanceBetweenPoints($projected, $graph['nodes'][$neighbour]) * $piece['factor'];
+            $this->connect($graph['edges'], $projectionKey, $neighbour, $weight);
+        }
+        $graph['pieces'][$nearest['piece']]['splits'][$projectionKey] = $nearest['t'];
 
-        return $key;
+        return ['key' => $key, 'projection' => $projected, 'distance_m' => (float) $nearest['distance_m']];
+    }
+
+    /**
+     * @return array{t:float,lat:float,lng:float,distance_m:float}
+     */
+    private function projectOnPiece(array $point, array $a, array $b): array
+    {
+        $lat = (float) $point[0];
+        $lng = (float) $point[1];
+        $start = $this->geometry->toCartesian((float) $a[0], (float) $a[1], $lat, $lng);
+        $end = $this->geometry->toCartesian((float) $b[0], (float) $b[1], $lat, $lng);
+        $dx = $end['x'] - $start['x'];
+        $dy = $end['y'] - $start['y'];
+        $t = max(0.0, min(1.0, ((-$start['x'] * $dx) + (-$start['y'] * $dy)) / max(0.000001, ($dx ** 2) + ($dy ** 2))));
+        $x = $start['x'] + ($dx * $t);
+        $y = $start['y'] + ($dy * $t);
+        $projected = match (true) {
+            $t <= 0.0 => [(float) $a[0], (float) $a[1]],
+            $t >= 1.0 => [(float) $b[0], (float) $b[1]],
+            default => [$lat + ($y / 111320), $lng + ($x / (111320 * cos(deg2rad($lat))))],
+        };
+
+        return ['t' => $t, 'lat' => $projected[0], 'lng' => $projected[1], 'distance_m' => sqrt(($x ** 2) + ($y ** 2))];
     }
 
     private function segmentBlockedByRestrictedArea(array $a, array $b, array $restrictedAreas): bool
@@ -373,39 +583,11 @@ class RouteGraphService
             && $b['y'] <= max($a['y'], $c['y']) && $b['y'] >= min($a['y'], $c['y']);
     }
 
-    private function projectPointToPath(float $lat, float $lng, array $points): array
-    {
-        $best = null;
-        $chainage = 0.0;
-
-        for ($i = 1; $i < count($points); $i++) {
-            $a = $this->geometry->toCartesian((float) $points[$i - 1][0], (float) $points[$i - 1][1], $lat, $lng);
-            $b = $this->geometry->toCartesian((float) $points[$i][0], (float) $points[$i][1], $lat, $lng);
-            $abx = $b['x'] - $a['x'];
-            $aby = $b['y'] - $a['y'];
-            $ab2 = max(0.000001, ($abx ** 2) + ($aby ** 2));
-            $t = max(0, min(1, ((-$a['x'] * $abx) + (-$a['y'] * $aby)) / $ab2));
-            $x = $a['x'] + ($abx * $t);
-            $y = $a['y'] + ($aby * $t);
-            $distance = sqrt(($x ** 2) + ($y ** 2));
-            $segmentLength = sqrt($ab2);
-
-            if (! $best || $distance < $best['distance_m']) {
-                $best = [
-                    'lat' => $lat + ($y / 111320),
-                    'lng' => $lng + ($x / (111320 * cos(deg2rad($lat)))),
-                    'distance_m' => $distance,
-                    'chainage_m' => $chainage + ($segmentLength * $t),
-                    'segment_index' => $i,
-                ];
-            }
-            $chainage += $segmentLength;
-        }
-
-        return $best ?? ['lat' => $lat, 'lng' => $lng, 'distance_m' => INF, 'chainage_m' => 0, 'segment_index' => 0];
-    }
-
-    private function dijkstra(array $edges, string $start, string $end): ?array
+    /**
+     * Shortest-path tree from $start as [node => previous node]. With $end the
+     * search stops as soon as that node is settled.
+     */
+    private function dijkstra(array $edges, string $start, ?string $end = null): array
     {
         $dist = [$start => 0.0];
         $prev = [];
@@ -435,15 +617,16 @@ class RouteGraphService
             }
         }
 
-        if (! isset($dist[$end])) {
-            return null;
-        }
+        return $prev;
+    }
 
+    private function pathKeys(array $previous, string $start, string $end): ?array
+    {
         $path = [];
-        for ($node = $end; $node !== null; $node = $prev[$node] ?? null) {
-            array_unshift($path, $node);
+        for ($node = $end; $node !== null; $node = $previous[$node] ?? null) {
+            $path[] = (string) $node;
             if ($node === $start) {
-                return $path;
+                return array_reverse($path);
             }
         }
 

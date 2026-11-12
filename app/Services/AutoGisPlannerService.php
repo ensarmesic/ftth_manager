@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\DB;
 
 class AutoGisPlannerService
 {
+    private const HOUSES_PER_CABINET = 12;
+
+    private const AERIAL_HOUSES_PER_CABINET = 4;
+
+    private const MAX_DROP_M = 120;
+
     public function __construct(
         private readonly RouteGraphService $graph,
         private readonly BranchSyncService $branches,
@@ -46,7 +52,9 @@ class AutoGisPlannerService
         $totalLength = 0;
         $source = null;
         $network = [];
-        $assignments = $this->capacityAwareAssignments($project, $odfs, $houses);
+        // Build the routing graph once; every ODF and cabinet search reuses it.
+        $routing = $this->graph->network($project->id);
+        $assignments = $this->capacityAwareAssignments($routing, $odfs, $houses);
 
         foreach ($assignments as $assignment) {
             $house = $assignment['house'];
@@ -70,15 +78,18 @@ class AutoGisPlannerService
                 'capacity_forced' => (bool) ($assignment['capacity_forced'] ?? false),
                 'length_m' => (int) $route['length_m'],
                 'path' => $route['path'],
+                'access_point' => $route['access_point'] ?? null,
                 'graph' => $route['graph'],
             ];
         }
 
         $networkSegments = $this->networkSegments($network);
         $networkLength = array_sum(array_column($networkSegments, 'length_m'));
-        $cabinets = $this->cabinetGroups($project, $routes);
+        // Use the drop limit the engineer set for this project, when there is one.
+        $maxDrop = (int) ($project->largePlannerSetting?->max_drop_length_m ?: self::MAX_DROP_M);
+        $cabinets = $this->cabinetGroups($project, $routes, $routing, $maxDrop);
         $odfSummary = $this->odfSummary($routes, $cabinets, $odfs);
-        $quality = $this->qualitySummary($routes, $cabinets, $odfSummary, count($unrouted));
+        $quality = $this->qualitySummary($routes, $cabinets, $odfSummary, count($unrouted), $maxDrop);
 
         return [
             'summary' => [
@@ -202,62 +213,280 @@ class AutoGisPlannerService
         ];
     }
 
-    private function cabinetGroups(Project $project, array $routes, int $maxHouses = 12): array
+    /**
+     * Group houses into cabinets by where they sit on the network, not by how
+     * far they are from the ODF: houses that share the same stretch of route
+     * end up together, and the cabinet goes on the corridor between them.
+     */
+    private function cabinetGroups(Project $project, array $routes, ?array $routing, int $maxDrop): array
     {
-        $maxHouses = $project->isAerial() ? 4 : $maxHouses;
+        $capacity = $project->isAerial() ? self::AERIAL_HOUSES_PER_CABINET : self::HOUSES_PER_CABINET;
+        $cabinets = [];
 
-        return collect($routes)
-            ->groupBy(fn (array $route) => $route['odf']['id'] ?? 0)
-            ->flatMap(function ($odfRoutes) use ($maxHouses) {
-                return $odfRoutes
-                    ->sortBy('length_m')
-                    ->values()
-                    ->chunk($maxHouses)
-                    ->values();
-            })
-            ->values()
-            ->map(function ($chunk, int $index) use ($project): array {
-                $items = $chunk->values();
-                $median = $items[(int) floor(($items->count() - 1) / 2)];
-                $point = $median['path'][max(count($median['path']) - 1, 0)] ?? [$median['house']['lat'], $median['house']['lng']];
+        foreach (collect($routes)->groupBy(fn (array $route) => $route['odf']['id'] ?? 0) as $odfRoutes) {
+            $odfRoutes = $odfRoutes->values()->all();
+            $tree = $this->routeTree($odfRoutes);
+            $placed = [];
+            foreach ($this->houseGroups($tree, $capacity, $maxDrop) as $group) {
+                $placed[] = ['node' => $this->bestCabinet($tree, $group)['node'], 'routes' => $group];
+            }
+            // Number the cabinets outward from the ODF.
+            usort($placed, fn (array $a, array $b) => $tree['depth'][$a['node']] <=> $tree['depth'][$b['node']]);
 
-                $houses = $items->pluck('house')->values()->all();
-                $dropPreviews = collect($houses)->map(function (array $house) use ($project, $point): array {
-                    $route = $this->graph->shortestPath($project->id, $point, [$house['lat'], $house['lng']]);
-                    $path = $route['path'] ?? [$point, [$house['lat'], $house['lng']]];
+            foreach ($placed as $item) {
+                $cabinets[] = $this->cabinetPayload(
+                    $project,
+                    $routing,
+                    $tree['points'][$item['node']],
+                    array_map(fn (int $index) => $odfRoutes[$index], $item['routes']),
+                    count($cabinets),
+                );
+            }
+        }
 
-                    return [
-                        'house_id' => $house['id'],
-                        'house_label' => $house['label'],
-                        'length_m' => (int) ($route['length_m'] ?? $this->distance($path[0], $path[count($path) - 1])),
-                        'path' => $path,
-                    ];
-                })->values()->all();
-
-                return [
-                    'name' => ($project->isAerial() ? 'GIS ODP ' : 'GIS ODO ').($index + 1),
-                    'odf' => $median['odf'],
-                    'lat' => (float) $point[0],
-                    'lng' => (float) $point[1],
-                    'house_count' => $items->count(),
-                    'splitter_count' => $project->isAerial() ? 1 : $this->splitterCount($items->count()),
-                    'capacity' => $project->isAerial() ? 4 : $this->splitterCount($items->count()) * 4,
-                    'utilization_percent' => (int) round($items->count() / max($project->isAerial() ? 4 : $this->splitterCount($items->count()) * 4, 1) * 100),
-                    'max_drop_m' => max(array_column($dropPreviews, 'length_m') ?: [0]),
-                    'average_drop_m' => count($dropPreviews) ? (int) round(array_sum(array_column($dropPreviews, 'length_m')) / count($dropPreviews)) : 0,
-                    'houses' => $houses,
-                    'drop_preview' => $dropPreviews,
-                ];
-            })
-            ->all();
+        return $cabinets;
     }
 
-    private function capacityAwareAssignments(Project $project, $odfs, $houses): array
+    /**
+     * The routes from one ODF fan out as a tree. Record each point's parent
+     * and distance from the ODF, and hang every house on the corridor point
+     * where its route leaves the road.
+     */
+    private function routeTree(array $routes): array
+    {
+        $tree = ['points' => [], 'parent' => [], 'depth' => [], 'hops' => [], 'houses' => [], 'access' => [], 'spur' => []];
+
+        foreach ($routes as $index => $route) {
+            $previous = null;
+            foreach ($route['path'] as $point) {
+                $point = $this->normalizedPoint($point);
+                $key = $this->pointKey($point);
+                if (! isset($tree['points'][$key])) {
+                    $tree['points'][$key] = $point;
+                    $tree['parent'][$key] = $previous;
+                    $tree['depth'][$key] = $previous === null ? 0.0 : $tree['depth'][$previous] + $this->meters($tree['points'][$previous], $point);
+                    $tree['hops'][$key] = $previous === null ? 0 : $tree['hops'][$previous] + 1;
+                }
+                $previous = $key;
+            }
+            if ($previous === null) {
+                continue;
+            }
+
+            $access = is_array($route['access_point'] ?? null) ? $this->pointKey($this->normalizedPoint($route['access_point'])) : $previous;
+            if (! isset($tree['points'][$access])) {
+                $access = $previous;
+            }
+            $spur = $this->meters($tree['points'][$access], [$route['house']['lat'], $route['house']['lng']]);
+            $tree['access'][$index] = $access;
+            $tree['spur'][$index] = $spur;
+            $tree['houses'][$access][] = [$index, $tree['depth'][$access] + $spur];
+        }
+
+        return $tree;
+    }
+
+    /**
+     * Walk the tree from its far ends toward the ODF, collecting houses. A
+     * group closes when it is full, or when joining it with the houses from
+     * another street would leave no cabinet position that keeps every drop
+     * within the limit.
+     *
+     * @return array<int, array<int, int>> route indexes per group
+     */
+    private function houseGroups(array $tree, int $capacity, int $maxDrop): array
+    {
+        $total = count($tree['access']);
+        $windows = (int) ceil($total / max($capacity, 1));
+        // Split evenly (e.g. 11 + 11 instead of 12 + 10) only while every
+        // cabinet stays close to full.
+        $size = $windows > 1 && intdiv($total, $windows) >= max(1, $capacity - 2)
+            ? (int) ceil($total / $windows)
+            : $capacity;
+
+        $hops = $tree['hops'];
+        arsort($hops);
+        $pending = [];
+        $groups = [];
+        $farthestFirst = fn (array $a, array $b) => $b[1] <=> $a[1];
+
+        foreach (array_keys($hops) as $key) {
+            $key = (string) $key;
+            $arriving = $pending[$key] ?? [];
+            $own = $tree['houses'][$key] ?? [];
+            unset($pending[$key]);
+            if ($arriving === [] && $own === []) {
+                continue;
+            }
+
+            if ($own === [] && count($arriving) === 1) {
+                // One group just passing through: nothing about it changes.
+                $list = $arriving[0];
+            } else {
+                $list = $own;
+                // Join the nearest groups first.
+                usort($arriving, fn (array $a, array $b) => $a[0][1] <=> $b[0][1]);
+                foreach ($arriving as $group) {
+                    $joined = array_merge($list, $group);
+                    if ($list === [] || $this->bestCabinet($tree, array_column($joined, 0))['longest'] <= $maxDrop) {
+                        $list = $joined;
+                    } else {
+                        $groups[] = array_column($group, 0);
+                    }
+                }
+                // A full group takes the far end; the houses nearest this
+                // point carry on toward the ODF.
+                usort($list, $farthestFirst);
+                while (count($list) >= $size) {
+                    $groups[] = array_column(array_splice($list, 0, $size), 0);
+                }
+            }
+
+            if ($list === []) {
+                continue;
+            }
+            $parent = $tree['parent'][$key];
+            if ($parent === null) {
+                $groups[] = array_column($list, 0);
+            } else {
+                $pending[$parent][] = $list;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * The corridor point that keeps the group's drops shortest. On a tree the
+     * best spot is always where a house joins the road or where two of their
+     * routes meet, so only those points need checking.
+     *
+     * @return array{node:string,longest:float,total:float}
+     */
+    private function bestCabinet(array $tree, array $group): array
+    {
+        $accesses = array_values(array_unique(array_map(fn (int $index) => $tree['access'][$index], $group)));
+        $candidates = array_fill_keys($accesses, true);
+        for ($i = 0; $i < count($accesses); $i++) {
+            for ($j = $i + 1; $j < count($accesses); $j++) {
+                $meeting = $this->meetingNode($tree, $accesses[$i], $accesses[$j]);
+                if ($meeting !== null) {
+                    $candidates[$meeting] = true;
+                }
+            }
+        }
+
+        $best = ['node' => $accesses[0], 'longest' => INF, 'total' => INF];
+        foreach (array_keys($candidates) as $candidate) {
+            $candidate = (string) $candidate;
+            $distanceTo = [];
+            foreach ($accesses as $access) {
+                $meeting = $this->meetingNode($tree, $candidate, $access);
+                $distanceTo[$access] = $tree['depth'][$candidate] + $tree['depth'][$access]
+                    - (2 * ($meeting === null ? 0.0 : $tree['depth'][$meeting]));
+            }
+            $total = 0.0;
+            $longest = 0.0;
+            foreach ($group as $index) {
+                $drop = $distanceTo[$tree['access'][$index]] + $tree['spur'][$index];
+                $total += $drop;
+                $longest = max($longest, $drop);
+            }
+            if ($total + $longest < $best['total'] + $best['longest']) {
+                $best = ['node' => $candidate, 'longest' => $longest, 'total' => $total];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * The point where the routes to two tree nodes split apart.
+     */
+    private function meetingNode(array $tree, string $a, string $b): ?string
+    {
+        while ($a !== $b) {
+            // Step the deeper of the two one point closer to the ODF.
+            if ($tree['hops'][$a] >= $tree['hops'][$b]) {
+                $a = $tree['parent'][$a];
+            } else {
+                $b = $tree['parent'][$b];
+            }
+            if ($a === null || $b === null) {
+                return null;
+            }
+        }
+
+        return $a;
+    }
+
+    private function cabinetPayload(Project $project, ?array $routing, array $point, array $items, int $index): array
+    {
+        $houses = array_column($items, 'house');
+        $targets = [];
+        foreach ($houses as $house) {
+            $targets[$house['id']] = [$house['lat'], $house['lng']];
+        }
+        $drops = $routing ? $this->graph->routesFrom($routing, $point, $targets) : [];
+
+        $dropPreviews = array_map(function (array $house) use ($drops, $point): array {
+            $housePoint = [$house['lat'], $house['lng']];
+            $route = $drops[$house['id']] ?? null;
+            $path = $route['path'] ?? [];
+            if (count($path) < 2) {
+                $path = [$point, $housePoint];
+            }
+
+            return [
+                'house_id' => $house['id'],
+                'house_label' => $house['label'],
+                'length_m' => (int) ($route['length_m'] ?? $this->distance($point, $housePoint)),
+                'path' => $path,
+            ];
+        }, $houses);
+
+        $count = count($items);
+        $capacity = $project->isAerial() ? self::AERIAL_HOUSES_PER_CABINET : $this->splitterCount($count) * 4;
+
+        return [
+            'name' => ($project->isAerial() ? 'GIS ODP ' : 'GIS ODO ').($index + 1),
+            'odf' => $items[0]['odf'],
+            'lat' => (float) $point[0],
+            'lng' => (float) $point[1],
+            'house_count' => $count,
+            'splitter_count' => $project->isAerial() ? 1 : $this->splitterCount($count),
+            'capacity' => $capacity,
+            'utilization_percent' => (int) round($count / max($capacity, 1) * 100),
+            'max_drop_m' => max(array_column($dropPreviews, 'length_m') ?: [0]),
+            'average_drop_m' => count($dropPreviews) ? (int) round(array_sum(array_column($dropPreviews, 'length_m')) / count($dropPreviews)) : 0,
+            'houses' => $houses,
+            'drop_preview' => $dropPreviews,
+        ];
+    }
+
+    private function capacityAwareAssignments(?array $routing, $odfs, $houses): array
     {
         $remainingSlots = $this->odfHouseSlots($odfs);
+        $targets = $houses
+            ->mapWithKeys(fn (House $house) => [$house->id => [(float) $house->latitude, (float) $house->longitude]])
+            ->all();
+
+        // One search per ODF reaches every house.
+        $candidates = [];
+        foreach ($odfs as $odf) {
+            $found = $routing
+                ? $this->graph->routesFrom($routing, [(float) $odf->latitude, (float) $odf->longitude], $targets)
+                : [];
+            foreach ($found as $houseId => $route) {
+                if ($route) {
+                    $candidates[$houseId][] = ['odf' => $odf, 'route' => $route, 'length_m' => (int) $route['length_m']];
+                }
+            }
+        }
+
         $candidatesByHouse = $houses->map(fn (House $house) => [
             'house' => $house,
-            'candidates' => $this->routeCandidatesFromOdfs($project, $odfs, $house),
+            'candidates' => collect($candidates[$house->id] ?? [])->sortBy('length_m')->values()->all(),
         ]);
 
         return $candidatesByHouse
@@ -286,24 +515,6 @@ class AutoGisPlannerService
                     'capacity_forced' => $capacityForced,
                 ];
             })
-            ->all();
-    }
-
-    private function routeCandidatesFromOdfs(Project $project, $odfs, House $house): array
-    {
-        return $odfs
-            ->map(function ($odf) use ($project, $house): ?array {
-                $route = $this->graph->shortestPath(
-                    $project->id,
-                    [(float) $odf->latitude, (float) $odf->longitude],
-                    [(float) $house->latitude, (float) $house->longitude],
-                );
-
-                return $route ? ['odf' => $odf, 'route' => $route, 'length_m' => (int) $route['length_m']] : null;
-            })
-            ->filter()
-            ->sortBy('length_m')
-            ->values()
             ->all();
     }
 
@@ -348,15 +559,15 @@ class AutoGisPlannerService
             ->all();
     }
 
-    private function qualitySummary(array $routes, array $cabinets, array $odfs, int $unroutedCount): array
+    private function qualitySummary(array $routes, array $cabinets, array $odfs, int $unroutedCount, int $maxDrop = self::MAX_DROP_M): array
     {
         $dropLengths = collect($cabinets)->flatMap(fn (array $cabinet) => collect($cabinet['drop_preview'] ?? [])->pluck('length_m'))->values();
         $utilizations = collect($cabinets)->pluck('utilization_percent')->filter(fn ($value) => $value !== null)->values();
         $warnings = [];
 
         foreach ($cabinets as $cabinet) {
-            if (($cabinet['max_drop_m'] ?? 0) > 120) {
-                $warnings[] = "{$cabinet['name']} ima drop duzi od 120 m ({$cabinet['max_drop_m']} m).";
+            if (($cabinet['max_drop_m'] ?? 0) > $maxDrop) {
+                $warnings[] = "{$cabinet['name']} ima drop duzi od {$maxDrop} m ({$cabinet['max_drop_m']} m).";
             }
             if (($cabinet['utilization_percent'] ?? 0) < 50) {
                 $warnings[] = "{$cabinet['name']} je slabo popunjen ({$cabinet['utilization_percent']}%).";
@@ -460,13 +671,18 @@ class AutoGisPlannerService
 
     private function distance(array $a, array $b): int
     {
+        return (int) round($this->meters($a, $b));
+    }
+
+    private function meters(array $a, array $b): float
+    {
         $lat1 = deg2rad((float) $a[0]);
         $lat2 = deg2rad((float) $b[0]);
         $dLat = deg2rad((float) $b[0] - (float) $a[0]);
         $dLng = deg2rad((float) $b[1] - (float) $a[1]);
         $h = sin($dLat / 2) ** 2 + cos($lat1) * cos($lat2) * (sin($dLng / 2) ** 2);
 
-        return (int) round(6371000 * 2 * atan2(sqrt($h), sqrt(1 - $h)));
+        return 6371000 * 2 * atan2(sqrt($h), sqrt(1 - $h));
     }
 
     private function fiberCountForLoad(int $houseCount): int
