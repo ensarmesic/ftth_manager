@@ -29,6 +29,7 @@ use App\Http\Controllers\LargePlannerZoneController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MapLayerController;
+use App\Http\Controllers\MapNoteController;
 use App\Http\Controllers\MaterialEstimateVersionController;
 use App\Http\Controllers\MissingDropRouteController;
 use App\Http\Controllers\OdfController;
@@ -79,7 +80,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/izvjestaji/projekti/{project}/stavke-priloga', [ReportController::class, 'storeAppendixItem'])->middleware('can:project.edit')->name('reports.appendix-items.store');
     Route::delete('/izvjestaji/stavke-priloga/{item}', [ReportController::class, 'deleteAppendixItem'])->middleware('can:destructive')->name('reports.appendix-items.delete');
     Route::get('/izvjestaji/projekti/{project}/prilog-3', [ReportController::class, 'projectAppendix'])->name('reports.project-appendix');
-    Route::get('/splitteri', [ReportController::class, 'splitters'])->name('splitters.index');
+    // Stranica Splitteri je uklonjena: kapacitet po ODO-u je u Izvještajima i na ODO ormarićima.
+    Route::permanentRedirect('/splitteri', '/izvjestaji');
     Route::get('/fiber-sema', [ReportController::class, 'fiberSchema'])->name('fiber-schema.index');
     Route::get('/projekti/{project}/fiber-sema/pdf', [ReportController::class, 'fiberSchemaPdf'])->middleware('can:project.export')->name('projects.fiber-schema-pdf');
     Route::get('/projekti/{project}/fiber-plan', [FiberManagementController::class, 'plan'])->name('projects.fiber.plan');
@@ -92,7 +94,6 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/fiber-verzije/{version}/vrati', [FiberManagementController::class, 'restore'])->middleware('can:destructive')->name('projects.fiber.versions.restore');
     Route::patch('/projekti/{project}/fiber-zakljucavanje', [FiberManagementController::class, 'toggleLock'])->middleware('can:project.edit')->name('projects.fiber.lock');
     Route::patch('/projekti/{project}/power-budget', [FiberManagementController::class, 'updateBudgetSettings'])->middleware('can:project.edit')->name('projects.fiber.budget-settings');
-    Route::put('/projekti/{project}/fiber-raspored', [FiberManagementController::class, 'storeLayout'])->middleware('can:project.edit')->name('projects.fiber.layout');
     Route::get('/projekti/{project}/fiber-teren/{cabinet}', [FiberManagementController::class, 'fieldSheet'])->middleware('can:project.export')->name('projects.fiber.field-sheet');
     Route::get('/krakovi', [BranchController::class, 'branches'])->name('branches.index');
     Route::post('/krakovi', [BranchController::class, 'storeBranch'])->middleware('can:project.edit')->name('branches.store');
@@ -175,6 +176,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/projekti/{project}/tacke/preview-izvjestaj/{format}', [SurveyPointController::class, 'previewReport'])->middleware(['can:project.edit', 'throttle:heavy'])->where('format', 'csv|pdf')->name('projects.survey-points.preview-report');
     Route::post('/projekti/{project}/tacke/import', [SurveyPointController::class, 'import'])->middleware(['can:project.edit', 'throttle:heavy'])->name('projects.survey-points.import');
     Route::get('/projekti/{project}/tacke/importi', [SurveyPointController::class, 'imports'])->name('projects.survey-points.imports');
+    Route::get('/projekti/{project}/napomene', [MapNoteController::class, 'index'])->middleware('can:project.view')->name('projects.map-notes.index');
+    Route::post('/projekti/{project}/napomene', [MapNoteController::class, 'store'])->middleware('can:project.view')->name('projects.map-notes.store');
+    Route::patch('/projekti/{project}/napomene/{note}', [MapNoteController::class, 'update'])->middleware('can:project.view')->name('projects.map-notes.update');
+    Route::delete('/projekti/{project}/napomene/{note}', [MapNoteController::class, 'destroy'])->middleware('can:project.view')->name('projects.map-notes.destroy');
     Route::post('/projekti/{project}/stubovi/krakovi', [PoleBranchController::class, 'generate'])->middleware('can:project.edit')->name('projects.pole-branches.generate');
     Route::delete('/projekti/{project}/stubovi/krakovi', [PoleBranchController::class, 'destroy'])->middleware('can:project.edit')->name('projects.pole-branches.destroy');
     Route::post('/projekti/{project}/stubovi/krakovi/veze', [PoleBranchController::class, 'link'])->middleware('can:project.edit')->name('projects.pole-branches.link');

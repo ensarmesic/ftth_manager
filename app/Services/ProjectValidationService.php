@@ -9,6 +9,45 @@ use Illuminate\Support\Collection;
 
 class ProjectValidationService
 {
+    /** Short title of each check, used to group many findings of the same kind. */
+    public const RULES = [
+        'project_no_odf' => 'Projekat nema ODF',
+        'project_no_cabinets' => 'Projekat nema ODO ormariće',
+        'project_no_houses' => 'Projekat nema kuće',
+        'odf_no_coordinates' => 'ODF bez koordinata',
+        'odf_no_cabinets' => 'ODF bez povezanog ODO-a',
+        'odf_over_capacity' => 'ODF preko kapaciteta vlakana',
+        'odf_near_capacity' => 'ODF skoro popunjen',
+        'house_no_coordinates' => 'Kuće bez koordinata',
+        'house_no_cabinet' => 'Kuće bez ODO-a',
+        'house_far_from_cabinet' => 'Kuće predaleko od ODO-a',
+        'house_far_from_branch' => 'Kuće predaleko od kraka',
+        'house_branch_mismatch' => 'Kuće na ODO-u drugog kraka',
+        'cabinet_no_odf' => 'ODO bez ODF-a',
+        'cabinet_no_coordinates' => 'ODO bez koordinata',
+        'cabinet_bad_splitters' => 'Neispravna splitter konfiguracija',
+        'cabinet_no_houses' => 'ODO bez kuća',
+        'cabinet_over_limit' => 'ODO preko kapaciteta kuća',
+        'cabinet_few_splitters' => 'ODO bez dovoljno splittera',
+        'cabinet_off_route' => 'ODO nije na trasi',
+        'route_bad_length' => 'Trase bez ispravne dužine',
+        'route_microduct_incomplete' => 'Trase bez podataka o mikrocijevi',
+        'route_not_adss' => 'Trase nisu nadzemni ADSS',
+        'route_cable_length_missing' => 'Trase s vlaknima bez dužine kabla',
+        'route_no_installation' => 'Trase bez tipa polaganja',
+        'drop_no_house' => 'Drop bez ciljne kuće',
+        'backbone_incomplete' => 'Backbone bez veza na krajevima',
+        'route_fiber_overload' => 'Trase preko kapaciteta vlakana',
+        'route_fiber_high' => 'Trase preko 80% zauzeća vlakana',
+        'route_no_geometry' => 'Trase bez geometrije',
+        'route_too_few_points' => 'Trase s manje od dvije tačke',
+        'route_length_mismatch' => 'Dužina trase ne odgovara geometriji',
+        'route_duplicate_points' => 'Trase s duplim tačkama',
+        'drop_not_at_house' => 'Drop ne završava na kući',
+        'drop_not_at_cabinet' => 'Drop ne završava na ODO-u',
+        'ok' => 'Nema otvorenih upozorenja',
+    ];
+
     public function __construct(
         private readonly GeometryService $geometry,
         private readonly ProjectMaterialService $materials,
@@ -24,58 +63,58 @@ class ProjectValidationService
         $branchRoutes = $this->branchRoutes($project);
 
         if ($project->odfs->isEmpty()) {
-            $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mrežnog plana.');
+            $items[] = $this->validationItem('warning', 'Projekat nema ODF.', 'project', $project->id, 'Dodaj ODF prije potvrde mrežnog plana.', 'project_no_odf');
         }
         if ($project->cabinets->isEmpty()) {
-            $items[] = $this->validationItem('info', $project->isAerial() ? 'Projekat nema ODP/NAP tačke na stubovima.' : 'Projekat nema ODO ormariće.', 'project', $project->id, $project->isAerial() ? 'Postavi priključne stubove i ODP/NAP tačke.' : 'Pokreni automatsko planiranje ODO ormarića.');
+            $items[] = $this->validationItem('info', $project->isAerial() ? 'Projekat nema ODP/NAP tačke na stubovima.' : 'Projekat nema ODO ormariće.', 'project', $project->id, $project->isAerial() ? 'Postavi priključne stubove i ODP/NAP tačke.' : 'Pokreni automatsko planiranje ODO ormarića.', 'project_no_cabinets');
         }
         if ($project->houses->isEmpty()) {
-            $items[] = $this->validationItem('info', 'Projekat nema kuće.', 'project', $project->id, 'Dodaj kuće iz mape ili liste.');
+            $items[] = $this->validationItem('info', 'Projekat nema kuće.', 'project', $project->id, 'Dodaj kuće iz mape ili liste.', 'project_no_houses');
         }
         foreach ($project->odfs as $odf) {
             if ($odf->latitude === null || $odf->longitude === null) {
-                $items[] = $this->validationItem('error', "{$odf->name} nema koordinate.", 'odf', $odf->id, 'Postavi ODF na mapi.');
+                $items[] = $this->validationItem('error', "{$odf->name} nema koordinate.", 'odf', $odf->id, 'Postavi ODF na mapi.', 'odf_no_coordinates');
             }
             if ($odf->cabinets->isEmpty()) {
-                $items[] = $this->validationItem('warning', "{$odf->name} nema povezan ODO.", 'odf', $odf->id, 'Poveži najmanje jedan ODO na ODF.');
+                $items[] = $this->validationItem('warning', "{$odf->name} nema povezan ODO.", 'odf', $odf->id, 'Poveži najmanje jedan ODO na ODF.', 'odf_no_cabinets');
             }
 
             if ($odf->fiber_capacity > 0) {
                 $usedFibers = $odf->cabinets->filter(fn ($c) => $c->parent_cabinet_id === null)->sum('splitter_count');
                 if ($usedFibers > $odf->fiber_capacity) {
-                    $items[] = $this->validationItem('error', "{$odf->name}: prekoračen kapacitet ({$usedFibers}/{$odf->fiber_capacity} vlakana).", 'odf', $odf->id, 'Smanji broj ODO ormarića ili povećaj kapacitet ODF-a.');
+                    $items[] = $this->validationItem('error', "{$odf->name}: prekoračen kapacitet ({$usedFibers}/{$odf->fiber_capacity} vlakana).", 'odf', $odf->id, 'Smanji broj ODO ormarića ili povećaj kapacitet ODF-a.', 'odf_over_capacity');
                 } elseif ($usedFibers > 0 && $usedFibers > $odf->fiber_capacity * 0.85) {
-                    $items[] = $this->validationItem('warning', "{$odf->name}: kapacitet skoro popunjen ({$usedFibers}/{$odf->fiber_capacity} vlakana).", 'odf', $odf->id, 'Razmotri dodavanje novog ODF-a.');
+                    $items[] = $this->validationItem('warning', "{$odf->name}: kapacitet skoro popunjen ({$usedFibers}/{$odf->fiber_capacity} vlakana).", 'odf', $odf->id, 'Razmotri dodavanje novog ODF-a.', 'odf_near_capacity');
                 }
             }
         }
 
         foreach ($project->houses as $house) {
             if ($house->latitude === null || $house->longitude === null) {
-                $items[] = $this->validationItem('error', "{$house->label} nema koordinate.", 'house', $house->id, 'Postavi kuću na mapi.');
+                $items[] = $this->validationItem('error', "{$house->label} nema koordinate.", 'house', $house->id, 'Postavi kuću na mapi.', 'house_no_coordinates');
             }
             if (! $house->cabinet_id) {
-                $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kuću ODO ormariću.');
+                $items[] = $this->validationItem('warning', "{$house->label} nema povezan ODO.", 'house', $house->id, 'Dodijeli kuću ODO ormariću.', 'house_no_cabinet');
             }
             if ($house->cabinet && $house->latitude && $house->longitude && $house->cabinet->latitude && $house->cabinet->longitude) {
                 $distance = $this->distanceMeters((float) $house->latitude, (float) $house->longitude, (float) $house->cabinet->latitude, (float) $house->cabinet->longitude);
                 if ($distance > $distanceLimit) {
                     $distanceLabel = number_format($distance, 1, ',', '.');
-                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od ODO.", 'house', $house->id, "Udaljenost do dodijeljenog ODO {$house->cabinet->name}: {$distanceLabel} m (prag {$distanceLimit} m). Pomjeri taj ODO bliže ili promijeni dodjelu kuće.");
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od ODO.", 'house', $house->id, "Udaljenost do dodijeljenog ODO {$house->cabinet->name}: {$distanceLabel} m (prag {$distanceLimit} m). Pomjeri taj ODO bliže ili promijeni dodjelu kuće.", 'house_far_from_cabinet');
                 }
             }
             if ($branchRoutes->isNotEmpty() && $house->latitude && $house->longitude) {
                 $nearestDistance = $this->nearestBranchDistance((float) $house->latitude, (float) $house->longitude, $branchRoutes, $distanceLimit);
                 if ($nearestDistance > $distanceLimit) {
                     $branchDistanceLabel = number_format($nearestDistance, 1, ',', '.');
-                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, "Udaljenost do najbližeg kraka: {$branchDistanceLabel} m (prag {$distanceLimit} m). Dodaj krak bliže objektu ili provjeri položaj kuće.");
+                    $items[] = $this->validationItem('warning', "{$house->label} je predaleko od kraka.", 'house', $house->id, "Udaljenost do najbližeg kraka: {$branchDistanceLabel} m (prag {$distanceLimit} m). Dodaj krak bliže objektu ili provjeri položaj kuće.", 'house_far_from_branch');
                 }
                 $hasExplicitBranchMismatch = $house->cabinet
                     && $house->branch_id
                     && $house->cabinet->branch_id
                     && (int) $house->branch_id !== (int) $house->cabinet->branch_id;
                 if ($hasExplicitBranchMismatch) {
-                    $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili ručno ispravi vezu.');
+                    $items[] = $this->validationItem('error', "{$house->label} je povezana na ODO drugog kraka.", 'house', $house->id, 'Ponovi Auto ODO ili ručno ispravi vezu.', 'house_branch_mismatch');
                 }
             }
         }
@@ -84,29 +123,29 @@ class ProjectValidationService
             $houseCount = $cabinet->houses->count();
             $neededSplitters = $this->splitterCount($houseCount);
             if (! $cabinet->odf_id && ! $cabinet->parent_cabinet_id) {
-                $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Poveži ODO sa najbližim ODF-om.');
+                $items[] = $this->validationItem('warning', "{$cabinet->name} nema povezan ODF.", 'cabinet', $cabinet->id, 'Poveži ODO sa najbližim ODF-om.', 'cabinet_no_odf');
             }
             if ($cabinet->latitude === null || $cabinet->longitude === null) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} nema koordinate.", 'cabinet', $cabinet->id, 'Postavi ODO na mapi.');
+                $items[] = $this->validationItem('error', "{$cabinet->name} nema koordinate.", 'cabinet', $cabinet->id, 'Postavi ODO na mapi.', 'cabinet_no_coordinates');
             }
             if ($largePlannerCapacity === null && ($cabinet->splitter_count > 3 || $cabinet->ports_per_splitter > 4)) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} ima neispravnu splitter konfiguraciju.", 'cabinet', $cabinet->id, 'Koristi najviše 3 splittera sa po 4 porta.');
+                $items[] = $this->validationItem('error', "{$cabinet->name} ima neispravnu splitter konfiguraciju.", 'cabinet', $cabinet->id, 'Koristi najviše 3 splittera sa po 4 porta.', 'cabinet_bad_splitters');
             }
             if ($houseCount === 0) {
-                $items[] = $this->validationItem('info', "{$cabinet->name} nema povezanih kuća.", 'cabinet', $cabinet->id, 'Poveži kuće na ODO.');
+                $items[] = $this->validationItem('info', "{$cabinet->name} nema povezanih kuća.", 'cabinet', $cabinet->id, 'Poveži kuće na ODO.', 'cabinet_no_houses');
             }
             if ($largePlannerCapacity === null && $houseCount > 12) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} ima više od 12 kuća.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.');
+                $items[] = $this->validationItem('error', "{$cabinet->name} ima više od 12 kuća.", 'cabinet', $cabinet->id, 'Rastereti ODO ili kreiraj dodatni ODO.', 'cabinet_over_limit');
             }
             if ($largePlannerCapacity !== null && ($houseCount > $largePlannerCapacity || $houseCount > $cabinet->capacity)) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} ima više kuća od dozvoljenog kapaciteta.", 'cabinet', $cabinet->id, "Smanji broj kuća ili povećaj kapacitet iznad {$houseCount} portova.");
+                $items[] = $this->validationItem('error', "{$cabinet->name} ima više kuća od dozvoljenog kapaciteta.", 'cabinet', $cabinet->id, "Smanji broj kuća ili povećaj kapacitet iznad {$houseCount} portova.", 'cabinet_over_limit');
             }
             if ($largePlannerCapacity === null && $cabinet->splitter_count < $neededSplitters) {
-                $items[] = $this->validationItem('error', "{$cabinet->name} nema dovoljno splittera.", 'cabinet', $cabinet->id, "Postavi {$neededSplitters} splittera.");
+                $items[] = $this->validationItem('error', "{$cabinet->name} nema dovoljno splittera.", 'cabinet', $cabinet->id, "Postavi {$neededSplitters} splittera.", 'cabinet_few_splitters');
             }
             if ($branchRoutes->isNotEmpty() && $cabinet->latitude && $cabinet->longitude) {
                 if ($this->nearestBranchDistance((float) $cabinet->latitude, (float) $cabinet->longitude, $branchRoutes, 10) > 10) {
-                    $items[] = $this->validationItem('warning', "{$cabinet->name} nije na trasi/kraku.", 'cabinet', $cabinet->id, 'Pomjeri ODO na najblizu tačku trase.');
+                    $items[] = $this->validationItem('warning', "{$cabinet->name} nije na trasi/kraku.", 'cabinet', $cabinet->id, 'Pomjeri ODO na najblizu tačku trase.', 'cabinet_off_route');
                 }
             }
         }
@@ -118,53 +157,53 @@ class ProjectValidationService
         foreach ($project->routes as $route) {
             if ($route->route_type === 'trench') {
                 if ($route->duct_length_m <= 0) {
-                    $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
+                    $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.', 'route_bad_length');
                 }
 
                 continue;
             }
             if (! $project->isAerial() && ! $route->hasCompleteMicroductData()) {
-                $items[] = $this->validationItem('warning', "{$route->name} nema kompletne podatke o mikrocijevi.", 'route', $route->id, 'Unesi tip, broj i dužinu mikrocijevi.');
+                $items[] = $this->validationItem('warning', "{$route->name} nema kompletne podatke o mikrocijevi.", 'route', $route->id, 'Unesi tip, broj i dužinu mikrocijevi.', 'route_microduct_incomplete');
             }
             if ($project->isAerial() && ($route->installation_type !== 'aerial' || $route->cable_type !== 'ADSS')) {
-                $items[] = $this->validationItem('error', "{$route->name} nije označena kao nadzemni ADSS.", 'route', $route->id, 'Postavi nadzemno polaganje i ADSS tip kabla.');
+                $items[] = $this->validationItem('error', "{$route->name} nije označena kao nadzemni ADSS.", 'route', $route->id, 'Postavi nadzemno polaganje i ADSS tip kabla.', 'route_not_adss');
             }
             if ($route->hasIncompleteCableData()) {
-                $items[] = $this->validationItem('warning', "{$route->name} ima broj vlakana, ali nema dužinu kabla.", 'route', $route->id, 'Unesi dužinu kabla ili ukloni broj vlakana.');
+                $items[] = $this->validationItem('warning', "{$route->name} ima broj vlakana, ali nema dužinu kabla.", 'route', $route->id, 'Unesi dužinu kabla ili ukloni broj vlakana.', 'route_cable_length_missing');
             }
             if (! $route->installation_type) {
-                $items[] = $this->validationItem('warning', "{$route->name} nema tip polaganja.", 'route', $route->id, 'Odaberi podzemno ili zračno polaganje.');
+                $items[] = $this->validationItem('warning', "{$route->name} nema tip polaganja.", 'route', $route->id, 'Odaberi podzemno ili zračno polaganje.', 'route_no_installation');
             }
             if ($route->duct_length_m <= 0) {
-                $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.');
+                $items[] = $this->validationItem('error', "{$route->name} nema ispravnu dužinu.", 'route', $route->id, 'Uredi geometriju trase.', 'route_bad_length');
             }
             if ($route->route_type === 'drop' && ($route->to_type !== 'house' || ! $route->to_id)) {
-                $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.');
+                $items[] = $this->validationItem('error', "{$route->name} drop trasa nema ciljnu kuću.", 'route', $route->id, 'Postavi to_type house i to_id kuće.', 'drop_no_house');
             }
             if ($route->route_type === 'backbone' && (! $route->from_type || ! $route->from_id || ! $route->to_type || ! $route->to_id)) {
-                $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.');
+                $items[] = $this->validationItem('warning', "{$route->name} nema kompletne from/to veze.", 'route', $route->id, 'Poveži oba kraja trase.', 'backbone_incomplete');
             }
             $occupancy = $this->routeOccupancy($route, $housesPerCabinet);
             if ($occupancy['used_fibers'] > $occupancy['fiber_capacity']) {
-                $items[] = $this->validationItem('error', "{$route->name} ima više zauzetih vlakana od kapaciteta.", 'route', $route->id, 'Povećaj kapacitet kabla.');
+                $items[] = $this->validationItem('error', "{$route->name} ima više zauzetih vlakana od kapaciteta.", 'route', $route->id, 'Povećaj kapacitet kabla.', 'route_fiber_overload');
             } elseif ($occupancy['utilization_percent'] > 80) {
-                $items[] = $this->validationItem('warning', "{$route->name} ima preko 80% zauzeća vlakana.", 'route', $route->id, 'Planiraj rezervni kapacitet.');
+                $items[] = $this->validationItem('warning', "{$route->name} ima preko 80% zauzeća vlakana.", 'route', $route->id, 'Planiraj rezervni kapacitet.', 'route_fiber_high');
             }
             if (! $route->path) {
-                $items[] = $this->validationItem('warning', "{$route->name} nema geometriju.", 'route', $route->id, 'Uredi geometriju trase na mapi.');
+                $items[] = $this->validationItem('warning', "{$route->name} nema geometriju.", 'route', $route->id, 'Uredi geometriju trase na mapi.', 'route_no_geometry');
             } elseif (count($route->path) < 2) {
-                $items[] = $this->validationItem('error', "{$route->name} ima manje od dvije tačke.", 'route', $route->id, 'Dodaj najmanje dvije tačke trase.');
+                $items[] = $this->validationItem('error', "{$route->name} ima manje od dvije tačke.", 'route', $route->id, 'Dodaj najmanje dvije tačke trase.', 'route_too_few_points');
             } else {
                 $path = array_values($route->path);
                 $actualLength = $this->geometry->polylineLength($path);
                 $lengthTolerance = max(5, $actualLength * 0.05);
                 if (abs((float) $route->duct_length_m - $actualLength) > $lengthTolerance) {
-                    $items[] = $this->validationItem('warning', "{$route->name}: spremljena dužina ne odgovara geometriji ({$route->duct_length_m} m / {$actualLength} m).", 'route', $route->id, 'Ponovo sačuvaj geometriju trase da se dužina preračuna.');
+                    $items[] = $this->validationItem('warning', "{$route->name}: spremljena dužina ne odgovara geometriji ({$route->duct_length_m} m / {$actualLength} m).", 'route', $route->id, 'Ponovo sačuvaj geometriju trase da se dužina preračuna.', 'route_length_mismatch');
                 }
 
                 for ($index = 1; $index < count($path); $index++) {
                     if ($this->geometry->distanceBetweenPoints($path[$index - 1], $path[$index]) < 0.02) {
-                        $items[] = $this->validationItem('warning', "{$route->name} ima uzastopne duple tačke.", 'route', $route->id, 'Očisti duple tačke geometrije.');
+                        $items[] = $this->validationItem('warning', "{$route->name} ima uzastopne duple tačke.", 'route', $route->id, 'Očisti duple tačke geometrije.', 'route_duplicate_points');
 
                         break;
                     }
@@ -175,16 +214,16 @@ class ProjectValidationService
                     $cabinet = $route->cabinet_id ? $cabinetsById->get($route->cabinet_id) : null;
                     $endpoints = [$path[0], $path[count($path) - 1]];
                     if ($house && $house->latitude !== null && $house->longitude !== null && ! $this->endpointTouches($endpoints, (float) $house->latitude, (float) $house->longitude)) {
-                        $items[] = $this->validationItem('error', "{$route->name} ne završava na povezanoj kući {$house->label}.", 'route', $route->id, 'Ponovo rutiraj drop od tačne koordinate kuće.');
+                        $items[] = $this->validationItem('error', "{$route->name} ne završava na povezanoj kući {$house->label}.", 'route', $route->id, 'Ponovo rutiraj drop od tačne koordinate kuće.', 'drop_not_at_house');
                     }
                     if ($cabinet && $cabinet->latitude !== null && $cabinet->longitude !== null && ! $this->endpointTouches($endpoints, (float) $cabinet->latitude, (float) $cabinet->longitude)) {
-                        $items[] = $this->validationItem('error', "{$route->name} ne završava na dodijeljenom ODO {$cabinet->name}.", 'route', $route->id, 'Ponovo rutiraj drop do tačne koordinate ODO-a.');
+                        $items[] = $this->validationItem('error', "{$route->name} ne završava na dodijeljenom ODO {$cabinet->name}.", 'route', $route->id, 'Ponovo rutiraj drop do tačne koordinate ODO-a.', 'drop_not_at_cabinet');
                     }
                 }
             }
         }
 
-        return $items ?: [$this->validationItem('ok', 'Projekat nema otvorenih FTTH upozorenja.', 'project', $project->id, 'Nastavi sa projektovanjem.')];
+        return $items ?: [$this->validationItem('ok', 'Projekat nema otvorenih FTTH upozorenja.', 'project', $project->id, 'Nastavi sa projektovanjem.', 'ok')];
     }
 
     private function endpointTouches(array $endpoints, float $lat, float $lng, float $toleranceMeters = 1.5): bool
@@ -257,7 +296,7 @@ class ProjectValidationService
         return $this->materials->routeOccupancy($route, $housesPerCabinet);
     }
 
-    private function validationItem(string $level, string $message, string $type, int $id, string $recommendation): array
+    private function validationItem(string $level, string $message, string $type, int $id, string $recommendation, string $rule): array
     {
         return [
             'level' => $level,
@@ -265,6 +304,8 @@ class ProjectValidationService
             'element_type' => $type,
             'element_id' => $id,
             'recommendation' => $recommendation,
+            'rule' => $rule,
+            'rule_label' => self::RULES[$rule] ?? $message,
         ];
     }
 }

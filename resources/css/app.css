@@ -1343,11 +1343,6 @@ main > header .rounded-full {
     display: none !important;
 }
 
-/* Validation/material check items: tighter */
-.app-content > section.grid.gap-5 .grid.gap-2 .check-item {
-    padding: 6px 10px !important;
-    font-size: 11.5px !important;
-}
 /* Materijal grid items: tighter */
 .app-content > section.grid.gap-5 .grid.grid-cols-2.gap-2 > div {
     padding: 5px 10px !important;
@@ -1435,8 +1430,9 @@ main > header .rounded-full {
     .project-row-actions { gap: .35rem; }
 }
 
+/* Printing the map page prints only the map; other pages print normally. */
 @media print {
-    * { visibility: hidden !important; }
+    body:has(#map-container) * { visibility: hidden !important; }
     #map-container, #map-container * { visibility: visible !important; }
     #map-container {
         position: fixed !important;

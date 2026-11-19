@@ -162,15 +162,6 @@ class FiberManagementController extends Controller
         return response()->json(['message' => 'Power-budget parametri su potvrđeni i proračun je osvježen.']);
     }
 
-    public function storeLayout(Request $request, Project $project): JsonResponse
-    {
-        abort_if($project->fiber_schema_locked, 423, 'Fiber šema je zaključana.');
-        $data = $request->validate(['positions' => ['required', 'array', 'max:1000'], 'positions.*.x' => ['required', 'numeric'], 'positions.*.y' => ['required', 'numeric']]);
-        $project->update(['fiber_schema_layout' => $data['positions']]);
-
-        return response()->json(['message' => 'Ručni raspored fiber šeme je sačuvan.']);
-    }
-
     public function csv(Project $project, FiberPlanService $service): Response
     {
         $plan = $service->build($project);

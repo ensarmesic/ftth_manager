@@ -43,28 +43,6 @@ trait WritesDxfEntities
         return $entities;
     }
 
-    private function dxfRect(float $x1, float $y1, float $x2, float $y2, string $layer, int $color): array
-    {
-        return [
-            ...$this->dxfLine($x1, $y1, $x2, $y1, $layer, $color),
-            ...$this->dxfLine($x2, $y1, $x2, $y2, $layer, $color),
-            ...$this->dxfLine($x2, $y2, $x1, $y2, $layer, $color),
-            ...$this->dxfLine($x1, $y2, $x1, $y1, $layer, $color),
-        ];
-    }
-
-    private function dxfTextRotated(float $x, float $y, string $text, string $layer, int $color, float $height, float $angle): array
-    {
-        return [
-            '0', 'TEXT', '8', $layer, '62', (string) $color,
-            '7', 'FTTH',
-            '10', (string) $x, '20', (string) $y, '30', '0',
-            '40', (string) $height,
-            '50', (string) $angle,
-            '1', $this->dxfSafeText($text),
-        ];
-    }
-
     /** Text centred on (x, y) along $angle; $valign 1 = sits on the point, 3 = hangs below it. */
     private function dxfTextAligned(float $x, float $y, string $text, string $layer, int $color, float $height, float $angle, int $valign): array
     {
@@ -93,19 +71,6 @@ trait WritesDxfEntities
             '7', 'FTTH',
             '10', (string) $x, '20', (string) $y, '30', '0',
             '40', (string) $height,
-            '1', $this->dxfSafeText($text),
-        ];
-    }
-
-    private function dxfTextRight(float $x, float $y, string $text, string $layer, int $color, float $height = 2.0): array
-    {
-        return [
-            '0', 'TEXT', '8', $layer, '62', (string) $color,
-            '7', 'FTTH',
-            '10', '0', '20', '0', '30', '0',
-            '40', (string) $height,
-            '72', '2',
-            '11', (string) $x, '21', (string) $y, '31', '0',
             '1', $this->dxfSafeText($text),
         ];
     }

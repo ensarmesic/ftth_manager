@@ -153,6 +153,7 @@ function updateLayerCount(type) {
         dxf: () => 0,
         survey: () => data.survey_objects?.length || 0,
         pole_branches: () => data.pole_branches?.length || 0,
+        notes: () => window.ftthMapNotes?.count() || 0,
     };
     count.textContent = objectCounts[type] ? objectCounts[type]() : (layerRegistry[type]?.length || 0);
 }

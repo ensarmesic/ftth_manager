@@ -3,60 +3,32 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ManagesFtthData;
-use App\Models\Cabinet;
-use App\Models\House;
-use App\Models\Material;
 use App\Models\NetworkRoute;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
-use App\Services\FiberPlanService;
-use App\Services\ProjectHealthService;
+use App\Services\FiberSchema\FiberSchemaDrawing;
+use App\Services\FiberSchema\FiberSchemaSvg;
+use App\Services\ProjectReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ReportController extends Controller
 {
     use ManagesFtthData;
 
-    public function reports(): View
+    public function reports(Request $request, ProjectReportService $reports): View
     {
-        $projects = Project::withCount(['odfs', 'cabinets', 'houses', 'routes'])
-            ->with([
-                'materials',
-                'routes',
-                'appendixItems',
-                'largePlannerSetting',
-                'odfs.cabinets',
-                'houses.cabinet',
-                'cabinets' => fn ($q) => $q->withCount('houses')->with(['odf', 'houses']),
-            ])
-            ->orderBy('name')
-            ->get();
-
-        $health = app(ProjectHealthService::class)->forProjects($projects);
+        $projects = Project::withCount(['odfs', 'cabinets', 'houses', 'routes'])->orderBy('name')->get();
+        $selected = $request->integer('project') > 0 ? $projects->firstWhere('id', $request->integer('project')) : null;
 
         return view('ftth.reports', [
             'projects' => $projects,
-            'projectInsights' => $projects->mapWithKeys(fn (Project $project) => [$project->id => [
-                'validation' => $health[$project->id]['items'],
-                'materials' => $this->projectMaterials->summary($project),
-            ]]),
-            'totals' => [
-                'projects' => Project::count(),
-                'houses' => House::count(),
-                'cabinets' => Cabinet::count(),
-                // Cabinets with more houses than ports count as 0 free ports, not negative.
-                'free_ports' => (int) DB::query()->selectRaw('SUM(CASE WHEN free > 0 THEN free ELSE 0 END) as total')
-                    ->fromSub(Cabinet::selectRaw('(splitter_count * ports_per_splitter) - (SELECT COUNT(*) FROM houses WHERE houses.cabinet_id = cabinets.id) as free'), 'cabinet_free')
-                    ->value('total'),
-                'duct' => NetworkRoute::where('route_type', '!=', 'trench')->sum('duct_length_m'),
-                'fiber' => NetworkRoute::where('route_type', '!=', 'trench')->sum('fiber_length_m'),
-                'materials_cost' => Material::query()->selectRaw('SUM(planned_quantity * unit_price) as total')->value('total') ?? 0,
-            ],
+            'selectedProject' => $selected,
+            'overview' => $selected ? null : $reports->overview($projects),
+            'report' => $selected ? $reports->detail($selected) : null,
         ]);
     }
 
@@ -165,107 +137,51 @@ class ReportController extends Controller
         return back()->with('success', 'Stavka Priloga 3 je obrisana.');
     }
 
-    public function splitters(): View
+    /** PDF: page 1 is the fiber schematic sheet (same drawing as screen and DXF), page 2 the optical budget. */
+    public function fiberSchemaPdf(Project $project, FiberSchemaDrawing $drawings, FiberSchemaSvg $svg): Response
     {
-        $cabinets = Cabinet::with(['project', 'odf'])->withCount(['houses'])->orderBy('name')->get();
+        $drawing = $drawings->build($project);
+        $sheet = $drawing['sheet'];
+        $toPoints = 72 / 25.4;
 
-        return view('ftth.splitters', ['cabinets' => $cabinets]);
-    }
+        $pdf = Pdf::loadView('ftth.fiber-schema-pdf', [
+            'project' => $project,
+            'plan' => $drawing['plan'],
+            'sheet' => $sheet,
+            'sheetSvg' => $svg->render($drawing, false, true),
+            'labels' => $svg->labels($drawing),
+        ])->setPaper([0, 0, $sheet['width'] * $toPoints, $sheet['height'] * $toPoints]);
 
-    public function fiberSchemaPdf(Project $project, FiberPlanService $fiberPlanService): Response
-    {
-        $project->load([
-            'houses' => fn ($q) => $q->whereNull('cabinet_id')->orderBy('label'),
-            'branches' => fn ($q) => $q->with([
-                'route',
-                'cabinets' => fn ($cq) => $cq->withCount(['houses'])->with([
-                    'houses' => fn ($hq) => $hq->orderBy('label'),
-                    'childCabinets' => fn ($ccq) => $ccq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
-                ]),
-                'childBranches' => fn ($cq) => $cq->with([
-                    'route',
-                    'cabinets' => fn ($ccq) => $ccq->withCount(['houses'])->with([
-                        'houses' => fn ($hq) => $hq->orderBy('label'),
-                        'childCabinets' => fn ($cccq) => $cccq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
-                    ]),
-                ]),
-            ])->orderBy('sort_order'),
-            'odfs.cabinets' => fn ($q) => $q
-                ->whereNull('parent_cabinet_id')
-                ->with([
-                    'houses' => fn ($hq) => $hq->orderBy('label'),
-                    'childCabinets' => fn ($cq) => $cq->with(['houses' => fn ($hq) => $hq->orderBy('label')])->withCount(['houses'])->orderBy('name'),
-                ])
-                ->withCount(['houses'])
-                ->orderBy('name'),
-        ]);
-
-        $cabinets = $project->odfs->flatMap->cabinets;
-        $childCabinets = $cabinets->flatMap->childCabinets;
-        $allCabinets = $cabinets->merge($childCabinets);
-        $totalHouses = $allCabinets->sum('houses_count');
-        $totalCapacity = max($allCabinets->sum(fn ($c) => max($c->capacity, 12)), 1);
-        $projectUtilization = min(100, round($totalHouses / $totalCapacity * 100));
-
-        $neededSplitters = function ($cabinet): int {
-            $houseCount = $cabinet->houses_count ?? ($cabinet->relationLoaded('houses') ? $cabinet->houses->count() : $cabinet->houses()->count());
-
-            return (int) ceil(((int) $houseCount) / max(1, (int) $cabinet->ports_per_splitter));
-        };
-
-        $fiberPlan = $fiberPlanService->build($project);
-        $fiberRevision = $project->fiberSchemaVersions()->with('user:id,name')->latest()->first();
-        $fiberAllocations = $fiberPlan['allocations'];
-        $usedFiberTo = $fiberPlan['usedTo'];
-        $reserveFrom = $fiberPlan['reserveFrom'];
-        $reserveTo = $fiberPlan['reserveTo'];
-
-        $pdf = Pdf::loadView('ftth.fiber-schema-pdf', compact(
-            'project', 'allCabinets', 'totalHouses', 'totalCapacity',
-            'projectUtilization', 'fiberAllocations', 'neededSplitters',
-            'usedFiberTo', 'reserveFrom', 'reserveTo', 'fiberPlan', 'fiberRevision',
-        ))->setPaper('a4', 'landscape');
-
-        $filename = 'fiber-shema-'.str($project->code ?: $project->name)->slug().'-'.now()->format('Ymd').'.pdf';
-
-        $response = $pdf->download($filename);
-        $response->headers->set('X-Fiber-Plan-Signature', $fiberPlan['signature']);
+        $response = $pdf->download('fiber-shema-'.str($project->code ?: $project->name)->slug().'-'.now()->format('Ymd').'.pdf');
+        $response->headers->set('X-Fiber-Plan-Signature', $drawing['plan']['signature']);
 
         return $response;
     }
 
-    public function fiberSchema(Request $request): View
+    public function fiberSchema(Request $request, FiberSchemaDrawing $drawings, FiberSchemaSvg $svg): View
     {
         $projectOptions = Project::query()->orderBy('name')->get(['id', 'name', 'code']);
         $selectedProjectId = Project::query()->whereKey($request->integer('project'))->value('id')
             ?? $projectOptions->first()?->id;
-        $projects = Project::with([
-            'houses' => fn ($query) => $query->whereNull('cabinet_id')->orderBy('label'),
-            'branches' => fn ($query) => $query->with([
-                'route',
-                'cabinets' => fn ($q) => $q->withCount(['houses'])->with([
-                    'houses' => fn ($hq) => $hq->orderBy('label'),
-                    'childCabinets' => fn ($cq) => $cq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
-                ]),
-                'childBranches' => fn ($q) => $q->with([
-                    'route',
-                    'cabinets' => fn ($cq) => $cq->withCount(['houses'])->with([
-                        'houses' => fn ($hq) => $hq->orderBy('label'),
-                        'childCabinets' => fn ($ccq) => $ccq->withCount(['houses'])->with(['houses' => fn ($hq) => $hq->orderBy('label')])->orderBy('name'),
-                    ]),
-                ]),
-            ])->orderBy('sort_order'),
-            'odfs.cabinets' => fn ($query) => $query
-                ->whereNull('parent_cabinet_id')
-                ->with([
-                    'houses' => fn ($houseQuery) => $houseQuery->orderBy('label'),
-                    'childCabinets' => fn ($childQuery) => $childQuery->with(['houses' => fn ($houseQuery) => $houseQuery->orderBy('label')])->withCount(['houses'])->orderBy('name'),
-                ])
-                ->withCount(['houses'])
-                ->orderBy('name'),
-            'routes' => fn ($query) => $query->orderBy('route_type')->orderBy('name'),
-        ])->when($selectedProjectId, fn ($query) => $query->whereKey($selectedProjectId))->orderBy('name')->get();
+        $projects = Project::query()->with(['fiberSplices'])->whereKey($selectedProjectId)->get();
+        $project = $projects->first();
+        $drawing = $project ? $drawings->build($project) : null;
+        // Houses per cabinet in port order, for the port plan (splitter S, port P).
+        $housesByCabinet = $project
+            ? $project->houses()->whereNotNull('cabinet_id')->orderBy('label')->get(['id', 'cabinet_id', 'label', 'address'])
+                ->sortBy(fn ($house) => (string) preg_replace_callback('/\d+/', fn ($m) => str_pad($m[0], 8, '0', STR_PAD_LEFT), mb_strtolower((string) $house->label)))
+                ->groupBy('cabinet_id')
+            : collect();
 
-        return view('ftth.fiber-schema', compact('projects', 'projectOptions', 'selectedProjectId'));
+        return view('ftth.fiber-schema', [
+            'projectOptions' => $projectOptions,
+            'selectedProjectId' => $selectedProjectId,
+            'projects' => $projects,
+            'project' => $project,
+            'drawing' => $drawing,
+            'sheetSvg' => $drawing ? $svg->render($drawing) : null,
+            'housesByCabinet' => $housesByCabinet,
+            'unassignedHouses' => $project ? $project->houses()->whereNull('cabinet_id')->orderBy('label')->get(['id', 'label', 'address']) : collect(),
+        ]);
     }
 }

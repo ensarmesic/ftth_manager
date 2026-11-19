@@ -13,7 +13,7 @@ const auditPages = [
     ['dashboard', '/'],
     ['map', '/mapa'], ['projects', '/projekti'], ['odfs', '/odf'], ['cabinets', '/ormarici'],
     ['houses', '/kuce'], ['routes', '/trase'], ['branches', '/krakovi'], ['reports', '/izvjestaji'],
-    ['splitters', '/splitteri'], ['fiber-schema', '/fiber-sema'], ['project-check', '/provjera-projekta'],
+    ['fiber-schema', '/fiber-sema'], ['project-check', '/provjera-projekta'],
     ['settings', '/postavke'], ['documentation', '/uputstvo'],
 ];
 if (process.env.VISUAL_AUDIT_LIMIT) {

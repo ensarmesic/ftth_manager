@@ -16,6 +16,6 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertOk()->assertSee('Kontrolni centar');
+        $response->assertOk()->assertSee('Kreiraj prvi FTTH projekat')->assertSee('Stanje mreže');
     }
 }

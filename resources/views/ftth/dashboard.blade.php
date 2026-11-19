@@ -1,104 +1,205 @@
 @extends('ftth.layout')
-@section('title', 'Kontrolni centar')
-@section('subtitle', 'Operativni pregled FTTH infrastrukture i projektnih rizika.')
+@section('title', 'Pregled')
+@section('subtitle', 'Stanje projekata, mreže i otvorenih stavki.')
 @section('own_heading', '1')
 @section('content')
 @php
+    $n = fn ($value, int $decimals = 0) => number_format((float) $value, $decimals, ',', '.');
     $current = $projectCards->first();
-    $openIssues = $attentionProjects->sum('issues');
-    $icons = [
-        'odf' => '<svg viewBox="0 0 24 24"><path d="M7 3h10v13H7zM9 6h6M9 9h6M9 12h6M5 20h14M9 16v4m6-4v4"/></svg>',
-        'cabinet' => '<svg viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 6h6v12H9zM12 9v6M15 12h.01"/></svg>',
-        'house' => '<svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/></svg>',
-        'route' => '<svg viewBox="0 0 24 24"><path d="m7 17 10-10M8 4l12 12-4 4L4 8zM9 7l2 2m1-5 2 2m3 7 2 2m-8 2 2 2"/></svg>',
-        'alert' => '<svg viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3zM12 9v5m0 3h.01"/></svg>',
-    ];
+    $hour = (int) now()->format('G');
+    $greeting = $hour < 11 ? 'Dobro jutro' : ($hour < 18 ? 'Dobar dan' : 'Dobro veče');
+    $firstName = \Illuminate\Support\Str::before(auth()->user()->name, ' ');
+    $days = ['nedjelja', 'ponedjeljak', 'utorak', 'srijeda', 'četvrtak', 'petak', 'subota'];
+    $issueLabel = fn (int $count) => $count.' '.($count === 1 ? 'problem' : 'problema');
+    // Readable "what happened" for the activity feed.
+    $subject = function (?string $route): string {
+        $route = (string) $route;
+        foreach ([
+            'map-notes' => 'napomena na mapi', 'fiber' => 'fiber šema', 'pole-branches' => 'krakovi stubova', 'survey-points' => 'terenske tačke',
+            'map.plan' => 'plan na mapi', 'map.draft' => 'nacrt mape', 'snapshots' => 'verzija projekta', 'backup' => 'sigurnosna kopija',
+            'cabinets' => 'ODO ormarić', 'houses' => 'kuća', 'routes' => 'trasa', 'odfs' => 'ODF', 'branches' => 'krak', 'appendix' => 'prilog projekta',
+            'users' => 'korisnik', 'sessions' => 'sesija', 'gis' => 'GIS sloj', 'settings' => 'postavke', 'materials' => 'materijal', 'projects' => 'projekat',
+        ] as $needle => $label) {
+            if (str_contains($route, $needle)) {
+                return $label;
+            }
+        }
+
+        return $route !== '' ? $route : 'izmjena';
+    };
+    $verb = fn (string $method) => ['POST' => 'Novo', 'PUT' => 'Izmjena', 'PATCH' => 'Izmjena', 'DELETE' => 'Brisanje'][$method] ?? $method;
+    $capacityTone = $stats['capacity_percent'] >= 90 ? 'is-high' : ($stats['capacity_percent'] >= 70 ? 'is-mid' : 'is-low');
+    $ring = 2 * M_PI * 42;
 @endphp
 
-<div class="cc-dashboard">
-    <header class="cc-heading">
-        <div><p>FTTH OPERATIVNI PREGLED</p><h1>Kontrolni centar</h1></div>
-        <svg class="cc-network" viewBox="0 0 660 90" aria-hidden="true">
-            <defs><filter id="ccGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-            <path d="M4 70C90 68 100 28 185 45s105 9 158-17 104 48 170 6 102 16 143 5"/>
-            <path class="dash" d="M122 61c82-5 73-44 155-32s92 45 170 16 97 1 150 10"/>
-            @foreach([122,205,281,355,430,510,585] as $x)<circle cx="{{ $x }}" cy="{{ [61,42,48,26,54,31,47][$loop->index] }}" r="5"/>@endforeach
-            <circle class="cc-pulse" r="5"><animateMotion dur="5s" repeatCount="indefinite" path="M4 70C90 68 100 28 185 45s105 9 158-17 104 48 170 6 102 16 143 5"/></circle>
-            <circle class="cc-pulse second" r="4"><animateMotion dur="6.5s" begin="-3s" repeatCount="indefinite" path="M122 61c82-5 73-44 155-32s92 45 170 16 97 1 150 10"/></circle>
-        </svg>
+<div class="db">
+    {{-- Zaglavlje --}}
+    <header class="db-head">
+        <div>
+            <p>{{ ucfirst($days[(int) now()->format('w')]) }}, {{ now()->format('d.m.Y.') }}</p>
+            <h1>{{ $greeting }}, {{ $firstName }}</h1>
+        </div>
+        <div class="db-head-actions">
+            <a href="{{ route('map.dashboard', $current ? ['project' => $current['model']->id] : []) }}" class="db-btn">Otvori mapu</a>
+            @can('project.edit')<a href="{{ route('projects.index') }}" class="db-btn db-btn-primary">+ Novi projekat</a>@endcan
+        </div>
     </header>
 
-    <section class="cc-kpis">
-        @foreach([
-            ['odf','ODF CENTRI',$stats['odfs'],'Projektovano','blue',''],
-            ['cabinet','ODO ORMARIĆI',$stats['cabinets'],'Projektovano','green',''],
-            ['house','KUĆE / OBJEKTI',number_format($stats['houses'], 0, ',', '.'),'Obuhvaćeno','violet',''],
-            ['route','PROJEKTOVANA TRASA',number_format($stats['route_km'],2, ',', '.'),'Ukupna dužina','orange','km'],
-            ['alert','OTVORENE STAVKE',number_format($openIssues, 0, ',', '.'),'Zahtijeva pažnju','red',''],
-        ] as [$icon,$label,$value,$hint,$tone,$unit])
-            <article class="cc-kpi"><span class="cc-kpi-icon {{ $tone }}">{!! $icons[$icon] !!}</span><div><small>{{ $label }}</small><strong>{{ $value }}@if($unit)<em class="cc-kpi-unit"> {{ $unit }}</em>@endif</strong><span>{{ $hint }}</span></div></article>
-        @endforeach
-    </section>
-
-    <section class="cc-active">
-        @if($current)
-            <div class="cc-avatar">{{ strtoupper(substr($current['model']->name, 0, 2)) }}</div>
-            <div class="cc-active-name"><small>AKTIVNI PROJEKAT</small><strong>{{ $current['model']->name }}</strong><span>{{ $current['model']->code }} · {{ $current['model']->location }}</span></div>
-            <div class="cc-active-stats"><span><b>{{ $current['model']->odfs_count }}</b>ODF</span><span><b>{{ $current['model']->routes_count }}</b>TRASA</span><span><b>{{ $current['model']->cabinets_count }}</b>ODO</span><span class="warn"><b>{{ $current['issues'] }}</b>NAPOMENA</span></div>
-            <div class="cc-active-actions"><a class="primary" href="{{ route('map.dashboard', ['project' => $current['model']->id]) }}">Otvori na mapi <b>›</b></a><a href="{{ route('projects.show', $current['model']) }}">Pregled projekta</a></div>
-        @else
-            <div class="cc-active-name"><small>PRVI KORAK</small><strong>Kreiraj prvi FTTH projekat</strong></div><div class="cc-active-actions"><a class="primary" href="{{ route('projects.index') }}">Novi projekat <b>+</b></a></div>
-        @endif
-    </section>
-
-    <section class="cc-main">
-        <article class="cc-card cc-portfolio">
-            <header><h2><span>▱</span> PROJEKTNI PORTFOLIO</h2><a href="{{ route('projects.index') }}">Prikaži sve projekte →</a></header>
-            <div class="cc-table-wrap"><table><thead><tr><th>PROJEKAT</th><th>INFRASTRUKTURA</th><th>KAPACITET</th><th>STATUS</th><th></th></tr></thead><tbody>
-            @forelse($projectCards as $item)
-                @php($project = $item['model'])
-                <tr>
-                    <td><div class="cc-project"><i>{{ strtoupper(substr($project->name,0,2)) }}</i><div><a href="{{ route('projects.show',$project) }}">{{ $project->name }}</a><span>{{ $project->code }} · {{ $project->location }}</span></div></div></td>
-                    <td><div class="cc-infra"><span><b>{{ $project->odfs_count }}</b> ODF</span><span><b>{{ $project->routes_count }}</b> TRASA</span><span><b>{{ $project->cabinets_count }}</b> ODO</span></div></td>
-                    <td><div class="cc-cap"><span>{{ $item['used'] }} / {{ $item['capacity'] }} portova <b>{{ $item['utilization'] }}%</b></span><i><b style="width:{{ $item['utilization'] }}%"></b></i></div></td>
-                    <td>@if($item['issues'])<span class="cc-status warning">{{ $item['issues'] }} {{ $item['issues']===1?'problem':'problema' }}</span>@else<span class="cc-status ok">Uredno</span>@endif</td>
-                    <td><a class="cc-arrow" href="{{ route('map.dashboard',['project'=>$project->id]) }}">›</a></td>
-                </tr>
-            @empty<tr><td colspan="5">Nema kreiranih projekata.</td></tr>@endforelse
-            </tbody></table></div>
+    {{-- Nastavi rad + stanje mreže --}}
+    <section class="db-top">
+        <article class="db-resume">
+            @if($current)
+                @php $p = $current['model']; @endphp
+                <div class="db-resume-head">
+                    <span class="db-avatar">{{ mb_strtoupper(mb_substr($p->name, 0, 2)) }}</span>
+                    <div class="db-resume-title">
+                        <small>Nastavi rad · izmijenjeno {{ $p->updated_at?->diffForHumans() }}</small>
+                        <h2>{{ $p->name }}</h2>
+                        <p>{{ $p->code }}{{ $p->location ? ' · '.$p->location : '' }}</p>
+                    </div>
+                    @if($current['errors'])<span class="db-pill is-bad">{{ $issueLabel($current['issues']) }}</span>
+                    @elseif($current['issues'])<span class="db-pill is-warn">{{ $issueLabel($current['issues']) }}</span>
+                    @else<span class="db-pill is-good">Uredno</span>@endif
+                </div>
+                <div class="db-resume-stats">
+                    <div><b>{{ $n($p->odfs_count) }}</b><span>ODF</span></div>
+                    <div><b>{{ $n($p->cabinets_count) }}</b><span>ODO</span></div>
+                    <div><b>{{ $n($p->houses_count) }}</b><span>kuća · {{ $current['connected_percent'] }}% vezano</span></div>
+                    <div><b>{{ $n($current['route_km'], 2) }}</b><span>km trasa</span></div>
+                    <div><b>{{ $current['used'] }}/{{ $current['capacity'] }}</b><span>portova · {{ $current['utilization'] }}%</span></div>
+                </div>
+                <nav class="db-resume-links">
+                    <a href="{{ route('map.dashboard', ['project' => $p->id]) }}" class="is-main">Mapa</a>
+                    <a href="{{ route('fiber-schema.index', ['project' => $p->id]) }}">Fiber šema</a>
+                    <a href="{{ route('reports.index', ['project' => $p->id]) }}">Izvještaj</a>
+                    <a href="{{ route('project-check.index', ['project' => $p->id]) }}">Provjera</a>
+                    <a href="{{ route('projects.show', $p) }}">Detalji projekta</a>
+                </nav>
+            @else
+                <div class="db-empty-start">
+                    <h2>Kreiraj prvi FTTH projekat</h2>
+                    <p>Projekat okuplja ODF, ODO ormariće, kuće i trase. Nakon toga ga crtaš na mapi.</p>
+                    <a href="{{ route('projects.index') }}" class="db-btn db-btn-primary">+ Novi projekat</a>
+                </div>
+            @endif
         </article>
 
-        <aside class="cc-side">
-            <article class="cc-card cc-attention"><header><h2>ZAHTIJEVA PAŽNJU</h2><b>{{ $openIssues }}</b></header><div>
-                @forelse($attentionProjects as $item)<a href="{{ route('project-check.index') }}"><i></i><span><b>{{ $item['model']->name }}</b><small>{{ $item['issues'] }} otvorenih stavki</small></span><strong>›</strong></a>@empty<div class="cc-clear">✓ Nema otvorenih nepravilnosti</div>@endforelse
-            </div><footer><a href="{{ route('project-check.index') }}">Prikaži sve napomene →</a></footer></article>
-            <article class="cc-card cc-quick"><header><h2>BRZI PRISTUP</h2></header><nav>
-                @foreach([[route('odfs.index'),'▤','ODF centri','Centralna infrastruktura'],[route('cabinets.index'),'▣','ODO ormarići','Distribucioni ormarići'],[route('fiber-schema.index'),'⌁','Fiber šema','Topologija mreže'],[route('reports.index'),'▧','Izvještaji','Analiza i izvještaji']] as [$url,$icon,$name,$hint])
-                    <a href="{{ $url }}"><i>{{ $icon }}</i><span><b>{{ $name }}</b><small>{{ $hint }}</small></span><strong>›</strong></a>
-                @endforeach
-            </nav></article>
-        </aside>
+        <article class="db-capacity">
+            <h3>Stanje mreže</h3>
+            <div class="db-ring-wrap">
+                <svg viewBox="0 0 100 100" class="db-ring {{ $capacityTone }}" role="img" aria-label="Popunjenost portova {{ $stats['capacity_percent'] }}%">
+                    <circle cx="50" cy="50" r="42" class="track"/>
+                    <circle cx="50" cy="50" r="42" class="value" stroke-dasharray="{{ round($ring * $stats['capacity_percent'] / 100, 2) }} {{ round($ring, 2) }}"/>
+                </svg>
+                <div class="db-ring-label"><b>{{ $stats['capacity_percent'] }}%</b><span>portova zauzeto</span></div>
+            </div>
+            <dl>
+                <div><dt>Zauzeto / ukupno</dt><dd>{{ $n($stats['used_ports']) }} / {{ $n($stats['total_ports']) }}</dd></div>
+                <div><dt>Slobodnih portova</dt><dd>{{ $n($stats['free_ports']) }}</dd></div>
+                <div><dt>Kuće vezane na ODO</dt><dd>{{ $stats['connected_percent'] }}%</dd></div>
+            </dl>
+        </article>
     </section>
 
-    <section class="cc-main cc-continuity">
-        <div class="cc-continuity-primary">
-        <article class="cc-card cc-resume"><header><h2>NASTAVI GDJE SI STAO</h2><a href="{{ $current ? route('map.dashboard', ['project' => $current['model']->id]) : route('projects.index') }}">Otvori radni prostor →</a></header><div class="cc-continuity-body">
-            @if($current)
-                @php($readiness = max(0, 100 - min(100, $current['issues'] * 8)))
-                <div class="cc-resume-project"><i>{{ strtoupper(substr($current['model']->name, 0, 2)) }}</i><div><b>{{ $current['model']->name }}</b><span>{{ $current['model']->code }} · {{ $current['model']->location }}</span></div><strong>{{ $readiness }}%</strong></div>
-                <div class="cc-resume-meta"><span>Posljednja izmjena {{ $current['model']->updated_at->diffForHumans() }}</span><span class="{{ $current['issues'] ? 'warn' : 'ok' }}">{{ $current['issues'] }} otvorenih stavki</span></div>
-                <div class="cc-progress" title="Procijenjena spremnost projekta {{ $readiness }}%"><i style="width:{{ $readiness }}%"></i></div>
-            @else<span>Kreirajte prvi projekt da biste započeli vođeni tok.</span>@endif
-        </div></article>
-            <section class="cc-card cc-activity"><header><h2>POSLJEDNJE IZMJENE</h2><a href="{{ route('settings.index') }}">Sistemske postavke &rarr;</a></header><div class="cc-activity-grid">
-                @forelse($recentActivity as $activity)<div class="cc-activity-item"><b><i class="method-{{ strtolower($activity->method) }}">{{ $activity->method }}</i><em>{{ $activity->status_code }}</em></b><span>{{ $activity->route_name ?: $activity->path }}</span><small>{{ $activity->user?->name ?? 'Sistem' }} · {{ $activity->created_at->diffForHumans() }}</small></div>@empty<p class="cc-activity-empty">Nema zabilježenih izmjena.</p>@endforelse
-            </div></section>
+    {{-- Brojevi --}}
+    <section class="db-kpis">
+        <div><span>Projekti</span><b>{{ $n($stats['projects']) }}</b></div>
+        <div><span>ODF centri</span><b>{{ $n($stats['odfs']) }}</b></div>
+        <div><span>ODO ormarići</span><b>{{ $n($stats['cabinets']) }}</b></div>
+        <div><span>Kuće</span><b>{{ $n($stats['houses']) }}</b></div>
+        <div><span>Trase</span><b>{{ $n($stats['route_km'], 2) }} <em>km</em></b></div>
+    </section>
+
+    {{-- Projekti + pažnja --}}
+    <section class="db-grid">
+        <article class="db-card">
+            <header><h3>Projekti</h3><a href="{{ route('projects.index') }}">Svi projekti →</a></header>
+            <div class="db-projects">
+                @forelse($projectCards->take(8) as $item)
+                    @php $project = $item['model']; @endphp
+                    <a href="{{ route('map.dashboard', ['project' => $project->id]) }}" class="db-project">
+                        <span class="db-avatar is-small">{{ mb_strtoupper(mb_substr($project->name, 0, 2)) }}</span>
+                        <span class="db-project-name"><b>{{ $project->name }}</b><small>{{ $project->code }}{{ $project->location ? ' · '.$project->location : '' }}</small></span>
+                        <span class="db-project-infra">{{ $n($project->odfs_count) }} ODF · {{ $n($project->cabinets_count) }} ODO · {{ $n($project->houses_count) }} kuća</span>
+                        <span class="db-project-cap"><small>{{ $item['used'] }} / {{ $item['capacity'] }} portova</small><i><b style="width:{{ $item['utilization'] }}%"></b></i></span>
+                        <span class="db-project-state">
+                            @if($item['errors'])<span class="db-pill is-bad">{{ $issueLabel($item['issues']) }}</span>
+                            @elseif($item['issues'])<span class="db-pill is-warn">{{ $issueLabel($item['issues']) }}</span>
+                            @else<span class="db-pill is-good">Uredno</span>@endif
+                        </span>
+                    </a>
+                @empty
+                    <p class="db-muted">Nema kreiranih projekata.</p>
+                @endforelse
+            </div>
+        </article>
+
+        <div class="db-side">
+            <article class="db-card">
+                <header><h3>Zahtijeva pažnju</h3><a href="{{ route('project-check.index') }}">Provjera →</a></header>
+                <div class="db-list">
+                    @forelse($attentionProjects as $item)
+                        <a href="{{ route('project-check.index', ['project' => $item['model']->id]) }}">
+                            <i class="{{ $item['errors'] ? 'is-bad' : 'is-warn' }}"></i>
+                            <span><b>{{ $item['model']->name }}</b><small>{{ $item['errors'] ? $item['errors'].' grešaka · ' : '' }}{{ $item['warnings'] }} upozorenja</small></span>
+                            <em>›</em>
+                        </a>
+                    @empty
+                        <p class="db-ok">✓ Nijedan projekat nema grešaka ni upozorenja.</p>
+                    @endforelse
+                </div>
+            </article>
+
+            <article class="db-card">
+                <header><h3>Napomene na mapi</h3>@if($openNotesTotal)<span class="db-count">{{ $openNotesTotal }} {{ $openNotesTotal % 10 === 1 && $openNotesTotal % 100 !== 11 ? 'otvorena' : (in_array($openNotesTotal % 10, [2, 3, 4], true) && ! in_array($openNotesTotal % 100, [12, 13, 14], true) ? 'otvorene' : 'otvorenih') }}</span>@endif</header>
+                <div class="db-list">
+                    @forelse($openNotes as $note)
+                        <a href="{{ route('map.dashboard', ['project' => $note->project_id]) }}">
+                            <i class="is-note"></i>
+                            <span><b>{{ \Illuminate\Support\Str::limit($note->body, 70) }}</b><small>{{ $note->project?->name }} · {{ $note->user?->name ?? 'nepoznat' }} · {{ $note->created_at->diffForHumans() }}</small></span>
+                            <em>›</em>
+                        </a>
+                    @empty
+                        <p class="db-muted">Nema otvorenih napomena. Napomene se pišu na mapi, dugmetom „Napomene“.</p>
+                    @endforelse
+                </div>
+            </article>
         </div>
-        <aside class="cc-side"><article class="cc-card cc-attention"><header><h2>POSLJEDNJE SIGURNE VERZIJE</h2></header><div>
-            @forelse($latestSnapshots as $snapshot)<a href="{{ route('map.dashboard', ['project' => $snapshot->project_id]) }}"><i></i><span><b>{{ $snapshot->project?->name ?? 'Projekt' }}</b><small>{{ $snapshot->label }} · {{ $snapshot->created_at->diffForHumans() }}</small></span><strong>›</strong></a>@empty<div class="cc-clear">Još nema sačuvanih snapshot verzija.</div>@endforelse
-        </div></article></aside>
     </section>
 
-    <footer class="cc-footer"><span>© {{ date('Y') }} FTTH Manager · Vlasnički softver</span><span>Verzija {{ config('app.version') }}@if(config('app.deployed_at')) · {{ config('app.deployed_at') }}@endif</span></footer>
+    {{-- Aktivnost + verzije --}}
+    <section class="db-grid">
+        <article class="db-card">
+            <header><h3>Posljednje izmjene</h3>@can('settings.manage')<a href="{{ route('settings.index') }}#audit">Sve izmjene →</a>@endcan</header>
+            <ul class="db-feed">
+                @forelse($recentActivity as $activity)
+                    <li>
+                        <span class="db-verb db-verb-{{ strtolower($activity->method) }}">{{ $verb($activity->method) }}</span>
+                        <span class="db-feed-text"><b>{{ ucfirst($subject($activity->route_name ?: $activity->path)) }}</b>@if($activity->project)<small> · {{ $activity->project->name }}</small>@endif</span>
+                        <span class="db-feed-meta">{{ $activity->user?->name ?? 'Sistem' }} · {{ $activity->created_at->diffForHumans() }}</span>
+                    </li>
+                @empty
+                    <li class="db-muted">Još nema zabilježenih izmjena.</li>
+                @endforelse
+            </ul>
+        </article>
+
+        <article class="db-card">
+            <header><h3>Sigurne verzije</h3></header>
+            <div class="db-list">
+                @forelse($latestSnapshots as $snapshot)
+                    <a href="{{ route('map.dashboard', ['project' => $snapshot->project_id]) }}">
+                        <i class="is-safe"></i>
+                        <span><b>{{ $snapshot->label }}</b><small>{{ $snapshot->project?->name ?? 'Projekat' }} · {{ $snapshot->created_at->diffForHumans() }}</small></span>
+                        <em>›</em>
+                    </a>
+                @empty
+                    <p class="db-muted">Još nema sačuvanih verzija. Verzija se pravi na mapi, dugmetom „Verzije“.</p>
+                @endforelse
+            </div>
+        </article>
+    </section>
+
+    <footer class="db-footer">FTTH Manager · verzija {{ config('app.version') }}</footer>
 </div>
 @endsection

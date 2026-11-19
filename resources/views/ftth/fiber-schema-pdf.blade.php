@@ -3,302 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<title>Fiber Shema – {{ $project->name }}</title>
+<title>Fiber šema – {{ $project->name }}</title>
 <style>
+    @page { margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 9pt; color: #1a1a2e; background: #fff; }
-    .page-header { border-bottom: 3px solid #1d4ed8; padding: 10px 14px 8px; margin-bottom: 12px; }
-    .page-header h1 { font-size: 14pt; font-weight: 900; color: #1d4ed8; }
-    .page-header .meta { font-size: 8pt; color: #555; margin-top: 2px; }
-    .page-header .stats { margin-top: 6px; display: inline-block; }
-    .title-block { width:100%; margin-top:7px; border-collapse:collapse; }
-    .title-block td { border:1px solid #9fb4ca; padding:3px 5px; font-size:6.7pt; }
-    .title-block small { display:block; color:#64748b; font-size:5.8pt; font-weight:700; }
-    .title-block b { color:#0f2740; }
-    .chip { display: inline-block; border: 1px solid #bcd4f0; border-radius: 999px; background: #edf6ff; padding: 1px 7px; color: #005f96; font-size: 7.5pt; font-weight: 800; margin-right: 3px; }
-    .section { margin-bottom: 16px; }
-    .odf-title { background: #1d4ed8; color: #fff; font-size: 10pt; font-weight: 900; padding: 5px 10px; border-radius: 5px 5px 0 0; }
-    .odf-meta { background: #eaf3ff; border: 1px solid #b8d7ef; border-top: none; padding: 4px 10px 5px; font-size: 7.5pt; color: #334; margin-bottom: 8px; border-radius: 0 0 4px 4px; }
-    .cabinet-block { border: 1.5px solid #65a845; border-radius: 6px; margin-bottom: 8px; page-break-inside: avoid; }
-    .cabinet-block.warn { border-color: #d99a15; }
-    .cabinet-block.full { border-color: #dc2626; }
-    .cabinet-header { background: #f2faeb; padding: 5px 8px 4px; border-radius: 4px 4px 0 0; display: table; width: 100%; }
-    .cabinet-block.warn .cabinet-header { background: #fff8e8; }
-    .cabinet-block.full .cabinet-header { background: #fff2f2; }
-    .cabinet-name { font-size: 9pt; font-weight: 900; color: #1a3a0a; display: table-cell; }
-    .cabinet-info { font-size: 7.5pt; color: #555; display: table-cell; text-align: right; }
-    .util-bar-wrap { background: #dfe7ef; height: 4px; border-radius: 2px; margin: 2px 8px 0; }
-    .util-bar-fill { height: 4px; border-radius: 2px; background: #65a845; }
-    .cabinet-block.warn .util-bar-fill { background: #d99a15; }
-    .cabinet-block.full .util-bar-fill { background: #dc2626; }
-    .splitter-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    .splitter-table th { background: #e8f4e8; font-size: 7pt; font-weight: 900; color: #2d5a1b; padding: 3px 5px; border: 1px solid #c8e0c0; text-align: center; }
-    .splitter-table td { font-size: 7.5pt; padding: 2px 5px; border: 1px solid #e2eed8; vertical-align: middle; }
-    .splitter-label-cell { background: #f5fbf0; font-weight: 800; color: #3a6b25; text-align: center; width: 52px; }
-    .port-used { background: #eaf6ff; color: #004f7d; border-left: 3px solid #2684c2; }
-    .port-free { background: #fafafa; color: #9aa6b2; border-left: 3px solid #d1dce6; font-style: italic; }
-    .port-num { color: #888; font-size: 6.5pt; font-weight: 700; margin-right: 2px; }
-    .fiber-tag { display: inline-block; background: #f3e8ff; border: 1px solid #d8b4fe; border-radius: 3px; color: #6d28d9; font-size: 6.5pt; font-weight: 900; padding: 0 4px; margin-left: 4px; }
-    .color-legend { margin: -4px 14px 10px; border: 1px solid #dbe5ef; border-radius: 5px; padding: 5px 7px; }
-    .color-item { display: inline-block; margin-right: 7px; font-size: 6pt; color: #475569; }
-    .color-dot { display: inline-block; width: 8px; height: 8px; margin-right: 2px; border: 1px solid #64748b; border-radius: 50%; vertical-align: middle; }
-    .child-cabinet-block { margin-left: 18px; margin-top: 6px; border: 1.5px dashed #2f8f5b; border-radius: 6px; }
-    .child-cabinet-block .cabinet-header { background: #f0fff7; border-radius: 4px 4px 0 0; }
-    .child-label { font-size: 7pt; color: #2f8f5b; font-weight: 900; background: #e6fff2; border: 1px solid #a5d6bb; border-radius: 3px; padding: 0 4px; margin-right: 4px; }
-    .branch-section { margin-bottom: 10px; }
-    .branch-title { border-bottom: 2px solid #1d4ed8; padding: 3px 2px 3px; margin-bottom: 6px; display: table; width: 100%; }
-    .branch-title-name { font-size: 8.5pt; font-weight: 900; color: #1d4ed8; display: table-cell; }
-    .branch-title-fiber { font-size: 7.5pt; font-weight: 900; color: #1d4ed8; display: table-cell; text-align: right; background: #eaf3ff; border: 1px solid #b8d7ef; border-radius: 3px; padding: 1px 6px; }
-    .reserve-box { margin-top: 8px; border: 1.5px solid #16a34a; border-radius: 6px; background: #f0fff4; padding: 7px 12px; }
-    .reserve-title { font-size: 8.5pt; font-weight: 900; color: #15803d; }
-    .reserve-meta { font-size: 7.5pt; color: #555; margin-top: 2px; }
-    .unlinked-box { margin-top: 8px; border: 1.5px solid #f59e0b; border-radius: 6px; background: #fffbeb; padding: 7px 12px; }
-    .unlinked-title { font-size: 8pt; font-weight: 900; color: #92400e; }
-    .unlinked-list { margin-top: 4px; font-size: 7.5pt; color: #78350f; }
-    .page-break { page-break-before: always; }
-    .footer { margin-top: 18px; border-top: 1px solid #ccc; padding-top: 6px; font-size: 7pt; color: #888; text-align: right; }
-    table { width: 100%; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 9pt; color: #0f172a; }
+    .sheet { position: relative; width: {{ $sheet['width'] }}mm; height: {{ $sheet['height'] }}mm; overflow: hidden; }
+    .sheet img { position: absolute; left: 0; top: 0; width: {{ $sheet['width'] }}mm; height: {{ $sheet['height'] }}mm; }
+    .label { position: absolute; line-height: 1; white-space: nowrap; font-family: DejaVu Sans, sans-serif; }
+    .page { page-break-before: always; padding: 20mm 15mm 15mm 25mm; width: {{ min($sheet['width'], 460) }}mm; }
+    h1 { font-size: 16pt; color: #004f7d; }
+    h2 { margin: 8mm 0 3mm; font-size: 12pt; color: #0f172a; }
+    .meta { margin-top: 2mm; font-size: 9pt; color: #475569; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f1f5f9; padding: 2mm; border: 0.3mm solid #cbd5e1; font-size: 8pt; text-align: left; }
+    td { padding: 1.6mm 2mm; border: 0.3mm solid #e2e8f0; font-size: 8.5pt; vertical-align: top; }
+    td.num { text-align: right; white-space: nowrap; }
+    .ok { color: #166534; font-weight: bold; }
+    .warning { color: #92400e; font-weight: bold; }
+    .error { color: #b91c1c; font-weight: bold; }
+    .estimate { color: #475569; font-weight: bold; }
+    .issue { margin-top: 1.5mm; font-size: 9pt; }
+    .footer { margin-top: 8mm; padding-top: 2mm; border-top: 0.3mm solid #cbd5e1; font-size: 8pt; color: #64748b; }
 </style>
 </head>
 <body>
-
-<div class="page-header">
-    <h1>Fiber Shema – {{ $project->name }}</h1>
-    <div class="meta">
-        Kod: {{ $project->code }}
-        @if($project->location) &nbsp;/&nbsp; Lokacija: {{ $project->location }} @endif
-        @if($project->investor) &nbsp;/&nbsp; Investitor: {{ $project->investor }} @endif
-        &nbsp;/&nbsp; Generisano: {{ now()->format('d.m.Y') }}
-    </div>
-    <div class="stats">
-        <span class="chip">{{ $project->odfs->count() }} ODF</span>
-        <span class="chip">{{ $allCabinets->count() }} FTTH ormarici</span>
-        <span class="chip">{{ $totalHouses }}/{{ $totalCapacity }} kuca</span>
-        <span class="chip">{{ $projectUtilization }}% popunjenost</span>
-        @foreach($fiberPlan['odfs'] as $odfPlan)
-            <span class="chip">{{ $odfPlan['name'] }}: {{ $odfPlan['usedFibers'] }}F dodijeljeno</span>
-            @if($odfPlan['reserveFrom'] <= $odfPlan['reserveTo'])<span class="chip">Rezerva F{{ $odfPlan['reserveFrom'] }}–F{{ $odfPlan['reserveTo'] }}</span>@endif
-        @endforeach
-    </div>
-    <table class="title-block">
-        <tr>
-            <td><small>DOKUMENT</small><b>FTTH FIBER PLAN / ODN ŠEMA · {{ $fiberPlan['signature'] }}</b></td>
-            <td><small>REVIZIJA</small><b>{{ $fiberRevision?->label ?? 'Radna verzija' }}</b></td>
-            <td><small>AUTOR VERZIJE</small><b>{{ $fiberRevision?->user?->name ?? 'Sistem' }}</b></td>
-            <td><small>STATUS</small><b>{{ $project->fiber_schema_locked ? 'ODOBRENO / ZAKLJUČANO' : 'RADNA VERZIJA' }}</b></td>
-        </tr>
-        <tr>
-            <td><small>STANDARD / PROFIL</small><b>{{ $fiberPlan['profile']['standard'] }} · {{ $fiberPlan['profile']['label'] }}</b></td>
-            <td><small>COLOR CODE</small><b>{{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE' : 'TIA-598' }}</b></td>
-            <td><small>DATUM IZVOZA</small><b>{{ now()->format('d.m.Y H:i') }}</b></td>
-            <td><small>MJERILO</small><b>LOGIČKA ŠEMA · NTS</b></td>
-        </tr>
-    </table>
-</div>
-<div class="color-legend">
-    @php
-        $pdfFibersPerTube = str_ends_with($project->fiber_layout ?? '6x24', 'x12') ? 12 : 24;
-        $pdfTubeCount = (int) str($project->fiber_layout ?? '6x24')->before('x')->value();
-    @endphp
-    <b style="font-size:6.5pt">COLOR CODE {{ $pdfTubeCount * $pdfFibersPerTube }}F · {{ $pdfTubeCount }} × {{ $pdfFibersPerTube }} · {{ ($project->fiber_color_standard ?? 'telcordia') === 'din_vde' ? 'DIN/VDE' : 'TIA-598/Telcordia' }}:</b>
-    @foreach(\App\Support\FiberColorCode::paletteFor($project->fiber_color_standard ?? 'telcordia') as $position => $color)
-        <span class="color-item"><i class="color-dot" style="background:{{ $color['hex'] }}"></i>{{ $position }} {{ $color['name'] }}</span>
+{{-- Geometry from the SVG; text placed on top in DejaVu Sans (has č, ć, đ), in the same mm coordinates.
+     DejaVu cap height is ~0.73 em (shrunk 6 % to match Arial widths); dompdf puts the baseline ~1 em below the box top. --}}
+<div class="sheet">
+    <img src="data:image/svg+xml;base64,{{ base64_encode($sheetSvg) }}" alt="Fiber šema">
+    @foreach($labels as $label)
+        @php
+            $size = $label['h'] / 0.73 * 0.94;
+            $baseline = $label['y'] + match ($label['va']) { 'm' => $label['h'] / 2, 't' => $label['h'], default => 0 };
+            $left = match ($label['ha']) { 'c' => $label['x'] - 60, 'r' => $label['x'] - 120, default => $label['x'] };
+        @endphp
+        <div class="label" style="left:{{ round($left, 2) }}mm;top:{{ round($baseline - 1.0 * $size, 2) }}mm;font-size:{{ round($size, 2) }}mm;color:{{ $label['color'] }};{{ $label['ha'] !== 'l' ? 'width:120mm;text-align:'.($label['ha'] === 'c' ? 'center' : 'right').';' : '' }}{{ $label['bold'] ? 'font-weight:bold;' : '' }}">{{ $label['s'] }}</div>
     @endforeach
 </div>
 
-@forelse($project->odfs as $odf)
-    <div class="section">
-        <div class="odf-title">ODF: {{ $odf->name }}</div>
-        <div class="odf-meta">
-            {{ $odf->address ?: 'Bez adrese' }}
-            &nbsp;·&nbsp; Kapacitet: {{ $odf->fiber_capacity }} vlakana
-            &nbsp;·&nbsp; {{ $odf->port_count }}P
-            &nbsp;·&nbsp; {{ $odf->cabinets->count() }} izlaza
-        </div>
+<div class="page">
+    <h1>Optički budžet i kontrola – {{ $project->name }}</h1>
+    <p class="meta">{{ $plan['profile']['standard'] }} · {{ $plan['profile']['label'] }} · dozvoljeni ODN {{ $plan['profile']['min'] }}–{{ $plan['profile']['max'] }} dB · inženjerska margina {{ $plan['engineeringMargin'] }} dB · PLAN ID {{ $plan['signature'] }}
+        @unless($plan['assumptionsConfirmed']) · <b>procjena: oprema (Tx/Rx) još nije potvrđena</b>@endunless</p>
 
-        @php
-            $pdfBranches = $project->branches
-                ->where('type', 'secondary')
-                ->where('odf_id', $odf->id)
-                ->sortBy(fn($b) => sprintf('%06d|%s', (int)($b->sort_order ?? 0), (string)$b->name));
-            $pdfHasCabinets = $pdfBranches->flatMap->cabinets->isNotEmpty();
-        @endphp
-        @if($pdfHasCabinets)
-            @foreach($pdfBranches as $pdfBranch)
-                @php
-                    $pdfBranchCabs = $pdfBranch->cabinets
-                        ->sortBy(fn($c) => sprintf('%06d|%s', (int)($c->branch_order ?? 0), (string)$c->name));
-                    $pbfMin = PHP_INT_MAX; $pbfMax = 0;
-                    foreach ($pdfBranchCabs as $bc) {
-                        if (isset($fiberAllocations[$bc->id])) {
-                            $pbfMin = min($pbfMin, $fiberAllocations[$bc->id]['from']);
-                            $pbfMax = max($pbfMax, $fiberAllocations[$bc->id]['to']);
-                        }
-                    }
-                    $pbfStr = $pbfMax > 0 ? ($pbfMin === $pbfMax ? "F{$pbfMin}" : "F{$pbfMin}–F{$pbfMax}") : '?';
-                @endphp
-                @if($pdfBranchCabs->isNotEmpty())
-                <div class="branch-section">
-                    <div class="branch-title">
-                        <span class="branch-title-name">{{ $pdfBranch->name }}</span>
-                        <span class="branch-title-fiber">{{ $pbfStr }}</span>
-                    </div>
-                    @foreach($pdfBranchCabs as $cabinet)
-                        @php
-                            $houses = $cabinet->houses->values();
-                            $capacity = max($cabinet->capacity, 12);
-                            $used = $cabinet->houses_count ?? $cabinet->houses->count();
-                            $utilization = min(100, round($used / max($capacity, 1) * 100));
-                            $state = $utilization >= 100 ? 'full' : ($utilization >= 80 ? 'warn' : '');
-                            $fiberRange = $fiberAllocations[$cabinet->id] ?? null;
-                            $fiberLabel = $fiberRange ? ($fiberRange['from'] === $fiberRange['to'] ? (string) $fiberRange['from'] : $fiberRange['from'].'-'.$fiberRange['to']) : '?';
-                            $activeSplitters = $neededSplitters($cabinet);
-                            $portsPerSplitter = max(1, (int) $cabinet->ports_per_splitter);
-                            $splitterRatio = '1:' . $portsPerSplitter;
-                        @endphp
-                        <div class="cabinet-block {{ $state }}">
-                            <div class="cabinet-header">
-                                <span class="cabinet-name">{{ $cabinet->name }}</span>
-                                <span class="cabinet-info">
-                                    {{ $used }}/{{ $capacity }} kuca
-                                    &nbsp;·&nbsp; {{ $activeSplitters }}× {{ $splitterRatio }}
-                                    &nbsp;·&nbsp; <span class="fiber-tag">F {{ $fiberLabel }}</span>
-                                    &nbsp;·&nbsp; {{ $utilization }}%
-                                    @if($cabinet->address) &nbsp;·&nbsp; {{ $cabinet->address }} @endif
-                                </span>
-                            </div>
-                            <div class="util-bar-wrap"><div class="util-bar-fill" style="width:{{ $utilization }}%"></div></div>
+    <h2>Dodjela vlakana po ODF-u</h2>
+    <table>
+        <thead><tr><th>ODF</th><th>Dodijeljeno</th><th>Najviše vlakno</th><th>Slobodan raspon</th><th>Kapacitet</th></tr></thead>
+        <tbody>
+        @foreach($plan['odfs'] as $odfPlan)
+            <tr><td>{{ $odfPlan['name'] }}</td><td class="num">{{ $odfPlan['usedFibers'] }}</td><td class="num">{{ $odfPlan['usedTo'] ? 'F'.$odfPlan['usedTo'] : '—' }}</td><td>{{ $odfPlan['usedTo'] < $odfPlan['capacity'] ? 'F'.$odfPlan['reserveFrom'].'–F'.$odfPlan['reserveTo'] : 'nema' }}</td><td class="num">{{ $odfPlan['capacity'] }}F</td></tr>
+        @endforeach
+        </tbody>
+    </table>
 
-                            <table class="splitter-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:52px">Splitter</th>
-                                        @for($p = 1; $p <= $portsPerSplitter; $p++)
-                                            <th>Port {{ $p }}</th>
-                                        @endfor
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @for($splitter = 1; $splitter <= max($activeSplitters, 1); $splitter++)
-                                        <tr>
-                                            <td class="splitter-label-cell">S{{ $splitter }} {{ $splitterRatio }}</td>
-                                            @for($port = 1; $port <= $portsPerSplitter; $port++)
-                                                @php
-                                                    $absolutePort = ($splitter - 1) * $portsPerSplitter + $port;
-                                                    $house = $houses->get($absolutePort - 1);
-                                                @endphp
-                                                @if($house)
-                                                    <td class="port-used"><span class="port-num">P{{ $absolutePort }}</span>{{ $house->label }}</td>
-                                                @else
-                                                    <td class="port-free"><span class="port-num">P{{ $absolutePort }}</span>Slobodno</td>
-                                                @endif
-                                            @endfor
-                                        </tr>
-                                    @endfor
-                                </tbody>
-                            </table>
+    <h2>Power budget po ODO ormariću (nepovoljniji smjer)</h2>
+    <table>
+        <thead><tr><th>ODO</th><th>Vlakna</th><th>Putanja</th><th>Splitteri</th><th>DS / US gubitak</th><th>ODN</th><th>+ margina</th><th>Rezerva</th><th>Status</th></tr></thead>
+        <tbody>
+        @forelse($plan['connections'] as $connection)
+            <tr>
+                <td>{{ $connection['cabinet'] }}</td>
+                <td>{{ $connection['fiber_from'] ? 'F'.$connection['fiber_from'].($connection['fiber_to'] !== $connection['fiber_from'] ? '–F'.$connection['fiber_to'] : '') : '—' }}</td>
+                <td class="num">{{ number_format($connection['route_km'], 3, ',', '.') }} km</td>
+                <td>{{ $connection['splitter_ratio'] }}</td>
+                <td class="num">{{ $connection['downstream_loss_db'] }} / {{ $connection['upstream_loss_db'] }} dB</td>
+                <td class="num">{{ $connection['loss_db'] }} dB</td>
+                <td class="num">{{ $connection['design_loss_db'] }} dB</td>
+                <td class="num">{{ $connection['headroom_db'] }} dB</td>
+                <td class="{{ $connection['budget_status'] }}">{{ ['ok' => 'U redu', 'warning' => 'Provjeriti', 'error' => 'Van klase', 'estimate' => 'Procjena'][$connection['budget_status']] ?? $connection['budget_status'] }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="9">Nema ODO ormarića za proračun.</td></tr>
+        @endforelse
+        </tbody>
+    </table>
 
-                            @if($cabinet->childCabinets->isNotEmpty())
-                                @foreach($cabinet->childCabinets as $childCabinet)
-                                    @php
-                                        $childHouses = $childCabinet->houses->values();
-                                        $childCapacity = max($childCabinet->capacity, 12);
-                                        $childUsed = $childCabinet->houses_count ?? $childCabinet->houses->count();
-                                        $childUtilization = min(100, round($childUsed / max($childCapacity, 1) * 100));
-                                        $childState = $childUtilization >= 100 ? 'full' : ($childUtilization >= 80 ? 'warn' : '');
-                                        $childFiberRange = $fiberAllocations[$childCabinet->id] ?? null;
-                                        $childFiberLabel = $childFiberRange ? ($childFiberRange['from'] === $childFiberRange['to'] ? (string) $childFiberRange['from'] : $childFiberRange['from'].'-'.$childFiberRange['to']) : '?';
-                                        $childActiveSplitters = $neededSplitters($childCabinet);
-                                        $childPortsPerSplitter = max(1, (int) $childCabinet->ports_per_splitter);
-                                        $childSplitterRatio = '1:' . $childPortsPerSplitter;
-                                    @endphp
-                                    <div class="child-cabinet-block {{ $childState }}">
-                                        <div class="cabinet-header">
-                                            <span class="cabinet-name">
-                                                <span class="child-label">IZ {{ $cabinet->name }}</span>
-                                                {{ $childCabinet->name }}
-                                            </span>
-                                            <span class="cabinet-info">
-                                                {{ $childUsed }}/{{ $childCapacity }} kuca
-                                                &nbsp;·&nbsp; {{ $childActiveSplitters }}× {{ $childSplitterRatio }}
-                                                &nbsp;·&nbsp; <span class="fiber-tag">F {{ $childFiberLabel }}</span>
-                                                &nbsp;·&nbsp; {{ $childUtilization }}%
-                                            </span>
-                                        </div>
-                                        <div class="util-bar-wrap"><div class="util-bar-fill" style="width:{{ $childUtilization }}%"></div></div>
+    <h2>Otvorene kontrolne stavke</h2>
+    @forelse($plan['issues'] as $issue)
+        <p class="issue {{ $issue['level'] === 'error' ? 'error' : 'warning' }}">{{ $issue['level'] === 'error' ? 'GREŠKA' : 'UPOZORENJE' }} · <span style="color:#0f172a;font-weight:normal">{{ $issue['message'] }}</span></p>
+    @empty
+        <p class="issue ok">Nema otvorenih stavki.</p>
+    @endforelse
 
-                                        <table class="splitter-table">
-                                            <thead>
-                                                <tr>
-                                                    <th style="width:52px">Splitter</th>
-                                                    @for($p = 1; $p <= $childPortsPerSplitter; $p++)
-                                                        <th>Port {{ $p }}</th>
-                                                    @endfor
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @for($childSplitter = 1; $childSplitter <= max($childActiveSplitters, 1); $childSplitter++)
-                                                    <tr>
-                                                        <td class="splitter-label-cell">S{{ $childSplitter }} {{ $childSplitterRatio }}</td>
-                                                        @for($childPort = 1; $childPort <= $childPortsPerSplitter; $childPort++)
-                                                            @php
-                                                                $childAbsolutePort = ($childSplitter - 1) * $childPortsPerSplitter + $childPort;
-                                                                $childHouse = $childHouses->get($childAbsolutePort - 1);
-                                                            @endphp
-                                                            @if($childHouse)
-                                                                <td class="port-used"><span class="port-num">P{{ $childAbsolutePort }}</span>{{ $childHouse->label }}</td>
-                                                            @else
-                                                                <td class="port-free"><span class="port-num">P{{ $childAbsolutePort }}</span>Slobodno</td>
-                                                            @endif
-                                                        @endfor
-                                                    </tr>
-                                                @endfor
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                @endforeach
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
-                @endif
-            @endforeach
-        @else
-            <p style="color:#888;font-size:8pt;padding:6px 10px">ODF jos nema povezane FTTH ormarice u granama.</p>
-        @endif
-    </div>
-@empty
-    <p style="color:#888;padding:10px">Projekat nema ODF lokaciju.</p>
-@endforelse
-
-@if($project->houses->isNotEmpty())
-    <div class="unlinked-box">
-        <div class="unlinked-title">Nepovezane kuce ({{ $project->houses->count() }})</div>
-        <div class="unlinked-list">
-            @foreach($project->houses as $house)
-                {{ $house->label }}@if($house->address) ({{ $house->address }})@endif{{ $loop->last ? '' : ',' }}
-            @endforeach
-        </div>
-    </div>
-@endif
-
-@foreach($fiberPlan['odfs'] as $odfPlan)
-    <div class="reserve-box">
-        <div class="reserve-title">{{ $odfPlan['name'] }} · dodijeljeno {{ $odfPlan['usedFibers'] }} od {{ $odfPlan['capacity'] }} vlakana</div>
-        <div class="reserve-meta">Najviša dodjela: {{ $odfPlan['usedTo'] ? 'F'.$odfPlan['usedTo'] : 'nema' }}@if($odfPlan['reserveFrom'] <= $odfPlan['reserveTo']) &nbsp;·&nbsp; Slobodni kontinuirani raspon: F{{ $odfPlan['reserveFrom'] }}–F{{ $odfPlan['reserveTo'] }}@endif</div>
-    </div>
-@endforeach
-
-<h2 style="margin-top:14px">Optički power-budget · {{ $fiberPlan['profile']['label'] }} · {{ $fiberPlan['profile']['standard'] }}</h2>
-<p style="font-size:7pt;color:#555">Dozvoljeni ODN: {{ $fiberPlan['profile']['min'] }}–{{ $fiberPlan['profile']['max'] }} dB · Inženjerska margina: {{ $fiberPlan['engineeringMargin'] }} dB · Prikazan je nepovoljniji smjer.</p>
-<table class="fiber-table"><thead><tr><th>ODO</th><th>Vlakna</th><th>DS / US</th><th>Pasiva</th><th>ODN</th><th>+ margina</th><th>Headroom</th><th>Status</th></tr></thead><tbody>
-@forelse($fiberPlan['connections'] as $connection)<tr><td>{{ $connection['cabinet'] }}</td><td>F{{ $connection['fiber_from'] }}–F{{ $connection['fiber_to'] }}</td><td>{{ $connection['downstream_loss_db'] }} / {{ $connection['upstream_loss_db'] }} dB<br>{{ $connection['downstream_nm'] }}/{{ $connection['upstream_nm'] }} nm</td><td>S {{ $connection['splitter_loss_db'] }} + C {{ $connection['connector_loss_db'] }} + V {{ $connection['splice_loss_db'] }} + O {{ $connection['additional_passive_loss_db'] }} dB</td><td>{{ $connection['loss_db'] }} dB</td><td>{{ $connection['design_loss_db'] }} dB</td><td>{{ $connection['headroom_db'] }} dB</td><td>{{ strtoupper($connection['budget_status']) }}@if($connection['below_minimum'])<br>ISPOD MIN.@endif</td></tr>@empty<tr><td colspan="8">Nema veza za proračun.</td></tr>@endforelse
-</tbody></table>
-@if($fiberPlan['issues']->isNotEmpty())<div class="reserve-box"><div class="reserve-title">Otvorene kontrolne stavke</div>@foreach($fiberPlan['issues'] as $issue)<div class="reserve-meta">{{ strtoupper($issue['level']) }} · {{ $issue['message'] }}</div>@endforeach</div>@endif
-
-<div class="footer">
-    {{ $project->name }} &nbsp;/&nbsp; {{ $project->code }} &nbsp;/&nbsp; Dokument v{{ config('app.version') }} &nbsp;/&nbsp; FTTH Manager &nbsp;/&nbsp; {{ now()->format('d.m.Y H:i') }}
+    <p class="footer">{{ $project->name }} · {{ $project->code }} · FTTH Manager v{{ config('app.version') }} · {{ now()->format('d.m.Y. H:i') }}</p>
 </div>
-
 </body>
 </html>

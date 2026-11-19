@@ -17,7 +17,7 @@ class ProjectHealthService
     /** Tables whose rows the validation reads; a change in any of them invalidates the cached result. */
     private const WATCHED_TABLES = ['odfs', 'cabinets', 'houses', 'routes', 'large_planner_settings'];
 
-    private const CACHE_VERSION = 'v1';
+    private const CACHE_VERSION = 'v2';
 
     public function __construct(private readonly ProjectValidationService $validation) {}
 

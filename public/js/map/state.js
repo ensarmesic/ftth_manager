@@ -187,6 +187,7 @@ const layerRegistry = {
     dxf: [],
     survey: [],
     pole_branches: [],
+    notes: [],
     preview: [],
     measure: [],
     trace: [],

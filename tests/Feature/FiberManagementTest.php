@@ -54,8 +54,6 @@ class FiberManagementTest extends TestCase
         $versionId = $this->postJson(route('projects.fiber.versions.store', $project), ['label' => 'Odobrena v1'])->assertCreated()->json('version.id');
         $this->getJson(route('projects.fiber.versions', $project))->assertOk()->assertJsonCount(1, 'versions');
         $this->getJson(route('projects.fiber.versions.compare', [$project, $versionId]))->assertOk()->assertJsonStructure(['changes' => ['used_fibers', 'health', 'connections', 'issues']]);
-        $this->putJson(route('projects.fiber.layout', $project), ['positions' => ['cab-'.$cabinet->id => ['x' => 420.5, 'y' => 180]]])->assertOk();
-        $this->assertSame(420.5, $project->fresh()->fiber_schema_layout['cab-'.$cabinet->id]['x']);
         $this->postJson(route('projects.fiber.versions.restore', [$project, $versionId]))->assertOk();
         $this->assertCount(2, $project->fiberSchemaVersions()->get());
         $this->patchJson(route('projects.fiber.lock', $project), ['locked' => true])->assertOk()->assertJsonPath('locked', true);
@@ -115,7 +113,6 @@ class FiberManagementTest extends TestCase
         $this->patchJson(route('projects.fiber.lock', $project), ['locked' => true])->assertOk();
 
         $this->deleteJson(route('projects.fiber.splice.destroy', [$project, $spliceId]))->assertStatus(423);
-        $this->putJson(route('projects.fiber.layout', $project), ['positions' => []])->assertStatus(423);
         $this->patchJson(route('projects.fiber.budget-settings', $project), [])->assertStatus(423);
         $this->postJson(route('projects.fiber.versions.restore', [$project, $versionId]))->assertStatus(423);
     }

@@ -14,14 +14,72 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProjectSettingsController extends Controller
 {
-    public function projectCheck(ProjectHealthService $health): View
+    public function projectCheck(Request $request, ProjectHealthService $health): View
     {
         $projects = Project::query()->withCount([
             'odfs', 'cabinets', 'houses',
             'routes as network_routes_count' => fn ($query) => $query->where('route_type', '!=', 'trench'),
         ])->orderBy('name')->get();
+        $selected = $request->integer('project') > 0 ? $projects->firstWhere('id', $request->integer('project')) : null;
 
-        return view('ftth.project-check', ['projects' => $projects, 'health' => $health->forProjects($projects)]);
+        if ($selected) {
+            $result = $health->forProject($selected);
+
+            return view('ftth.project-check', [
+                'projects' => $projects,
+                'selectedProject' => $selected,
+                'result' => $result,
+                'groups' => $this->checkGroups($result['items']),
+            ]);
+        }
+
+        $all = $health->forProjects($projects);
+
+        return view('ftth.project-check', [
+            'projects' => $projects,
+            'selectedProject' => null,
+            'overview' => $projects->map(fn (Project $project) => [
+                'project' => $project,
+                'health' => $all[$project->id],
+                // The two most frequent errors/warnings, to show what to fix first.
+                'top' => array_slice(array_values(array_filter(
+                    $this->checkGroups($all[$project->id]['items']),
+                    fn (array $group) => $group['level'] !== 'info',
+                )), 0, 2),
+            ])->all(),
+        ]);
+    }
+
+    /**
+     * Findings grouped by check: the worst level first, then the most frequent.
+     *
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    private function checkGroups(array $items): array
+    {
+        $rank = ['error' => 0, 'warning' => 1, 'info' => 2];
+
+        return collect($items)
+            ->groupBy(fn (array $item) => $item['rule'] ?? $item['message'])
+            ->map(function ($group, string $rule) use ($rank): array {
+                $level = $group->sortBy(fn (array $item) => $rank[$item['level']] ?? 3)->first()['level'];
+                $recommendations = $group->pluck('recommendation')->unique();
+
+                return [
+                    'rule' => $rule,
+                    'label' => $group->first()['rule_label'] ?? $group->first()['message'],
+                    'level' => $level,
+                    'element_type' => $group->first()['element_type'],
+                    'count' => $group->count(),
+                    // One shared advice is shown once on the group; otherwise per finding.
+                    'recommendation' => $recommendations->count() === 1 ? $recommendations->first() : null,
+                    'items' => $group->values()->all(),
+                ];
+            })
+            ->sortBy([fn (array $a, array $b) => ($rank[$a['level']] ?? 3) <=> ($rank[$b['level']] ?? 3), fn (array $a, array $b) => $b['count'] <=> $a['count']])
+            ->values()
+            ->all();
     }
 
     public function settings(Request $request, ActivityLogController $activityLogs, DatabaseDumper $dumper): View

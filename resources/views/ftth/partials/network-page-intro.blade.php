@@ -34,14 +34,6 @@
             </div>
         @endif
     </form>
-    <nav class="network-page-flow" aria-label="Dijelovi FTTH projekta">
-        @foreach($pages as $key => $page)
-            <a href="{{ route($page[3], $selectedProject ? ['project' => $selectedProject->id] : []) }}" class="{{ $key === $kind ? 'is-current' : '' }}">
-                <i>{{ $loop->iteration }}</i><span><b>{{ $page[0] }}</b><small>{{ $page[1] }}</small></span>
-            </a>
-        @endforeach
-    </nav>
-    <p class="network-flow-hint" aria-hidden="true">Povuci lijevo ili desno za ostale dijelove mreže</p>
 </section>
 @if($projectContext)
 @php($contextProject = $projectContext['project'])

@@ -45,11 +45,13 @@ class DashboardTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('AKTIVNI PROJEKAT')
+            ->assertSee('Nastavi rad')
             ->assertSee('Banovici FTTH')
-            ->assertSee('1,50<em class="cc-kpi-unit"> km</em>', false)
+            ->assertSee('1,50 <em>km</em>', false)
             ->assertSee('4 problema')
-            ->assertSee('1 / 12 portova');
+            ->assertSee('1 / 12 portova')
+            ->assertSee('kuća · 50% vezano')
+            ->assertSee('Stanje mreže');
     }
 
     public function test_legacy_map_url_redirects_to_map_workspace(): void

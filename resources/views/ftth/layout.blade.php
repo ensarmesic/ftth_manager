@@ -25,13 +25,9 @@
         ['dashboard',           'Pregled',            'squares'],
         ['map.dashboard',       'Mapa',               'map'],
         ['projects.index',      'Projekti',           'folder'],
-        ['odfs.index',          'ODF-ovi',            'server'],
-        ['cabinets.index',      'ODO ormarići',       'archive'],
-        ['houses.index',        'Kuće',               'home'],
-        ['routes.index',        'Trase',              'route'],
-        ['branches.index',      'Krakovi',            'branch'],
+        // ODF-ovi, ODO, kuće, trase i krakovi su kartice jedne stranice "Mrežna evidencija".
+        ['odfs.index',          'Mrežna evidencija',  'server'],
         ['reports.index',       'Izvještaji',         'chart'],
-        ['splitters.index',     'Splitteri',          'split'],
         ['fiber-schema.index',  'Fiber sema',         'chip'],
         ['project-check.index', 'Provjera projekta',  'shield'],
         ['settings.index',      'Postavke',           'cog'],
@@ -41,6 +37,15 @@
         $sidebarItems = array_values(array_filter($sidebarItems, fn ($item) => $item[0] !== 'settings.index'));
     }
     $projectScopedRoutes = ['odfs.index', 'cabinets.index', 'houses.index', 'routes.index', 'branches.index'];
+    $registryTabs = [
+        'odfs.index' => ['ODF-ovi', 'server', \App\Models\Odf::class],
+        'cabinets.index' => ['ODO ormarići', 'archive', \App\Models\Cabinet::class],
+        'houses.index' => ['Kuće', 'home', \App\Models\House::class],
+        'routes.index' => ['Trase', 'route', \App\Models\NetworkRoute::class],
+        'branches.index' => ['Krakovi', 'branch', \App\Models\NetworkBranch::class],
+    ];
+    $isRegistryPage = request()->routeIs(...array_keys($registryTabs));
+    $sidebarActive = fn (string $route): bool => $route === 'odfs.index' ? $isRegistryPage : request()->routeIs($route);
     $sidebarIcons = [
         'squares' => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M2 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4zM10 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1V4zM2 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1v-6zM10 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1v-6z"/></svg>',
         'folder'  => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>',
@@ -53,7 +58,6 @@
         'branch'  => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 3a2 2 0 00-2 2v1a2 2 0 002 2h1v3H5a2 2 0 00-2 2v1a2 2 0 002 2h1v1a1 1 0 102 0v-1h1a2 2 0 002-2v-1a2 2 0 00-2-2h-1V8h1a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h4v1H5V5zm0 7h4v1H5v-1zm5-4h1v3h-1V8z" clip-rule="evenodd"/></svg>',
         'cube'    => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M11 17a1 1 0 001.447.894l4-2A1 1 0 0017 15V9.236a1 1 0 00-1.447-.894l-4 2a1 1 0 00-.553.894V17zM15.211 6.276a1 1 0 000-1.788l-4.764-2.382a1 1 0 00-.894 0L4.789 4.488a1 1 0 000 1.788l4.764 2.382a1 1 0 00.894 0l4.764-2.382zM4.447 8.342A1 1 0 003 9.236V15a1 1 0 00.553.894l4 2A1 1 0 009 17v-5.764a1 1 0 00-.553-.894l-4-2z"/></svg>',
         'chart'   => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd"/></svg>',
-        'split'   => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M3 10a7 7 0 1114 0 7 7 0 01-14 0zm7-5a5 5 0 100 10A5 5 0 0010 5z" clip-rule="evenodd"/></svg>',
         'chip'    => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clip-rule="evenodd"/><path d="M15 7h1a2 2 0 012 2v5.5a1.5 1.5 0 01-3 0V7z"/></svg>',
         'shield'  => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>',
         'cog'     => '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>',
@@ -77,10 +81,9 @@
         <nav class="app-navigation flex flex-col p-2 text-[12px] flex-1 overflow-y-auto" style="gap:1px">
             @foreach ($sidebarItems as [$route, $label, $iconKey])
                 @if($route === 'dashboard')<span class="nav-section-label">Radni prostor</span>@endif
-                @if($route === 'odfs.index')<span class="nav-section-label">Mrežna evidencija</span>@endif
                 @if($route === 'reports.index')<span class="nav-section-label">Analitika i kontrola</span>@endif
                 @if($route === 'settings.index')<span class="nav-section-label">Sistem</span>@endif
-                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}" @if(request()->routeIs($route)) aria-current="page" @endif>
+                <a class="flex items-center gap-2 rounded px-2.5 py-1.25 leading-none transition-colors {{ $sidebarActive($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/75 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}" @if($sidebarActive($route)) aria-current="page" @endif>
                     <span class="shrink-0 opacity-70">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                     {{ $label }}
                 </a>
@@ -163,7 +166,7 @@
         @unless($isDashboard || $hasOwnHeading)
             <div class="ftth-page-header">
                 <div class="ftth-page-header-inner">
-                    <h1>@yield('title')</h1>
+                    <h1>@if($isRegistryPage)Mrežna evidencija @else @yield('title') @endif</h1>
                     <p>@yield('subtitle')</p>
                 </div>
             </div>
@@ -171,6 +174,19 @@
         <div class="app-content {{ $isWide ? 'flex min-h-0 flex-1 flex-col overflow-hidden p-1.5 sm:p-2 xl:p-2.5' : 'flex-1 min-h-0 overflow-hidden flex flex-col w-full px-3 py-2 sm:px-4 sm:py-2' }}">
             @if (session('success'))<div class="flash-success"><svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>{{ session('success') }}</div>@endif
             @if ($errors->any())<div class="flash-error"><svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 shrink-0"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>{{ $errors->first() }}</div>@endif
+            @if($isRegistryPage)
+                @php $registryProject = request()->integer('project'); @endphp
+                <nav class="registry-tabs" aria-label="Mrežna evidencija">
+                    @foreach($registryTabs as $tabRoute => [$tabLabel, $tabIcon, $tabModel])
+                        @php $tabActive = request()->routeIs($tabRoute); @endphp
+                        <a href="{{ route($tabRoute, $registryProject ? ['project' => $registryProject] : []) }}" class="registry-tab {{ $tabActive ? 'is-active' : '' }}" @if($tabActive) aria-current="page" @endif>
+                            <span class="registry-tab-icon">{!! $sidebarIcons[$tabIcon] ?? '' !!}</span>
+                            {{ $tabLabel }}
+                            <span class="registry-tab-count">{{ number_format($tabModel::query()->when($registryProject > 0, fn ($query) => $query->where('project_id', $registryProject))->count(), 0, ',', '.') }}</span>
+                        </a>
+                    @endforeach
+                </nav>
+            @endif
             @yield('content')
         </div>
         @if($isDashboard)<footer class="flex min-h-8 shrink-0 flex-wrap items-center justify-center gap-x-3 border-t bg-white px-2 py-1 text-center text-[10px] text-slate-500">&copy; {{ date('Y') }} Mediasky · FTTH Manager <span>v{{ config('app.version') }}</span></footer>@endif
@@ -184,7 +200,7 @@
     </div>
     <nav class="grid gap-px p-2 text-[13px]">
         @foreach ($sidebarItems as [$route, $label, $iconKey])
-            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ request()->routeIs($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}" @if(request()->routeIs($route)) aria-current="page" @endif>
+            <a class="flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors {{ $sidebarActive($route) ? 'sidebar-active font-semibold text-white' : 'text-blue-100/80 hover:bg-white/10 hover:text-white' }}" href="{{ route($route, in_array($route, $projectScopedRoutes, true) && request()->integer('project') ? ['project' => request()->integer('project')] : []) }}" @if($sidebarActive($route)) aria-current="page" @endif>
                 <span class="shrink-0 opacity-75">{!! $sidebarIcons[$iconKey] ?? '' !!}</span>
                 {{ $label }}
             </a>
@@ -250,7 +266,7 @@ const ftthMenuItems = [
     ['Pregled', @json(route('dashboard'))], ['Projekti', @json(route('projects.index'))], ['Mapa', @json(route('map.dashboard'))],
     ['ODF-ovi', @json(route('odfs.index'))], ['ODO ormarići', @json(route('cabinets.index'))], ['Kuće', @json(route('houses.index'))],
     ['Trase', @json(route('routes.index'))], ['Krakovi', @json(route('branches.index'))], ['Izvještaji', @json(route('reports.index'))],
-    ['Splitteri', @json(route('splitters.index'))], ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
+    ['Fiber sema', @json(route('fiber-schema.index'))], ['Provjera projekta', @json(route('project-check.index'))],
     @can('settings.manage')['Postavke', @json(route('settings.index'))],@endcan ['Korisničko uputstvo', @json(route('documentation'))],
 ];
 window.ftthToast = function(message, type = 'info', options = {}) {

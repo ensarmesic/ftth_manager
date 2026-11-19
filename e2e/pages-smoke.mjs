@@ -17,7 +17,6 @@ const pages = [
     ["Trase", "/trase"],
     ["Krakovi", "/krakovi"],
     ["Izvještaji", "/izvjestaji"],
-    ["Splitteri", "/splitteri"],
     ["Fiber šema", "/fiber-sema"],
     ["Provjera projekta", "/provjera-projekta"],
     ["Postavke", "/postavke"],

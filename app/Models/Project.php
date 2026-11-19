@@ -18,7 +18,7 @@ class Project extends Model
      * MySQL rejects such an update while the project row itself is being deleted, so they are
      * removed first, children before parents, while the project still exists.
      */
-    private const DELETE_FIRST = ['fiber_splices', 'houses', 'routes', 'cabinets', 'network_branches', 'pole_branch_links', 'pole_branches', 'survey_points', 'odfs'];
+    private const DELETE_FIRST = ['map_notes', 'fiber_splices', 'houses', 'routes', 'cabinets', 'network_branches', 'pole_branch_links', 'pole_branches', 'survey_points', 'odfs'];
 
     protected static function booted(): void
     {
@@ -56,6 +56,12 @@ class Project extends Model
     protected function casts(): array
     {
         return ['workflow_changed_at' => 'datetime', 'fiber_schema_locked' => 'boolean', 'fiber_schema_locked_at' => 'datetime', 'fiber_budget_limit_db' => 'float', 'fiber_schema_layout' => 'array', 'fiber_attenuation_1310_db_km' => 'float', 'fiber_attenuation_1490_db_km' => 'float', 'fiber_attenuation_1577_db_km' => 'float', 'connector_loss_db' => 'float', 'splice_allowance_db' => 'float', 'engineering_margin_db' => 'float', 'additional_passive_loss_db' => 'float', 'power_budget_confirmed' => 'boolean', 'olt_tx_power_dbm' => 'float', 'onu_tx_power_dbm' => 'float', 'onu_rx_sensitivity_dbm' => 'float', 'olt_rx_sensitivity_dbm' => 'float'];
+    }
+
+    /** @return HasMany<MapNote, $this> */
+    public function mapNotes(): HasMany
+    {
+        return $this->hasMany(MapNote::class);
     }
 
     /** @return HasMany<Odf, $this> */

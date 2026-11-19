@@ -675,27 +675,28 @@ class MediaskyWorkflowTest extends TestCase
 
         $this->get(route('fiber-schema.index'))
             ->assertOk()
-            ->assertSee('FTTH Topologija')
+            ->assertSee('Fiber šema')
             ->assertSee('ODF-01')
+            ->assertSee('ODF-02')
             ->assertSee('FTTH 1-1')
             ->assertSee('FTTH 1-1.1')
-            ->assertSee('IZ FTTH 1-1')
+            // The child cabinet hangs under its parent on the drawing.
+            ->assertSee('napaja se iz FTTH 1-1')
+            // Port plan: houses on splitter/port.
             ->assertSee('Kuca 1')
             ->assertSee('Kuca 2')
-            ->assertSee('F 1-3')
-            ->assertSee('F 4')
-            ->assertSee('F 1-2')
-            ->assertSee('Točkić: zoom prema kursoru')
-            ->assertSee('Color Code')
-            ->assertSee('data-color-code="true"', false)
-            ->assertSee('TIA‑598')
-            ->assertSee('ODF portovi')
-            ->assertSee('Splice plan')
-            ->assertSee('Automatska kontrola fiber plana')
+            ->assertSee('S1/P1')
+            ->assertSee('F1–F3')
+            ->assertSee('F1–F2')
+            ->assertSee('Točkić: zoom')
+            ->assertSee('TIA-598-C')
+            ->assertSee('Plan vlakana')
+            ->assertSee('Power budget')
             ->assertSee('Nema dvostruko dodijeljenih vlakana')
+            ->assertSee('Na šemi je 3 od 3 ODO ormarića.')
             ->assertSee('data-fiber-range="1-3"', false)
             ->assertSee('data-fiber-range="4"', false)
-            ->assertSee('Fiber tracing');
+            ->assertSee('data-cabinet-id="'.$childCabinet->id.'"', false);
     }
 
     public function test_cabinet_can_be_fed_from_parent_cabinet(): void
@@ -746,9 +747,10 @@ class MediaskyWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('FTTH 2-8')
             ->assertSee('FTTH 2-8-1')
-            ->assertSee('F 1-2')
-            ->assertSee('F 3')
-            ->assertSee('F 4-6');
+            ->assertSee('data-fiber-range="1-2"', false)
+            ->assertSee('data-fiber-range="3"', false)
+            ->assertSee('data-fiber-range="4-6"', false)
+            ->assertSee('F4–F6');
     }
 
     public function test_cabinet_can_only_be_assigned_to_secondary_branch(): void

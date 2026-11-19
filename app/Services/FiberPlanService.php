@@ -8,6 +8,8 @@ use Illuminate\Support\Collection;
 
 class FiberPlanService
 {
+    public function __construct(private readonly BranchSourceResolver $branchSources) {}
+
     private const PON_PROFILES = [
         'gpon_b_plus' => ['label' => 'GPON B+', 'standard' => 'ITU-T G.984.2', 'min' => 13.0, 'max' => 28.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310, 'distance_category' => '20 km'],
         'gpon_c_plus' => ['label' => 'GPON C+', 'standard' => 'ITU-T G.984.2', 'min' => 17.0, 'max' => 32.0, 'downstream_nm' => 1490, 'upstream_nm' => 1310, 'distance_category' => '20 km'],
@@ -28,6 +30,8 @@ class FiberPlanService
         $cabinetIndex = $project->cabinets->keyBy('id');
         $branchIndex = $project->branches->keyBy('id');
         $contexts = [];
+        // The cabinet each branch cable leaves from (also when the route points at a regenerated cabinet).
+        $branchSources = $this->branchSources->resolve($project->branches, $project->cabinets);
 
         $resolveContext = function ($cabinet) use ($cabinetIndex): array {
             $odfId = $cabinet->odf_id;
@@ -64,12 +68,12 @@ class FiberPlanService
         foreach ($project->cabinets as $cabinet) {
             $contexts[$cabinet->id] = $resolveContext($cabinet);
         }
-        $branchDepth = function ($branch) use ($branchIndex, $cabinetIndex): int {
+        $branchDepth = function ($branch) use ($branchIndex, $cabinetIndex, $branchSources): int {
             $depth = 0;
             $visited = [];
-            while ($branch?->route?->from_type === 'cabinet' && $branch->route->from_id && ! isset($visited[$branch->id])) {
+            while ($branch && isset($branchSources[$branch->id]) && ! isset($visited[$branch->id])) {
                 $visited[$branch->id] = true;
-                $sourceCabinet = $cabinetIndex->get($branch->route->from_id);
+                $sourceCabinet = $cabinetIndex->get($branchSources[$branch->id]);
                 $branch = $sourceCabinet?->branch_id ? $branchIndex->get($sourceCabinet->branch_id) : null;
                 $depth++;
             }
@@ -111,17 +115,17 @@ class FiberPlanService
         $profile = self::PON_PROFILES[$project->pon_profile ?? 'gpon_b_plus'] ?? self::PON_PROFILES['gpon_b_plus'];
         $budgetLimit = $profile['max'];
         $engineeringMargin = (float) ($project->engineering_margin_db ?? 3);
-        $routeLengthFor = function ($cabinet) use ($branchIndex, $cabinetIndex): float {
+        $routeLengthFor = function ($cabinet) use ($branchIndex, $cabinetIndex, $branchSources): float {
             $meters = 0.0;
             $branch = $cabinet->branch_id ? $branchIndex->get($cabinet->branch_id) : null;
             $visited = [];
             while ($branch && ! isset($visited[$branch->id])) {
                 $visited[$branch->id] = true;
                 $meters += (float) ($branch->route?->fiber_length_m ?: $branch->route?->duct_length_m ?: 0);
-                if ($branch->route?->from_type !== 'cabinet' || ! $branch->route?->from_id) {
+                if (! isset($branchSources[$branch->id])) {
                     break;
                 }
-                $sourceCabinet = $cabinetIndex->get($branch->route->from_id);
+                $sourceCabinet = $cabinetIndex->get($branchSources[$branch->id]);
                 $branch = $sourceCabinet?->branch_id ? $branchIndex->get($sourceCabinet->branch_id) : null;
             }
 

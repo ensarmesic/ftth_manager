@@ -113,6 +113,7 @@
                 <button type="button" id="btn-coord-jump" class="tc tc-ghost" title="Skok na koordinate">Goto</button>
                 <button type="button" id="dxf-layer-btn" class="tc tc-indigo" title="Učitaj DXF" aria-controls="dxf-layer-panel" aria-expanded="false">DXF</button>
                 @canany(['project.edit', 'field.capture'])<button type="button" id="survey-panel-btn" class="tc tc-indigo" title="Terenske i geodetske tačke" aria-controls="survey-panel" aria-expanded="false">Tačke</button>@endcanany
+                @if($activeProjectId)<button type="button" id="notes-panel-btn" class="tc tc-rose" title="Napomene na mapi: označi tačku, liniju ili površinu i upiši šta treba izmijeniti" aria-controls="notes-panel" aria-expanded="false">Napomene <span id="notes-open-count" class="notes-count" hidden>0</span></button>@endif
                 <button type="button" id="toggle-map-view" class="tc tc-ghost">GIS</button>
                 <button type="button" id="expand-map" class="tc tc-ghost" title="Proširena mapa">⛶</button>
                 <div class="tc-sep"></div>
@@ -537,7 +538,7 @@
                 <svg class="chev w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
             </summary>
             <div class="sidebar-bd grid gap-0.5 py-2">
-                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'gis' => ['GIS ceste','#0284c7'], 'dxf' => ['DXF','#9333ea'], 'survey' => ['Geodetski objekti','#f59e0b'], 'pole_branches' => ['Krakovi stubova','#7c3aed'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
+                @foreach(['odf' => ['ODF','#0891b2'], 'odo' => ['ODO','#059669'], 'houses' => ['Kuce','#7c3aed'], 'trench' => ['Glavni rov','#64748b'], 'backbone' => ['Backbone','#0f172a'], 'distribution' => ['Distribution','#d97706'], 'drop' => ['Drop','#6d28d9'], 'gis' => ['GIS ceste','#0284c7'], 'dxf' => ['DXF','#9333ea'], 'survey' => ['Geodetski objekti','#f59e0b'], 'pole_branches' => ['Krakovi stubova','#7c3aed'], 'notes' => ['Napomene','#dc2626'], 'preview' => ['Preview','#0369a1'], 'measure' => ['Mjerenje','#dc2626'], 'trace' => ['Fiber tracing','#0d9488']] as $layer => [$label, $color])
                 <div class="layer-row">
                     <label class="flex flex-1 items-center gap-2 cursor-pointer select-none min-w-0">
                         <input type="checkbox" data-layer-toggle="{{ $layer }}" checked>
@@ -678,4 +679,8 @@
 <script src="{{ asset('js/map/survey.js') }}?v={{ filemtime(public_path('js/map/survey.js')) }}"></script>
 <script src="{{ asset('js/map/survey-objects.js') }}?v={{ filemtime(public_path('js/map/survey-objects.js')) }}"></script>
 <script src="{{ asset('js/map/pole-branches.js') }}?v={{ filemtime(public_path('js/map/pole-branches.js')) }}"></script>
+@if($activeProjectId)
+@include('ftth.map._notes-panel')
+<script src="{{ asset('js/map/notes.js') }}?v={{ filemtime(public_path('js/map/notes.js')) }}"></script>
+@endif
 @endsection

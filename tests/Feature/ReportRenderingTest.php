@@ -9,6 +9,7 @@ use App\Models\NetworkRoute;
 use App\Models\Odf;
 use App\Models\Project;
 use App\Models\ProjectAppendixItem;
+use App\Services\ProjectReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -143,13 +144,57 @@ class ReportRenderingTest extends TestCase
         foreach ([
             'reports.index',
             'fiber-schema.index',
-            'splitters.index',
             'settings.index',
             'project-check.index',
         ] as $routeName) {
             $this->get(route($routeName))
                 ->assertOk();
         }
+    }
+
+    public function test_removed_splitters_page_redirects_to_reports(): void
+    {
+        $this->get('/splitteri')->assertRedirect('/izvjestaji')->assertStatus(301);
+        $this->get(route('dashboard'))->assertOk()->assertDontSee('/splitteri', false);
+    }
+
+    public function test_reports_overview_lists_projects_with_their_numbers(): void
+    {
+        $project = $this->seedFullProject();
+
+        $this->get(route('reports.index'))
+            ->assertOk()
+            ->assertSee('Svi projekti (pregled)')
+            ->assertSee('href="'.route('reports.index', ['project' => $project->id]).'"', false)
+            ->assertSee('6 / 7 · 86%')
+            ->assertSee('6 / 12 · 50%')
+            ->assertDontSee('Dijelovi izvještaja');
+    }
+
+    public function test_project_report_shows_capacity_routes_materials_and_documents(): void
+    {
+        $project = $this->seedFullProject();
+
+        $this->get(route('reports.index', ['project' => $project->id]))
+            ->assertOk()
+            ->assertSee('Izvještaj projekta')
+            ->assertSee('Smoke projekt')
+            ->assertSee('1 bez ODO-a')
+            ->assertSee('6 / 12 · 6 slobodno')
+            ->assertSee('FTTH 1-1')
+            ->assertSee('Glavni rov')
+            ->assertSee('90 m')
+            ->assertSee('sa rezervom 10%: 146 m')
+            ->assertSee('Mikrocijev 14/10')
+            ->assertSee('href="'.route('reports.project-appendix', $project).'"', false)
+            ->assertSee('href="'.route('projects.fiber-schema-pdf', $project).'"', false);
+
+        $report = app(ProjectReportService::class)->detail($project->fresh());
+        $this->assertSame(50, $report['summary']['utilization']);
+        $this->assertSame(1, $report['summary']['unassigned']);
+        $this->assertSame(['trench', 'distribution'], array_column($report['routes_by_type'], 'type'));
+        $this->assertSame(1, $report['odfs'][0]['cabinets']);
+        $this->assertSame(6, $report['odfs'][0]['houses']);
     }
 
     public function test_per_project_reports_and_exports_render(): void
@@ -170,7 +215,10 @@ class ReportRenderingTest extends TestCase
             ->assertHeader('content-type', 'application/dxf')
             ->assertHeader('content-disposition', 'attachment; filename="smoke-fiber-schema.dxf"')
             ->assertSee("SECTION\r\n2\r\nHEADER", false)
-            ->assertSee('FTTH_FIBER_COLORS', false)
+            ->assertSee("\$DWGCODEPAGE\r\n3\r\nANSI_1250", false)
+            ->assertSee("BLOCK\r\n8\r\n0\r\n2\r\nFO_ODO", false)
+            ->assertSee("INSERT\r\n8\r\nFO-ODO", false)
+            ->assertSee('FO-VLAKNA', false)
             ->assertSee("ENDSEC\r\n0\r\nEOF", false);
     }
 

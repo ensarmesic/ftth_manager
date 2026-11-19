@@ -482,7 +482,7 @@
     }
     #map-workspace.map-readonly { grid-template-columns: minmax(0, 1fr); }
     #map-workspace.map-readonly > aside { display: none; }
-    #map-workspace.map-readonly .map-toolbar .tc:not(#survey-panel-btn),
+    #map-workspace.map-readonly .map-toolbar .tc:not(#survey-panel-btn):not(#notes-panel-btn),
     #map-workspace.map-readonly .map-toolbar .tc-sep { display: none; }
     #map-workspace.map-no-field #survey-panel-btn { display: none; }
     .layer-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 11px; transition: background .12s; }

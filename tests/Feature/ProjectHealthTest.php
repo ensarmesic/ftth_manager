@@ -33,10 +33,34 @@ class ProjectHealthTest extends TestCase
 
         $user = User::factory()->create();
         $this->actingAs($user)->get(route('project-check.index'))->assertOk()
-            ->assertSee(number_format($warnings, 0, ',', '.').' upozorenja')
+            ->assertSee('Jedinstvena provjera')
+            ->assertSee('Kuće bez ODO-a');
+        $this->actingAs($user)->get(route('project-check.index', ['project' => $project->id]))->assertOk()
+            ->assertSee('Upozorenja <b>'.number_format($warnings, 0, ',', '.').'</b>', false)
             ->assertSee('nema povezan ODO');
         $this->actingAs($user)->get(route('dashboard'))->assertOk()
             ->assertSee(($errors + $warnings).' problema');
+    }
+
+    public function test_project_check_groups_findings_by_kind(): void
+    {
+        $project = Project::factory()->create(['name' => 'Grupe provjere']);
+        $odf = Odf::factory()->create(['project_id' => $project->id]);
+        Cabinet::factory()->create(['project_id' => $project->id, 'odf_id' => $odf->id]);
+        House::factory()->count(4)->create(['project_id' => $project->id, 'cabinet_id' => null]);
+
+        $items = app(ProjectHealthService::class)->forProject($project)['items'];
+        $this->assertSame(4, collect($items)->where('rule', 'house_no_cabinet')->count());
+        $this->assertSame('Kuće bez ODO-a', collect($items)->firstWhere('rule', 'house_no_cabinet')['rule_label']);
+
+        $page = $this->get(route('project-check.index', ['project' => $project->id]))->assertOk();
+        // One group with the shared advice, four findings inside it.
+        $page->assertSee('Kuće bez ODO-a')
+            ->assertSee('data-total="4"', false)
+            ->assertSee('Dodijeli kuću ODO ormariću.')
+            ->assertSee('data-pc-level="warning"', false)
+            ->assertSee('data-pc-type="house"', false);
+        $this->assertSame(1, substr_count($page->getContent(), 'Dodijeli kuću ODO ormariću.'));
     }
 
     public function test_cached_result_is_refreshed_when_the_project_changes(): void

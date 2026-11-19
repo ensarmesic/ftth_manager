@@ -1,130 +1,210 @@
 @extends('ftth.layout')
 @section('title', 'Provjera projekta')
-@section('subtitle', 'Automatska kontrola veza, kapaciteta i tehničkih podataka projekta.')
+@section('subtitle', $selectedProject ? 'Provjera projekta '.$selectedProject->name : 'Automatska kontrola veza, kapaciteta i tehničkih podataka svih projekata')
 @section('content')
-
 @php
-    // Shared check (ProjectHealthService): the same counts as the dashboard and Izvještaji.
-    $allChecks = $projects->map(fn ($project) => ['project' => $project, 'health' => $health[$project->id]]);
-    $totalErrors   = $allChecks->sum(fn ($p) => $p['health']['errors']);
-    $totalWarnings = $allChecks->sum(fn ($p) => $p['health']['warnings']);
-    $projectsOk    = $allChecks->filter(fn ($p) => $p['health']['issues'] === 0)->count();
-    $levelLabels   = ['error' => 'Greška', 'warning' => 'Upozorenje', 'info' => 'Napomena'];
-    $visibleItems  = 30;
+    $n = fn ($value) => number_format((float) $value, 0, ',', '.');
+    $levelLabels = ['error' => 'Greška', 'warning' => 'Upozorenje', 'info' => 'Napomena'];
+    $typeLabels = ['project' => 'Projekat', 'odf' => 'ODF', 'cabinet' => 'ODO', 'house' => 'Kuće', 'route' => 'Trase'];
+    $plural = fn (int $count, string $one, string $few, string $many) => $count % 10 === 1 && $count % 100 !== 11 ? $one : (in_array($count % 10, [2, 3, 4], true) && ! in_array($count % 100, [12, 13, 14], true) ? $few : $many);
+    $mapLink = fn ($project, array $item) => $item['element_type'] === 'project'
+        ? route('map.dashboard', ['project' => $project->id])
+        : route('map.dashboard', ['project' => $project->id, 'focus_type' => $item['element_type'], 'focus_id' => $item['element_id']]);
+    $rowLimit = 300;
 @endphp
+<div class="reports-page check-page">
 
-<section class="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <article class="stat-card">
-        <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Projekata</div><div class="stat-value">{{ number_format($projects->count(), 0, ',', '.') }}</div></div>
-            <div class="stat-icon blue"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg></div>
-        </div>
-    </article>
-    <article class="stat-card">
-        <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Bez problema</div><div class="stat-value" style="color:#059669">{{ $projectsOk }}</div></div>
-            <div class="stat-icon green"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg></div>
-        </div>
-    </article>
-    <article class="stat-card">
-        <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Greške</div><div class="stat-value" style="color:#dc2626">{{ number_format($totalErrors, 0, ',', '.') }}</div></div>
-            <div class="stat-icon red"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg></div>
-        </div>
-    </article>
-    <article class="stat-card">
-        <div class="flex items-start justify-between gap-3">
-            <div><div class="stat-label">Upozorenja</div><div class="stat-value" style="color:#d97706">{{ number_format($totalWarnings, 0, ',', '.') }}</div></div>
-            <div class="stat-icon amber"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></div>
-        </div>
-    </article>
-</section>
-
-<section class="grid gap-4">
-    @forelse($allChecks as $item)
-        @php
-            $project   = $item['project'];
-            $checks    = collect($item['health']['items']);
-            $errCnt    = $item['health']['errors'];
-            $warnCnt   = $item['health']['warnings'];
-            $infoCnt   = $item['health']['infos'];
-        @endphp
-        <article class="check-card" style="border-left:3px solid {{ $errCnt ? '#dc2626' : ($warnCnt ? '#f59e0b' : '#10b981') }}">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                <div class="flex items-center gap-3 min-w-0">
-                    @if(! $errCnt && ! $warnCnt)
-                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style="background:#d1fae5">
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" style="color:#059669"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                        </div>
-                    @elseif($errCnt)
-                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style="background:#fee2e2">
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" style="color:#dc2626"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
-                        </div>
-                    @else
-                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style="background:#fef3c7">
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5" style="color:#d97706"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                        </div>
-                    @endif
-                    <div class="min-w-0">
-                        <h2 class="font-bold text-slate-900">{{ $project->name }}</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">{{ $project->code }}@if($project->location) &bull; {{ $project->location }}@endif</p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap items-center gap-1.5 shrink-0">
-                    <a href="{{ route('map.dashboard', ['project' => $project->id]) }}" class="check-header-action">Mapa</a>
-                    <a href="{{ route('projects.show', $project) }}" class="check-header-action">Pregled</a>
-                    @if($errCnt)
-                        <span class="ftth-badge red"><span class="ftth-badge-dot"></span>{{ $errCnt }} {{ $errCnt === 1 ? 'greška' : ($errCnt < 5 ? 'greške' : 'grešaka') }}</span>
-                    @endif
-                    @if($warnCnt)
-                        <span class="ftth-badge amber"><span class="ftth-badge-dot"></span>{{ number_format($warnCnt, 0, ',', '.') }} upozorenja</span>
-                    @endif
-                    @if($infoCnt)
-                        <span class="ftth-badge blue"><span class="ftth-badge-dot"></span>{{ $infoCnt }} {{ $infoCnt === 1 ? 'napomena' : 'napomene' }}</span>
-                    @endif
-                    @if(! $errCnt && ! $warnCnt)
-                        <span class="ftth-badge green"><span class="ftth-badge-dot"></span>Sve uredu</span>
-                    @endif
-                </div>
-            </div>
-
-            <div class="flex flex-wrap gap-x-6 gap-y-1 border-b border-slate-50 bg-slate-50/50 px-5 py-2.5">
-                @foreach([
-                    ['ODF', $project->odfs_count, $project->odfs_count ? '#059669' : '#dc2626'],
-                    ['Ormarića', $project->cabinets_count, '#0ea5e9'],
-                    ['Kuća', $project->houses_count, '#6366f1'],
-                    ['Trasa', $project->network_routes_count, '#8b5cf6'],
-                ] as [$lbl, $cnt, $clr])
-                    <div class="flex items-center gap-1.5 text-xs text-slate-500">
-                        <span class="font-bold text-sm" style="color:{{ $clr }}">{{ $cnt }}</span>
-                        <span>{{ $lbl }}</span>
-                    </div>
+    <section class="rp-toolbar">
+        <form method="GET" class="rp-project-picker">
+            <label for="pc-project">Provjera za</label>
+            <select id="pc-project" name="project" data-auto-submit>
+                <option value="">Svi projekti (pregled)</option>
+                @foreach($projects as $project)
+                    <option value="{{ $project->id }}" @selected($selectedProject?->id === $project->id)>{{ $project->name }} · {{ $project->code }}</option>
                 @endforeach
-            </div>
+            </select>
+            <noscript><button type="submit" class="rp-btn">Prikaži</button></noscript>
+        </form>
+        <div class="rp-toolbar-actions">
+            @if($selectedProject)
+                <a href="{{ route('project-check.index') }}" class="rp-btn">← Svi projekti</a>
+                <a href="{{ route('reports.index', ['project' => $selectedProject->id]) }}" class="rp-btn">Izvještaj</a>
+                <a href="{{ route('map.dashboard', ['project' => $selectedProject->id]) }}" class="rp-btn rp-btn-dark">Otvori mapu</a>
+            @endif
+        </div>
+    </section>
 
-            <div class="grid gap-2 p-5">
-                @forelse($checks->take($visibleItems) as $check)
-                    @php($onMap = $check['element_type'] === 'project'
-                        ? route('map.dashboard', ['project' => $project->id])
-                        : route('map.dashboard', ['project' => $project->id, 'focus_type' => $check['element_type'], 'focus_id' => $check['element_id']]))
-                    <div class="check-item {{ $check['level'] === 'warning' ? 'warn' : $check['level'] }}">
-                        <div class="check-item-dot"></div>
-                        <span class="check-item-message"><b class="check-item-level">{{ $levelLabels[$check['level']] ?? '' }}:</b> {{ $check['message'] }} <small>{{ $check['recommendation'] }}</small></span>
-                        <a class="check-item-action" href="{{ $onMap }}">Prikaži na mapi <b>→</b></a>
-                    </div>
-                @empty
-                    <div class="check-item ok">
-                        <div class="check-item-dot"></div>
-                        <span>Nisu pronađene tehničke greške ni upozorenja. Projekat je tehnički ispravan.</span>
-                    </div>
-                @endforelse
-                @if($checks->count() > $visibleItems)
-                    <a class="check-more" href="{{ route('projects.show', $project) }}">Još {{ number_format($checks->count() - $visibleItems, 0, ',', '.') }} stavki — otvori pregled projekta →</a>
+@if(! $selectedProject)
+    {{-- ═════════════ SVI PROJEKTI ═════════════ --}}
+    @php
+        $rows = collect($overview);
+        $errorTotal = $rows->sum(fn ($row) => $row['health']['errors']);
+        $warningTotal = $rows->sum(fn ($row) => $row['health']['warnings']);
+        $clean = $rows->filter(fn ($row) => $row['health']['issues'] === 0)->count();
+        $rows = $rows->sortByDesc(fn ($row) => [$row['health']['errors'], $row['health']['warnings']])->values();
+    @endphp
+    <section class="rp-kpis">
+        <div class="rp-kpi"><small>Projekti</small><b>{{ $n($rows->count()) }}</b><span>provjereno</span></div>
+        <div class="rp-kpi is-good"><small>Bez problema</small><b>{{ $n($clean) }}</b><span>nema grešaka ni upozorenja</span></div>
+        <div class="rp-kpi {{ $errorTotal ? 'is-bad' : 'is-good' }}"><small>Greške</small><b>{{ $n($errorTotal) }}</b><span>treba ispraviti</span></div>
+        <div class="rp-kpi {{ $warningTotal ? 'is-warn' : 'is-good' }}"><small>Upozorenja</small><b>{{ $n($warningTotal) }}</b><span>treba pregledati</span></div>
+    </section>
+
+    <section class="rp-card">
+        <div class="rp-card-hd"><div><h2>Projekti</h2><p>Projekti s najviše grešaka su prvi. Klikni projekat za detaljnu provjeru.</p></div></div>
+        @if($rows->count())
+        <div class="rp-table-wrap">
+            <table class="rp-table">
+                <thead><tr><th>Projekat</th><th>Stanje</th><th class="num">Greške</th><th class="num">Upozorenja</th><th class="num">Napomene</th><th>Najčešće</th><th></th></tr></thead>
+                <tbody>
+                @foreach($rows as $row)
+                    @php
+                        $project = $row['project'];
+                        $h = $row['health'];
+                    @endphp
+                    <tr class="rp-row-link" data-href="{{ route('project-check.index', ['project' => $project->id]) }}">
+                        <td><a href="{{ route('project-check.index', ['project' => $project->id]) }}" class="rp-project-name">{{ $project->name }}</a><small>{{ $project->code }} · {{ $n($project->odfs_count) }} ODF · {{ $n($project->cabinets_count) }} ODO · {{ $n($project->houses_count) }} kuća · {{ $n($project->network_routes_count) }} trasa</small></td>
+                        <td>
+                            @if($h['errors'])<span class="rp-pill is-bad">Ima grešaka</span>
+                            @elseif($h['warnings'])<span class="rp-pill is-warn">Za pregled</span>
+                            @else<span class="rp-pill is-good">Uredno</span>@endif
+                        </td>
+                        <td class="num {{ $h['errors'] ? 'pc-num-bad' : '' }}">{{ $n($h['errors']) }}</td>
+                        <td class="num {{ $h['warnings'] ? 'pc-num-warn' : '' }}">{{ $n($h['warnings']) }}</td>
+                        <td class="num">{{ $n($h['infos']) }}</td>
+                        <td class="pc-top">
+                            @forelse($row['top'] as $group)
+                                <span class="pc-top-item is-{{ $group['level'] }}"><i></i>{{ $group['label'] }} <b>{{ $n($group['count']) }}</b></span>
+                            @empty
+                                <span class="pc-muted">—</span>
+                            @endforelse
+                        </td>
+                        <td><a href="{{ route('project-check.index', ['project' => $project->id]) }}" class="rp-link">Provjeri →</a></td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+        @else
+            @include('ftth.partials.empty-state', ['title' => 'Nema projekata', 'message' => 'Provjera projekata će biti dostupna kada dodate prvi projekat.'])
+        @endif
+    </section>
+
+@else
+    {{-- ═════════════ JEDAN PROJEKAT ═════════════ --}}
+    @php
+        $typeCounts = collect($result['items'])->countBy('element_type');
+        $state = $result['errors'] ? 'is-bad' : ($result['warnings'] ? 'is-warn' : 'is-good');
+    @endphp
+    <section class="rp-hero pc-hero {{ $state }}">
+        <div class="rp-hero-main">
+            <small>Provjera projekta</small>
+            <h2>{{ $selectedProject->name }}</h2>
+            <p>{{ $selectedProject->code }} · {{ $n($selectedProject->odfs_count) }} ODF · {{ $n($selectedProject->cabinets_count) }} ODO · {{ $n($selectedProject->houses_count) }} kuća · {{ $n($selectedProject->network_routes_count) }} trasa</p>
+        </div>
+        <div class="pc-verdict">
+            @if($result['errors'])
+                <b>{{ $n($result['errors']) }} {{ $plural($result['errors'], 'greška', 'greške', 'grešaka') }}</b><span>Projekat nije spreman dok se greške ne isprave.</span>
+            @elseif($result['warnings'])
+                <b>Nema grešaka</b><span>{{ $n($result['warnings']) }} {{ $plural($result['warnings'], 'upozorenje', 'upozorenja', 'upozorenja') }} za pregled.</span>
+            @else
+                <b>Sve uredno</b><span>Projekat je prošao sve provjere.</span>
+            @endif
+        </div>
+    </section>
+
+    @if(count($groups))
+    <section class="pc-filters" aria-label="Filter provjere">
+        <div class="pc-chips" role="group" aria-label="Nivo">
+            <button type="button" class="pc-chip is-active" data-pc-level="all">Sve <b>{{ $n(count($result['items'])) }}</b></button>
+            @if($result['errors'])<button type="button" class="pc-chip is-error" data-pc-level="error">Greške <b>{{ $n($result['errors']) }}</b></button>@endif
+            @if($result['warnings'])<button type="button" class="pc-chip is-warning" data-pc-level="warning">Upozorenja <b>{{ $n($result['warnings']) }}</b></button>@endif
+            @if($result['infos'])<button type="button" class="pc-chip is-info" data-pc-level="info">Napomene <b>{{ $n($result['infos']) }}</b></button>@endif
+        </div>
+        <div class="pc-chips" role="group" aria-label="Element">
+            <button type="button" class="pc-chip is-active" data-pc-type="all">Svi elementi</button>
+            @foreach($typeLabels as $type => $label)
+                @if($typeCounts[$type] ?? 0)<button type="button" class="pc-chip" data-pc-type="{{ $type }}">{{ $label }} <b>{{ $n($typeCounts[$type]) }}</b></button>@endif
+            @endforeach
+        </div>
+        <input type="search" id="pc-search" class="pc-search" placeholder="Traži npr. K-006 ili ZO-001" aria-label="Pretraga stavki">
+    </section>
+
+    <section class="pc-groups">
+        @foreach($groups as $group)
+            <details class="pc-group is-{{ $group['level'] }}" data-level="{{ $group['level'] }}" data-type="{{ $group['element_type'] }}" @if($group['level'] === 'error' || count($groups) <= 3) open @endif>
+                <summary>
+                    <i class="pc-dot"></i>
+                    <span class="pc-group-title">
+                        <b>{{ $group['label'] }}</b>
+                        @if($group['recommendation'])<small>{{ $group['recommendation'] }}</small>@endif
+                    </span>
+                    <span class="pc-group-meta">
+                        <em>{{ $levelLabels[$group['level']] ?? '' }}</em>
+                        <span class="pc-type">{{ $typeLabels[$group['element_type']] ?? $group['element_type'] }}</span>
+                        <strong class="pc-count" data-total="{{ $group['count'] }}">{{ $n($group['count']) }}</strong>
+                    </span>
+                </summary>
+                <ul class="pc-items">
+                    @foreach(array_slice($group['items'], 0, $rowLimit) as $item)
+                        <li data-text="{{ mb_strtolower($item['message'].' '.$item['recommendation']) }}">
+                            <span class="pc-item-text">{{ $item['message'] }}@unless($group['recommendation'])<small>{{ $item['recommendation'] }}</small>@endunless</span>
+                            <a href="{{ $mapLink($selectedProject, $item) }}" class="pc-map">Na mapi →</a>
+                        </li>
+                    @endforeach
+                </ul>
+                @if($group['count'] > $rowLimit)
+                    <p class="pc-more">Prikazano prvih {{ $rowLimit }} od {{ $n($group['count']) }}. Ispravi ove pa osvježi stranicu.</p>
                 @endif
-            </div>
-        </article>
-    @empty
-        @include('ftth.partials.empty-state', ['title' => 'Nema projekata', 'message' => 'Provjera projekata će biti dostupna kada dodate prvi projekat.'])
-    @endforelse
-</section>
+            </details>
+        @endforeach
+        <p class="rp-empty pc-no-match" hidden>Nijedna stavka ne odgovara filteru.</p>
+    </section>
+    @else
+        <section class="rp-card"><div class="rp-note is-good">Nisu pronađene greške ni upozorenja. Projekat je tehnički ispravan.</div></section>
+    @endif
+@endif
+</div>
+
+<script nonce="{{ Vite::cspNonce() }}">
+    document.querySelectorAll('.rp-row-link').forEach((row) => row.addEventListener('click', (event) => {
+        if (!event.target.closest('a, button')) window.location.href = row.dataset.href;
+    }));
+    (() => {
+        const groups = [...document.querySelectorAll('.pc-group')];
+        if (!groups.length) return;
+        const state = { level: 'all', type: 'all', text: '' };
+        const noMatch = document.querySelector('.pc-no-match');
+        const apply = () => {
+            let shown = 0;
+            groups.forEach((group) => {
+                const fits = (state.level === 'all' || group.dataset.level === state.level) && (state.type === 'all' || group.dataset.type === state.type);
+                let visible = 0;
+                group.querySelectorAll('.pc-items li').forEach((item) => {
+                    const match = fits && (!state.text || item.dataset.text.includes(state.text));
+                    item.hidden = !match;
+                    if (match) visible++;
+                });
+                const count = group.querySelector('.pc-count');
+                count.textContent = state.text ? `${visible} / ${count.dataset.total}` : Number(count.dataset.total).toLocaleString('bs');
+                group.hidden = !fits || (state.text && visible === 0);
+                if (!group.hidden) shown++;
+                if (state.text && visible) group.open = true;
+            });
+            if (noMatch) noMatch.hidden = shown > 0;
+        };
+        const bind = (attr, key) => document.querySelectorAll(`[data-pc-${attr}]`).forEach((chip) => chip.addEventListener('click', () => {
+            state[key] = chip.dataset[`pc${attr[0].toUpperCase()}${attr.slice(1)}`];
+            document.querySelectorAll(`[data-pc-${attr}]`).forEach((other) => other.classList.toggle('is-active', other === chip));
+            apply();
+        }));
+        bind('level', 'level');
+        bind('type', 'type');
+        let timer;
+        document.getElementById('pc-search')?.addEventListener('input', (event) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { state.text = event.target.value.trim().toLowerCase(); apply(); }, 150);
+        });
+    })();
+</script>
 @endsection
